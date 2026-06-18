@@ -4,8 +4,10 @@ import type { HoldingId } from '../types/ids'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopOccupation } from '../types/popGroup'
+import type { PopClass, PopOccupation } from '../types/popGroup'
+import type { RealEstateKind } from '../types/realEstateAsset'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { clamp } from '../utils/math'
 
 // v0.48.1 §3: condition による生産 effectiveness。閾値以上は full (1.0)、未満は線形低下 (下限 minFloor)。
@@ -25,23 +27,35 @@ export function getHoldingDevelopment(
   config: SimulationConfig,
   holdingId: HoldingId,
 ): number {
-  const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string]
-  if (!improvementIds || improvementIds.length === 0) return 0
-
   let development = 0
-  for (const impId of improvementIds) {
-    const imp = state.holdingImprovements[impId]
-    if (!imp) continue
-    const score = config.holdingImprovementDevelopmentScorePerLevel[imp.kind]
-    if (score !== undefined) {
-      const eff = conditionEffectiveness(
-        imp.condition,
-        config.facilityDisrepairThreshold,
-        config.facilityDisrepairMinEffectiveness,
-      )
-      development += imp.level * score * eff
+
+  const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string]
+  if (improvementIds) {
+    for (const impId of improvementIds) {
+      const imp = state.holdingImprovements[impId]
+      if (!imp) continue
+      const score = config.holdingImprovementDevelopmentScorePerLevel[imp.kind]
+      if (score !== undefined) {
+        const eff = conditionEffectiveness(
+          imp.condition,
+          config.facilityDisrepairThreshold,
+          config.facilityDisrepairMinEffectiveness,
+        )
+        development += imp.level * score * eff
+      }
     }
   }
+
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string]
+  if (assetIds) {
+    for (const aId of assetIds) {
+      const asset = state.realEstateAssets[aId]
+      if (!asset) continue
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      development += asset.level * def.developmentScorePerLevel
+    }
+  }
+
   return development
 }
 
@@ -96,47 +110,78 @@ export function getHoldingImprovementEffectiveLevel(
   return 0
 }
 
-// v0.33 §10.5: state 非依存の純粋 capacity helper。selector / worldgen seeding 双方から呼ぶ。
-// capacity(holding, occupation) = (base + improvementDerivedCapacity) * weight * landQuality
-// capacity 側では developmentModifier を使わない（§6.3 二重計上回避）。
+export function computeInfrastructureModifier(
+  realEstateKind: RealEstateKind,
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+): number {
+  const modDefs = config.realEstateInfrastructureModifiers[realEstateKind]
+  let product = 1.0
+  for (const modDef of modDefs) {
+    for (const imp of improvements) {
+      if (imp.kind !== modDef.infraKind) continue
+      const eff = conditionEffectiveness(
+        imp.condition,
+        config.facilityDisrepairThreshold,
+        config.facilityDisrepairMinEffectiveness,
+      )
+      product *= 1 + imp.level * modDef.modifierPerLevel * eff
+    }
+  }
+  return product
+}
+
+export function computeSlotOveruseModifier(
+  usedSlots: number,
+  currentSlotCapacity: number,
+  config: SimulationConfig,
+): number {
+  if (currentSlotCapacity <= 0) return config.minSlotOveruseModifier
+  if (usedSlots <= currentSlotCapacity) return 1.0
+  return clamp(currentSlotCapacity / usedSlots, config.minSlotOveruseModifier, 1.0)
+}
+
+// v0.52: RealEstateAsset ベースの capacity 算出。
+// capacity = Σ(asset の該当 employmentSlot × level × terrainMult × featureMult × infraMod) × slotOveruseMod × weight × landQuality
 export function computeHoldingOccupationCapacity(
-  holdingKind: HoldingKind,
+  _holdingKind: HoldingKind,
   weight: number,
   landQuality: number,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
-  // v0.48.1 §3: condition を必須にし、capacity を組み立てる全 builder に注入を強制する
-  // (optional だと popSelectors.ts の渡し忘れが effectiveness=未注入で静かに死ぬ)。
   improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
   config: SimulationConfig,
   occupation: PopOccupation,
+  popClass?: PopClass,
+  assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number; usesSlot: boolean }>,
+  slotOveruseModifier?: number,
 ): number {
   if (occupation === 'none') return 0
-  const base = config.occupationCapacityBaseByHoldingKind[holdingKind][occupation]
 
   let derived = 0
-  for (const imp of improvements) {
-    // capacityPerLevel[kind][occupation] 未定義 → その occupation の寄与は 0
-    const perLevel = config.holdingImprovementOccupationCapacityPerLevel[imp.kind][occupation]
-    if (perLevel === undefined) continue
-    // terrainMultiplier 未定義 → 1.0（clamp なし）
-    const terrainMult = config.holdingImprovementTerrainCapacityMultiplier[imp.kind][terrain] ?? 1.0
-    // featureMultiplier = clamp(Π(該当 feature の積), 0.75, 1.50)。feature 無→空積 1.0
-    let featureProduct = 1.0
-    for (const f of features) {
-      featureProduct *= config.holdingImprovementFeatureCapacityMultiplier[imp.kind][f] ?? 1.0
+  if (assets && assets.length > 0) {
+    for (const asset of assets) {
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      for (const slot of def.employmentSlots) {
+        if (slot.occupation !== occupation) continue
+        if (popClass !== undefined && slot.popClass !== popClass) continue
+
+        const terrainMult =
+          config.realEstateTerrainCapacityMultiplier[asset.realEstateKind][terrain] ?? 1.0
+        let featureProduct = 1.0
+        for (const f of features) {
+          featureProduct *=
+            config.realEstateFeatureCapacityMultiplier[asset.realEstateKind][f] ?? 1.0
+        }
+        const featureMult = clamp(featureProduct, 0.75, 1.5)
+        const infraMod = computeInfrastructureModifier(asset.realEstateKind, improvements, config)
+        derived += slot.capacityPerLevel * asset.level * terrainMult * featureMult * infraMod
+      }
     }
-    const featureMult = clamp(featureProduct, 0.75, 1.5)
-    // v0.48.1 §3: 機能不全で雇用 capacity も低下 (development と並列の乗数)
-    const eff = conditionEffectiveness(
-      imp.condition,
-      config.facilityDisrepairThreshold,
-      config.facilityDisrepairMinEffectiveness,
-    )
-    derived += imp.level * perLevel * terrainMult * featureMult * eff
   }
 
-  return (base + derived) * weight * landQuality
+  const overuseMod = slotOveruseModifier ?? 1.0
+  return derived * overuseMod * weight * landQuality
 }
 
 // v0.33 §9.1: state 非依存の建設可否判定。worldgen 初期生成からも呼ぶ。
@@ -162,6 +207,58 @@ export function canBuildHoldingImprovementPure(
   if (maxLevel <= 0) return false
   if (currentLevel >= maxLevel) return false
   return true
+}
+
+export function canBuildRealEstateAssetPure(
+  holdingKind: HoldingKind,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  currentLevel: number,
+  kind: RealEstateKind,
+): boolean {
+  const def = REAL_ESTATE_DEFINITIONS[kind]
+  if (!def.allowedHoldingKinds.includes(holdingKind)) return false
+  if (def.allowedTerrains && !def.allowedTerrains.includes(terrain)) return false
+  if (def.requiredAnyFeatures && def.requiredAnyFeatures.length > 0) {
+    if (!def.requiredAnyFeatures.some((f) => features.includes(f))) return false
+  }
+  const maxLevel = def.maxLevelByHoldingKind[holdingKind] ?? 0
+  if (maxLevel <= 0) return false
+  if (currentLevel >= maxLevel) return false
+  return true
+}
+
+export function getRealEstateAssetLevel(
+  state: WorldState,
+  holdingId: HoldingId,
+  kind: RealEstateKind,
+): number {
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string]
+  if (!assetIds) return 0
+  for (const aId of assetIds) {
+    const asset = state.realEstateAssets[aId]
+    if (asset && asset.realEstateKind === kind) return asset.level
+  }
+  return 0
+}
+
+export function canBuildRealEstateAsset(
+  state: WorldState,
+  holdingId: HoldingId,
+  kind: RealEstateKind,
+): boolean {
+  const holding = state.holdings[holdingId]
+  if (!holding) return false
+  const province = state.provinces[holding.provinceId]
+  if (!province) return false
+  const currentLevel = getRealEstateAssetLevel(state, holdingId, kind)
+  return canBuildRealEstateAssetPure(
+    holding.kind,
+    province.terrain,
+    province.features,
+    currentLevel,
+    kind,
+  )
 }
 
 // state を取る薄いラッパ。currentLevel は既存 improvement から導出。

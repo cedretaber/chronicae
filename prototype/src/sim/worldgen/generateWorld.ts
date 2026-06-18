@@ -18,7 +18,9 @@ import {
   createHoldingId,
   createPersonId,
   createHoldingImprovementId,
+  createRealEstateAssetId,
 } from '../types/ids'
+import type { RealEstateAssetId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
@@ -39,6 +41,9 @@ import type {
 } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import type { HoldingImprovement, HoldingImprovementKind } from '../types/holdingImprovement'
+import type { RealEstateAsset, RealEstateKind } from '../types/realEstateAsset'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { canBuildRealEstateAssetPure } from '../selectors/holdingImprovementSelectors'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createRng, randomInt, randomFloat } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -1396,6 +1401,111 @@ export function generateWorld(
     }
   }
 
+  // v0.52: RealEstateAsset 初期配置
+  const realEstateAssets: Record<RealEstateAssetId, RealEstateAsset> = {}
+  const realEstateAssetIndexByHolding: Record<string, RealEstateAssetId[]> = {}
+  let nextRealEstateAssetId = 0
+
+  const ALL_REAL_ESTATE_KINDS = Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]
+
+  for (const holding of Object.values(holdingsRecord)) {
+    if (!holding) continue
+    const province = provincesRecord[holding.provinceId]
+    if (!province) continue
+
+    // 1. fixedInstitution 確定生成 (RNG draw なし)
+    for (const kind of ALL_REAL_ESTATE_KINDS) {
+      const def = REAL_ESTATE_DEFINITIONS[kind]
+      if (!def.fixedInstitution) continue
+      if (!def.allowedHoldingKinds.includes(holding.kind)) continue
+      const id = createRealEstateAssetId(nextRealEstateAssetId++)
+      realEstateAssets[id] = {
+        id,
+        holdingId: holding.id,
+        realEstateKind: kind,
+        level: 1,
+        usesSlot: false,
+        fixedInstitution: true,
+        createdWeek: 1,
+      }
+      const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
+      slot.push(id)
+      realEstateAssetIndexByHolding[holding.id as string] = slot
+    }
+
+    // 2. chance table + capacity target 補完
+    const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+    let usedSlots = 0
+
+    const buildableSlotKinds = ALL_REAL_ESTATE_KINDS.filter((kind) => {
+      const def = REAL_ESTATE_DEFINITIONS[kind]
+      if (def.fixedInstitution) return false
+      if (!def.usesSlot) return false
+      return canBuildRealEstateAssetPure(holding.kind, province.terrain, province.features, 0, kind)
+    })
+
+    for (const kind of buildableSlotKinds) {
+      if (usedSlots >= slotCap) break
+      const { value: roll, rng: rNext } = randomFloat(rng)
+      rng = rNext
+      if (roll < 0.6) {
+        const id = createRealEstateAssetId(nextRealEstateAssetId++)
+        realEstateAssets[id] = {
+          id,
+          holdingId: holding.id,
+          realEstateKind: kind,
+          level: 1,
+          usesSlot: true,
+          fixedInstitution: false,
+          createdWeek: 1,
+        }
+        const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
+        slot.push(id)
+        realEstateAssetIndexByHolding[holding.id as string] = slot
+        usedSlots++
+      }
+    }
+
+    // 3. capacity target 補完: slot capacity に余裕があれば primary kind を 1 つ追加
+    if (usedSlots < slotCap && buildableSlotKinds.length > 0) {
+      const primaryKind = buildableSlotKinds[0]
+      if (primaryKind) {
+        const existingLevel = (() => {
+          const assetIds = realEstateAssetIndexByHolding[holding.id as string] ?? []
+          for (const aId of assetIds) {
+            const a = realEstateAssets[aId]
+            if (a && a.realEstateKind === primaryKind) return a.level
+          }
+          return 0
+        })()
+        if (
+          existingLevel === 0 &&
+          canBuildRealEstateAssetPure(
+            holding.kind,
+            province.terrain,
+            province.features,
+            0,
+            primaryKind,
+          )
+        ) {
+          const id = createRealEstateAssetId(nextRealEstateAssetId++)
+          realEstateAssets[id] = {
+            id,
+            holdingId: holding.id,
+            realEstateKind: primaryKind,
+            level: 1,
+            usesSlot: true,
+            fixedInstitution: false,
+            createdWeek: 1,
+          }
+          const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
+          slot.push(id)
+          realEstateAssetIndexByHolding[holding.id as string] = slot
+        }
+      }
+    }
+  }
+
   // polityIndex.byOwnerHouse
   const polityIndex: PolityIndex = { byOwnerHouse: {} }
   for (const polity of polities) {
@@ -1514,6 +1624,23 @@ export function generateWorld(
         if (imp)
           seedImprovements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
       }
+      const seedAssetIds = realEstateAssetIndexByHolding[holding.id as string] ?? []
+      const seedAssets: { realEstateKind: RealEstateKind; level: number; usesSlot: boolean }[] = []
+      for (const aId of seedAssetIds) {
+        const a = realEstateAssets[aId]
+        if (a)
+          seedAssets.push({
+            realEstateKind: a.realEstateKind,
+            level: a.level,
+            usesSlot: a.usesSlot,
+          })
+      }
+      const usedSlots = seedAssets.filter((a) => a.usesSlot).length
+      const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+      const overuseMod =
+        usedSlots <= slotCap
+          ? 1.0
+          : Math.max(defaultConfig.minSlotOveruseModifier, slotCap / usedSlots)
       const agriCap = computeHoldingOccupationCapacity(
         holding.kind,
         holding.weight,
@@ -1523,6 +1650,9 @@ export function generateWorld(
         seedImprovements,
         defaultConfig,
         'agriculture',
+        'peasants',
+        seedAssets,
+        overuseMod,
       )
       const urbanCap = computeHoldingOccupationCapacity(
         holding.kind,
@@ -1533,6 +1663,9 @@ export function generateWorld(
         seedImprovements,
         defaultConfig,
         'urban_labor',
+        'townsmen',
+        seedAssets,
+        overuseMod,
       )
       const eliteCap = computeHoldingOccupationCapacity(
         holding.kind,
@@ -1543,6 +1676,9 @@ export function generateWorld(
         seedImprovements,
         defaultConfig,
         'elite_service',
+        'nobles',
+        seedAssets,
+        overuseMod,
       )
 
       const { value: fillPct, rng: rf1 } = randomInt(
@@ -1732,10 +1868,10 @@ export function generateWorld(
     holdingImprovements,
     holdingImprovementIndex: { byHolding: holdingImprovementIndexByHolding },
     nextHoldingImprovementId,
-    // v0.52 RealEstateAsset (Phase 2 の worldgen で正式生成)
-    realEstateAssets: {},
-    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
-    nextRealEstateAssetId: 0,
+    // v0.52 RealEstateAsset
+    realEstateAssets,
+    realEstateAssetIndex: { byHolding: realEstateAssetIndexByHolding, byOwner: {} },
+    nextRealEstateAssetId,
     // v0.26 Project system
     projects: {},
     projectIndex: {

@@ -3,8 +3,12 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { RealEstateKind } from '../types/realEstateAsset'
 import { clamp } from '../utils/math'
-import { computeHoldingOccupationCapacity } from './holdingImprovementSelectors'
+import {
+  computeHoldingOccupationCapacity,
+  computeSlotOveruseModifier,
+} from './holdingImprovementSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -224,7 +228,7 @@ export function getHoldingOccupationCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-  _popClass: PopClass,
+  popClass: PopClass,
   occupation: PopOccupation,
 ): number {
   if (occupation === 'none') return 0
@@ -232,14 +236,30 @@ export function getHoldingOccupationCapacity(
   if (!holding) return 0
   const province = state.provinces[holding.provinceId]
   if (!province) return 0
-  // v0.33 §6.3: (base + improvementDerivedCapacity) * weight * landQuality。devMod は使わない。
+
   const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
   const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
   for (const impId of improvementIds) {
     const imp = state.holdingImprovements[impId]
-    // v0.48.1 §3: condition を渡して capacity 側の機能不全 effectiveness を有効化する (★)
     if (imp) improvements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
   }
+
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  const assets: { realEstateKind: RealEstateKind; level: number; usesSlot: boolean }[] = []
+  for (const aId of assetIds) {
+    const asset = state.realEstateAssets[aId]
+    if (asset)
+      assets.push({
+        realEstateKind: asset.realEstateKind,
+        level: asset.level,
+        usesSlot: asset.usesSlot,
+      })
+  }
+
+  const usedSlots = assets.filter((a) => a.usesSlot).length
+  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
+
   return computeHoldingOccupationCapacity(
     holding.kind,
     holding.weight,
@@ -249,6 +269,9 @@ export function getHoldingOccupationCapacity(
     improvements,
     config,
     occupation,
+    popClass,
+    assets,
+    overuseMod,
   )
 }
 
