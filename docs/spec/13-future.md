@@ -6,7 +6,7 @@
 
 ### War 拡張系
 
-War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battlefield、永続 Regiment（損耗ループ・補充・再編成）は実装済み（§6.45 / §3.9a / §3.9b / §3.9c / §6.48 / §6.49 / §6.50）。以下は後続で段階導入する。
+War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battlefield、永続 Regiment（損耗ループ・補充・再編成）、**v0.49 会戦スロットモデル**（戦列スロット・三すくみ戦術・側面/突破/追撃・恒久 BattleLog）は実装済み（§6.45 / §3.9a / §3.9b / §3.9c / §3.9d / §6.48 / §6.49 / §6.50 / §6.51b）。以下は後続で段階導入する。
 
 - **膠着戦の裾の圧縮**: 「ほぼ互角の戦争が長引く裾」を圧縮する機構（戦争期間上限の短縮 / 膠着時 urgency drift 等）。
 - **包囲戦 (siege)**: BattlefieldKind `siege` は型のみで存在し未生成。攻城戦の解決ロジックを実装する。
@@ -15,8 +15,15 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 - **支援の撤回・不参戦の記録**: `DIPLOMATIC_SUPPORT_WITHDRAWN` / `DIPLOMATIC_SUPPORT_FAILED_TO_JOIN` / `WAR_PARTICIPANT_LEFT`（将来予約）。v0.43 では「宣言したが参戦しなかった」は宣言/参戦イベントのペア有無で読める仕様とし、撤回イベントは出さない。supporter inactive の War 除去も無音。
 - **revolt suppressor side の支援**: v0.43 では rebel/commonwealth side のみ supporter 勧誘可能（鎮圧側まで支援者を増やすと叛乱がさらに勝ちにくくなるため）。後続で対称化を検討。
 - **Regiment の細分化**: strength / morale を training / equipment 等へ細分化、morale を動的化（現状は reform 時のみ書き込み）。
-- **Battle の内部 tick / frontline simulation**: 戦闘内部の段階的シミュレーション。
 - **連隊の専用 event**: REGIMENT_MOBILIZED / DESTROYED 等（現状は BATTLE_OCCURRED の counts-only enrich + REGIMENT_REFORMED のみ）。
+- **v0.49 会戦スロットモデルの将来課題（§6.45 で意図的に先送り）**:
+  - **会戦 replay UI**: BattleLog.tickLogs（slot 推移・戦術・突破/追撃/壊滅）を tick 送りで再生する専用 UI。データは恒久化済み、描画 UI が未実装（branch `feat/battle-replay-ui` で着手中）。
+  - **per-feat 専用 SimEvent**: `BATTLE_BREAKTHROUGH` / `BATTLE_PURSUIT` / `REGIMENT_DESTROYED_IN_BATTLE` / `COMMANDER_FEAT_RECORDED` / `COMMANDER_FAILURE_RECORDED` は v0.49 では**追加せず**、詳細を BattleLog.tickLogs に保持した。低頻度・高重要度のもののみ将来 SimEvent 化する。
+  - **dynamic frontage**: 現状 effectiveFrontage は base or 捕捉縮小のみ。天候・戦術・地形複雑度・作戦による幅変動を追加。
+  - **encirclement outcomeQuality**: `BattleOutcomeQuality` の `encirclement` は型予約のみ。包囲殲滅の本格判定を導入。
+  - **兵種の拡張（騎兵の特殊連隊化）**: v0.49 段階で worldgen の連隊は当面すべて infantry に揃えた（騎兵自動生成を停止。§3 RegimentTroopKind 注記）。騎兵を「特殊な連隊」として別設計で再導入し、弓兵・砲兵等の兵種追加・formation / stance も検討する。
+  - **追撃-壊滅式の堅牢化**: pursuit destroyed の致死量（`accumulatedOrgDamage` 押し上げ）が終局式の outcome/powerDis 係数を含まず、default config では境界値ちょうど `strengthAfter=0`。係数を弱めると未達になり「tick ログ上 destroyed だが regimentResults 上は生存」の乖離が起き得る既知の脆弱性（§6.45）。終局式と同じ係数を致死量算出に織り込むか、destroyedCause 判定を tick ログ側と一致させる。
+  - **戦場ログの外部退避**: BattleLog の major 恒久保存は Chronicle 同様の長期蓄積項。disk / append-only log への退避で minor 含む全ログ保存へ拡張。
 - **開戦 AI の連隊在庫 gate**: 0 連隊での開戦抑止。
 - **厭戦感情ほか**: `HouseWarState` / warWeariness / casualties（POP casualties）/ 強制徴募。
 - **兵站・補給**: supply demand / local requisition / treasury supply / terrain・feature 補給補正。
