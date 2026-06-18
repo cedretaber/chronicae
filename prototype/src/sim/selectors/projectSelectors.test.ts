@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State, withHouse, withPerson, withPolity } from '../testFixtures'
+import { makeEmptyV016State, withHouse, withPerson, withPolity, withAim } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
-import { selectProjectSupervisor } from './projectSelectors'
+import { selectProjectSupervisor, selectProjectCreator } from './projectSelectors'
 import type { WorldState } from '../types/world'
-import type { FactionId, FactionMembershipId, HouseId, PersonId, PolityId } from '../types/ids'
+import type {
+  AimId,
+  FactionId,
+  FactionMembershipId,
+  HouseId,
+  PersonId,
+  PolityId,
+} from '../types/ids'
 
 // ─── 派閥 (客分・食客) の supervisor 候補参加 (§12.4: 介入は anchor Polity のみ) ──
 
@@ -184,5 +191,38 @@ describe('selectProjectSupervisor の性別役職適格ゲート (v0.45.3)', () 
       CREATOR,
     )
     expect(result).toBe(CLIENT)
+  })
+})
+
+// ─── established commonwealth (共和国) の Goal 駆動 Project creator 解決 ───
+// 共和国は ownerHouse を持たないため getPolityHouseIds が空 → 旧実装では
+// getCandidatePersonIds が空配列を返し selectProjectCreator が undefined になり、
+// goalMaintenance → aim まで進んでも projectPreparation が creator 不在で永久に
+// Project を生成できなかった。republic 候補プールを creator 母集合に union して解消する。
+
+describe('selectProjectCreator: established commonwealth の Goal 駆動 Project', () => {
+  function makeCommonwealthAimState(): { ws: WorldState; aimId: AimId } {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, 'hh-cw' as HouseId)
+    ws = withPolity(ws, 'dp-cw' as PolityId, {
+      kind: 'commonwealth',
+      revoltState: { kind: 'established' },
+    })
+    // 共和国市民: 家を持つが何も支配しない (= recruitable outsider として republic 候補プールに入る)
+    ws = withPerson(ws, 'pe-citizen' as PersonId, { houseId: 'hh-cw' as HouseId })
+    const aimId = 'am-cw' as AimId
+    ws = withAim(ws, aimId, { kind: 'polity', id: 'dp-cw' as PolityId }, 'develop_owned_holding')
+    return { ws, aimId }
+  }
+
+  it('共和国 polity の aim は republic 候補プールから creator を選べる', () => {
+    const { ws, aimId } = makeCommonwealthAimState()
+    const aim = ws.aims[aimId]
+    expect(aim).toBeDefined()
+    if (!aim) return
+
+    const creator = selectProjectCreator(ws, defaultConfig, aim)
+
+    expect(creator).toBe('pe-citizen' as PersonId)
   })
 })
