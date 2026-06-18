@@ -702,6 +702,10 @@ export function generateWorld(
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,
+    // v0.52 RealEstateAsset
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -1334,8 +1338,6 @@ export function generateWorld(
     { kind: HoldingImprovementKind; probability: number }[]
   > = {
     manor: [
-      { kind: 'field_system', probability: 0.4 },
-      { kind: 'pastoral_infrastructure', probability: 0.2 },
       { kind: 'irrigation_infrastructure', probability: 0.3 },
       { kind: 'storage_infrastructure', probability: 0.15 },
       { kind: 'transport_infrastructure', probability: 0.15 },
@@ -1730,6 +1732,10 @@ export function generateWorld(
     holdingImprovements,
     holdingImprovementIndex: { byHolding: holdingImprovementIndexByHolding },
     nextHoldingImprovementId,
+    // v0.52 RealEstateAsset (Phase 2 の worldgen で正式生成)
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {

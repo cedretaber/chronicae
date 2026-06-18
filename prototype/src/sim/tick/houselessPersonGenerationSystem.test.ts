@@ -130,6 +130,9 @@ function makeBaseState(): WorldState {
     nextClanId: 1,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
 }
 

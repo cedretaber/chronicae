@@ -217,6 +217,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -409,6 +412,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -583,6 +589,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -757,6 +766,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -932,6 +944,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -1094,6 +1109,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -1257,6 +1275,9 @@ describe('runIntegritySystem', () => {
       nextClanId: 1,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const errors = collectIntegrityErrors(world)

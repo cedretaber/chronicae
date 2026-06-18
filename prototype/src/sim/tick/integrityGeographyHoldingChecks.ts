@@ -528,18 +528,8 @@ export function checkGeographyAndHoldings(
           })
         }
       }
-      // capacityRole==='capacity' は targetOccupations の capacityPerLevel が正値で存在
-      if (def.capacityRole === 'capacity') {
-        for (const occ of def.targetOccupations ?? []) {
-          const perLevel = config.holdingImprovementOccupationCapacityPerLevel[kind][occ]
-          if (perLevel === undefined || perLevel <= 0) {
-            errors.push({
-              code: 'INTEGRITY_VIOLATION',
-              message: `IMPROVEMENT config: ${kind} capacityRole=capacity but occupationCapacityPerLevel[${occ}]=${perLevel ?? 'undefined'} (§13.3)`,
-            })
-          }
-        }
-      }
+      // v0.52: HoldingImprovement は全て production_quality (infrastructure) に移行。
+      // capacity を直接生む improvement は無い (RealEstateAsset が担う)。
     }
   }
 

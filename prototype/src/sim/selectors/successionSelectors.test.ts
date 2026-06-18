@@ -170,6 +170,9 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     nextClanId: 1,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
 }
 

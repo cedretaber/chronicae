@@ -141,6 +141,10 @@ export function makeEmptyV016State(): WorldState {
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,
+    // v0.52 RealEstateAsset
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {

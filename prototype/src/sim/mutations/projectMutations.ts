@@ -194,7 +194,10 @@ export function getProjectDeadlineWeeks(
 ): number {
   if (isDiplomaticProjectKind(kind)) return config.projectDeadlineWeeksDiplomatic
   if (kind === 'personal_training') return config.personalTrainingDeadlineWeeks
-  if (kind === 'develop_holding' && targetProgress !== undefined) {
+  if (
+    (kind === 'develop_holding' || kind === 'develop_real_estate') &&
+    targetProgress !== undefined
+  ) {
     return Math.ceil(
       config.projectDeadlineWeeksDevelopment *
         (targetProgress / config.projectDefaultTargetProgress),

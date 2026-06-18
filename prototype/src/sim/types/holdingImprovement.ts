@@ -3,8 +3,6 @@ import type { HoldingImprovementId, HoldingId } from './ids'
 export type HoldingImprovementKind =
   | 'storage_infrastructure'
   | 'transport_infrastructure'
-  | 'field_system'
-  | 'pastoral_infrastructure'
   | 'irrigation_infrastructure'
   | 'market_infrastructure'
   | 'workshop_infrastructure'

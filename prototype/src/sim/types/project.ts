@@ -11,6 +11,7 @@ import type {
   DecisionReasonId,
   DiplomaticPlayId,
   CrisisId,
+  RealEstateAssetId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
@@ -18,6 +19,7 @@ import type { AbilityKey } from './person'
 import type { PoliticalRightTargetRef } from './politicalRight'
 import type { InfluenceModifierTargetRef } from './influenceModifier'
 import type { HoldingImprovementKind } from './holdingImprovement'
+import type { RealEstateKind } from './realEstateAsset'
 import type { PressureResponseStance } from './pressure'
 
 type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
@@ -77,6 +79,8 @@ export type ProjectKind =
   | 'revoke_political_right'
   // v0.51 陰謀リファイン: 分家当主交代陰謀。owner=宗家、target=分家 House (旧 replace_house_leader plot)。
   | 'replace_house_leader'
+  // v0.52 不動産開発 Project。owner=Polity、対象 Holding 内に RealEstateAsset を新設 or level up。
+  | 'develop_real_estate'
 
 export type BaseProject = {
   id: ProjectId
@@ -284,6 +288,17 @@ export type HandleCrisisProject = BaseProject & {
   budget: ProjectBudget
 }
 
+// v0.52 不動産開発 Project。owner = Polity。対象 Holding 内に RealEstateAsset を新設 or level up。
+// targetRealEstateAssetId が undefined なら新設、あれば既存 asset の level up。
+export type DevelopRealEstateProject = BaseProject & {
+  kind: 'develop_real_estate'
+  holdingId: HoldingId
+  realEstateKind: RealEstateKind
+  targetRealEstateAssetId?: RealEstateAssetId
+  targetRealEstateLevel: number
+  budget: ProjectBudget
+}
+
 // 影響力個人中心化 Phase 1b: 運動 Project。
 // owner = 資金を出す家 ({kind:'house'})。sponsoredPersonId = 推薦された家メンバー (= supervisor
 // = 受益者)。完遂で sponsoredPersonId に dual-tag 評判 (owner=house→Share / target=polity→influence)
@@ -299,6 +314,7 @@ export type MovementCampaignProject = BaseProject & {
 
 export type Project =
   | DevelopHoldingProject
+  | DevelopRealEstateProject
   | PromotePolicyShiftProject
   | AcquirePoliticalRightProject
   | PatronizeArtistProject

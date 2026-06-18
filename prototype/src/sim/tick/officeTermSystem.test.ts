@@ -133,6 +133,9 @@ function makeBaseState(): WorldState {
     nextPopGroupId: 0,
     clans: {},
     nextClanId: 1,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
 }
 
@@ -761,6 +764,9 @@ describe('expireOfficeTermAssignment', () => {
       nextPopGroupId: 0,
       clans: {},
       nextClanId: 1,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
     return { state, officeId, holderId, houseId, polityId }
   }

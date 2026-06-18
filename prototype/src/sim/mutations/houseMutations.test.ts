@@ -166,6 +166,9 @@ function makeFixture(): {
     nextPersonActivityLogId: 0,
     clans: {},
     nextClanId: 1,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
   return { state, polity1Id, house1Id, provinceId }
 }

@@ -40,13 +40,7 @@ import { resolveCrisisHandlers, createHandleCrisisProjectMut } from './crisisSys
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 
 const PLUNDER_PRIORITY_BY_HOLDING_KIND: Record<string, readonly HoldingImprovementKind[]> = {
-  manor: [
-    'storage_infrastructure',
-    'field_system',
-    'pastoral_infrastructure',
-    'irrigation_infrastructure',
-    'transport_infrastructure',
-  ],
+  manor: ['storage_infrastructure', 'irrigation_infrastructure', 'transport_infrastructure'],
   city: [
     'storage_infrastructure',
     'market_infrastructure',

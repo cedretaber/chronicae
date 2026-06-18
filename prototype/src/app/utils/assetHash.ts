@@ -107,8 +107,8 @@ export function getHoldingImage(
     improvements.find((imp) => imp.kind === k && imp.level >= 1)?.level ?? 0
 
   if (kind === 'manor') {
-    const cropLevel = Math.max(levelOf('field_system'), levelOf('irrigation_infrastructure'))
-    const pastoralLevel = levelOf('pastoral_infrastructure')
+    const cropLevel = levelOf('irrigation_infrastructure')
+    const pastoralLevel = levelOf('storage_infrastructure')
     return pastoralLevel > cropLevel ? holdingManorPasture : holdingManorWheat
   }
 
