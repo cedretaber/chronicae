@@ -10,6 +10,7 @@ import { getRoleScore } from './abilitySelectors'
 import { getPolityLeader } from './officeSelectors'
 import { getHouseDecisionMaker } from './officeSelectors'
 import { getPolityPersonIds } from './polityRelations'
+import { getRepublicPoliticalCandidatePersons } from './republicSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 
@@ -540,9 +541,29 @@ export function getPersonProjectWorkload(
   )
 }
 
-function getCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): PersonId[] {
+function getCandidatePersonIds(
+  state: WorldState,
+  config: SimulationConfig,
+  owner: DecisionSubjectRef,
+): PersonId[] {
   if (owner.kind === 'polity') {
-    return getPolityPersonIds(state, owner.id)
+    const base = getPolityPersonIds(state, owner.id)
+    // commonwealth アリーナ化: established commonwealth は ownerHouse を持たず
+    // getPolityHouseIds → getPolityPersonIds が空になる。republic 候補プールを union して
+    // Goal 駆動 Project の creator/supervisor 母集合を供給する (appointmentSystem /
+    // bailiffAppointmentSystem と同じ getRepublicPoliticalCandidatePersons を使う)。
+    // 非 established / 非 commonwealth では空配列を返すため kingdom には無害。
+    const republic = getRepublicPoliticalCandidatePersons(state, config, owner.id)
+    if (republic.length === 0) return base
+    const seen = new Set<PersonId>(base)
+    const merged = [...base]
+    for (const id of republic) {
+      if (!seen.has(id)) {
+        seen.add(id)
+        merged.push(id)
+      }
+    }
+    return merged
   }
   if (owner.kind === 'house') {
     const house = state.houses[owner.id]
@@ -558,8 +579,12 @@ function getCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): Pe
 // - polity: owner polity に anchor された active 派閥のメンバー
 // - house: 家の生存メンバーが率いる active 派閥のメンバー (家の食客)
 // Project の発案 (creator) は組織内部の人間に限り、派閥は実務の担い手としてのみ参加する。
-function getSupervisorCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): PersonId[] {
-  const base = getCandidatePersonIds(state, owner)
+function getSupervisorCandidatePersonIds(
+  state: WorldState,
+  config: SimulationConfig,
+  owner: DecisionSubjectRef,
+): PersonId[] {
+  const base = getCandidatePersonIds(state, config, owner)
   const seen = new Set<string>(base as string[])
   const extra: PersonId[] = []
 
@@ -606,7 +631,7 @@ export function selectProjectCreator(
   config: SimulationConfig,
   aim: Aim,
 ): PersonId | undefined {
-  const candidates = getCandidatePersonIds(state, aim.owner)
+  const candidates = getCandidatePersonIds(state, config, aim.owner)
   const roleKey = getProjectRoleForAim(aim)
 
   let bestId: PersonId | undefined
@@ -685,7 +710,7 @@ export function selectProjectSupervisor(
   projectKind: ProjectKind,
   creatorPersonId: PersonId,
 ): PersonId | undefined {
-  const candidates = getSupervisorCandidatePersonIds(state, owner)
+  const candidates = getSupervisorCandidatePersonIds(state, config, owner)
   const roleKey = PROJECT_KIND_ROLE_MAP[projectKind]
 
   const creator = state.persons[creatorPersonId]
