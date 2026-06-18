@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-18 (v0.49 会戦スロットモデル — slot 配置 / 三すくみ戦術 / 現場指揮官割当 / 突破・追撃・強制壊滅 / 交戦 contest / 戦列幅縮小 / 恒久 BattleLog を §6.45・§3.9d・§6.51b・§4・§5・§9 へ同期。人物中心の非線形 ability（abilityOutputFactor）は §10.0 に反映。会戦再生 UI は app 層。あわせて v0.48.2 設備の定期保守点検〔condition 3 段モデル / 代官による自動保守〕も §6.6 / §6.6b / §9 に反映済み)
+最終更新: 2026-06-18 (v0.50 騎兵連隊・戦機介入・士気波及 — rank entitlement 騎兵（§6.49b CavalryEntitlementSystem）/ cavalry charge・screen・reserve pursuit / morale rally+shock を §6.45 battle simulation に追記。BattleDestroyedCause に cavalry_charge_pursuit、BattleLogEntry に cavalry_charge / cavalry_pursuit / cavalry_screen / morale_shift を追加。titular Polity の残存 LandContract 除去安全網を §6.53 に追加)
 
 ---
 
