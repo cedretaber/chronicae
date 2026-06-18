@@ -1810,7 +1810,11 @@ battle 解決は純粋 helper `simulateBattle`（`src/sim/helpers/simulateBattle
 - **breakthrough（突破）**: combat damage 後 classify 前に per-pair 判定（`battleBreakthroughBaseChance` + 指揮官能力差 `battleBreakthroughAbilityGapThreshold` 超で eligible）。成功で対象に `routed=true` 強制 + `organization = min(org, effectiveRouteThreshold)` 押下げ + `accumulatedOrgDamage ×= battleBreakthroughOrgDamageMultiplier`(=1.3、combat damage とは別ステップ) + 同 tick pursuit chance bonus。
 - **classify / 除去 / fill**: classify はマークのみ（**既に routed なら survivor に戻さない**）。除去述語は `routed || org <= retreatOrganizationThreshold`、pursuit 判定**後**に slot から外す（reserve には戻らない）。空き slot は同 tick 末に reserve から `centerOutSlotOrder` 順で補充（補充連隊は当 tick 攻撃しない）。frontline 全空きでも reserve があれば継続、両者 fighting 0 で敗北。
 - **pursuit（追撃）**: 退却/敗走した敵 slot `i` を、正面味方 slot `i`（健在）→ 不在なら当 tick その敵を flanking した味方（slot index 昇順で一意）が追撃する。pursuer 不在なら判定せず draw も消費しない。chance は pursuer の `pursuitScore`(=command·0.5+insight·0.35+valor·0.15)・valor・cavalry・戦術有利・突破・地形から成る。成功で `accumulatedOrgDamage ×= battlePursuitOrgDamageMultiplier`(=1.5)。さらに destroyed 抽選（`battlePursuitDestroyedChance`）成功で当該連隊を destroyed 化する: **終局算出で `strengthAfter=0` を直接強制**し、tick ログの destroyed と `regimentResults.destroyedCause` を必ず一致させる（`regimentDestroyedStrengthThreshold=0` 対応。旧実装は `accumulatedOrgDamage` を「致死量」へ押し上げる間接式で、終局式が `strength×product` を引いた結果が浮動小数点誤差でわずかに正に残ると destroyedCause が付かず「ログは壊滅だが連隊は生存」する不整合が default config でも起きていた。原因タグを単一の真実源にして解消）。
-- **内部 tick loop（最大 `battleMaxTicks`）**: combat の双方向 org damage（`battleBaseOrganizationDamage × pairPowerFactor × terrain × tactic × flank × commander × randomFactor`、org 比例 morale damage、effRoute = `routeOrganizationThreshold + max(0, baselineMorale−morale) × moraleRouteThresholdFactor`）。1 tick draw 順は **tactic(atk→def) → engagement damage(slot 昇順・占有かつ対象ありのみ) → breakthrough(eligible のみ) → classify(draw なし) → pursuit(eligible のみ) → fill(draw なし) → log(draw なし)**。
+- **内部 tick loop（最大 `battleMaxTicks`）**: combat の双方向 org damage（`battleBaseOrganizationDamage × pairPowerFactor × terrain × tactic × flank × commander × randomFactor`、org 比例 morale damage、effRoute = `routeOrganizationThreshold + max(0, baselineMorale−morale) × moraleRouteThresholdFactor`）。1 tick draw 順は **tactic(atk→def) → engagement damage(slot 昇順) → breakthrough(eligible のみ) → cavalry charge(v0.50) → classify(draw なし) → pursuit + screen(v0.50) + reserve cavalry pursuit(v0.50) → morale rally/shock(v0.50, draw なし) → remove + fill(draw なし) → log(draw なし)**。
+- **cavalry charge（v0.50 騎兵突撃）**: engagement damage / breakthrough 後・classify 前。reserve cavalry に commander が割当され `breakthroughScore >= battleCavalryChargeCommanderThreshold`(=70) かつ弱った敵 frontline slot がある場合、`battleCavalryChargeBaseChance`(=0.12) × terrain multiplier で判定。成功: `applyBreakthroughEffect`（既存 breakthrough と共有）で target を rout 化。失敗: cavalry に org/morale damage。side ごと `battleCavalryChargeMaxPerBattlePerSide`(=2) 回制限。使用した cavalry は同一 tick 内で screen/pursuit に再使用不可。
+- **cavalry screen（v0.50 撤退援護）**: pursuit phase の per-slot ループ内で pursuer 確定後に判定。被追撃側の reserve cavalry が `battleCavalryScreenBaseChance`(=0.40) × terrain multiplier で screen 成功すると、pursuit chance / destroyed chance / morale shock を `battleCavalryScreenPursuitReduction`(=0.50) で軽減。
+- **reserve cavalry pursuit（v0.50 騎兵追撃）**: 既存 pursuit 後に reserve cavalry が routed/retreated かつ未 destroyed の敵 slot を追撃。`battleCavalryReservePursuitBaseChance`(=0.20) / `battleCavalryReservePursuitDestroyedChance`(=0.10)。
+- **morale rally / shock（v0.50 士気波及）**: remove + fill の前（routed regiment がまだ slot にいるため隣接計算可能）。classify / pursuit / cavalry charge で発生した retreat/rout/destroyed を集計し、味方側に rally（勢い）/ shock（動揺）として morale を増減。per-tick cap あり。cavalry screen 成功時は shock を軽減。閾値 `battleMoraleShiftLogThreshold`(=5) 以上でのみ BattleLog に記録。
 - **result 決定**: 片側 fighting 連隊が尽きれば相手勝利。maxTicks 到達は残存 org 合計の相対差 `battleMaxTicksDecisiveMarginRatio`(=0.1) 超で優勢側勝利、以下は inconclusive。
 - **strength / destroyed**: loop 後に累積 org damage × role（winner/loser/routed）× outcomeQuality × powerDisadvantage で 1 回算出（**終局で一度だけ**）。destroyed 判定は caller が `strengthAfter <= regimentDestroyedStrengthThreshold` で行う（simulateBattle は mutation しない）。`BattleRegimentResult.destroyedCause`（`ordinary_attrition`/`pursuit`/`breakthrough_pursuit`）は**ログ用の原因タグ**で mutation には不要。
 - **BattleLog 生成**: simulateBattle が返した tickLogs・commander 割当を基に **WarManeuver が** BattleLog entity を作成し importance を付与する（§3.9d / §6.45 末尾）。
@@ -1898,6 +1902,19 @@ active Regiment ごとに**順序を厳守**して処理する:
 4. `currentWarId` が live(active) war を指していない（war 無し or terminal）→ **demobilize**（PeaceSettlement / cancel で終結した War に動員が残るのを遅延解除）。さらに `disbandAfterWar === true` の Regiment は demobilize 後に **disband** する。
 
 `disbandAfterWar`（regiment.ts のフラグ）は revolt 用の一時連隊（local_levy）を戦争終結後に退役させる仕組み（§6.44 / §6.46 revolt levies）。disband は war 参照解除を兼ねるため demobilize と二重処理しない。多くの週は土地移転 / 滅亡 / 終戦が無く no-op で素通りする（lazy clone-once）。
+
+### 6.49b CavalryEntitlementSystem（毎週、v0.50）
+
+rank entitlement に基づく騎兵連隊のライフサイクルを一元管理する（`runCavalryEntitlementSystem`）。RegimentMaintenanceSystem の直後・RightConsistencySystem の前に interval 1 で走る。
+
+騎兵連隊は `homeHoldingId` / `homeProvinceId` を持たない `Regiment`（`troopKind: 'cavalry'`, `sourceKind: 'noble_retinue'`）。RegimentReinforcementSystem は `homeHoldingId === undefined` を skip するため、騎兵の lifecycle は本 system が排他的に管理する。
+
+処理順:
+1. **titular owner cavalry → disband**: owner Polity が titular の cavalry を即 disband（§19.2 integrity violation 防止）。
+2. **destroyed cooldown → disband**: `destroyedWeek + cavalryDestroyedCooldownWeeks`（24 週）経過した destroyed cavalry を disband。cooldown 中は entitlement count に含まれるため新規作成されない。
+3. **entitlement 調整**: active non-titular Polity ごとに `cavalryEntitlementByRank[rank]`（default: rank2=2, rank3=1, 他=0）で必要数を算出。active + cooldown 中 destroyed を current count として過不足を調整。不足時は `createRegiment`（`basePower = cavalryEntitlementBasePower`(=10) 固定）で新規作成。超過時は destroyed 優先・effectivePower 昇順で disband。
+
+worldgen: `generateInitialRegiments` の Pass 3 で rank-eligible 非 titular Polity に初期騎兵を生成する。
 
 ### 6.50 RegimentReinforcementSystem（月次・補充・再編成）
 

@@ -1273,6 +1273,40 @@ export type SimulationConfig = {
   houseDomainConsolidationMinOwnedPolityCount: number
   houseDomainConsolidationMinBenefit: number
   houseDomainConsolidationRetryCooldownWeeks: number
+  // === v0.50 騎兵連隊 (cavalryEntitlementSystem) ===
+  cavalryEntitlementByRank: Partial<Record<PolityRank, number>>
+  cavalryEntitlementBasePower: number
+  cavalryDestroyedCooldownWeeks: number
+  // === v0.50 cavalry charge ===
+  battleCavalryChargeBaseChance: number
+  battleCavalryChargeCommanderThreshold: number
+  battleCavalryChargeMaxPerBattlePerSide: number
+  battleCavalryChargeFailureOrgDamage: number
+  battleCavalryChargeFailureMoraleDamage: number
+  battleCavalryChargeTargetOrgThreshold: number
+  battleCavalryChargeTargetMoraleThreshold: number
+  battleCavalryChargeTerrainMultiplierByKind: Record<BattlefieldKind, number>
+  // === v0.50 cavalry screen ===
+  battleCavalryScreenBaseChance: number
+  battleCavalryScreenPursuitReduction: number
+  battleCavalryScreenDestroyedReduction: number
+  battleCavalryScreenMoraleShockReduction: number
+  battleCavalryScreenTerrainMultiplierByKind: Record<BattlefieldKind, number>
+  // === v0.50 cavalry reserve pursuit ===
+  battleCavalryReservePursuitBaseChance: number
+  battleCavalryReservePursuitDestroyedChance: number
+  // === v0.50 morale rally / shock ===
+  battleMoraleRallyPerRetreat: number
+  battleMoraleRallyPerRout: number
+  battleMoraleRallyPerDestroyed: number
+  battleMoraleShockPerRetreat: number
+  battleMoraleShockPerRout: number
+  battleMoraleShockPerDestroyed: number
+  battleMoraleRallyCapPerTick: number
+  battleMoraleShockCapPerTick: number
+  battleMoraleRallyFrontlineRatio: number
+  battleMoraleRallySideRatio: number
+  battleMoraleShiftLogThreshold: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2627,4 +2661,56 @@ export const defaultConfig: SimulationConfig = {
   houseDomainConsolidationMinOwnedPolityCount: 2,
   houseDomainConsolidationMinBenefit: 1,
   houseDomainConsolidationRetryCooldownWeeks: 312,
+  // === v0.50 騎兵連隊 ===
+  cavalryEntitlementByRank: { 1: 0, 2: 2, 3: 1, 4: 0, 5: 0 },
+  cavalryEntitlementBasePower: 10,
+  cavalryDestroyedCooldownWeeks: 24,
+  // === v0.50 cavalry charge ===
+  battleCavalryChargeBaseChance: 0.12,
+  battleCavalryChargeCommanderThreshold: 70,
+  battleCavalryChargeMaxPerBattlePerSide: 2,
+  battleCavalryChargeFailureOrgDamage: 15,
+  battleCavalryChargeFailureMoraleDamage: 10,
+  battleCavalryChargeTargetOrgThreshold: 40,
+  battleCavalryChargeTargetMoraleThreshold: 30,
+  battleCavalryChargeTerrainMultiplierByKind: {
+    open_field: 1.5,
+    coastal_battle: 1.0,
+    hill_battle: 0.7,
+    forest_battle: 0.3,
+    wetland_battle: 0.3,
+    mountain_pass: 0.0,
+    river_crossing: 0.3,
+    siege: 0.0,
+  },
+  // === v0.50 cavalry screen ===
+  battleCavalryScreenBaseChance: 0.4,
+  battleCavalryScreenPursuitReduction: 0.5,
+  battleCavalryScreenDestroyedReduction: 0.5,
+  battleCavalryScreenMoraleShockReduction: 0.5,
+  battleCavalryScreenTerrainMultiplierByKind: {
+    open_field: 1.2,
+    coastal_battle: 1.0,
+    hill_battle: 0.9,
+    forest_battle: 0.8,
+    wetland_battle: 0.7,
+    mountain_pass: 0.7,
+    river_crossing: 0.8,
+    siege: 0.5,
+  },
+  // === v0.50 cavalry reserve pursuit ===
+  battleCavalryReservePursuitBaseChance: 0.2,
+  battleCavalryReservePursuitDestroyedChance: 0.1,
+  // === v0.50 morale rally / shock ===
+  battleMoraleRallyPerRetreat: 1,
+  battleMoraleRallyPerRout: 3,
+  battleMoraleRallyPerDestroyed: 5,
+  battleMoraleShockPerRetreat: 1,
+  battleMoraleShockPerRout: 3,
+  battleMoraleShockPerDestroyed: 5,
+  battleMoraleRallyCapPerTick: 10,
+  battleMoraleShockCapPerTick: 10,
+  battleMoraleRallyFrontlineRatio: 0.3,
+  battleMoraleRallySideRatio: 0.1,
+  battleMoraleShiftLogThreshold: 5,
 }

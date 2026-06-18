@@ -108,6 +108,32 @@ type BattleSimConfigSlice = Pick<
   | 'captainGeneralBattleOrganizationDamageEffectMax'
   | 'captainGeneralRoutResistanceEffectMax'
   | 'routSideRoutedShareThreshold'
+  | 'battleCavalryChargeBaseChance'
+  | 'battleCavalryChargeCommanderThreshold'
+  | 'battleCavalryChargeMaxPerBattlePerSide'
+  | 'battleCavalryChargeFailureOrgDamage'
+  | 'battleCavalryChargeFailureMoraleDamage'
+  | 'battleCavalryChargeTargetOrgThreshold'
+  | 'battleCavalryChargeTargetMoraleThreshold'
+  | 'battleCavalryChargeTerrainMultiplierByKind'
+  | 'battleCavalryScreenBaseChance'
+  | 'battleCavalryScreenPursuitReduction'
+  | 'battleCavalryScreenDestroyedReduction'
+  | 'battleCavalryScreenMoraleShockReduction'
+  | 'battleCavalryScreenTerrainMultiplierByKind'
+  | 'battleCavalryReservePursuitBaseChance'
+  | 'battleCavalryReservePursuitDestroyedChance'
+  | 'battleMoraleRallyPerRetreat'
+  | 'battleMoraleRallyPerRout'
+  | 'battleMoraleRallyPerDestroyed'
+  | 'battleMoraleShockPerRetreat'
+  | 'battleMoraleShockPerRout'
+  | 'battleMoraleShockPerDestroyed'
+  | 'battleMoraleRallyCapPerTick'
+  | 'battleMoraleShockCapPerTick'
+  | 'battleMoraleRallyFrontlineRatio'
+  | 'battleMoraleRallySideRatio'
+  | 'battleMoraleShiftLogThreshold'
 >
 
 export type BattleSimInput = {
@@ -504,6 +530,36 @@ function breakthroughScoreOf(w: WorkRegiment): number {
   return w.commanderBreakthroughScore ?? NEUTRAL_COMMANDER_SCORE
 }
 
+// v0.50 §14.8: breakthrough effect を helper 化 (cavalry charge と既存 breakthrough で共有)。
+function applyBreakthroughEffect(
+  target: WorkRegiment,
+  cfg: BattleSimConfigSlice,
+  cgRoutResist: number,
+  flanked: ReadonlySet<WorkRegiment>,
+): void {
+  target.routed = true
+  const effRoute = effectiveRouteThreshold(target, cfg, cgRoutResist, flanked)
+  target.organization = Math.min(target.organization, effRoute)
+  target.accumulatedOrgDamage *= cfg.battleBreakthroughOrgDamageMultiplier
+}
+
+// v0.50 §14: reserve から action eligible な cavalry を決定的に選択。
+//   org > retreatThreshold かつ usedCavalryThisTick に含まれない cavalry から effectivePower 降順。
+function selectReserveCavalryForAction(
+  reserve: WorkRegiment[],
+  used: ReadonlySet<WorkRegiment>,
+  cfg: BattleSimConfigSlice,
+): WorkRegiment | undefined {
+  let best: WorkRegiment | undefined
+  for (const w of reserve) {
+    if (w.input.troopKind !== 'cavalry') continue
+    if (w.organization <= cfg.retreatOrganizationThreshold) continue
+    if (used.has(w)) continue
+    if (best === undefined || byPowerDescThenId(w, best) < 0) best = w
+  }
+  return best
+}
+
 // v0.49 §13.1: 除去述語。pursuit 判定後に slot から外す対象。
 function shouldRemoveFromSlot(w: WorkRegiment, cfg: BattleSimConfigSlice): boolean {
   return w.routed || w.organization <= cfg.retreatOrganizationThreshold
@@ -597,6 +653,8 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   // 抽選で決まる「強制壊滅」の原因タグ (現状は追撃致死のみ。将来 encirclement 等も同じ Map に集約)。
   //   ここに入った連隊は終局で strengthAfter=0 を強制する。通常消耗 (emergent) の壊滅はここを通さない。
   const forcedDestroyedCause = new Map<WorkRegiment, BattleDestroyedCause>()
+  // v0.50: cavalry charge count per side (battle-wide limit)
+  const cavalryChargeCountBySide: Record<WarSideKey, number> = { attacker: 0, defender: 0 }
 
   // §8.2 両端ケース: 片側 (または双方) が fighting force 0 なら戦闘 tick を回さず即決着する。
   //   tactic 選択を含む draw を一切消費しない (auto-resolve は後続 battle の rng stream を乱さない)。
@@ -699,10 +757,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       rng = draw.rng
       if (draw.value >= cfg.battleBreakthroughBaseChance) return
       // 成功: routed 化 + org を effRoute まで押し下げ + accumulatedOrgDamage 増幅 (§11.3)。
-      e.tgt.routed = true
-      const effRoute = effectiveRouteThreshold(e.tgt, cfg, tgtCgRoutResist, tgtFlanked)
-      e.tgt.organization = Math.min(e.tgt.organization, effRoute)
-      e.tgt.accumulatedOrgDamage *= cfg.battleBreakthroughOrgDamageMultiplier
+      applyBreakthroughEffect(e.tgt, cfg, tgtCgRoutResist, tgtFlanked)
       breakthroughBySide[srcSide] = true
       brokenTargets.add(e.tgt)
       tickEvents.push({
@@ -718,22 +773,151 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     for (const e of defEngagements)
       tryBreakthrough(e, 'defender', flankedAtk, cgRoutResistBySide.attacker)
 
+    // 2.5 cavalry charge (§14: engagement damage / breakthrough 後、classify 前)。
+    //   reserve cavalry が commander score threshold 以上の場合に、弱った敵 frontline を突撃。
+    const usedCavalryThisTick = new Set<WorkRegiment>()
+    type MoraleEvent = {
+      side: WarSideKey
+      slotIndex: number
+      eventKind:
+        | 'enemy_retreat'
+        | 'enemy_rout'
+        | 'enemy_destroyed'
+        | 'friendly_retreat'
+        | 'friendly_rout'
+        | 'friendly_destroyed'
+      screened?: boolean
+    }
+    const moraleEvents: MoraleEvent[] = []
+
+    const tryCavalryCharge = (
+      chargeSide: WarSideKey,
+      enemyLine: BattleLine,
+      friendlyReserve: WorkRegiment[],
+      enemyCgRoutResist: number,
+      enemyFlanked: ReadonlySet<WorkRegiment>,
+    ): void => {
+      const terrainMult = cfg.battleCavalryChargeTerrainMultiplierByKind[input.battlefieldKind] ?? 0
+      if (terrainMult === 0) return
+      if (cavalryChargeCountBySide[chargeSide] >= cfg.battleCavalryChargeMaxPerBattlePerSide) return
+      const cav = selectReserveCavalryForAction(friendlyReserve, usedCavalryThisTick, cfg)
+      if (cav === undefined) return
+      const cmdScore = cav.commanderBreakthroughScore ?? NEUTRAL_COMMANDER_SCORE
+      if (cmdScore < cfg.battleCavalryChargeCommanderThreshold) return
+      // target selection: weakest non-routed/retreated enemy slot
+      let bestSlot = -1
+      let bestOrg = Infinity
+      for (let i = 0; i < enemyLine.slots.length; i++) {
+        const e = enemyLine.slots[i]
+        if (e === undefined || e.routed || e.retreated) continue
+        if (brokenTargets.has(e)) continue
+        const hasWeakness =
+          e.organization <= cfg.battleCavalryChargeTargetOrgThreshold ||
+          e.morale <= cfg.battleCavalryChargeTargetMoraleThreshold ||
+          (i > 0 && enemyLine.slots[i - 1] === undefined) ||
+          (i < enemyLine.slots.length - 1 && enemyLine.slots[i + 1] === undefined)
+        if (!hasWeakness) continue
+        if (e.organization < bestOrg || (e.organization === bestOrg && i < bestSlot)) {
+          bestOrg = e.organization
+          bestSlot = i
+        }
+      }
+      if (bestSlot < 0) return
+      const target = enemyLine.slots[bestSlot]!
+      const chance = clamp(cfg.battleCavalryChargeBaseChance * terrainMult, 0, 0.95)
+      const draw = randomFloat(rng)
+      rng = draw.rng
+      usedCavalryThisTick.add(cav)
+      if (draw.value < chance) {
+        // success
+        applyBreakthroughEffect(target, cfg, enemyCgRoutResist, enemyFlanked)
+        brokenTargets.add(target)
+        breakthroughBySide[chargeSide] = true
+        cavalryChargeCountBySide[chargeSide]++
+        moraleEvents.push({
+          side: chargeSide === 'attacker' ? 'defender' : 'attacker',
+          slotIndex: bestSlot,
+          eventKind: 'friendly_rout',
+        })
+        moraleEvents.push({
+          side: chargeSide,
+          slotIndex: bestSlot,
+          eventKind: 'enemy_rout',
+        })
+        tickEvents.push({
+          kind: 'cavalry_charge',
+          side: chargeSide,
+          cavalryRegimentId: cav.input.regimentId,
+          ...(cav.commanderPersonId !== undefined
+            ? { commanderPersonId: cav.commanderPersonId }
+            : {}),
+          targetRegimentId: target.input.regimentId,
+          targetSlotIndex: bestSlot,
+          result: 'success',
+        })
+      } else {
+        // failure: cavalry takes org/morale damage
+        cav.organization = Math.max(0, cav.organization - cfg.battleCavalryChargeFailureOrgDamage)
+        cav.morale = clamp(
+          cav.morale - cfg.battleCavalryChargeFailureMoraleDamage,
+          0,
+          cav.input.maxMorale,
+        )
+        tickEvents.push({
+          kind: 'cavalry_charge',
+          side: chargeSide,
+          cavalryRegimentId: cav.input.regimentId,
+          ...(cav.commanderPersonId !== undefined
+            ? { commanderPersonId: cav.commanderPersonId }
+            : {}),
+          targetRegimentId: target.input.regimentId,
+          targetSlotIndex: bestSlot,
+          result: 'failure',
+        })
+      }
+    }
+    tryCavalryCharge('attacker', defLine, atkRes, cgRoutResistBySide.defender, flankedDef)
+    tryCavalryCharge('defender', atkLine, defRes, cgRoutResistBySide.attacker, flankedAtk)
+
     // 3. retreat / rout 判定 (マーク only。§13.1)。flanking を受けた連隊は rout しやすい。
     classifyLine(atkLine, cfg, cgRoutResistBySide.attacker, flankedAtk)
     classifyLine(defLine, cfg, cgRoutResistBySide.defender, flankedDef)
+    // collect classify morale events
+    for (let i = 0; i < frontage; i++) {
+      const aw = atkLine.slots[i]
+      if (aw !== undefined && aw.routed && !brokenTargets.has(aw)) {
+        moraleEvents.push({ side: 'attacker', slotIndex: i, eventKind: 'friendly_rout' })
+        moraleEvents.push({ side: 'defender', slotIndex: i, eventKind: 'enemy_rout' })
+      } else if (aw !== undefined && aw.retreated) {
+        moraleEvents.push({ side: 'attacker', slotIndex: i, eventKind: 'friendly_retreat' })
+        moraleEvents.push({ side: 'defender', slotIndex: i, eventKind: 'enemy_retreat' })
+      }
+    }
+    for (let i = 0; i < frontage; i++) {
+      const dw = defLine.slots[i]
+      if (dw !== undefined && dw.routed && !brokenTargets.has(dw)) {
+        moraleEvents.push({ side: 'defender', slotIndex: i, eventKind: 'friendly_rout' })
+        moraleEvents.push({ side: 'attacker', slotIndex: i, eventKind: 'enemy_rout' })
+      } else if (dw !== undefined && dw.retreated) {
+        moraleEvents.push({ side: 'defender', slotIndex: i, eventKind: 'friendly_retreat' })
+        moraleEvents.push({ side: 'attacker', slotIndex: i, eventKind: 'enemy_retreat' })
+      }
+    }
 
-    // 3.5 pursuit (§12: classify 後・除去前。§18.2 step5: attacker 追撃 → defender 追撃、eligible のみ draw)。
-    //   敗走/退却した敵 slot に対し、正面の味方 (なければその敵を flanking 攻撃した味方) が追撃する。
+    // 3.5 pursuit (§12 + v0.50 screen / reserve cavalry pursuit)。
+    const screenTerrainMult =
+      cfg.battleCavalryScreenTerrainMultiplierByKind[input.battlefieldKind] ?? 1
     const tryPursuit = (
-      enemyLine: BattleLine, // 敗走側 (追撃される側)
-      friendlyLine: BattleLine, // 追撃する側
-      engagements: Engagement[], // 追撃側がこの tick に行った engagement (flanker 特定用)
+      enemyLine: BattleLine,
+      friendlyLine: BattleLine,
+      engagements: Engagement[],
       pursuerSide: WarSideKey,
+      enemyReserve: WorkRegiment[],
     ): void => {
+      const enemySide: WarSideKey = pursuerSide === 'attacker' ? 'defender' : 'attacker'
       for (let i = 0; i < frontage; i++) {
         const enemy = enemyLine.slots[i]
         if (enemy === undefined || !(enemy.routed || enemy.retreated)) continue
-        // pursuer 確定: ① 正面 slot i の健全な味方、② いなければ enemy を flanking 攻撃した味方 (slot 昇順)。
         let pursuer: WorkRegiment | undefined
         const front = friendlyLine.slots[i]
         if (front !== undefined && !front.routed && !front.retreated) {
@@ -742,32 +926,54 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
           for (const e of engagements) {
             if (e.tgt === enemy && e.arc === 'flanking' && !e.src.routed && !e.src.retreated) {
               pursuer = e.src
-              break // engagements は slot 昇順なので先頭が最小 slot
+              break
             }
           }
         }
         if (pursuer === undefined) continue
-        // pursuit chance: base × 能力 × (cavalry / 戦術有利 / 突破済 / 開地形) bonus。補助係数は helper 固定値 (§20)。
+
+        // v0.50 cavalry screen: before pursuit chance draw
+        let screenActive = false
+        const screenCav = selectReserveCavalryForAction(enemyReserve, usedCavalryThisTick, cfg)
+        if (screenCav !== undefined) {
+          const screenChance = clamp(cfg.battleCavalryScreenBaseChance * screenTerrainMult, 0, 0.95)
+          const screenDraw = randomFloat(rng)
+          rng = screenDraw.rng
+          if (screenDraw.value < screenChance) {
+            screenActive = true
+            usedCavalryThisTick.add(screenCav)
+            tickEvents.push({
+              kind: 'cavalry_screen',
+              side: enemySide,
+              cavalryRegimentId: screenCav.input.regimentId,
+              screenedRegimentId: enemy.input.regimentId,
+              screenedSlotIndex: i,
+            })
+          }
+        }
+
         const pursuitScore = pursuer.commanderPursuitScore ?? NEUTRAL_COMMANDER_SCORE
         const abilityMult = 1 + clamp((pursuitScore - NEUTRAL_COMMANDER_SCORE) / 50, -0.5, 1)
         const cavalryMult = pursuer.input.troopKind === 'cavalry' ? 1.5 : 1
         const tacticMult = tactics.advantageSide === pursuerSide ? 1.3 : 1
         const breakthroughMult = brokenTargets.has(enemy) ? 1.3 : 1
         const terrainMult = BREAKTHROUGH_KINDS.has(input.battlefieldKind) ? 1.2 : 1
-        const chance = clamp(
+        let pursuitChance =
           cfg.battlePursuitBaseChance *
-            abilityMult *
-            cavalryMult *
-            tacticMult *
-            breakthroughMult *
-            terrainMult,
-          0,
-          0.95,
-        )
+          abilityMult *
+          cavalryMult *
+          tacticMult *
+          breakthroughMult *
+          terrainMult
+        let destroyedChance = cfg.battlePursuitDestroyedChance
+        if (screenActive) {
+          pursuitChance *= cfg.battleCavalryScreenPursuitReduction
+          destroyedChance *= cfg.battleCavalryScreenDestroyedReduction
+        }
+        pursuitChance = clamp(pursuitChance, 0, 0.95)
         const draw = randomFloat(rng)
         rng = draw.rng
-        if (draw.value >= chance) continue
-        // 追撃成功: routed 強制 + accumulatedOrgDamage / morale 増幅。
+        if (draw.value >= pursuitChance) continue
         pursuitOccurred = true
         enemy.routed = true
         enemy.accumulatedOrgDamage *= cfg.battlePursuitOrgDamageMultiplier
@@ -776,18 +982,26 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
           0,
           enemy.input.maxMorale,
         )
-        // destroyed 抽選 (§12.4)。成功した連隊は終局で strengthAfter=0 を強制する (終局算出箇所参照)。
-        //   旧実装は accumulatedOrgDamage を「致死量」へ押し上げる間接式だったが、終局式の outcome/powerDis
-        //   係数を含まず default config の境界値でのみ 0 に届く脆弱性があったため、原因タグを単一の真実源にした。
         const destroyDraw = randomFloat(rng)
         rng = destroyDraw.rng
         let destroyed = false
-        if (destroyDraw.value < cfg.battlePursuitDestroyedChance) {
+        if (destroyDraw.value < destroyedChance) {
           destroyed = true
           forcedDestroyedCause.set(
             enemy,
             brokenTargets.has(enemy) ? 'breakthrough_pursuit' : 'pursuit',
           )
+          moraleEvents.push({
+            side: enemySide,
+            slotIndex: i,
+            eventKind: 'friendly_destroyed',
+            screened: screenActive,
+          })
+          moraleEvents.push({
+            side: pursuerSide,
+            slotIndex: i,
+            eventKind: 'enemy_destroyed',
+          })
         }
         tickEvents.push({
           kind: 'pursuit',
@@ -800,7 +1014,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         if (destroyed) {
           tickEvents.push({
             kind: 'regiment_destroyed',
-            side: pursuerSide === 'attacker' ? 'defender' : 'attacker',
+            side: enemySide,
             regimentId: enemy.input.regimentId,
             slotIndex: i,
             cause: brokenTargets.has(enemy) ? 'breakthrough_pursuit' : 'pursuit',
@@ -808,10 +1022,125 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         }
       }
     }
-    tryPursuit(defLine, atkLine, atkEngagements, 'attacker')
-    tryPursuit(atkLine, defLine, defEngagements, 'defender')
+    tryPursuit(defLine, atkLine, atkEngagements, 'attacker', defRes)
+    tryPursuit(atkLine, defLine, defEngagements, 'defender', atkRes)
 
-    // 4. retreat / rout 連隊を slot から除去 (master には残る) → reserve から補充
+    // 3.5d reserve cavalry pursuit (§17.1: after existing pursuit)
+    const tryReserveCavalryPursuit = (
+      enemyLine: BattleLine,
+      friendlyReserve: WorkRegiment[],
+      pursuerSide: WarSideKey,
+    ): void => {
+      const enemySide: WarSideKey = pursuerSide === 'attacker' ? 'defender' : 'attacker'
+      for (let i = 0; i < frontage; i++) {
+        const enemy = enemyLine.slots[i]
+        if (enemy === undefined || !(enemy.routed || enemy.retreated)) continue
+        if (forcedDestroyedCause.has(enemy)) continue
+        const cav = selectReserveCavalryForAction(friendlyReserve, usedCavalryThisTick, cfg)
+        if (cav === undefined) return
+        const draw = randomFloat(rng)
+        rng = draw.rng
+        if (draw.value >= cfg.battleCavalryReservePursuitBaseChance) continue
+        usedCavalryThisTick.add(cav)
+        pursuitOccurred = true
+        enemy.routed = true
+        enemy.accumulatedOrgDamage *= cfg.battlePursuitOrgDamageMultiplier
+        enemy.morale = clamp(
+          enemy.morale - cfg.routAdditionalMoraleDamage,
+          0,
+          enemy.input.maxMorale,
+        )
+        const destroyDraw = randomFloat(rng)
+        rng = destroyDraw.rng
+        let destroyed = false
+        if (destroyDraw.value < cfg.battleCavalryReservePursuitDestroyedChance) {
+          destroyed = true
+          forcedDestroyedCause.set(enemy, 'cavalry_charge_pursuit')
+          moraleEvents.push({
+            side: enemySide,
+            slotIndex: i,
+            eventKind: 'friendly_destroyed',
+          })
+          moraleEvents.push({
+            side: pursuerSide,
+            slotIndex: i,
+            eventKind: 'enemy_destroyed',
+          })
+        }
+        tickEvents.push({
+          kind: 'cavalry_pursuit',
+          side: pursuerSide,
+          cavalryRegimentId: cav.input.regimentId,
+          targetRegimentId: enemy.input.regimentId,
+          targetSlotIndex: i,
+          destroyed,
+        })
+        if (destroyed) {
+          tickEvents.push({
+            kind: 'regiment_destroyed',
+            side: enemySide,
+            regimentId: enemy.input.regimentId,
+            slotIndex: i,
+            cause: 'cavalry_charge_pursuit',
+          })
+        }
+      }
+    }
+    tryReserveCavalryPursuit(defLine, atkRes, 'attacker')
+    tryReserveCavalryPursuit(atkLine, defRes, 'defender')
+
+    // 4. morale rally / shock (§15: remove+fill の前。routed regiment がまだ slot にいるため隣接計算が可能)。
+    {
+      const rallyBySide: Record<WarSideKey, number> = { attacker: 0, defender: 0 }
+      const shockBySide: Record<WarSideKey, number> = { attacker: 0, defender: 0 }
+      for (const me of moraleEvents) {
+        if (me.eventKind === 'enemy_retreat')
+          rallyBySide[me.side] += cfg.battleMoraleRallyPerRetreat
+        else if (me.eventKind === 'enemy_rout') rallyBySide[me.side] += cfg.battleMoraleRallyPerRout
+        else if (me.eventKind === 'enemy_destroyed')
+          rallyBySide[me.side] += cfg.battleMoraleRallyPerDestroyed
+        else if (me.eventKind === 'friendly_retreat') {
+          let v = cfg.battleMoraleShockPerRetreat
+          if (me.screened) v *= cfg.battleCavalryScreenMoraleShockReduction
+          shockBySide[me.side] += v
+        } else if (me.eventKind === 'friendly_rout') {
+          let v = cfg.battleMoraleShockPerRout
+          if (me.screened) v *= cfg.battleCavalryScreenMoraleShockReduction
+          shockBySide[me.side] += v
+        } else if (me.eventKind === 'friendly_destroyed') {
+          let v = cfg.battleMoraleShockPerDestroyed
+          if (me.screened) v *= cfg.battleCavalryScreenMoraleShockReduction
+          shockBySide[me.side] += v
+        }
+      }
+      for (const side of ['attacker', 'defender'] as const) {
+        const rally = Math.min(rallyBySide[side], cfg.battleMoraleRallyCapPerTick)
+        const shock = Math.min(shockBySide[side], cfg.battleMoraleShockCapPerTick)
+        if (rally === 0 && shock === 0) continue
+        const line = side === 'attacker' ? atkLine : defLine
+        const all = side === 'attacker' ? atkAll : defAll
+        for (const w of all) {
+          if (w.routed || w.retreated) continue
+          const isOccupied = line.slots.includes(w)
+          const ratio = isOccupied
+            ? cfg.battleMoraleRallyFrontlineRatio
+            : cfg.battleMoraleRallySideRatio
+          const delta = rally * ratio - shock * ratio
+          if (delta === 0) continue
+          w.morale = clamp(w.morale + delta, 0, w.input.maxMorale)
+        }
+        if (Math.abs(rally - shock) >= cfg.battleMoraleShiftLogThreshold) {
+          tickEvents.push({
+            kind: 'morale_shift',
+            side,
+            rallyTotal: rally,
+            shockTotal: shock,
+          })
+        }
+      }
+    }
+
+    // 5. retreat / rout 連隊を slot から除去 (master には残る) → reserve から補充
     removeRoutedAndRetreatedFromSlots(atkLine, cfg)
     removeRoutedAndRetreatedFromSlots(defLine, cfg)
     fillLine(atkLine, atkRes)

@@ -9,47 +9,53 @@ import type { PolityId } from '../types/ids'
 // ---------------------------------------------------------------------------
 
 describe('generateInitialRegiments (via generateWorld)', () => {
-  it('generates exactly one regiment per holding', () => {
+  it('generates one infantry regiment per holding plus cavalry for eligible polities', () => {
     const { world } = generateWorld('seed-1')
 
-    const regimentCount = Object.keys(world.regiments).length
+    const infantryCount = Object.values(world.regiments).filter(
+      (r) => r.troopKind === 'infantry',
+    ).length
+    const cavalryCount = Object.values(world.regiments).filter(
+      (r) => r.troopKind === 'cavalry',
+    ).length
     const holdingCount = Object.keys(world.holdings).length
 
-    expect(regimentCount).toBe(holdingCount)
-    expect(regimentCount).toBeGreaterThan(0)
+    expect(infantryCount).toBe(holdingCount)
+    expect(cavalryCount).toBeGreaterThan(0)
+    expect(infantryCount + cavalryCount).toBe(Object.keys(world.regiments).length)
   })
 
-  it('every regiment owner is the holding terminal polity', () => {
+  it('every infantry regiment owner is the holding terminal polity; cavalry has no home', () => {
     const { world } = generateWorld('seed-1')
 
     for (const r of Object.values(world.regiments)) {
       expect(r.owner.kind).toBe('polity')
-      expect(r.homeHoldingId).toBeDefined()
-      const term = world.holdingTerminalPolityCache[r.homeHoldingId!]
-      expect(r.owner.id as string).toBe(term as string)
+      if (r.troopKind === 'infantry') {
+        expect(r.homeHoldingId).toBeDefined()
+        const term = world.holdingTerminalPolityCache[r.homeHoldingId!]
+        expect(r.owner.id as string).toBe(term as string)
+      } else {
+        expect(r.homeHoldingId).toBeUndefined()
+        expect(r.homeProvinceId).toBeUndefined()
+      }
     }
   })
 
-  it('per-owner basePower sum equals old calcPolityMilitaryPower at t=0', () => {
+  it('per-owner infantry basePower sum equals old calcPolityMilitaryPower at t=0', () => {
     const { world } = generateWorld('seed-1')
 
-    // Build Map<ownerKey, sum of basePower> from regimentIndex.byOwner.
-    // The worldgen 2-pass invariant is on basePower (Σ basePower ≈ calcPolityMilitaryPower),
-    // independent of initial organization. v0.37 B1 sets initial org = baseline (50), so
-    // effectivePower is no longer == basePower at t=0; basePower is the org-independent invariant.
     const sums = new Map<string, number>()
     for (const [ownerKey, ids] of Object.entries(world.regimentIndex.byOwner)) {
       let sum = 0
       for (const id of ids) {
         const r = world.regiments[id]
-        if (r) {
+        if (r && r.troopKind === 'infantry') {
           sum += r.basePower
         }
       }
       sums.set(ownerKey, sum)
     }
 
-    // Compare each owner's sum to calcPolityMilitaryPower
     for (const [ownerKey, sum] of sums.entries()) {
       const [kind, idStr] = ownerKey.split(':')
       if (kind !== 'polity') continue
@@ -69,12 +75,15 @@ describe('generateInitialRegiments (via generateWorld)', () => {
     }
     expect(byOwnerTotal).toBe(Object.keys(world.regiments).length)
 
-    // byHomeHolding total == regiment count
+    // byHomeHolding total == infantry regiment count (cavalry has no homeHolding)
     let byHomeHoldingTotal = 0
     for (const ids of Object.values(world.regimentIndex.byHomeHolding)) {
       byHomeHoldingTotal += ids.length
     }
-    expect(byHomeHoldingTotal).toBe(Object.keys(world.regiments).length)
+    const infantryCount = Object.values(world.regiments).filter(
+      (r) => r.troopKind === 'infantry',
+    ).length
+    expect(byHomeHoldingTotal).toBe(infantryCount)
 
     // every regiment basePower is finite and >= 0
     for (const r of Object.values(world.regiments)) {

@@ -54,7 +54,10 @@ export type BattleLogImportanceInput = {
 export function battleLogImportance(sim: BattleLogImportanceInput): BattleLogImportance {
   const hasBreakthrough = sim.breakthroughSide !== undefined
   const hasPursuitDestroyed = sim.regimentResults.some(
-    (rr) => rr.destroyedCause === 'pursuit' || rr.destroyedCause === 'breakthrough_pursuit',
+    (rr) =>
+      rr.destroyedCause === 'pursuit' ||
+      rr.destroyedCause === 'breakthrough_pursuit' ||
+      rr.destroyedCause === 'cavalry_charge_pursuit',
   )
   const decisive = sim.outcomeQuality === 'rout'
   if (hasBreakthrough || hasPursuitDestroyed || decisive) return 'major'

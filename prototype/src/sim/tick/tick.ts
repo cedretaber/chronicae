@@ -37,6 +37,7 @@ import { runWarCreationSystem } from './warCreationSystem'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
+import { runCavalryEntitlementSystem } from './cavalryEntitlementSystem'
 import { runRightConsistencySystem } from './rightConsistencySystem'
 import { runInfluenceModifierConsistencySystem } from './influenceModifierConsistencySystem'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
@@ -509,6 +510,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runRegimentMaintenanceSystem,
+  },
+  {
+    // v0.50: 騎兵 entitlement 管理。regimentMaintenance の直後・rightConsistency の前。
+    //   titular cavalry disband / destroyed cooldown / entitlement 調整を一元管理する。
+    name: 'cavalryEntitlementSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCavalryEntitlementSystem,
   },
   {
     // v0.42 §7: PoliticalRight drift の安全網。regimentMaintenance の owner 同期の後・

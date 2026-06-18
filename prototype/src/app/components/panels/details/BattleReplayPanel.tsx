@@ -206,6 +206,39 @@ export function BattleReplayPanel({
           })
           break
         }
+        case 'cavalry_charge': {
+          // cavalry charge は side (= cavalry 側) のスロットでなく target slot に表示
+          if (s !== other(ev.side)) break
+          const c = at(ev.targetSlotIndex)
+          if (!c) break
+          c.badges.push({
+            text: t('detail.battle.badge.cavalry_charge'),
+            cls: ev.result === 'success' ? 'bg-purple-700 text-white' : 'bg-gray-700 text-gray-300',
+          })
+          break
+        }
+        case 'cavalry_pursuit': {
+          if (s !== other(ev.side)) break
+          const c = at(ev.targetSlotIndex)
+          if (!c) break
+          if (ev.destroyed) c.state = 'destroyed'
+          c.badges.push({
+            text: t('detail.battle.badge.cavalry_pursuit'),
+            cls: 'bg-orange-700 text-orange-100',
+          })
+          break
+        }
+        case 'cavalry_screen': {
+          if (ev.side !== s) break
+          const c = at(ev.screenedSlotIndex)
+          if (!c) break
+          c.badges.push({
+            text: t('detail.battle.badge.cavalry_screen'),
+            cls: 'bg-teal-700 text-teal-100',
+          })
+          break
+        }
+        case 'morale_shift':
         case 'tactic':
           break
       }
@@ -364,6 +397,42 @@ export function BattleReplayPanel({
               ✗ <PersonLink personId={ev.personId} persons={persons} onClick={onPersonClick} /> (
               {sideLabel(ev.side)}) {t('detail.battle.event.failure')}:{' '}
               {t(`detail.battle.failure.${ev.failure}`)}
+            </li>,
+          )
+          break
+        case 'cavalry_charge':
+          lines.push(
+            <li key={idx} className={ev.result === 'success' ? 'text-purple-300' : 'text-gray-400'}>
+              {sideLabel(ev.side)} {t('detail.battle.event.cavalry_charge')} &rarr;{' '}
+              {sideLabel(other(ev.side))} {col(ev.targetSlotIndex)} {regLabel(ev.targetRegimentId)}
+              {ev.result === 'success'
+                ? ` (${t('detail.battle.badge.breakthrough')})`
+                : ` (${t('detail.battle.badge.failure')})`}
+            </li>,
+          )
+          break
+        case 'cavalry_pursuit':
+          lines.push(
+            <li key={idx} className="text-orange-300">
+              {sideLabel(ev.side)} {t('detail.battle.event.cavalry_pursuit')} &rarr;{' '}
+              {sideLabel(other(ev.side))} {col(ev.targetSlotIndex)} {regLabel(ev.targetRegimentId)}
+              {ev.destroyed ? `・${t('detail.battle.badge.destroyed')}` : ''}
+            </li>,
+          )
+          break
+        case 'cavalry_screen':
+          lines.push(
+            <li key={idx} className="text-teal-300">
+              {sideLabel(ev.side)} {t('detail.battle.event.cavalry_screen')} &rarr;{' '}
+              {col(ev.screenedSlotIndex)} {regLabel(ev.screenedRegimentId)}
+            </li>,
+          )
+          break
+        case 'morale_shift':
+          lines.push(
+            <li key={idx} className="text-blue-300">
+              {sideLabel(ev.side)} {t('detail.battle.event.morale_shift')}: +
+              {ev.rallyTotal.toFixed(0)} / -{ev.shockTotal.toFixed(0)}
             </li>,
           )
           break
