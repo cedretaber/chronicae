@@ -105,8 +105,9 @@ const WEEKS_PER_SEASON = 12
 | 21b | DiplomaticPlaySystem | 4 | Task 生成責務は ProjectTaskGenerationSystem が担う |
 | 21b2 | WarCreationSystem | 4 | escalated land_claim / contract_tax_revision / revolt_negotiation を War 化 |
 | 21c | ConflictResolutionSystem | 4 | no-op（revolt_negotiation の escalation は warCreationSystem 経由で War 化） |
+| 21c1 | WarSupplySystem | 1 | v0.51: active War の補給状態更新・兵站スタッフ lazy 選出・supply attrition・collapse・通常徴発/harsh requisition/plunder。WarManeuver の前に走り、org/morale/strength 低下を battle effectivePower に反映 |
 | 21c2 | WarManeuverSystem | 1 | interval 1（毎週）。総大将/指揮官 lazy 選出 → 戦場生成 → 回避判断 → battle 解決で warScore 更新（冒頭 dead-participant guard）。per-war mobilize prologue + battle power=Regiment + 損耗/Battle 記録 |
-| 21c2b | RegimentRecoverySystem | 1 | WarManeuver 直後。active Regiment の organization を週次回復（strength / morale は不変） |
+| 21c2b | RegimentRecoverySystem | 1 | WarManeuver 直後。active Regiment の organization/morale を週次回復。v0.51: 戦時補正（wartimeRecoveryMultiplier × supplyBandMult × staffMitigation） |
 | 21c3 | PeaceSettlementSystem | 4 | warScore 閾値到達で終結・WarGoal 実行（冒頭 dead-participant guard） |
 | 21d | AimOutcomeSystem | 4 | DiplomaticPlay 結果 → Aim progress |
 | 21e | GoalOutcomeSystem | 4 | Aim 結果 → Goal progress |

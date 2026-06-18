@@ -122,6 +122,11 @@ war:
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'
     dissolve_contract: '和平により{{holding}}の土地契約が解除された（{{attacker}}有利）。'
 
+supply:
+  attrition: '{{side}}軍に補給不足の影響が及ぶ（補給圧力: {{supplyPressure}}）。兵力損失: {{strengthDamage}}、組織力: -{{organizationDamage}}、士気: -{{moraleDamage}}。崩壊した連隊: {{collapsedRegimentCount}}。'
+  plunder: '{{side}}軍が{{holding}}を略奪 — {{damagedKinds}}を損壊（耐久 -{{conditionDrop}}）。富: {{wealthDelta}}、不満: +{{unrestDelta}}。補給圧力が{{supplyPressureReduction}}低下。'
+  harsh_requisition: '{{side}}軍が{{holding}}で過酷な徴発 — 貯蔵施設を損壊（耐久 -{{conditionDrop}}）。富: {{wealthDelta}}、不満: +{{unrestDelta}}。補給圧力が{{supplyPressureReduction}}低下。'
+
 # v0.38 Phase 4: chronicle 専用の戦闘 narrative。BATTLE_OCCURRED の特徴的な勝利だけ
 #   selectBattleTemplate が差し替える (通常勝利・非勝利は war.battle_occurred を流用)。
 chronicle:

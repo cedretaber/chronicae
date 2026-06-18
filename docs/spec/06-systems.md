@@ -1743,6 +1743,27 @@ Play kind 別の処理:
 
 revolt_negotiation の escalation は warCreationSystem 経由で War 化されるため、本 system は完全 no-op。関数名 `runConflictResolutionSystem` は後方互換のため維持するが、本体は `return ctx` のみ。
 
+### 6.43a WarSupplySystem（毎週、v0.51）
+
+active War の各 side について補給状態を毎週更新する。Kill-switch: `warSupplyEnabled`（default true）。`warEnabled` が false なら即 return。
+
+**tick 順序**: ConflictResolutionSystem の後、WarManeuverSystem の前に走る。WarSupplySystem が org/morale/strength を削った結果が同週の battle effectivePower に反映される。
+
+**staff lazy refresh**: strategist（`strategy` role）/ quartermaster（`stewardship` role）を `selectWarStaffForSide` で毎週 lazy 選出する。候補母集合は captainGeneral / commander と同じ `getPolityWarCandidatePersonIds`（side 全 polity から列挙）。captainGeneral および既選出 staff を exclude。欠員時は captainGeneral が兼任（score × `warSupplyStaffAbsentScoreMultiplier`=0.75）。
+
+**supply ループ**: 各 active War、各 side について:
+1. staff refresh → 2. province 解決（getWarGoalProvince。undefined なら decay-only skip）→ 3. regiment 集計（supplyDemand ≤ 0 なら decay-only skip）→ 4. supplyAccess / forageEfficiency 再計算 → 5. supplyPressure 蓄積更新（前週 localHostility を参照）→ 6. localHostility 蓄積更新（今週 supplyPressure を参照）→ 7. plunderPressure 蓄積更新（今週両方を参照）→ 8. shortage band 判定 → 9. regiment attrition（band 別 org/morale/strength damage。cavalry は `cavalrySupplyAttritionMultiplier` 倍）→ 10. collapse risk（catastrophic のみ、RNG ロール → `destroyRegimentMut`）→ 11. 通常徴発 condition damage（primary holding の storage_infrastructure。silent）→ 12. harsh requisition（threshold + RNG → condition/wealth/unrest damage + event）→ 13. plunder（threshold + RNG → condition/wealth/unrest damage + war_damage Crisis + event）→ 14. retroactive adjustment（supplyRelief / hostilityGain / plunderRelief を最終値に反映）→ 15. supplyState 書き戻し
+
+**war_damage Crisis**: plunder 時に `createCrisisMut` で直接生成（`spawnWarDamageCrisis` は呼ばない。理由: 全 improvement 一律 condition -40 + POP size -2% が二重計上・POP casualties 不導入と矛盾）。既存 active war_damage があれば severity 加算 + deadline 延長。新規生成時は `resolveCrisisHandlers` + `createHandleCrisisProjectMut` + `CRISIS_CREATED` event。
+
+**新 Event**: `SUPPLY_ATTRITION`（normal/major）、`SUPPLY_HARSH_REQUISITION`（normal）、`SUPPLY_PLUNDER`（major）。いずれも warId を messageParams に含み、entityRefs に war ref を含むため `chronicleIndex.byWar` に載る。
+
+**新 selector ファイル**: `selectors/warSupplySelectors.ts`（computeSupplyAccess / computeForageEfficiency / computeSupplyDemand / computeCavalryRatio / computeShortageBand / selectWarStaffForSide / getProvinceAveragePopUnrest / isFriendlyTerritory）
+
+**新 mutation ファイル**: `mutations/holdingImprovementMutations.ts`（`damageHoldingImprovementConditionMut`。選択的 condition damage。targetKinds で improvement 種別をフィルタ）
+
+**RegimentRecoverySystem 戦時補正**: `recoveryMultiplier = wartimeRegimentRecoveryMultiplier × supplyRecoveryMultiplierByBand[band] × (1 + staffMitigation)`。recovery（baseline 未満→回復方向）にのみ適用。decay（baseline 超→減衰方向）は影響しない。
+
 ### 6.44 WarCreationSystem（4週ごと）
 
 `status === 'escalated'` の DiplomaticPlay を即時解決せず War entity に変換する。

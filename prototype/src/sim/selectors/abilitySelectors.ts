@@ -15,7 +15,13 @@ import type { RngResult } from '../rng/rng'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
-export type AppliedRoleKey = 'governance' | 'stewardship' | 'diplomacy' | 'intrigue' | 'warCommand'
+export type AppliedRoleKey =
+  | 'governance'
+  | 'stewardship'
+  | 'diplomacy'
+  | 'intrigue'
+  | 'warCommand'
+  | 'strategy'
 
 // 能力スコアから role 適性スコアを計算する純粋関数。WorldState を必要としない
 // (worldgen など state 未組立の文脈から再利用するため切り出し)。

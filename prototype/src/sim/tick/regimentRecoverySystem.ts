@@ -9,8 +9,49 @@
 
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { RegimentId } from '../types/ids'
+import type { RegimentId, WarId } from '../types/ids'
+import type { SupplyShortageBand } from '../types/war'
+import { computeShortageBand } from '../selectors/warSupplySelectors'
+import { getRoleScore } from '../selectors/abilitySelectors'
 import { clamp } from '../utils/math'
+
+function computeWartimeRecoveryMultiplier(
+  ws: WorldState,
+  r: { currentWarId?: WarId; currentSide?: 'attacker' | 'defender' },
+  config: TickContext['config'],
+): number {
+  if (r.currentWarId === undefined) return 1
+  const war = ws.wars[r.currentWarId]
+  if (!war || war.status !== 'active') return 1
+
+  const side = r.currentSide === 'attacker' ? war.attacker : war.defender
+  const supply = side.supplyState
+
+  let band: SupplyShortageBand = 'none'
+  if (supply) {
+    band = computeShortageBand(supply.supplyPressure, config)
+  }
+  const supplyBandMult = config.warSupplyRecoveryMultiplierByBand[band]
+
+  const cgId = side.captainGeneralPersonId
+  const qmId = side.quartermasterPersonId
+  const cgMitigation =
+    cgId !== undefined
+      ? (getRoleScore(ws, cgId, 'warCommand') / 100) *
+        config.warSupplyCaptainGeneralMitigationFactor
+      : 0
+  const qmMitigation =
+    qmId !== undefined
+      ? (getRoleScore(ws, qmId, 'stewardship') / 100) *
+        config.warSupplyQuartermasterMitigationFactor
+      : 0
+  const staffMitigation = Math.min(
+    cgMitigation + qmMitigation,
+    config.warSupplyMaxStaffRecoveryMitigation,
+  )
+
+  return config.wartimeRegimentRecoveryMultiplier * supplyBandMult * (1 + staffMitigation)
+}
 
 export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
   const regimentIds = Object.keys(ctx.state.regiments)
@@ -33,17 +74,14 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
     if (!r) continue
     if (r.status !== 'active') continue
 
-    // §4.2: organization recovery reads morale at tick start.
+    const recoveryMult = computeWartimeRecoveryMultiplier(ws, r, config)
     const moraleAtTickStart = r.morale
 
-    // §4.3: organization toward baselineOrganization.
     let nextOrg = r.organization
     if (r.organization < r.baselineOrganization) {
-      nextOrg = Math.min(
-        r.baselineOrganization,
-        r.organization +
-          config.regimentOrganizationRecoveryPerWeek * (0.5 + moraleAtTickStart / 100),
-      )
+      const rawRecovery =
+        config.regimentOrganizationRecoveryPerWeek * (0.5 + moraleAtTickStart / 100)
+      nextOrg = Math.min(r.baselineOrganization, r.organization + rawRecovery * recoveryMult)
     } else if (r.organization > r.baselineOrganization) {
       nextOrg = Math.max(
         r.baselineOrganization,
@@ -52,10 +90,12 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
     }
     nextOrg = clamp(nextOrg, 0, r.maxOrganization)
 
-    // §4.4: morale toward baselineMorale, independent of organization.
     let nextMorale = r.morale
     if (r.morale < r.baselineMorale) {
-      nextMorale = Math.min(r.baselineMorale, r.morale + config.regimentMoraleRecoveryPerWeek)
+      nextMorale = Math.min(
+        r.baselineMorale,
+        r.morale + config.regimentMoraleRecoveryPerWeek * recoveryMult,
+      )
     } else if (r.morale > r.baselineMorale) {
       nextMorale = Math.max(
         r.baselineMorale,
@@ -64,7 +104,6 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
     }
     nextMorale = clamp(nextMorale, 0, r.maxMorale)
 
-    // No change (e.g. at rest at baseline) → keep lazy clone intact.
     if (nextOrg === r.organization && nextMorale === r.morale) continue
 
     ensureDraft()

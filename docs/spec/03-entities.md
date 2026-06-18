@@ -403,7 +403,7 @@ type Person = {
 - `stats: { admin, martial }` フィールドは持たず、6 軸の `abilities` / `aptitudes` を使う。
   - `abilities`: 現在発揮できる能力（経験で aptitude まで成長し、年齢曲線で衰退）
   - `aptitudes`: 才能上限（原則不変、遺伝で親から子へ平均回帰込みで伝わる）
-  - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
+  - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand / strategy）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
   - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.8）が家・相続人へ分配する
 - `kind`: `'placeholder'` は ProvinceOffice (Bailiff) 用の仮想人物で、marriage / birth / death / succession などの Person-loop からはガード経由で除外される。`kind` 未設定または `'normal'` は通常人物
 - `houseId` は optional。`houseId` が undefined の normal Person は「無家人物 (houseless person)」として扱う。placeholder は常に `houseId === undefined`。無家人物は `state.persons` に直接追加される
@@ -901,8 +901,23 @@ type WarSide = {
   // War Maneuver: いずれも soft reference（不在/死亡を許容し IntegrityCheck では検査しない）。
   //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.45。
   captainGeneralPersonId?: PersonId  // この side の総大将。不在時 undefined（house actor war では管理しない）
+  strategistPersonId?: PersonId      // v0.51: 参謀・軍師。strategy role で選出。soft reference
+  quartermasterPersonId?: PersonId   // v0.51: 兵站官。stewardship role で選出。soft reference
   commanderPersonIds: PersonId[]     // 現場指揮官候補。先頭が当該週の戦闘指揮官。v0.43: side の全 polity participant（supporter 含む）の宮廷人材プール（military office holder + House メンバー + 派閥食客）から warCommand 上位 maxWarCommanderCandidatesPerSide 名
   avoidanceCount: number             // この side が戦闘回避を選んだ累積回数（単調増加・reset しない）
+  supplyState?: WarSideSupplyState   // v0.51: 補給状態。WarSupplySystem が毎週更新
+}
+
+// v0.51: 補給不足の段階
+type SupplyShortageBand = 'none' | 'mild' | 'moderate' | 'severe' | 'catastrophic'
+
+// v0.51: 戦争 side の補給状態
+type WarSideSupplyState = {
+  supplyAccess: number       // 0..150。現地調達しやすさ（毎週再計算）
+  supplyPressure: number     // 0..∞。補給不足圧力（蓄積型。100超=catastrophic collapse 領域）
+  forageEfficiency: number   // 0.1..1.5。現地調達効率（毎週再計算）
+  localHostility: number     // 0..100。現地民の反感（蓄積型）
+  plunderPressure: number    // 0..∞。略奪圧力（蓄積型。100超=制御不能な略奪）
 }
 
 type War = {

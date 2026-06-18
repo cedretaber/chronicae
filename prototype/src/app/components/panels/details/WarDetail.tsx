@@ -81,6 +81,50 @@ export function WarDetail({
           <span className="text-gray-400">{t('detail.war.avoidance_count')}:</span>
           <span className="text-gray-200">{side.avoidanceCount}</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.strategist')}:</span>
+          {side.strategistPersonId ? (
+            <PersonLink
+              personId={side.strategistPersonId}
+              persons={persons}
+              onClick={onPersonClick}
+            />
+          ) : (
+            <span className="text-gray-500">&mdash;</span>
+          )}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.quartermaster')}:</span>
+          {side.quartermasterPersonId ? (
+            <PersonLink
+              personId={side.quartermasterPersonId}
+              persons={persons}
+              onClick={onPersonClick}
+            />
+          ) : (
+            <span className="text-gray-500">&mdash;</span>
+          )}
+        </div>
+        {side.supplyState && (
+          <>
+            <div className="flex justify-between">
+              <span className="text-gray-400">{t('detail.war.supply_pressure')}:</span>
+              <span className="text-gray-200">{Math.round(side.supplyState.supplyPressure)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">{t('detail.war.forage_efficiency')}:</span>
+              <span className="text-gray-200">{side.supplyState.forageEfficiency.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">{t('detail.war.local_hostility')}:</span>
+              <span className="text-gray-200">{Math.round(side.supplyState.localHostility)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">{t('detail.war.plunder_pressure')}:</span>
+              <span className="text-gray-200">{Math.round(side.supplyState.plunderPressure)}</span>
+            </div>
+          </>
+        )}
       </div>
     )
   }

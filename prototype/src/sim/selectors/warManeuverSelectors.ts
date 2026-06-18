@@ -135,7 +135,7 @@ export function isEligibleBattleCommander(state: WorldState, personId: PersonId)
 //   (getPolityPersonIds) + anchor 派閥のメンバー (客分・食客 — supervisor 候補 §12.4 と同じ
 //   考え方で、派閥が介入できるのは anchor Polity のみ)。
 //   列挙は決定的: office 順 → getPolityPersonIds (sorted) → FactionId 昇順 × member 順。
-function getPolityWarCandidatePersonIds(state: WorldState, polityId: PolityId): PersonId[] {
+export function getPolityWarCandidatePersonIds(state: WorldState, polityId: PolityId): PersonId[] {
   const out: PersonId[] = []
   const seen = new Set<string>()
   const push = (id: PersonId): void => {

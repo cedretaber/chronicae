@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-18 (v0.50 騎兵連隊・戦機介入・士気波及 — rank entitlement 騎兵（§6.49b CavalryEntitlementSystem）/ cavalry charge・screen・reserve pursuit / morale rally+shock を §6.45 battle simulation に追記。BattleDestroyedCause に cavalry_charge_pursuit、BattleLogEntry に cavalry_charge / cavalry_pursuit / cavalry_screen / morale_shift を追加。titular Polity の残存 LandContract 除去安全網を §6.53 に追加)
+最終更新: 2026-06-18 (v0.51 司令部・兵站・消耗・略奪 — WarSupplySystem（§6.44a）追加。WarSide に strategist/quartermaster/supplyState。AppliedRoleKey に strategy。SupplyShortageBand / WarSideSupplyState 新型。supply attrition / harsh requisition / plunder / condition damage / Crisis 接続。RegimentRecoverySystem 戦時補正。SUPPLY_PLUNDER / SUPPLY_HARSH_REQUISITION / SUPPLY_ATTRITION イベント。~68 config キー追加)
 
 ---
 
