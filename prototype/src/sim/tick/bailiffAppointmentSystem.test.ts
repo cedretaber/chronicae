@@ -249,6 +249,7 @@ describe('runBailiffAppointmentSystem', () => {
       personId: leaderId,
       active: true,
       joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
+      lastActiveWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
     const memberMembership: FactionMembership = {
       id: memberMembershipId,
@@ -256,6 +257,7 @@ describe('runBailiffAppointmentSystem', () => {
       personId: memberId,
       active: true,
       joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
+      lastActiveWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
     s = {
       ...s,

@@ -291,7 +291,7 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'factionDefectionSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
+    intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runFactionDefectionSystem,
   },

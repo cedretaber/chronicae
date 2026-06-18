@@ -23,6 +23,10 @@ export type FactionMembership = {
   personId: PersonId
   active: boolean
   joinedWeek: number
+  // 最後に役職・プロジェクト等の「仕事」を保持していた週。
+  // 離脱判定は joinedWeek ではなくこの値を起点にして無役期間を算出する。
+  // 加入時は joinedWeek と同値で初期化される。
+  lastActiveWeek: number
 }
 
 export type FactionIndex = {

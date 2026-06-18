@@ -96,6 +96,7 @@ function addFaction(
     personId: leaderPersonId,
     active: true,
     joinedWeek: 69312,
+    lastActiveWeek: 69312,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -252,6 +253,7 @@ describe('runFactionRecruitmentSystem', () => {
       personId: candidateId,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     const s3: WorldState = {
       ...s2,

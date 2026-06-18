@@ -68,6 +68,7 @@ function makeFixture(): {
     personId: leaderId,
     active: true,
     joinedWeek: 69312,
+    lastActiveWeek: 69312,
   }
   state.factionMemberships[createFactionMembershipId(1)] = {
     id: createFactionMembershipId(1),
@@ -75,6 +76,7 @@ function makeFixture(): {
     personId: member1Id,
     active: true,
     joinedWeek: 69312,
+    lastActiveWeek: 69312,
   }
   state.factionIndex.byMember[leaderId] = [createFactionMembershipId(0)]
   state.factionIndex.byMember[member1Id] = [createFactionMembershipId(1)]
@@ -347,6 +349,7 @@ describe('getFactionNominationPower', () => {
       personId: member1Id,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -392,6 +395,7 @@ describe('getFactionNominationPower', () => {
       personId: member1Id,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -456,6 +460,7 @@ describe('hasRelevantFactionForAppointment', () => {
       personId: member1Id,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -513,6 +518,7 @@ describe('getFactionRecommendationScore', () => {
       personId: lovedId,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionMemberships[memHatedId] = {
       id: memHatedId,
@@ -520,6 +526,7 @@ describe('getFactionRecommendationScore', () => {
       personId: hatedId,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[lovedId] = [memLovedId]
     state.factionIndex.byMember[hatedId] = [memHatedId]
@@ -616,6 +623,7 @@ describe('getFactionalCandidateScore', () => {
       personId: candidateId,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[candidateId] = [memId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -652,6 +660,7 @@ describe('collectSubtreeMemberWeights (入れ子 Phase 2-b)', () => {
       personId: member2Id,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     state.factionIndex.byMember[member2Id] = [createFactionMembershipId(5)]
     state.factionIndex.byLeader[member2Id] = [faction2Id]
@@ -730,6 +739,7 @@ describe('subtree leader 引き上げ (v0.50)', () => {
       personId: member2Id,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     // subLeader の self-membership (実 sim のリーダー不変条件を反映)。
     s.factionMemberships[createFactionMembershipId(6)] = {
@@ -738,6 +748,7 @@ describe('subtree leader 引き上げ (v0.50)', () => {
       personId: subLeaderId,
       active: true,
       joinedWeek: 69312,
+      lastActiveWeek: 69312,
     }
     s.factionIndex.byMember[member2Id] = [createFactionMembershipId(5)]
     s.factionIndex.byMember[subLeaderId] = [createFactionMembershipId(6)]

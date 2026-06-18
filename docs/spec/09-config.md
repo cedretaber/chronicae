@@ -976,8 +976,8 @@
 | factionStipendRespectGain | 1 | stipend 支給による respect 上昇 |
 | factionStipendShortageAffectionPenalty | 2 | stipend 不足時の affection ペナルティ |
 | factionStipendShortageRespectPenalty | 1 | stipend 不足時の respect ペナルティ |
-| factionDefectionGraceYears | 8 | idle メンバー離脱の猶予年数 |
-| factionDefectionProbPerYear | 0.07 | idle メンバーの年次離脱確率 |
+| factionDefectionGraceYears | 1 | 無役メンバー離脱の猶予年数（v0.51.1: 8→1。lastActiveWeek 基準） |
+| factionDefectionProbPerYear | 0.07 | 無役メンバーの離脱確率（四半期ごとに判定、v0.51.1: 年1→四半期） |
 | factionDefectionAttitudeAffectionPenalty | 2 | 離脱時の affection ペナルティ |
 | factionDefectionAttitudeRespectPenalty | 1 | 離脱時の respect ペナルティ |
 | **House surplus / Office terms / 兼任互換** | | |

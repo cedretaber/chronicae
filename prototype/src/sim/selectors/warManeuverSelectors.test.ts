@@ -267,6 +267,7 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
       personId: 'pe-client' as PersonId,
       active: true,
       joinedWeek: 0,
+      lastActiveWeek: 0,
     }
     s.factionIndex.byPolity[POL] = ['fa-1' as FactionId]
     expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual([

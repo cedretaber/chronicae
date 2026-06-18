@@ -2338,7 +2338,7 @@ export const defaultConfig: SimulationConfig = {
   factionStipendShortageAffectionPenalty: 2,
   factionStipendShortageRespectPenalty: 1,
   // v0.17.4 §13.9 Faction defection
-  factionDefectionGraceYears: 8,
+  factionDefectionGraceYears: 1,
   factionDefectionProbPerYear: 0.07,
   factionDefectionAttitudeAffectionPenalty: 2,
   factionDefectionAttitudeRespectPenalty: 1,

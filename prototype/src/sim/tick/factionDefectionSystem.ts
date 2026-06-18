@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { PersonId, FactionMembershipId } from '../types/ids'
+import type { PersonId, FactionMembershipId, ProjectId } from '../types/ids'
 import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
@@ -9,16 +9,18 @@ import { removeFactionMembership } from '../mutations/factionMutations'
 import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
 import { randomFloat } from '../rng/rng'
 
-// v0.17.4 §13.9: FactionDefectionSystem
-// 派閥所属しているのに「利益 (= active な Office 在任)」のない時間が長期化した
-// member が確率的に派閥を抜ける。leader は対象外。
-// 年 1 回 (1 月) のみ実行。tick.ts では factionPatronage の直後に走らせ、
-// 同年の patronage 結果 (donation/stipend) を反映した上で判定する。
+// v0.51.1: FactionDefectionSystem
+// 派閥所属しているのに「利益 (= active な Office/Bailiff 在任、または国・家の
+// active Project の supervisor)」のない期間が長期化した member が確率的に離脱する。
+// leader は対象外。四半期ごと (12週間隔) に実行。
 //
-// 設計判断 (2026-05-19): stipend 受領は「利益」に含めない。リッチな leader が
-// 機械的に stipend を払い続けるパターンで defection が無効化される問題を回避するため、
-// 利益判定は active Office (Polity/House/Bailiff) のみに限定する。stipend は member への
-// ギフトに留まり、引き留め力を持たない設計とする。lastBenefitYear cache は導入しない。
+// idle 起点は membership.lastActiveWeek。Office/Bailiff/国家 Project を保持している
+// member はチェック時に lastActiveWeek を現在週へ更新しスキップする。
+// 無役期間が factionDefectionGraceYears を超えると確率的に離脱する。
+//
+// 設計判断: stipend 受領は「利益」に含めない (リッチな leader の機械的 stipend で
+// defection が無効化される問題を回避)。個人 Project (personal_training 等) も
+// 派閥としての「仕事」ではないため除外する。
 export function runFactionDefectionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   for (const faction of getActiveFactions(currentCtx.state)) {
@@ -26,13 +28,10 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
     if (!leader || !leader.alive) continue
 
     // 崩壊2: 派閥の placement ratio (役職を配れた member 比) を 1 回算出。
-    // 低いほど「役職を配れない大派閥 = 過伸長」で離脱が加速する。
     const overreach = currentCtx.config.factionCollapseOverreachEnabled
       ? 1 - computePlacementRatio(currentCtx.state, faction.id)
       : 0
 
-    // この faction に属する全 active membership を deterministic 順で iterate。
-    // removeFactionMembership が byMember を破壊的に書き換えるため、id を先に snapshot する。
     const targetMembershipIds = (
       Object.keys(currentCtx.state.factionMemberships).sort() as FactionMembershipId[]
     ).filter((mid) => {
@@ -48,18 +47,20 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       const member = currentCtx.state.persons[membership.personId]
       if (!member || !member.alive) continue
 
-      // (a) Office 保有チェック — 利益あり → skip
-      if (hasActiveOfficeOrBailiff(currentCtx.state, membership.personId)) continue
+      // (a) 「仕事」保有チェック — Office/Bailiff または国・家 Project の supervisor
+      if (hasActiveWork(currentCtx.state, membership.personId)) {
+        // lastActiveWeek を現在週に更新してスキップ
+        currentCtx = updateLastActiveWeek(currentCtx, membershipId)
+        continue
+      }
 
-      // (b) idle 計算 — joinedWeek を起点とする
+      // (b) idle 計算 — lastActiveWeek を起点とする無役期間
       const idle = Math.floor(
-        (currentCtx.state.absoluteWeek - membership.joinedWeek) / WEEKS_PER_YEAR,
+        (currentCtx.state.absoluteWeek - membership.lastActiveWeek) / WEEKS_PER_YEAR,
       )
       if (idle < currentCtx.config.factionDefectionGraceYears) continue
 
-      // 確率判定。崩壊2: 過伸長 (overreach) と member の野望で離脱確率を加速する。
-      //   prob = base × (1 + overreachWeight×overreach) × (1 + ambitionWeight×ambition)
-      // overreach=0 (全員着座) かつ ambition=0 で従来式と一致。flag OFF 時も overreach=0。
+      // 確率判定
       const base =
         (idle - currentCtx.config.factionDefectionGraceYears) *
         currentCtx.config.factionDefectionProbPerYear
@@ -72,7 +73,7 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       currentCtx = { ...currentCtx, rng: nextRng }
       if (roll >= prob) continue
 
-      // 離脱実行: membership 削除 → attitude penalty → event emit
+      // 離脱実行
       const removed = removeFactionMembership(currentCtx.state, membershipId)
       if (!removed.ok) continue
       let stateAfter = removed.value
@@ -113,8 +114,7 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-// 崩壊2: 派閥 member のうち active office/bailiff を持つ比 (= 配れた席の充足率)。
-// member 0 のときは 1 (過伸長なし扱い)。
+// 崩壊2: 派閥 member のうち active な「仕事」を持つ比率。
 function computePlacementRatio(
   state: WorldState,
   factionId: import('../types/ids').FactionId,
@@ -123,9 +123,16 @@ function computePlacementRatio(
   if (memberIds.length === 0) return 1
   let placed = 0
   for (const mid of memberIds) {
-    if (hasActiveOfficeOrBailiff(state, mid)) placed++
+    if (hasActiveWork(state, mid)) placed++
   }
   return placed / memberIds.length
+}
+
+// Office/Bailiff または国・家の active Project supervisor を持つか
+function hasActiveWork(state: WorldState, personId: PersonId): boolean {
+  if (hasActiveOfficeOrBailiff(state, personId)) return true
+  if (hasActiveOrgProject(state, personId)) return true
+  return false
 }
 
 function hasActiveOfficeOrBailiff(state: WorldState, personId: PersonId): boolean {
@@ -140,4 +147,31 @@ function hasActiveOfficeOrBailiff(state: WorldState, personId: PersonId): boolea
     if (a && a.active) return true
   }
   return false
+}
+
+// 国 (polity) または家 (house) が owner の active Project で supervisor を務めているか。
+// 個人 Project (personal_training, enfeoffment_petition 等) は派閥としての「仕事」ではないため除外。
+function hasActiveOrgProject(state: WorldState, personId: PersonId): boolean {
+  const projectIds: ProjectId[] = state.projectIndex.bySupervisorPerson[personId as string] ?? []
+  for (const pid of projectIds) {
+    const project = state.projects[pid]
+    if (!project || project.status !== 'active') continue
+    if (project.owner.kind === 'polity' || project.owner.kind === 'house') return true
+  }
+  return false
+}
+
+function updateLastActiveWeek(ctx: TickContext, membershipId: FactionMembershipId): TickContext {
+  const membership = ctx.state.factionMemberships[membershipId]
+  if (!membership) return ctx
+  return {
+    ...ctx,
+    state: {
+      ...ctx.state,
+      factionMemberships: {
+        ...ctx.state.factionMemberships,
+        [membershipId]: { ...membership, lastActiveWeek: ctx.state.absoluteWeek },
+      },
+    },
+  }
 }

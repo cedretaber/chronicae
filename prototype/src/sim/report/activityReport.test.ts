@@ -103,6 +103,7 @@ describe('buildActivityReport', () => {
       personId: factionLeaderId,
       active: true,
       joinedWeek: 54600,
+      lastActiveWeek: 54600,
     }
     const memberMembership: FactionMembership = {
       id: memberMembershipId,
@@ -110,6 +111,7 @@ describe('buildActivityReport', () => {
       personId: factionMemberId,
       active: true,
       joinedWeek: 55120,
+      lastActiveWeek: 55120,
     }
     state = {
       ...state,

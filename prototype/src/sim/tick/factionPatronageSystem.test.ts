@@ -119,6 +119,7 @@ function addFactionMembership(
     personId,
     active: true,
     joinedWeek: 69312,
+    lastActiveWeek: 69312,
   }
   const memberIds = state.factionIndex.byMember[personId] ?? []
   const newIndex: import('../types/faction').FactionIndex = {

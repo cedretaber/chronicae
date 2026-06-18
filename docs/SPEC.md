@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-18 (v0.51 司令部・兵站・消耗・略奪 — WarSupplySystem（§6.44a）追加。WarSide に strategist/quartermaster/supplyState。AppliedRoleKey に strategy。SupplyShortageBand / WarSideSupplyState 新型。supply attrition / harsh requisition / plunder / condition damage / Crisis 接続。RegimentRecoverySystem 戦時補正。SUPPLY_PLUNDER / SUPPLY_HARSH_REQUISITION / SUPPLY_ATTRITION イベント。~68 config キー追加)
+最終更新: 2026-06-19 (v0.51.1 派閥離脱改修 — FactionDefectionSystem: idle 起点を joinedWeek → lastActiveWeek に変更、「仕事」に国・家 Project supervisor を追加、grace 8年→1年、判定頻度を年1→四半期(12週)に。FactionMembership に lastActiveWeek フィールド追加)
 
 ---
 

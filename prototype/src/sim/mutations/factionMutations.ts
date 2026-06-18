@@ -76,6 +76,7 @@ export function createFaction(
     personId: input.leaderPersonId,
     active: true,
     joinedWeek: input.week,
+    lastActiveWeek: input.week,
   }
 
   const existingByLeader = ctx.state.factionIndex.byLeader[input.leaderPersonId] ?? []
@@ -173,6 +174,7 @@ export function addFactionMembership(
     personId: input.personId,
     active: true,
     joinedWeek: input.week,
+    lastActiveWeek: input.week,
   }
 
   const newState: WorldState = {

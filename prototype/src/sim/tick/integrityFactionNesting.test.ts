@@ -71,6 +71,7 @@ function buildTwoFactionState(opts: {
     personId: pLeader,
     active: true,
     joinedWeek: 0,
+    lastActiveWeek: 0,
   }
   const cM: FactionMembership = {
     id: cMembership,
@@ -78,6 +79,7 @@ function buildTwoFactionState(opts: {
     personId: cLeader,
     active: true,
     joinedWeek: 0,
+    lastActiveWeek: 0,
   }
   const factionIndex: FactionIndex = {
     byLeader: { [pLeader]: [parentId], [cLeader]: [childId] },

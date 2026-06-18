@@ -62,6 +62,7 @@ function withFaction(
       personId: pid,
       active: true,
       joinedWeek: 0,
+      lastActiveWeek: 0,
     }
     next.factionIndex.byMember[pid] = [...(next.factionIndex.byMember[pid] ?? []), fmId]
   }

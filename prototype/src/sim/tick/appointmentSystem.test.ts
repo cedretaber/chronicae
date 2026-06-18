@@ -651,6 +651,7 @@ describe('runAppointmentSystem', () => {
       personId: factionMemberId,
       active: true,
       joinedWeek: 1440 * 48 + 1 - 1,
+      lastActiveWeek: 1440 * 48 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
@@ -775,6 +776,7 @@ describe('runAppointmentSystem', () => {
       personId: subLeaderId,
       active: true,
       joinedWeek: 69311,
+      lastActiveWeek: 69311,
     }
     state.factionIndex.byMember[subLeaderId] = [childMembershipId]
     state.factionIndex.byLeader[subLeaderId] = [childFactionId]
@@ -878,6 +880,7 @@ describe('runAppointmentSystem', () => {
       personId: factionMemberId,
       active: true,
       joinedWeek: 1440 * 48 + 1 - 1,
+      lastActiveWeek: 1440 * 48 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
