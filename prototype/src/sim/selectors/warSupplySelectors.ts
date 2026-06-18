@@ -73,7 +73,7 @@ export function selectWarStaffForSide(
 // --- supply computations ---
 
 // Check if the war province is friendly territory for this side
-function isFriendlyTerritory(
+export function isFriendlyTerritory(
   state: WorldState,
   provinceId: ProvinceId,
   sidePolityIds: readonly PolityId[],

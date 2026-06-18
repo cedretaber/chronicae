@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { WarId, PolityId, ProvinceId, CrisisId } from '../types/ids'
+import type { WarId, CrisisId } from '../types/ids'
 import type { WarSideKey, WarSideSupplyState, WarSide } from '../types/war'
 import type { Regiment } from '../types/regiment'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
@@ -15,6 +15,7 @@ import {
   computeShortageBand,
   selectWarStaffForSide,
   getProvinceAveragePopUnrest,
+  isFriendlyTerritory,
 } from '../selectors/warSupplySelectors'
 import {
   getWarGoalProvince,
@@ -51,22 +52,6 @@ const PLUNDER_PRIORITY_BY_HOLDING_KIND: Record<string, readonly HoldingImproveme
     'workshop_infrastructure',
     'transport_infrastructure',
   ],
-}
-
-// Check if province territory is friendly for the side
-function isFriendlyTerritory(
-  state: WorldState,
-  provinceId: ProvinceId,
-  sidePolityIds: readonly PolityId[],
-): boolean {
-  const province = state.provinces[provinceId]
-  if (!province) return false
-  const politySet = new Set<string>(sidePolityIds)
-  for (const holdingId of province.holdingIds) {
-    const terminal = getHoldingTerminalPolityId(state, holdingId)
-    if (terminal !== undefined && politySet.has(terminal)) return true
-  }
-  return false
 }
 
 export function runWarSupplySystem(ctx: TickContext): TickContext {
@@ -456,10 +441,8 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 targetHoldingId,
                 config.warSupplyHarshRequisitionPopUnrestGain,
               )
-              /* eslint-disable no-useless-assignment */
               harshRequisitionHostilityGain = config.warSupplyHarshRequisitionHostilityGain
               supplyRelief += config.warSupplyHarshRequisitionSupplyRelief
-              /* eslint-enable no-useless-assignment */
 
               // Spillover
               const { value: spilloverRoll, rng: spilloverRng } = randomFloat(next.rng)
@@ -529,11 +512,9 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 -config.warSupplyPlunderPopWealthDamage,
               )
               adjustHoldingPopUnrestMut(ws, targetHoldingId, config.warSupplyPlunderPopUnrestGain)
-              /* eslint-disable no-useless-assignment */
               plunderHostilityGain = config.warSupplyPlunderHostilityGain
               supplyRelief += config.warSupplyPlunderSupplyRelief
               plunderRelief = config.warSupplyPlunderPressureRelief
-              /* eslint-enable no-useless-assignment */
 
               // Crisis: check existing war_damage, update or create
               const existingCrisisIds = ws.crisisIndex.byHolding[targetHoldingId as string] ?? []
@@ -546,7 +527,11 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 }
               }
               if (existingWarDamage) {
-                setCrisisSeverityMut(ws, existingWarDamage, 10)
+                setCrisisSeverityMut(
+                  ws,
+                  existingWarDamage,
+                  config.crisisInitialSeverityByKind.war_damage,
+                )
               } else {
                 const ownerPolityId = getHoldingTerminalPolityId(ws, targetHoldingId)
                 if (ownerPolityId) {
@@ -609,19 +594,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 }
               }
 
-              // Collect damaged kinds from target
-              const damagedKinds: string[] = []
-              const targetImpIds = ws.holdingImprovementIndex.byHolding[targetHoldingId]
-              if (targetImpIds) {
-                for (const impId of targetImpIds) {
-                  const imp = ws.holdingImprovements[impId]
-                  if (imp && imp.condition < imp.condition + plunderDrop) {
-                    if (!damagedKinds.includes(imp.kind)) {
-                      damagedKinds.push(imp.kind)
-                    }
-                  }
-                }
-              }
+              const damagedKinds: string[] = targetKinds.slice()
 
               // Emit SUPPLY_PLUNDER event
               const { event: plunderEvent, ctx: plunderCtx } = createSimEvent(next, {
@@ -674,20 +647,39 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
         next = { ...eventCtx, events: [...eventCtx.events, event] }
       }
 
-      // 14. Write back supplyState
+      // 14. Retroactive adjustments: apply relief/hostility from requisition/plunder
+      const finalSupplyPressure = Math.max(0, nextSupplyPressure - supplyRelief)
+      const finalLocalHostility = clamp(
+        nextLocalHostility + harshRequisitionHostilityGain + plunderHostilityGain,
+        0,
+        100,
+      )
+      const finalPlunderPressure = Math.max(0, nextPlunderPressure - plunderRelief)
+
       const newState: WarSideSupplyState = {
         supplyAccess,
-        supplyPressure: nextSupplyPressure,
+        supplyPressure: finalSupplyPressure,
         forageEfficiency,
-        localHostility: nextLocalHostility,
-        plunderPressure: nextPlunderPressure,
+        localHostility: finalLocalHostility,
+        plunderPressure: finalPlunderPressure,
       }
-      const sidePatch: Partial<WarSide> = {
-        supplyState: newState,
-        ...(strategistId !== undefined ? { strategistPersonId: strategistId } : {}),
-        ...(quartermasterId !== undefined ? { quartermasterPersonId: quartermasterId } : {}),
+      const sideObj = sideKey === 'attacker' ? ws.wars[wid]!.attacker : ws.wars[wid]!.defender
+      const updatedSide: WarSide = { ...sideObj, supplyState: newState }
+      if (strategistId !== undefined) {
+        updatedSide.strategistPersonId = strategistId
+      } else {
+        delete updatedSide.strategistPersonId
       }
-      updateWarSideMut(ws, wid, sideKey, sidePatch)
+      if (quartermasterId !== undefined) {
+        updatedSide.quartermasterPersonId = quartermasterId
+      } else {
+        delete updatedSide.quartermasterPersonId
+      }
+      const warObj = ws.wars[wid]!
+      ws.wars[wid] = {
+        ...warObj,
+        [sideKey === 'attacker' ? 'attacker' : 'defender']: updatedSide,
+      }
     }
   }
 
