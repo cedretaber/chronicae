@@ -77,7 +77,7 @@ describe('spawnWarDamageCrisis (Phase B)', () => {
         [IMP]: {
           id: IMP,
           holdingId: HOLDING,
-          kind: 'field_system',
+          kind: 'irrigation_infrastructure',
           level: 1,
           condition: 100,
           createdWeek: 0,

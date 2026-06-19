@@ -159,7 +159,7 @@ function selectImprovementKind(
   )
   if (buildable.length === 0) return undefined
 
-  // v0.52: 全 improvement が production_quality (infrastructure)。最低 level の buildable を選ぶ。
+  // v0.52: 最低 level の buildable infrastructure を選ぶ。
   let bestKind: HoldingImprovementKind | undefined
   let bestLevel = Infinity
   for (const k of buildable) {

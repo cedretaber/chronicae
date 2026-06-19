@@ -5,14 +5,17 @@ import type {
   HoldingId,
   HoldingOfficeAssignmentId,
   HoldingImprovementId,
+  RealEstateAssetId,
 } from '../types/ids'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { VALID_HOLDING_IMPROVEMENT_KINDS } from './integrityConstants'
+import { assetOwnerKey } from '../types/realEstateAsset'
 
 export function checkGeographyAndHoldings(
   state: WorldState,
@@ -559,6 +562,155 @@ export function checkGeographyAndHoldings(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Holding ${holding.id}: city must have town_hall infrastructure (v0.52 critical)`,
+        })
+      }
+    }
+  }
+
+  // --- v0.52: RealEstateAsset integrity checks ---
+  {
+    const byHoldingRebuilt: Record<string, RealEstateAssetId[]> = {}
+    const byOwnerRebuilt: Record<string, RealEstateAssetId[]> = {}
+
+    for (const [assetIdStr, asset] of Object.entries(state.realEstateAssets)) {
+      if (!asset) continue
+      const assetId = assetIdStr as RealEstateAssetId
+
+      if (!(assetId as string).startsWith('re-')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: id must start with re-`,
+        })
+      }
+
+      if (!state.holdings[asset.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: holdingId=${asset.holdingId as string} does not exist`,
+        })
+      }
+
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      if (!def) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: unknown realEstateKind=${asset.realEstateKind}`,
+        })
+      }
+
+      if (asset.level < 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: level=${asset.level} must be >= 1`,
+        })
+      }
+
+      if (def) {
+        const holding = state.holdings[asset.holdingId]
+        if (holding) {
+          const maxLevel = def.maxLevelByHoldingKind[holding.kind]
+          if (maxLevel !== undefined && asset.level > maxLevel) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: level=${asset.level} exceeds maxLevel=${maxLevel} for ${holding.kind}`,
+            })
+          }
+          if (!def.allowedHoldingKinds.includes(holding.kind)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: kind=${asset.realEstateKind} not allowed in ${holding.kind}`,
+            })
+          }
+        }
+      }
+
+      if (asset.owner) {
+        switch (asset.owner.kind) {
+          case 'person': {
+            const person = state.persons[asset.owner.id]
+            if (!person) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner person ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+          case 'house': {
+            const house = state.houses[asset.owner.id]
+            if (!house) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner house ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+          case 'polity': {
+            const polity = state.polities[asset.owner.id]
+            if (!polity) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner polity ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+        }
+      }
+
+      const holdingKey = asset.holdingId as string
+      ;(byHoldingRebuilt[holdingKey] ??= []).push(assetId)
+
+      if (asset.owner) {
+        const ownerK = assetOwnerKey(asset.owner)
+        ;(byOwnerRebuilt[ownerK] ??= []).push(assetId)
+      }
+    }
+
+    const idx = state.realEstateAssetIndex
+    for (const [key, ids] of Object.entries(idx.byHolding)) {
+      const expected = byHoldingRebuilt[key]
+      if (!expected) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding[${key}] has ${(ids ?? []).length} entries but no assets exist for this holding`,
+        })
+      } else if (ids && ids.length !== expected.length) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding[${key}] has ${ids.length} entries but expected ${expected.length}`,
+        })
+      }
+    }
+    for (const [key, expected] of Object.entries(byHoldingRebuilt)) {
+      if (!idx.byHolding[key]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding missing key ${key} (${expected.length} assets)`,
+        })
+      }
+    }
+
+    for (const [key, ids] of Object.entries(idx.byOwner)) {
+      const expected = byOwnerRebuilt[key]
+      if (!expected) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner[${key}] has ${(ids ?? []).length} entries but no owned assets exist for this owner`,
+        })
+      } else if (ids && ids.length !== expected.length) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner[${key}] has ${ids.length} entries but expected ${expected.length}`,
+        })
+      }
+    }
+    for (const [key, expected] of Object.entries(byOwnerRebuilt)) {
+      if (!idx.byOwner[key]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner missing key ${key} (${expected.length} assets)`,
         })
       }
     }

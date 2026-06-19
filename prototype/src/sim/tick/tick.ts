@@ -63,6 +63,7 @@ import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runLifeStageProgressionSystem } from './lifeStageProgressionSystem'
 import { runLifeStageInfluenceSystem } from './lifeStageInfluenceSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
+import { runRealEstateOwnerSuccessionSystem } from './realEstateOwnerSuccessionSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { runHouseFoundingSystem } from './houseFoundingSystem'
 import { runHouseSplitEvaluationSystem } from './houseSplitEvaluationSystem'
@@ -193,6 +194,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runEstateSettlementSystem,
   },
   { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
+  {
+    name: 'realEstateOwnerSuccessionSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRealEstateOwnerSuccessionSystem,
+  },
   {
     // spec §6.12 未成年当主ペナルティ: 当主が未成年 (age < adultAge) の間、4 週ごとに家
     // メンバーの respect (cohesion) / 当主の primary polity への affection (loyalty) を

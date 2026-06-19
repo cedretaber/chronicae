@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-19 (v0.51.1 派閥離脱改修 — FactionDefectionSystem: idle 起点を joinedWeek → lastActiveWeek に変更、「仕事」に国・家 Project supervisor を追加、grace 8年→1年、判定頻度を年1→四半期(12週)に。FactionMembership に lastActiveWeek フィールド追加)
+最終更新: 2026-06-20 (v0.52 所領・不動産システム — RealEstateAsset 導入 (field/pasture/workshop)、PopOccupation 廃止→employed boolean、acquire/upgrade_owned_real_estate Project、realEstateOwnerSuccessionSystem、RealEstateAsset integrity check 追加)
 
 ---
 
