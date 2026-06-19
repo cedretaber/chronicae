@@ -172,6 +172,10 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'revoke_political_right'
     case 'intervene_cadet_succession':
       return 'replace_house_leader'
+    case 'acquire_real_estate_asset':
+      return 'acquire_real_estate'
+    case 'improve_house_real_estate':
+      return 'upgrade_owned_real_estate'
     default:
       return undefined
   }
@@ -194,7 +198,12 @@ export function getProjectDeadlineWeeks(
 ): number {
   if (isDiplomaticProjectKind(kind)) return config.projectDeadlineWeeksDiplomatic
   if (kind === 'personal_training') return config.personalTrainingDeadlineWeeks
-  if (kind === 'develop_holding' && targetProgress !== undefined) {
+  if (
+    (kind === 'develop_holding' ||
+      kind === 'develop_real_estate' ||
+      kind === 'upgrade_owned_real_estate') &&
+    targetProgress !== undefined
+  ) {
     return Math.ceil(
       config.projectDeadlineWeeksDevelopment *
         (targetProgress / config.projectDefaultTargetProgress),

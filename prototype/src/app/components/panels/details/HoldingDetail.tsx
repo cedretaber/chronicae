@@ -17,7 +17,7 @@ import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { clamp100 } from '@sim/utils/math'
-import { PersonLink } from './shared/links'
+import { PersonLink, HouseLink, PolityLink } from './shared/links'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
   getBailiffPolicy,
@@ -30,14 +30,16 @@ import {
 import { personAttitudeKey } from '@sim/helpers/attitudeHelpers'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
-import { getPrimaryOccupationForClass } from '@/sim/types/popGroup'
 import {
-  getHoldingPopSizeByClassAndOccupation,
-  getHoldingOccupationCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingUnemployedPopSize,
+  getHoldingClassCapacity,
   getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
+import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 
 export function HoldingDetail({
   holding,
@@ -131,7 +133,111 @@ export function HoldingDetail({
         </div>
       </div>
 
-      {/* Improvements */}
+      {/* RealEstateAssets */}
+      {currentState &&
+        (() => {
+          const assetIds = currentState.realEstateAssetIndex.byHolding[holding.id as string] ?? []
+          const assets = assetIds
+            .map((id) => currentState.realEstateAssets[id])
+            .filter((a): a is NonNullable<typeof a> => a !== undefined)
+          const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+          const emptySlots = Math.max(0, slotCap - assets.length)
+          if (assets.length === 0 && emptySlots === 0) return null
+
+          const fillCache = new Map<string, { employedSize: number; cap: number }>()
+          const getFill = (popClass: import('@sim/types/popGroup').PopClass) => {
+            const cached = fillCache.get(popClass)
+            if (cached) return cached
+            const employedSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
+            const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
+            const result = { employedSize, cap }
+            fillCache.set(popClass, result)
+            return result
+          }
+
+          return (
+            <div className="text-sm">
+              <DetailSection title={t('detail.realEstate.title')} count={assets.length} />
+              <div className="mt-1 text-xs text-gray-500">
+                {t('detail.realEstate.slots')}: {assets.length}/{slotCap}
+              </div>
+              <div className="mt-1 flex flex-col gap-1">
+                {assets.map((asset) => {
+                  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                  return (
+                    <div key={asset.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-medium text-gray-200">
+                          {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
+                            defaultValue: asset.realEstateKind,
+                          })}
+                        </span>
+                        <span className="text-gray-500">Lv.{asset.level}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{t('detail.realEstate.owner')}:</span>
+                        {asset.owner ? (
+                          asset.owner.kind === 'house' ? (
+                            <HouseLink
+                              houseId={asset.owner.id}
+                              houses={currentState.houses}
+                              onClick={onHouseClick}
+                            />
+                          ) : asset.owner.kind === 'person' ? (
+                            <PersonLink
+                              personId={asset.owner.id}
+                              persons={currentState.persons}
+                              onClick={onPersonClick}
+                            />
+                          ) : (
+                            <PolityLink
+                              polityId={asset.owner.id}
+                              world={currentState}
+                              onClick={onPolityClick}
+                            />
+                          )
+                        ) : (
+                          <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
+                        )}
+                      </div>
+                      {def.employmentSlots.map((slot) => {
+                        const fill = getFill(slot.popClass)
+                        const pct =
+                          fill.cap > 0 ? clamp100((fill.employedSize / fill.cap) * 100) : 0
+                        return (
+                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-gray-500">
+                              {t(`detail.province.${slot.popClass}`)}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                              <div
+                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-gray-400">
+                              {fill.employedSize.toFixed(0)}/{fill.cap.toFixed(0)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+                {Array.from({ length: emptySlots }, (_, i) => (
+                  <div
+                    key={`empty-${String(i)}`}
+                    className="flex items-center justify-center rounded border border-dashed border-gray-600 p-2 text-xs text-gray-500"
+                  >
+                    {t('detail.realEstate.empty_slot')}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* Infrastructure */}
       {currentState &&
         (() => {
           const impIds = currentState.holdingImprovementIndex.byHolding[holding.id as string] ?? []
@@ -153,6 +259,7 @@ export function HoldingDetail({
                 const threshold = defaultConfig.facilityDisrepairThreshold
                 const condition = clamp100(imp.condition)
                 const disrepaired = condition < threshold
+                const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
                 return (
                   <div key={imp.id} className="ml-2">
                     <div className="flex items-baseline justify-between">
@@ -183,6 +290,37 @@ export function HoldingDetail({
                         {condition.toFixed(0)}
                       </span>
                     </div>
+                    {impDef.employmentSlots &&
+                      impDef.employmentSlots.map((slot) => {
+                        const empSize = getHoldingEmployedPopSize(
+                          currentState,
+                          holding.id,
+                          slot.popClass,
+                        )
+                        const cap = getHoldingClassCapacity(
+                          currentState,
+                          defaultConfig,
+                          holding.id,
+                          slot.popClass,
+                        )
+                        const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
+                        return (
+                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">
+                              {t(`detail.province.${slot.popClass}`)}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                              <div
+                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-xs text-gray-400">
+                              {empSize.toFixed(0)}/{cap.toFixed(0)}
+                            </span>
+                          </div>
+                        )
+                      })}
                   </div>
                 )
               })}
@@ -199,9 +337,19 @@ export function HoldingDetail({
             .map((pid) => currentState.projects[pid])
             .find(
               (p): p is NonNullable<typeof p> =>
-                p !== undefined && p.status === 'active' && p.kind === 'develop_holding',
+                p !== undefined &&
+                p.status === 'active' &&
+                (p.kind === 'develop_holding' ||
+                  p.kind === 'develop_real_estate' ||
+                  p.kind === 'upgrade_owned_real_estate'),
             )
-          if (!activeProject || activeProject.kind !== 'develop_holding') return null
+          if (!activeProject) return null
+          if (
+            activeProject.kind !== 'develop_holding' &&
+            activeProject.kind !== 'develop_real_estate' &&
+            activeProject.kind !== 'upgrade_owned_real_estate'
+          )
+            return null
           const supervisor = currentState.persons[activeProject.supervisorPersonId]
           return (
             <div className="text-sm">
@@ -213,11 +361,20 @@ export function HoldingDetail({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">
-                    {t(`detail.province.improvement_${activeProject.improvementKind}`, {
-                      defaultValue: String(activeProject.improvementKind),
-                    })}
+                    {activeProject.kind === 'develop_holding'
+                      ? t(`detail.province.improvement_${activeProject.improvementKind}`, {
+                          defaultValue: String(activeProject.improvementKind),
+                        })
+                      : t(`detail.realEstate.kind_${activeProject.realEstateKind}`, {
+                          defaultValue: String(activeProject.realEstateKind),
+                        })}
                   </span>
-                  <span>&rarr; Lv.{activeProject.targetImprovementLevel}</span>
+                  <span>
+                    &rarr; Lv.
+                    {activeProject.kind === 'develop_holding'
+                      ? activeProject.targetImprovementLevel
+                      : activeProject.targetRealEstateLevel}
+                  </span>
                 </div>
                 {activeProject.currentStageKey === 'execute_project' && (
                   <div className="flex justify-between">
@@ -537,41 +694,26 @@ export function HoldingDetail({
         <>
           <DetailSection title="POP" />
           {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
-            const primaryOcc = getPrimaryOccupationForClass(popClass)
-            const employed = getHoldingPopSizeByClassAndOccupation(
-              currentState,
-              holding.id,
-              popClass,
-              primaryOcc,
-            )
-            const cap = getHoldingOccupationCapacity(
-              currentState,
-              defaultConfig,
-              holding.id,
-              popClass,
-              primaryOcc,
-            )
-            const unemployed = getHoldingPopSizeByClassAndOccupation(
-              currentState,
-              holding.id,
-              popClass,
-              'none',
-            )
-            if (employed === 0 && unemployed === 0) return null
+            const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
+            const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
+            const unempSize = getHoldingUnemployedPopSize(currentState, holding.id, popClass)
+            if (empSize === 0 && unempSize === 0) return null
             return (
               <div key={popClass} className="text-sm">
                 <div className="font-medium text-gray-300">{t(`detail.province.${popClass}`)}</div>
                 <div className="ml-2 text-gray-400">
                   <div className="flex justify-between">
-                    <span>{t(`popOccupation.${primaryOcc}`)}:</span>
+                    <span>{t('detail.province.pop_employed')}:</span>
                     <span>
-                      {employed.toFixed(1)} / {cap.toFixed(1)}
+                      {empSize.toFixed(1)} / {cap.toFixed(1)}
                     </span>
                   </div>
-                  {unemployed > 0 && (
+                  {unempSize > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-yellow-400">{t('popOccupation.none')}:</span>
-                      <span className="text-yellow-400">{unemployed.toFixed(1)}</span>
+                      <span className="text-yellow-400">
+                        {t('detail.province.pop_unemployed')}:
+                      </span>
+                      <span className="text-yellow-400">{unempSize.toFixed(1)}</span>
                     </div>
                   )}
                 </div>
@@ -597,7 +739,11 @@ export function HoldingDetail({
                   >
                     {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
                     <span className="text-xs font-normal text-gray-400">
-                      ({t(`popOccupation.${pop.occupation}`)})
+                      (
+                      {pop.employed
+                        ? t('detail.province.pop_employed')
+                        : t('detail.province.pop_unemployed')}
+                      )
                     </span>{' '}
                     →
                   </button>

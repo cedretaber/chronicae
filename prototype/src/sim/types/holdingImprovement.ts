@@ -1,10 +1,10 @@
 import type { HoldingImprovementId, HoldingId } from './ids'
 
 export type HoldingImprovementKind =
+  | 'manor_house'
+  | 'town_hall'
   | 'storage_infrastructure'
   | 'transport_infrastructure'
-  | 'field_system'
-  | 'pastoral_infrastructure'
   | 'irrigation_infrastructure'
   | 'market_infrastructure'
   | 'workshop_infrastructure'

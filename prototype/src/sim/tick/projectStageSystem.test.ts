@@ -593,7 +593,7 @@ describe('resolveFindSupervisor via resolveImmediateStages (develop_holding)', (
       createdWeek: 48000,
       reasonIds: [],
       holdingId: HOLDING,
-      improvementKind: 'field_system',
+      improvementKind: 'irrigation_infrastructure',
       targetImprovementLevel: 1,
       budget: { required: 0, allocated: 0, remaining: 0, spent: 0, source: { kind: 'owner' } },
       ...overrides,

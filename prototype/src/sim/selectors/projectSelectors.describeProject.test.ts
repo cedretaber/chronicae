@@ -9,10 +9,11 @@ import type {
   HoldingId,
   PressureId,
   CrisisId,
+  RealEstateAssetId,
 } from '../types/ids'
 
 // describeProject は純粋関数 (state を引かない) なので、各 kind の最小 fixture で網羅する。
-// 目的: 全 20 kind が throw せず descriptor を返し、primary が fields[0] と一致すること
+// 目的: 全 22 kind が throw せず descriptor を返し、primary が fields[0] と一致すること
 // (app に render テストが無いぶんの保険。kind 追加漏れは never default + この網羅で二重に検出)。
 
 const base: BaseProject = {
@@ -42,7 +43,7 @@ const samples: Record<ProjectKind, Project> = {
     ...base,
     kind: 'develop_holding',
     holdingId: 'hd1' as HoldingId,
-    improvementKind: 'field_system',
+    improvementKind: 'irrigation_infrastructure',
     targetImprovementLevel: 3,
     budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
   },
@@ -196,13 +197,39 @@ const samples: Record<ProjectKind, Project> = {
     holdingId: 'hd1' as HoldingId,
     budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
   },
+  develop_real_estate: {
+    ...base,
+    kind: 'develop_real_estate',
+    holdingId: 'hd1' as HoldingId,
+    realEstateKind: 'field',
+    targetRealEstateLevel: 2,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
+  acquire_real_estate: {
+    ...base,
+    kind: 'acquire_real_estate',
+    owner: { kind: 'house', id: 'h-1' as HouseId },
+    holdingId: 'hld-1' as HoldingId,
+    targetRealEstateAssetId: 're-1' as RealEstateAssetId,
+    salePrice: 100,
+    budget: { required: 100, allocated: 100, remaining: 100, spent: 0, source: { kind: 'owner' } },
+  },
+  upgrade_owned_real_estate: {
+    ...base,
+    kind: 'upgrade_owned_real_estate',
+    holdingId: 'hld-1' as HoldingId,
+    targetRealEstateAssetId: 're-1' as RealEstateAssetId,
+    realEstateKind: 'field',
+    targetRealEstateLevel: 2,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
 }
 
 describe('describeProject', () => {
   const kinds = Object.keys(samples) as ProjectKind[]
 
-  it('covers all 21 project kinds', () => {
-    expect(kinds.length).toBe(21)
+  it('covers all 24 project kinds', () => {
+    expect(kinds.length).toBe(24)
   })
 
   it.each(kinds)('returns a descriptor for kind=%s without throwing', (kind) => {

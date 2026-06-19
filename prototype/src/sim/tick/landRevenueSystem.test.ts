@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runLandRevenueSystem } from './landRevenueSystem'
+import { getHoldingProduction } from '../selectors/popEconomySelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext } from './context'
@@ -37,7 +38,7 @@ function withPopGroup(
     id,
     holdingId,
     class: popClass,
-    occupation: 'agriculture',
+    employed: true,
     size,
     wealth,
     unrest,
@@ -124,7 +125,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = 100
+    const gross = getHoldingProduction(state, ctx.config, holdingId)
     const collected = gross * localExtractionRate * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
     const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
@@ -147,7 +148,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = 100
+    const gross = getHoldingProduction(state, ctx.config, holdingId)
     const collected = gross * localExtractionRate * collectionEfficiency
     const bailiffFee = collected * bailiffFeeRate
     const remittance = collected - bailiffFee
@@ -271,7 +272,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = 100
+    const gross = getHoldingProduction(state, ctx.config, holdingId)
     const collected = gross * localExtractionRate * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
 

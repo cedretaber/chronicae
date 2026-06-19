@@ -222,6 +222,9 @@ function makeMinimalWorld(): WorldState {
     nextPersonActivityLogId: 0,
     clans: {},
     nextClanId: 1,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
 }
 

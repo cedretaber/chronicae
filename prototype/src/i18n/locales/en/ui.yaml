@@ -124,7 +124,10 @@ detail:
     empty: 'No records'
   project_kind:
     acquire_political_right: 'Acquire Political Right'
-    develop_holding: 'Develop Holding'
+    develop_holding: 'Develop Infrastructure'
+    develop_real_estate: 'Develop Real Estate'
+    acquire_real_estate: 'Acquire Real Estate'
+    upgrade_owned_real_estate: 'Upgrade Owned Real Estate'
     promote_policy_shift: 'Policy Lobbying'
     patronize_artist: 'Patronize Artist'
     commission_chronicle: 'Commission Chronicle'
@@ -162,6 +165,7 @@ detail:
   facility:
     condition: 'Condition'
     disrepair_badge: 'Disrepair'
+    pop_fill: 'Staffing'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'
@@ -214,6 +218,7 @@ detail:
       rights_suffix: 'rights'
     houses_with_land: 'Houses with land here'
     land_contracts: 'Land Contracts'
+    land_contracts_note: 'Revenue figures are estimated annual values.'
     regiments: 'Regiments'
     regiment_suffix: 'Regiment'
     cavalry_regiment: 'Cavalry Regiment'
@@ -280,6 +285,9 @@ detail:
     project_supervisor: 'Supervisor'
     project_deadline: 'Deadline'
     projects_section: 'Projects'
+    owned_real_estate: 'Owned Real Estate'
+    real_estate_location: 'Location'
+    real_estate_annual_income: 'Est. Annual Income'
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
@@ -472,6 +480,9 @@ detail:
       undermine_influence: "Undermines the target's influence through conspiracy."
       revoke_political_right: "Revokes the target's appointment right through conspiracy, returning it to the polity (incumbents keep their posts)."
       replace_house_leader: "Replaces a cadet branch's head with its highest-prestige member through conspiracy."
+      develop_real_estate: 'Builds or upgrades an unowned real estate asset in the target holding, raising its employment capacity.'
+      acquire_real_estate: 'Purchases an unowned real estate asset for the house, generating ongoing owner income from its production.'
+      upgrade_owned_real_estate: "Upgrades the house's owned real estate asset to a higher level, increasing its income and employment capacity."
     pressure_source: 'Pressure From'
     pressure_type: 'Pressure Type'
     pressure_play: 'Related Play'
@@ -573,6 +584,8 @@ detail:
     holdings: 'Holdings'
     population_section: 'Population'
     pop_groups: 'POP Groups'
+    pop_employed: 'Employed'
+    pop_unemployed: 'Unemployed'
     revolt_risk: 'Revolt Risk'
     attitudes: 'Attitudes'
     dev: 'Dev'
@@ -590,24 +603,20 @@ detail:
     chronicle: 'Provincial History'
     capacity: 'Capacity'
     employment_rate: 'Employment Rate'
-    improvements: 'Improvements'
-    improvement_field_system: 'Field System'
-    improvement_pastoral_infrastructure: 'Pastoral Infrastructure'
+    improvements: 'Infrastructure'
+    improvement_manor_house: 'Manor House'
+    improvement_town_hall: 'Town Hall'
     improvement_irrigation_infrastructure: 'Irrigation Infrastructure'
     improvement_market_infrastructure: 'Market Infrastructure'
     improvement_workshop_infrastructure: 'Workshop Infrastructure'
     improvement_storage_infrastructure: 'Storage Infrastructure'
     improvement_transport_infrastructure: 'Transport Infrastructure'
     improvement_level: 'Lv.{{level}}'
-    improvement_name_field_system_manor_1: 'Assart'
-    improvement_name_field_system_manor_2: 'Open Field'
-    improvement_name_field_system_manor_3: 'Three-Field Farm'
-    improvement_name_pastoral_infrastructure_manor_1: 'Pasture'
-    improvement_name_pastoral_infrastructure_manor_2: 'Enclosed Paddock'
-    improvement_name_pastoral_infrastructure_manor_3: 'Grazing Estate'
+    improvement_name_manor_house_manor_1: 'Manor House'
+    improvement_name_town_hall_city_1: 'Town Hall'
     improvement_name_irrigation_infrastructure_manor_1: 'Irrigation Ditch'
-    improvement_name_irrigation_infrastructure_manor_2: 'Canal Network'
-    improvement_name_irrigation_infrastructure_manor_3: 'Waterworks'
+    improvement_name_irrigation_infrastructure_manor_2: 'Irrigation Canal'
+    improvement_name_irrigation_infrastructure_manor_3: 'Noria'
     improvement_name_market_infrastructure_city_1: 'Market Stalls'
     improvement_name_market_infrastructure_city_2: 'Marketplace'
     improvement_name_market_infrastructure_city_3: 'Grand Market'
@@ -634,6 +643,18 @@ detail:
     project_budget_total: 'Budget'
     project_budget_remaining: 'Remaining'
     project_budget_spent: 'Spent'
+
+  # v0.52 RealEstateAsset
+  realEstate:
+    title: 'Real Estate'
+    kind_field: 'Field'
+    kind_pasture: 'Pasture'
+    kind_workshop: 'Workshop'
+    owner: 'Owner'
+    unowned: 'Unowned'
+    empty_slot: 'Empty Slot'
+    pop_fill: 'Staffing'
+    slots: 'Slots'
 
   # Holding detail (v0.38 Chronicle)
   holding:

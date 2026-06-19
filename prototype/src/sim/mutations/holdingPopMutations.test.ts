@@ -18,13 +18,13 @@ function setup() {
   const p1 = addToOrCreatePopGroupMut(ws, {
     holdingId: H1,
     class: 'peasants',
-    occupation: 'agriculture',
+    employed: true,
     size: 100,
   })
   const p2 = addToOrCreatePopGroupMut(ws, {
     holdingId: H2,
     class: 'peasants',
-    occupation: 'agriculture',
+    employed: true,
     size: 100,
   })
   ws.popGroups[p1] = { ...ws.popGroups[p1]!, wealth: 50, unrest: 10 }

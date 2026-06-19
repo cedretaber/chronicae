@@ -7,7 +7,7 @@
 // development = sum(improvement.level * scorePerLevel[improvement.kind])
 function getHoldingDevelopment(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// development modifier（production 側でのみ使用。occupation capacity からは除外）
+// development modifier（production 側でのみ使用。class capacity からは除外）
 // modifier = clamp(1.0 + development / 150, 0.75, 1.75)
 // development 0 → 1.0（ペナルティなし）、development 62 → 1.41（最大）
 function getHoldingDevelopmentModifier(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
@@ -21,7 +21,7 @@ function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: Provi
 
 // state 非依存の純粋 capacity helper（selector / worldgen seeding が共有し計算ズレを防ぐ）
 // capacity = (base + improvementDerivedCapacity) * weight * landQuality（devMod 不使用）
-function computeHoldingOccupationCapacity(holdingKind, weight, landQuality, terrain, features, improvements, config, occupation): number
+function computeHoldingClassCapacity(holdingKind, weight, landQuality, terrain, features, improvements, config): number
 
 // state 非依存の建設可否判定（selector / worldgen 初期生成が共有）
 function canBuildHoldingImprovementPure(holdingKind, terrain, features, currentLevel, kind, config): boolean
@@ -32,7 +32,7 @@ function canBuildHoldingImprovement(state: WorldState, config: SimulationConfig,
 
 `Holding.development` 保存値は持たない。development は HoldingImprovement の level から selector で算出する。production path は `getProvinceDevelopmentMultiplier` ではなく `getHoldingDevelopmentModifier` を使う。
 
-development と occupation capacity は分離されている（§4.2）。`getHoldingDevelopmentModifier` は production 側でのみ使い、capacity からは外した（二重計上の回避）。pure helper（`computeHoldingOccupationCapacity` / `canBuildHoldingImprovementPure`）は `selectors/holdingImprovementSelectors.ts` に置き、selector・worldgen・taskSystem・integrity から共有する。
+development と class capacity は分離されている（§4.2）。`getHoldingDevelopmentModifier` は production 側でのみ使い、capacity からは外した（二重計上の回避）。pure helper（`computeHoldingClassCapacity` / `canBuildHoldingImprovementPure`）は `selectors/holdingImprovementSelectors.ts` に置き、selector・worldgen・taskSystem・integrity から共有する。
 
 `getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は存在しない。代わりに POP Economy セレクターを使用する。
 
@@ -46,30 +46,34 @@ function getHoldingPops(state: WorldState, holdingId: HoldingId): PopGroup[]
 
 function getHoldingPopsByClass(state: WorldState, holdingId: HoldingId, popClass: PopClass): PopGroup[]
 
-function getHoldingPopsByClassAndOccupation(state: WorldState, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): PopGroup[]
+function getHoldingPopsByClassAndEmployment(state: WorldState, holdingId: HoldingId, popClass: PopClass, employed: boolean): PopGroup[]
 
 function getHoldingPopSizeByClass(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
 
-function getHoldingPopSizeByClassAndOccupation(state: WorldState, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+function getHoldingEmployedPopSize(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
+
+function getHoldingUnemployedPopSize(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
 ```
 
-#### Occupation capacity セレクター
+#### Class capacity セレクター
 
 ```ts
-// Holding の職業キャパシティ（computeHoldingOccupationCapacity へ委譲）
+// Holding のクラス別キャパシティ（computeHoldingClassCapacity へ委譲）
 //   = (base + improvementDerivedCapacity) * weight * landQuality
-//   improvementDerivedCapacity = Σ level * capacityPerLevel[kind][occupation] * terrainMult * featureMult
+//   improvementDerivedCapacity = Σ level * capacityPerLevel[kind] * terrainMult * featureMult
 //   terrainMult = terrainCapacityMultiplier[kind]?.[terrain] ?? 1.0（clamp なし）
 //   featureMult = clamp(Π(featureCapacityMultiplier[kind]?.[f] ?? 1.0), 0.75, 1.50)（feature 無→空積 1.0）
-//   capacityPerLevel[kind][occupation] 未定義 → その occupation の寄与は 0
-// devMod は使わない（§4.1 / 二重計上回避）。occupation === 'none' は 0。popClass 引数は後方互換で保持（未使用）
-function getHoldingOccupationCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+// devMod は使わない（§4.1 / 二重計上回避）
+function getHoldingClassCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
 // 残容量: capacity - used
-function getHoldingOccupationRemainingCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+function getHoldingClassRemainingCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
 // 労働力不足 = remainingCapacity
-function getHoldingLaborShortage(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+function getHoldingLaborShortage(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
+
+// 雇用 POP の合計サイズ
+function getHoldingEmployedPopSize(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
 
 // 無職 POP の合計サイズ
 function getHoldingUnemployedPopSize(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
@@ -93,7 +97,7 @@ function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId):
 // POP unrest の人口加重平均
 function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): number
 
-// carrying capacity = Province 内全 Holding の全職業キャパシティ合計
+// carrying capacity = Province 内全 Holding のクラス別キャパシティ合計
 function getProvinceCarryingCapacity(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // population pressure: clamp(population / carryingCapacity, 0, 2)
@@ -109,8 +113,8 @@ function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass
 ### 4.3 POP Economy セレクター
 
 ```ts
-// POP 1件の生産量（occupation multiplier、Holding 単位 dev/control）
-// pop.size * productivityByClass[pop.class] * occupationProductivityMultiplier[pop.occupation]
+// POP 1件の生産量（employment multiplier、Holding 単位 dev/control）
+// pop.size * productivityByClass[pop.class] * (pop.employed ? employedProductivityMultiplier : unemployedProductivityMultiplier)
 //   * (pop.wealth / 100) * holdingDevelopmentModifier * holdingControlModifier
 function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
 
@@ -120,8 +124,8 @@ function getProvinceProduction(state: WorldState, config: SimulationConfig, prov
 // Province の税基盤: getProvinceProduction * (polityControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Polity 用の Province 兵力基盤（occupation manpower multiplier 含む）
-// sum(pop.size * manpowerFactorByClass[pop.class] * occupationManpowerMultiplier[pop.occupation] * (polityControl / 100))
+// Polity 用の Province 兵力基盤（employment manpower multiplier 含む）
+// sum(pop.size * manpowerFactorByClass[pop.class] * (pop.employed ? employedManpowerMultiplierByClass[pop.class] : unemployedManpowerMultiplier) * (polityControl / 100))
 function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // House 用の Province 兵力基盤: polityManpowerBase と同等 (houseControl は持たない)

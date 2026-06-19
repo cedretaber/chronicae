@@ -1,7 +1,7 @@
 import { clamp } from '../utils/math'
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PopGroupId, HoldingId } from '../types/ids'
-import type { PopClass, PopOccupation, PopGroup } from '../types/popGroup'
+import type { PopClass, PopGroup } from '../types/popGroup'
 import type { AttitudeMap } from '../types/attitude'
 import { createPopGroupId } from '../types/ids'
 
@@ -164,17 +164,17 @@ export function addToOrCreatePopGroupMut(
   input: {
     holdingId: HoldingId
     class: PopClass
-    occupation: PopOccupation
+    employed: boolean
     size: number
     inheritFrom?: PopGroup
   },
 ): PopGroupId {
-  // Find existing pop with same merge key (holdingId + class + occupation)
+  // Find existing pop with same merge key (holdingId + class + employed)
   const existingPopIds = ws.popIndex.byHolding[input.holdingId]
   if (existingPopIds) {
     for (const popId of existingPopIds) {
       const existing = ws.popGroups[popId]
-      if (existing && existing.class === input.class && existing.occupation === input.occupation) {
+      if (existing && existing.class === input.class && existing.employed === input.employed) {
         // Merge into existing pop using population-weighted average
         const oldSize = existing.size
         const newSize = oldSize + input.size
@@ -207,7 +207,7 @@ export function addToOrCreatePopGroupMut(
     id: newId,
     holdingId: input.holdingId,
     class: input.class,
-    occupation: input.occupation,
+    employed: input.employed,
     size: input.size,
     wealth: input.inheritFrom?.wealth ?? 50,
     unrest: input.inheritFrom?.unrest ?? 10,
@@ -226,26 +226,25 @@ export function addToOrCreatePopGroupMut(
   return newId
 }
 
-export function movePopSizeToOccupationMut(
+export function movePopEmploymentMut(
   ws: WorldState,
   input: {
     sourcePopId: PopGroupId
-    targetOccupation: PopOccupation
+    targetEmployed: boolean
     size: number
   },
 ): PopGroupId {
   const source = ws.popGroups[input.sourcePopId]
   if (!source || input.size <= 0) {
-    throw new Error(`movePopSizeToOccupationMut: invalid input`)
+    throw new Error(`movePopEmploymentMut: invalid input`)
   }
 
   const moveSize = Math.min(input.size, source.size)
 
-  // Add to target (same holdingId, same class, different occupation)
   const targetPopId = addToOrCreatePopGroupMut(ws, {
     holdingId: source.holdingId,
     class: source.class,
-    occupation: input.targetOccupation,
+    employed: input.targetEmployed,
     size: moveSize,
     inheritFrom: source,
   })
@@ -330,13 +329,12 @@ export function reduceHoldingPopSizeProportionalMut(
 }
 
 export function mergeCompatiblePopsMut(ws: WorldState): void {
-  // Build merge key map: "holdingId|class|occupation" -> PopGroupId[]
   const mergeMap = new Map<string, PopGroupId[]>()
 
   for (const popId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
     const pop = ws.popGroups[popId]
     if (!pop) continue
-    const key = `${pop.holdingId}|${pop.class}|${pop.occupation}`
+    const key = `${pop.holdingId}|${pop.class}|${pop.employed}`
     const existing = mergeMap.get(key)
     if (existing) {
       existing.push(popId)

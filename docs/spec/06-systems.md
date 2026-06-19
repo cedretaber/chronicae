@@ -38,11 +38,11 @@ polityControl は Province ではなく **Holding 単位**で更新する。BFS 
 
 ### 6.2 PopSystem（4週ごと）
 
-POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、occupation overflow、wealth/unrest の自然変化を担当する。
+POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、雇用 overflow（employed POP の capacity 超過 → 失業 POP 生成）、wealth/unrest の自然変化を担当する。
 
 **6.2.1 人口成長**
 
-成長抑制式は `1 - pressure²`（二次関数）を使用する。`occupation:none` POP は成長が鈍化する。
+成長抑制式は `1 - pressure²`（二次関数）を使用する。未就業（`employed: false`）POP は成長が鈍化する。
 
 ```ts
 const pressure = getProvincePopulationPressure(state, config, province.id)
@@ -50,25 +50,25 @@ const growthFactor = clamp(1 - pressure * pressure, -0.5, 1.0)
 const baseGrowth = config.baseMonthlyGrowthByClass[pop.class]
 const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
 const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
-const occupationGrowthModifier =
-  pop.occupation === 'none' ? config.unemployedGrowthModifierByClass[pop.class] : 1
-const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * occupationGrowthModifier
+const employmentGrowthModifier =
+  pop.employed ? 1 : config.unemployedGrowthModifierByClass[pop.class]
+const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * employmentGrowthModifier
 ```
 
 **6.2.1b 人口増加時の overflow**
 
-人口増加分はまず元 POP に追加する。ただし `occupation !== 'none'` の POP で occupation capacity を超える場合、超過分は同 Holding / 同 class の `occupation:none` POP に移す。`none` POP の増加はそのまま none POP に留まる。
+人口増加分はまず元 POP に追加する。ただし就業（`employed: true`）POP で class capacity を超える場合、超過分は同 Holding / 同 class の未就業（`employed: false`）POP に移す。未就業 POP の増加はそのまま未就業 POP に留まる。
 
 ```ts
-if (pop.occupation !== 'none') {
-  const capacity = getHoldingOccupationCapacity(state, config, pop.holdingId, pop.class, pop.occupation)
-  const current = getHoldingPopSizeByClassAndOccupation(state, pop.holdingId, pop.class, pop.occupation)
+if (pop.employed) {
+  const capacity = getHoldingClassCapacity(state, config, pop.holdingId, pop.class)
+  const current = getHoldingEmployedPopSize(state, pop.holdingId, pop.class)
   const room = Math.max(0, capacity - current)
   const toOriginal = Math.min(delta, room)
   const overflow = delta - toOriginal
   pop.size += toOriginal
   if (overflow > 0) {
-    addToOrCreatePopGroup(state, { holdingId: pop.holdingId, class: pop.class, occupation: 'none', size: overflow, inheritFrom: pop })
+    addToOrCreatePopGroupMut(state, { holdingId: pop.holdingId, class: pop.class, employed: false, size: overflow, inheritFrom: pop })
   }
 }
 ```
@@ -104,10 +104,10 @@ if (pop.wealth > config.prosperityWealthThreshold) {
 pop.unrest *= 1 - config.unrestNaturalDecayRate
 ```
 
-**6.2.4b none POP ペナルティ**
+**6.2.4b 未就業 POP ペナルティ**
 
 ```ts
-if (pop.occupation === 'none') {
+if (!pop.employed) {
   pop.wealth -= config.unemployedWealthDecayByClass[pop.class]
   pop.unrest += config.unemployedUnrestGainByClass[pop.class]
 }
@@ -115,43 +115,43 @@ if (pop.occupation === 'none') {
 
 **6.2.5 clamp**
 
-`occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は 0 まで減少可能。
+就業（`employed: true`）POP は `minPopSizeByClass` で下限保証。未就業（`employed: false`）POP は 0 まで減少可能。
 
 ```ts
-const minSize = pop.occupation !== 'none' ? config.minPopSizeByClass[pop.class] : 0
+const minSize = pop.employed ? config.minPopSizeByClass[pop.class] : 0
 pop.size = Math.max(minSize, newSize)
 pop.wealth = clamp(pop.wealth, 0, 100)
 pop.unrest = clamp(pop.unrest, 0, 100)
 ```
 
-**normalizePopSizes**（IntegrityCheck 直前）: `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`occupation === 'none'` の POP は size が `popSizeEpsilon` 以下で削除する。
+**normalizePopSizes**（IntegrityCheck 直前）: 就業（`employed: true`）POP は `minPopSizeByClass` で下限保証。未就業（`employed: false`）POP は size が `popSizeEpsilon` 以下で削除する。
 
 ### 6.3 EmploymentRebalanceSystem（4週ごと）
 
-PopSystem 直後、LandRevenueSystem 直前に実行。Holding × PopClass ごとに capacity 超過の強制失業化と、none POP の再就業を処理する。
+PopSystem 直後、LandRevenueSystem 直前に実行。Holding × PopClass ごとに class capacity 超過の強制失業化と、未就業 POP の再就業を処理する。v0.52 で occupation ベースから employed boolean ベースに移行。
 
 **処理順**:
-1. 各 Holding / class / occupation で capacity 超過を検査。超過分を none POP に移す
-2. none POP を確認。class に対応する primary occupation に空きがあれば再就業
+1. 各 Holding / class で就業 POP の合計が class capacity を超過していれば、超過分を未就業（`employed: false`）に移す
+2. 未就業 POP を確認。class capacity に空きがあれば再就業（`employed: true`）
 
 ```ts
-for (const holding of Object.values(state.holdings)) {
+for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
   for (const popClass of POP_CLASSES) {
     // Phase 1: 強制失業化
-    const primaryOccupation = getPrimaryOccupationForClass(popClass)
-    const capacity = getHoldingOccupationCapacity(state, config, holding.id, popClass, primaryOccupation)
-    const employed = getHoldingPopSizeByClassAndOccupation(state, holding.id, popClass, primaryOccupation)
-    if (employed > capacity) {
-      const excess = employed - capacity
-      movePopSizeToOccupation(state, { sourcePopId, targetOccupation: 'none', size: excess })
+    const capacity = getHoldingClassCapacity(ws, config, holding.id, popClass)
+    const currentEmployed = getHoldingEmployedPopSize(ws, holding.id, popClass)
+    if (currentEmployed > capacity) {
+      const excess = currentEmployed - capacity
+      const employedPops = getHoldingPopsByClassAndEmployment(ws, holding.id, popClass, true)
+      movePopEmploymentMut(ws, { sourcePopId, targetEmployed: false, size: excess })
     }
 
     // Phase 2: 再就業
-    const room = getHoldingOccupationRemainingCapacity(state, config, holding.id, popClass, primaryOccupation)
+    const unemployedPops = getHoldingPopsByClassAndEmployment(ws, holding.id, popClass, false)
+    const room = Math.max(0, capacity - currentAfterForced)
     if (room > 0) {
-      const nonePops = getHoldingPopsByClassAndOccupation(state, holding.id, popClass, 'none')
-      for (const nonePop of nonePops) {
-        movePopSizeToOccupation(state, { sourcePopId: nonePop.id, targetOccupation: primaryOccupation, size: moved })
+      for (const uPop of unemployedPops) {
+        movePopEmploymentMut(ws, { sourcePopId: uPop.id, targetEmployed: true, size: moveAmount })
       }
     }
   }
@@ -166,7 +166,7 @@ Province の生産を **Holding 単位で分配**し、代官による現地徴�
 
 **6.4.1 生産量算出**
 
-各 POP の生産量は `pop.size * productivityByClass * occupationProductivityMultiplier * (wealth/100) * holdingDevMod * holdingControlMod` で算出する（occupation productivity multiplier と holding.polityControl/100 がともに per-pop 式に含まれる）。`none` POP の生産性は 0.1（最低限の日雇い・自給を表す）。
+各 POP の生産量は `pop.size * productivityByClass * productivityMultiplier * (wealth/100) * holdingDevMod * holdingControlMod` で算出する（productivity multiplier と holding.polityControl/100 がともに per-pop 式に含まれる）。就業（`employed: true`）POP は `employedProductivityMultiplier`（default 1.0）、未就業（`employed: false`）POP は `unemployedProductivityMultiplier`（default 0.1、最低限の日雇い・自給を表す）を乗じる。
 
 **6.4.2 per-Holding 収入と代官徴収（extraction model）**
 
@@ -368,7 +368,7 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 
 **修理（`handle_crisis` 再利用）**: 修理 Project は既存 Crisis 機構（find_supervisor → secure_budget → mitigate）に乗る。targetProgress = 修理工数（spawn 時 severity）で creation 時のみ設定（表示 severity 上書きでは壊れない）。完了で ProjectOutcomeSystem の `applyHandleCrisisMut` が disrepair 分岐で対象 improvement の condition を `facilityRepairConditionRestore`(100) に回復してから purge（**load-bearing**: 回復を省くと condition が閾値以下のまま再 spawn される無限 churn）。**disrepair はタイマー無し**: 終端は repaired / destroyed のみで、Crisis 側（deadline 失効スキップ）と Project 側（secure_budget 通過時に `deadlineWeek` を undefined にし残存タイマーを断つ）の両方で deadline 経路を通さない。
 
-**生産への影響（機能不全 = 段階的低下）**: `conditionEffectiveness(condition, threshold, minFloor) = condition ≥ threshold ? 1 : max(minFloor, condition/threshold)`（`holdingImprovementSelectors.ts`）。閾値以上は full(1.0)、未満は線形低下（下限 `facilityDisrepairMinEffectiveness`、通常 0）。bimodal（健全はフラット稼働 / 機能不全で初めて出力が崖状に落ちる）。`getHoldingDevelopment`（development 寄与）と `computeHoldingOccupationCapacity`（雇用 capacity）の improvement level 寄与に乗算。capacity helper の要素型は `condition` を必須にして全 builder に注入を強制する（optional だと渡し忘れが静かに死ぬ）。二重計上ではない（capacity は state 非依存で development を参照しない並列の consumer）。
+**生産への影響（機能不全 = 段階的低下）**: `conditionEffectiveness(condition, threshold, minFloor) = condition ≥ threshold ? 1 : max(minFloor, condition/threshold)`（`holdingImprovementSelectors.ts`）。閾値以上は full(1.0)、未満は線形低下（下限 `facilityDisrepairMinEffectiveness`、通常 0）。bimodal（健全はフラット稼働 / 機能不全で初めて出力が崖状に落ちる）。`getHoldingDevelopment`（development 寄与）と `computeHoldingClassCapacity`（雇用 capacity）の improvement level 寄与に乗算。capacity helper の要素型は `condition` を必須にして全 builder に注入を強制する（optional だと渡し忘れが静かに死ぬ）。二重計上ではない（capacity は state 非依存で development を参照しない並列の consumer）。
 
 **戦争連動**: `spawnWarDamageCrisis`（PeaceSettlement の領地移転後）で対象 holding の全 improvement の condition を `warDamageConditionDrop` 減少させる（improvement 2 slice を draft に追加・per-object spread）。閾値割れは翌サイクル以降に本 system が disrepair として拾う（パイプライン再利用）。war_damage Crisis と disrepair Crisis は同 holding に同居しうる（dedup は kind 別）。**再戦災（案 B, v0.48.1）**: 同 holding に既に active な war_damage Crisis がある場合は新規生成せず、既存 Crisis の `deadlineWeek` をリセット（対処猶予の延長。active 対処 Project があれば deadline を同期）+ 設備 condition を再損傷させる（CRISIS_CREATED は再 emit しない）。
 
@@ -529,6 +529,16 @@ high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で�
 **Polity ruler succession**: 同 system 内で active Polity に polity:leader Office が無い場合、`getPolityHouseIds` のうち ownerHouse もしくは primaryPolity 一致の active House を候補とし、controlled Province 数が最大の House の leader を polity:leader に立てる（ownerHouse は常に候補に含まれるが、必ずしも ownerHouse leader が立つわけではない）。`polity.kind === 'commonwealth'` の場合は skip し、rebel founder 死亡後も leader 空席のまま polity を存続させる（commonwealth は rebel founder 個人を象徴とする一代政体として扱う）。
 
 **年末 re-pass**: 本 system は週次スケジュール上では他の多くの system より前 (mortalitySystem の直後) に走るが、後続の death-causing system（戦争・処刑等）が year-end tick で house:leader を殺すと、その tick では succession が走り終えており House が leaderless のまま年末 integrity check（§6.35 ルール 17）に到達してしまう。通常は翌年 week 1 の succession で自己修復する一過性状態だが、leaderless detector がこれを違反として throw する。これを防ぐため、**`tick.ts` は year-end (week = WEEKS_PER_YEAR) の integrity check 直前に `runSuccessionSystem` を再実行する**。leaderless な House/Polity が無い通常時は no-op（RNG 消費なし）であり、これにより「active 通常 House は年末時点で必ず house:leader を持つ」invariant が構造的に保証される。再実行は通常の succession と同じく、後継者がいれば新家長を任命し、**後継者不在なら `extinctHouseAfterFailedSuccession` で House を断絶させる**（leaderless のまま年末に残さない）。
+
+### 6.11a realEstateOwnerSuccessionSystem（4週ごと、v0.52）
+
+不動産（RealEstateAsset）の owner 参照整合性維持と簡易相続。estateSettlementSystem（§6.8）/ successionSystem（§6.11）の後に実行。
+
+- owner が Person: 死亡/不在 → `person.houseId` の active House に fallback → なければ `undefined`
+- owner が House: 非 active → `undefined`
+- owner が Polity: 非 active → `undefined`
+
+変更がある場合のみ `realEstateAssets` / `realEstateAssetIndex`（byHolding / byOwner）を clone し `changeRealEstateAssetOwnerMut` で書き換え。deterministic（RNG 不要）。
 
 ### 6.12 HouseSplitSystem（SuccessionSystem から呼び出し）
 
@@ -1444,8 +1454,8 @@ Person / House の不変条件:
 PopGroup / Polity 数値範囲:
 - Polity.legacyPrestige / House.legacyPrestige が 0..100 (型レベル + 範囲チェック)
 - PopGroup.holdingId が有効な Holding を指す
-- PopGroup.occupation / class が有効な値
-- 同一 merge key (holdingId + class + occupation) の POP が複数存在しない
+- PopGroup.class が有効な PopClass、PopGroup.employed が boolean
+- 同一 merge key (holdingId + class + employed) の POP が複数存在しない
 - popIndex.byHolding の整合性（POP の holdingId と index が一致）
 - OrganizationRef.kind は `'polity' | 'house'` のみ (型レベル)
 - AttitudeTarget / attitude key に `country:` が残っていない (型レベル)
@@ -1558,12 +1568,26 @@ HoldingImprovement（max-level access 反転）:
 Config / Definition（const を回すのみ）:
 - `IMPROVEMENT_DEFINITIONS` と config の各数値 Record が全 HoldingImprovementKind を持つ（コンパイル時保証の二重の保険）
 - `allowedHoldingKinds` に含まれる holdingKind は maxLevel >= 1、含まれない holdingKind は maxLevel が undefined または 0、負値は不正
-- `capacityRole === 'capacity'` の kind は targetOccupations の `occupationCapacityPerLevel` が正値で存在
+- `capacityRole === 'capacity'` の kind は `employmentSlots` の `capacityPerLevel` が正値で存在
 - terrain / feature multiplier の invalid キーはコンパイル時担保（runtime チェック省略）
 
 Capacity:
-- 全 holding × occupation で `getHoldingOccupationCapacity` が NaN / Infinity / 負を返さない
-- `occupation === 'none'` の capacity は 0
+- 全 holding × class で `getHoldingClassCapacity` が NaN / Infinity / 負を返さない
+
+Critical infrastructure（v0.52）:
+- manor Holding は `manor_house` improvement を持つ
+- city Holding は `town_hall` improvement を持つ
+
+RealEstateAsset（v0.52）:
+- id prefix が `re-`
+- holdingId が存在する
+- realEstateKind が有効な RealEstateKind（`REAL_ESTATE_DEFINITIONS` に存在）
+- level >= 1、level <= maxLevel（`maxLevelByHoldingKind[holdingKind]`）
+- kind が当該 holding の `allowedHoldingKinds` に含まれる
+- owner が Person の場合: 当該 Person が存在する
+- owner が House の場合: 当該 House が存在する
+- owner が Polity の場合: 当該 Polity が存在する
+- `realEstateAssetIndex.byHolding` / `byOwner` と実体が双方向整合（rebuild して件数比較）
 
 War（`integritySystem.ts` §14 セクションに実装）:
 

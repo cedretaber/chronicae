@@ -9,9 +9,16 @@ import { personReputationOrganizationKey } from '../types/personReputation'
 import type { PersonActivityLog } from '../types/task'
 import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
+import {
+  createRealEstateAssetMut,
+  upgradeRealEstateAssetLevelMut,
+  changeRealEstateAssetOwnerMut,
+} from '../mutations/realEstateAssetMutations'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 import { removeCrisisMut, setCrisisStatusMut } from '../mutations/crisisMutations'
 import { cancelActiveResponseProjectMut } from './crisisSystem'
+import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { adjustPersonLegacyPrestige } from '../helpers/attitudeHelpers'
@@ -81,6 +88,11 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     holdingImprovements: { ...ctx.state.holdingImprovements },
     holdingImprovementIndex: {
       byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
+    },
+    realEstateAssets: { ...ctx.state.realEstateAssets },
+    realEstateAssetIndex: {
+      byHolding: { ...ctx.state.realEstateAssetIndex.byHolding },
+      byOwner: { ...ctx.state.realEstateAssetIndex.byOwner },
     },
     persons: { ...ctx.state.persons },
     personActivityLogs: { ...ctx.state.personActivityLogs },
@@ -156,9 +168,12 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
           ws.aims[aim.id] = { ...aim, failedProjectCount: aim.failedProjectCount + 1 }
         }
       }
-      // Budget refund for develop_holding / handle_crisis (budget 持ち holding Project, v0.48 一般化)
       if (
-        (project.kind === 'develop_holding' || project.kind === 'handle_crisis') &&
+        (project.kind === 'develop_holding' ||
+          project.kind === 'develop_real_estate' ||
+          project.kind === 'acquire_real_estate' ||
+          project.kind === 'upgrade_owned_real_estate' ||
+          project.kind === 'handle_crisis') &&
         project.budget.remaining > 0
       ) {
         if (project.owner.kind === 'polity') {
@@ -167,6 +182,14 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
             ws.polities[project.owner.id] = {
               ...polity,
               treasury: polity.treasury + project.budget.remaining,
+            }
+          }
+        } else if (project.owner.kind === 'house') {
+          const house = ws.houses[project.owner.id]
+          if (house) {
+            ws.houses[project.owner.id] = {
+              ...house,
+              wealth: house.wealth + project.budget.remaining,
             }
           }
         }
@@ -418,6 +441,18 @@ function applyNonDiplomaticEffectMut(
     // v0.48 Crisis: 対処完了 → Crisis 解消 (§3.1【新規必須 2】)
     case 'handle_crisis':
       applyHandleCrisisMut(ws, config, project, emitEvent)
+      break
+    // v0.52 不動産開発
+    case 'develop_real_estate':
+      applyDevelopRealEstateMut(ws, project, emitEvent)
+      break
+    // v0.52 不動産取得
+    case 'acquire_real_estate':
+      applyAcquireRealEstateMut(ws, project, emitEvent)
+      break
+    // v0.52 所有不動産増築
+    case 'upgrade_owned_real_estate':
+      applyUpgradeOwnedRealEstateMut(ws, project, emitEvent)
       break
   }
 }
@@ -840,6 +875,154 @@ function applyDevelopHoldingMut(
       entityRef('province', holding.provinceId, 'province', provinceNameKey),
       // v0.38 §6.3: Holding 開発史を byHolding に乗せるため holding ref を additive 追加。
       entityRef('holding', holdingId, 'holding'),
+    ],
+  })
+}
+
+function applyDevelopRealEstateMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'develop_real_estate') return
+  const holdingId = project.holdingId
+  const holding = ws.holdings[holdingId]
+  if (!holding) return
+
+  if (project.targetRealEstateAssetId) {
+    upgradeRealEstateAssetLevelMut(
+      ws,
+      project.targetRealEstateAssetId,
+      project.targetRealEstateLevel,
+    )
+  } else {
+    createRealEstateAssetMut(ws, {
+      holdingId,
+      realEstateKind: project.realEstateKind,
+      level: project.targetRealEstateLevel,
+      createdWeek: ws.absoluteWeek,
+    })
+  }
+
+  if (project.budget.remaining > 0) {
+    const supervisor = ws.persons[project.supervisorPersonId]
+    if (supervisor) {
+      ws.persons[project.supervisorPersonId] = {
+        ...supervisor,
+        wealth: supervisor.wealth + project.budget.remaining,
+      }
+    }
+  }
+
+  const polityRef =
+    project.owner.kind === 'polity' ? getPolityNameRefForEmit(ws, project.owner.id) : undefined
+  const polityNameKey = polityRef?.nameKey ?? ''
+  const provinceNameKey = ws.provinces[holding.provinceId]?.nameKey ?? holding.provinceId
+  emitEvent({
+    type: 'COUNTRY_LAND_DEVELOPED',
+    importance: 'minor',
+    messageKey: 'polity.land_developed',
+    messageParams: {
+      polity: nameParam(polityRef?.category ?? 'polity', polityNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('polity', project.owner.id, 'polity', polityNameKey),
+      entityRef('province', holding.provinceId, 'province', provinceNameKey),
+      entityRef('holding', holdingId, 'holding'),
+    ],
+  })
+}
+
+function applyAcquireRealEstateMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'acquire_real_estate') return
+  const asset = ws.realEstateAssets[project.targetRealEstateAssetId]
+  if (!asset) return
+  if (asset.owner) return
+
+  const terminalPolityId = getHoldingTerminalPolityId(ws, project.holdingId)
+  if (terminalPolityId) {
+    const polity = ws.polities[terminalPolityId]
+    if (polity) {
+      ws.polities[terminalPolityId] = {
+        ...polity,
+        treasury: polity.treasury + project.salePrice,
+      }
+    }
+  }
+
+  changeRealEstateAssetOwnerMut(ws, project.targetRealEstateAssetId, {
+    kind: 'house',
+    id: project.owner.id,
+  })
+
+  const holding = ws.holdings[project.holdingId]
+  const houseNameKey = ws.houses[project.owner.id]?.nameKey ?? ''
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'COUNTRY_LAND_DEVELOPED',
+    importance: 'minor',
+    messageKey: 'polity.land_developed',
+    messageParams: {
+      polity: nameParam('house', houseNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('house', project.owner.id, 'owner', houseNameKey),
+      entityRef('holding', project.holdingId, 'holding'),
+    ],
+  })
+}
+
+function applyUpgradeOwnedRealEstateMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'upgrade_owned_real_estate') return
+  const asset = ws.realEstateAssets[project.targetRealEstateAssetId]
+  if (!asset) return
+  if (!asset.owner) return
+  if (
+    asset.owner.kind !== project.owner.kind ||
+    (asset.owner.id as string) !== (project.owner.id as string)
+  )
+    return
+  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+  const holding = ws.holdings[project.holdingId]
+  const maxLevel = def.maxLevelByHoldingKind[holding?.kind ?? 'manor'] ?? 3
+  if (asset.level >= maxLevel) return
+
+  upgradeRealEstateAssetLevelMut(ws, project.targetRealEstateAssetId, project.targetRealEstateLevel)
+
+  if (project.budget.remaining > 0 && project.owner.kind === 'house') {
+    const house = ws.houses[project.owner.id]
+    if (house) {
+      ws.houses[project.owner.id] = {
+        ...house,
+        wealth: house.wealth + project.budget.remaining,
+      }
+    }
+  }
+
+  const ownerNameKey =
+    project.owner.kind === 'house' ? (ws.houses[project.owner.id]?.nameKey ?? '') : ''
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'COUNTRY_LAND_DEVELOPED',
+    importance: 'minor',
+    messageKey: 'polity.land_developed',
+    messageParams: {
+      polity: nameParam('house', ownerNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('house', project.owner.id, 'owner', ownerNameKey),
+      entityRef('holding', project.holdingId, 'holding'),
     ],
   })
 }

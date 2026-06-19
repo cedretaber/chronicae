@@ -208,3 +208,10 @@ export type InfluenceModifierId = Branded<string, 'InfluenceModifierId'>
 export function createInfluenceModifierId(n: number): InfluenceModifierId {
   return ('im-' + n) as InfluenceModifierId
 }
+
+// v0.52 RealEstateAsset: Holding 内部の具体的不動産。prefix `re-`。
+export type RealEstateAssetId = Branded<string, 'RealEstateAssetId'>
+
+export function createRealEstateAssetId(n: number): RealEstateAssetId {
+  return ('re-' + n) as RealEstateAssetId
+}

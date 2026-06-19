@@ -49,7 +49,7 @@ const WEEKS_PER_SEASON = 12
 | 1 | advanceTime | 毎tick | schedule 対象外。毎 tick 実行 |
 | 3 | ControlSystem | 4 | |
 | 4 | PopSystem | 4 | |
-| 4b | EmploymentRebalanceSystem | 4 | capacity 超過→失業、none→再就業 |
+| 4b | EmploymentRebalanceSystem | 4 | class capacity 超過→未就業化、未就業→再就業（employed boolean） |
 | 5 | LandRevenueSystem | 4 | |
 | 6 | PolitySurplusDistributionSystem | 4 | |
 | 6b | HouseSurplusDistributionSystem | 4 | |
@@ -61,7 +61,8 @@ const WEEKS_PER_SEASON = 12
 | 8a2 | PersonReputationCleanupSystem | 48 | v0.44: expiryWeek 超過 + 死亡者残骸の PersonReputation を削除（§6.66） |
 | 8b | EstateSettlementSystem | 4 | Mortality 直後 |
 | 9 | SuccessionSystem | 4 | |
-| 9a | MinorHeadPenaltySystem | 4 | Succession 直後。未成年当主の家メンバー respect / 当主 affection を減衰（§6.12）。独立 system 化で年末 re-pass 二重適用回避 |
+| 9a | RealEstateOwnerSuccessionSystem | 4 | Succession 直後。RealEstateAsset の owner 死亡・家断絶時の所有権継承（§6 RealEstateAsset） |
+| 9b | MinorHeadPenaltySystem | 4 | Succession 直後。未成年当主の家メンバー respect / 当主 affection を減衰（§6.12）。独立 system 化で年末 re-pass 二重適用回避 |
 | 10 | MarriageSystem | 4 | |
 | 11 | BirthSystem | 4 | |
 | 11a | HouseFoundingSystem | config | config `houseFoundingIntervalWeeks` (default 4) |
@@ -152,7 +153,7 @@ Consistency 系 2 つは所領変動 system の直後に走り、所領異動の
 
 ### 5.7 順序の理由
 
-PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。EmploymentRebalanceSystem を PopSystem と LandRevenueSystem の間に置くことで、人口増加 → 失業/再就業 → 当 tick の就業状態で生産量計算の自然な順序を実現する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AppointmentSystem を TaskSystem より前に置くことで、同一週に完了した Task が即座に任官に反映されない（前週までの結果のみが材料になる）自然な順序を実現する。PersonGoalMaintenanceSystem / PersonAimMaintenanceSystem は AppointmentSystem の後だが、TaskSystem が毎週実行されるため前週までの Task 結果は常に利用可能。TaskSystem → ProjectStageSystem → ProjectTaskGenerationSystem の順序が重要。TaskSystem が preparatory Task を完了し stage を進め、ProjectStageSystem が immediate stage (open_diplomatic_play 等) を即時解決し、ProjectTaskGenerationSystem が次 stage の Task を生成する。この連鎖が同一 tick 内で実現される。PressureSystem は ProjectOutcomeSystem の後に配置し、Pressure 作成後に response Project を生成できるようにする。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
+PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。EmploymentRebalanceSystem を PopSystem と LandRevenueSystem の間に置くことで、人口増加 → 未就業化/再就業（class capacity + employed boolean） → 当 tick の就業状態で生産量計算の自然な順序を実現する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AppointmentSystem を TaskSystem より前に置くことで、同一週に完了した Task が即座に任官に反映されない（前週までの結果のみが材料になる）自然な順序を実現する。PersonGoalMaintenanceSystem / PersonAimMaintenanceSystem は AppointmentSystem の後だが、TaskSystem が毎週実行されるため前週までの Task 結果は常に利用可能。TaskSystem → ProjectStageSystem → ProjectTaskGenerationSystem の順序が重要。TaskSystem が preparatory Task を完了し stage を進め、ProjectStageSystem が immediate stage (open_diplomatic_play 等) を即時解決し、ProjectTaskGenerationSystem が次 stage の Task を生成する。この連鎖が同一 tick 内で実現される。PressureSystem は ProjectOutcomeSystem の後に配置し、Pressure 作成後に response Project を生成できるようにする。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
 
 ---
 

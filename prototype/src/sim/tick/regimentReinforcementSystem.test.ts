@@ -42,7 +42,7 @@ function baseState(
     id: pg,
     holdingId: HL1,
     class: 'peasants',
-    occupation: 'agriculture',
+    employed: true,
     size,
     wealth: 0,
     unrest: 0,

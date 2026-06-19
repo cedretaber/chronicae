@@ -174,6 +174,8 @@ effectiveScore < threshold                  → failure
 | commission_chronicle | learning |
 | acquire_land | command |
 | sell_land / improve_contract_terms / demand_tax_increase | numeracy |
+| develop_real_estate / upgrade_owned_real_estate | numeracy |
+| acquire_real_estate | charisma |
 | respond_to_pressure | insight |
 
 ### 10.8 LifeStage と能力

@@ -31,7 +31,8 @@ import type {
   GoalId,
   AimId,
 } from './types/ids'
-import { createHoldingId } from './types/ids'
+import { createHoldingId, createHoldingImprovementId } from './types/ids'
+import type { HoldingImprovementKind } from './types/holdingImprovement'
 import { ROOT_WORLD } from './types/landContract'
 import { PLACEHOLDER_PERSON_ID } from './types/person'
 import type { Goal, Aim } from './types/goal'
@@ -141,6 +142,10 @@ export function makeEmptyV016State(): WorldState {
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,
+    // v0.52 RealEstateAsset
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -260,6 +265,7 @@ export function withProvince(
     provinces: updatedProvinces,
     holdings: { ...state.holdings, [holdingId]: holding },
   }
+  nextState = addCriticalInfrastructure(nextState, holdingId, holding.kind)
   const sr = nextState.states[stateRegionId]
   if (sr) {
     const nextSr: StateRegion = { ...sr, provinceIds: [...sr.provinceIds, id] }
@@ -288,12 +294,45 @@ export function withHolding(
   const updatedProvince = province
     ? { ...province, holdingIds: [...province.holdingIds, holdingId] }
     : province
-  return {
+  let nextState: WorldState = {
     ...state,
     holdings: { ...state.holdings, [holdingId]: holding },
     ...(updatedProvince
       ? { provinces: { ...state.provinces, [provinceId]: updatedProvince } }
       : {}),
+  }
+  nextState = addCriticalInfrastructure(nextState, holdingId, holding.kind)
+  return nextState
+}
+
+function addCriticalInfrastructure(
+  state: WorldState,
+  holdingId: HoldingId,
+  holdingKind: string,
+): WorldState {
+  const criticalKind: HoldingImprovementKind | undefined =
+    holdingKind === 'manor' ? 'manor_house' : holdingKind === 'city' ? 'town_hall' : undefined
+  if (!criticalKind) return state
+  const impId = createHoldingImprovementId(state.nextHoldingImprovementId)
+  const imp = {
+    id: impId,
+    holdingId,
+    kind: criticalKind,
+    level: 1,
+    condition: 100,
+    createdWeek: 1,
+  }
+  const existingSlot = state.holdingImprovementIndex.byHolding[holdingId as string]
+  return {
+    ...state,
+    nextHoldingImprovementId: state.nextHoldingImprovementId + 1,
+    holdingImprovements: { ...state.holdingImprovements, [impId]: imp },
+    holdingImprovementIndex: {
+      byHolding: {
+        ...state.holdingImprovementIndex.byHolding,
+        [holdingId as string]: existingSlot ? [...existingSlot, impId] : [impId],
+      },
+    },
   }
 }
 

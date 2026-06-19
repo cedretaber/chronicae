@@ -4,8 +4,8 @@ import type { WorldState } from '../types/world'
 import type { PopGroupId, ProvinceId } from '../types/ids'
 import {
   getProvincePopulationPressure,
-  getHoldingOccupationCapacity,
-  getHoldingPopSizeByClassAndOccupation,
+  getHoldingClassCapacity,
+  getHoldingEmployedPopSize,
 } from '../selectors/popSelectors'
 import { addToOrCreatePopGroupMut, removePopGroupMut } from '../mutations/popMutations'
 
@@ -18,11 +18,11 @@ export function normalizePopSizes(ctx: TickContext): TickContext {
   for (const popGroupId of Object.keys(ctx.state.popGroups).sort()) {
     const pop = ctx.state.popGroups[popGroupId as PopGroupId]
     if (!pop) continue
-    if (pop.occupation !== 'none' && pop.size < minSizeByClass[pop.class]) {
+    if (pop.employed && pop.size < minSizeByClass[pop.class]) {
       changed = true
       break
     }
-    if (pop.occupation === 'none' && pop.size <= epsilon) {
+    if (!pop.employed && pop.size <= epsilon) {
       changed = true
       break
     }
@@ -36,21 +36,19 @@ export function normalizePopSizes(ctx: TickContext): TickContext {
     popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
   }
 
-  // Collect none POPs to remove (can't modify while iterating)
+  // Collect unemployed POPs to remove (can't modify while iterating)
   const toRemove: PopGroupId[] = []
 
   for (const popGroupId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
     const pop = ws.popGroups[popGroupId]
     if (!pop) continue
 
-    if (pop.occupation !== 'none') {
-      // Non-none: enforce minimum size
+    if (pop.employed) {
       const minSize = minSizeByClass[pop.class]
       if (pop.size < minSize) {
         ws.popGroups[pop.id] = { ...pop, size: minSize }
       }
     } else {
-      // None: delete if below epsilon
       if (pop.size <= epsilon) {
         toRemove.push(pop.id)
       }
@@ -99,35 +97,22 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
     const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
 
-    // Occupation growth modifier: none POPs grow slower
-    const occupationGrowthModifier: number =
-      pop.occupation === 'none' ? ctx.config.unemployedGrowthModifierByClass[pop.class] : 1
+    const employmentGrowthModifier: number = pop.employed
+      ? 1
+      : ctx.config.unemployedGrowthModifierByClass[pop.class]
 
     const delta =
-      pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * occupationGrowthModifier
+      pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * employmentGrowthModifier
 
     // 2. Apply growth with overflow
     let newSize: number
     if (delta <= 0) {
       newSize = Math.max(0, pop.size + delta)
-    } else if (pop.occupation === 'none') {
-      // None POPs: growth stays in same POP
+    } else if (!pop.employed) {
       newSize = pop.size + delta
     } else {
-      // Non-none POPs: check occupation capacity for overflow
-      const capacity = getHoldingOccupationCapacity(
-        ws,
-        ctx.config,
-        pop.holdingId,
-        pop.class,
-        pop.occupation,
-      )
-      const current = getHoldingPopSizeByClassAndOccupation(
-        ws,
-        pop.holdingId,
-        pop.class,
-        pop.occupation,
-      )
+      const capacity = getHoldingClassCapacity(ws, ctx.config, pop.holdingId, pop.class)
+      const current = getHoldingEmployedPopSize(ws, pop.holdingId, pop.class)
       const room = Math.max(0, capacity - current)
       const toOriginal = Math.min(delta, room)
       const overflow = delta - toOriginal
@@ -138,7 +123,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
         addToOrCreatePopGroupMut(ws, {
           holdingId: pop.holdingId,
           class: pop.class,
-          occupation: 'none',
+          employed: false,
           size: overflow,
           inheritFrom: pop,
         })
@@ -169,15 +154,15 @@ export function runPopSystem(ctx: TickContext): TickContext {
     // 5.5. Natural unrest decay
     newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
 
-    // 6. None POP penalties
-    if (pop.occupation === 'none') {
+    // 6. Unemployed POP penalties
+    if (!pop.employed) {
       newWealth -= ctx.config.unemployedWealthDecayByClass[pop.class]
       newUnrest += ctx.config.unemployedUnrestGainByClass[pop.class]
     }
 
     // 7. Clamp
     const minSize = ctx.config.minPopSizeByClass[pop.class]
-    const finalSize = pop.occupation !== 'none' ? Math.max(minSize, newSize) : Math.max(0, newSize)
+    const finalSize = pop.employed ? Math.max(minSize, newSize) : Math.max(0, newSize)
     const finalWealth = clamp(newWealth, 0, 100)
     const finalUnrest = clamp(newUnrest, 0, 100)
 

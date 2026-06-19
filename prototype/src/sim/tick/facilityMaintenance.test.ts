@@ -50,7 +50,7 @@ function makeBoundWorld(impOverrides: Partial<HoldingImprovement> = {}): WorldSt
   const imp: HoldingImprovement = {
     id: IMP,
     holdingId: HOLDING,
-    kind: 'field_system',
+    kind: 'irrigation_infrastructure',
     level: 2,
     condition: 100,
     createdWeek: 0,
@@ -389,7 +389,7 @@ describe('develop_holding 完了で condition リセット + disrepair Crisis �
       createdWeek: 0,
       reasonIds: [],
       holdingId: HOLDING,
-      improvementKind: 'field_system',
+      improvementKind: 'irrigation_infrastructure',
       targetImprovementLevel: 3,
       budget: { required: 10, allocated: 10, remaining: 10, spent: 0, source: { kind: 'owner' } },
     }

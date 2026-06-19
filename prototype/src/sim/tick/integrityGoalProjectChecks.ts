@@ -674,7 +674,11 @@ export function checkGoalsAimsProjects(
     const activeDevelopByHolding: Record<string, string[]> = {}
 
     for (const [idStr, project] of Object.entries(state.projects)) {
-      if (!project || project.kind !== 'develop_holding') continue
+      if (
+        !project ||
+        (project.kind !== 'develop_holding' && project.kind !== 'develop_real_estate')
+      )
+        continue
       if (project.status !== 'active') continue
 
       // §19.3: ProjectBudget non-negative
@@ -736,17 +740,19 @@ export function checkGoalsAimsProjects(
         })
       }
 
-      // §19.4: improvementKind is valid
-      if (!VALID_HOLDING_IMPROVEMENT_KINDS.has(project.improvementKind)) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Project ${idStr}: improvementKind=${project.improvementKind} is not valid (§19.4)`,
-        })
+      if (project.kind === 'develop_holding') {
+        // §19.4: improvementKind is valid
+        if (!VALID_HOLDING_IMPROVEMENT_KINDS.has(project.improvementKind)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Project ${idStr}: improvementKind=${project.improvementKind} is not valid (§19.4)`,
+          })
+        }
       }
 
       // §19.4: targetImprovementLevel <= max level
       const holding = state.holdings[project.holdingId]
-      if (holding && config) {
+      if (holding && config && project.kind === 'develop_holding') {
         // v0.33 §13.2: access 反転。0（未定義含む）= 建設不可。
         const maxLevel =
           config.holdingImprovementMaxLevelByKind[project.improvementKind][holding.kind] ?? 0
@@ -769,7 +775,7 @@ export function checkGoalsAimsProjects(
       if (projectIds.length > 1) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `Holding ${holdingKey}: ${projectIds.length} active develop_holding projects (limit 1) (§19.4)`,
+          message: `Holding ${holdingKey}: ${projectIds.length} active development projects (limit 1) (§19.4)`,
         })
       }
     }

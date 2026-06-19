@@ -185,6 +185,12 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   replace_house_leader: 'insight',
   // v0.48 Crisis: 災害対処は実務 (develop_holding と同じ numeracy)
   handle_crisis: 'numeracy',
+  // v0.52 不動産開発: develop_holding と同じ numeracy
+  develop_real_estate: 'numeracy',
+  // v0.52 不動産取得
+  acquire_real_estate: 'charisma',
+  // v0.52 所有不動産増築
+  upgrade_owned_real_estate: 'numeracy',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。

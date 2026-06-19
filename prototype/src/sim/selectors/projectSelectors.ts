@@ -138,6 +138,18 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // v0.48 Crisis: 被災 holding を related に載せる (dedup の hasActiveDev 相当 + HoldingDetail 索引)
     case 'handle_crisis':
       return [{ kind: 'holding', id: project.holdingId }]
+
+    // v0.52 不動産開発
+    case 'develop_real_estate':
+      return [{ kind: 'holding', id: project.holdingId }]
+
+    // v0.52 不動産取得
+    case 'acquire_real_estate':
+      return [{ kind: 'holding', id: project.holdingId }]
+
+    // v0.52 所有不動産増築
+    case 'upgrade_owned_real_estate':
+      return [{ kind: 'holding', id: project.holdingId }]
   }
 }
 
@@ -470,6 +482,51 @@ export function describeProject(project: Project): ProjectDescriptor {
       })
     }
 
+    // v0.52 不動産開発
+    case 'develop_real_estate': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+        {
+          kind: 'enum',
+          role: 'targetHolding',
+          enumNs: 'realEstateKind',
+          value: project.realEstateKind,
+        },
+      ]
+      return descriptor(fields, {
+        required: project.budget.required,
+        allocated: project.budget.allocated,
+        remaining: project.budget.remaining,
+        spent: project.budget.spent,
+      })
+    }
+
+    // v0.52 不動産取得
+    case 'acquire_real_estate': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+      ]
+      return descriptor(fields, {
+        required: project.budget.required,
+        allocated: project.budget.allocated,
+        remaining: project.budget.remaining,
+        spent: project.budget.spent,
+      })
+    }
+
+    // v0.52 所有不動産増築
+    case 'upgrade_owned_real_estate': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+      ]
+      return descriptor(fields, {
+        required: project.budget.required,
+        allocated: project.budget.allocated,
+        remaining: project.budget.remaining,
+        spent: project.budget.spent,
+      })
+    }
+
     default: {
       const _exhaustive: never = project
       return _exhaustive
@@ -505,6 +562,12 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   replace_house_leader: 'intrigue',
   // v0.48 Crisis: 災害対処は統治実務 (develop_holding と同じ stewardship)
   handle_crisis: 'stewardship',
+  // v0.52 不動産開発: develop_holding と同じ stewardship
+  develop_real_estate: 'stewardship',
+  // v0.52 不動産取得
+  acquire_real_estate: 'stewardship',
+  // v0.52 所有不動産増築
+  upgrade_owned_real_estate: 'stewardship',
 }
 
 export function getPersonProjectWorkload(

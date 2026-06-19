@@ -55,7 +55,7 @@ function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: Cris
   // famine / drought: 農業 peasants が居る holding のみ
   for (const popId of popIds) {
     const pop = ws.popGroups[popId]
-    if (pop && pop.class === 'peasants' && pop.occupation === 'agriculture') return true
+    if (pop && pop.class === 'peasants' && pop.employed) return true
   }
   return false
 }

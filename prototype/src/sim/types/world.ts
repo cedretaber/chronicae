@@ -33,6 +33,7 @@ import type {
   PersonReputationId,
   InfluenceModifierId,
   CrisisId,
+  RealEstateAssetId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -53,6 +54,7 @@ import type {
 import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { Clan } from './clan'
 import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImprovement'
+import type { RealEstateAsset, RealEstateAssetIndex } from './realEstateAsset'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
 import type { War, WarIndex } from './war'
@@ -111,6 +113,10 @@ export type WorldState = {
   holdingImprovements: Record<HoldingImprovementId, HoldingImprovement>
   holdingImprovementIndex: HoldingImprovementIndex
   nextHoldingImprovementId: number
+  // v0.52 RealEstateAsset
+  realEstateAssets: Record<RealEstateAssetId, RealEstateAsset>
+  realEstateAssetIndex: RealEstateAssetIndex
+  nextRealEstateAssetId: number
   // v0.26 Project system
   projects: Record<ProjectId, Project>
   projectIndex: ProjectIndex

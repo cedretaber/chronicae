@@ -52,6 +52,11 @@ import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getHouseClanRole } from '@sim/selectors/clanSelectors'
 import { getChronicleEntriesForHouse } from '@sim/selectors/chronicleSelectors'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
+import { assetOwnerKey } from '@sim/types/realEstateAsset'
+import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import { estimateWeeklyOwnerIncome } from '@sim/selectors/realEstateSelectors'
+import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 
 export function HouseDetail({
   house,
@@ -65,6 +70,7 @@ export function HouseDetail({
   onDiplomaticPlayClick,
   onClanClick,
   onOpenFamilyTree,
+  onHoldingClick,
   eventHistory,
 }: {
   house: House
@@ -78,6 +84,7 @@ export function HouseDetail({
   onDiplomaticPlayClick?: (id: string) => void
   onClanClick?: (id: string) => void
   onOpenFamilyTree?: (houseId: string) => void
+  onHoldingClick?: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   void onHouseClick // v0.42c: ShareholderSection の person-only 化で未使用に (props API は維持)
@@ -367,20 +374,95 @@ export function HouseDetail({
             onPolityClick={onPolityClick}
           />
         )}
-        <div>
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-300">
-              {t('detail.house.members')} ({aliveMembers} {t('detail.house.alive')}):
-            </div>
-            {onOpenFamilyTree && (
+        {/* v0.52: 所有不動産一覧 */}
+        {worldState &&
+          (() => {
+            const ownerKey = assetOwnerKey({ kind: 'house', id: house.id })
+            const assetIds = worldState.realEstateAssetIndex.byOwner[ownerKey] ?? []
+            const assets = assetIds
+              .map((id) => worldState.realEstateAssets[id])
+              .filter((a): a is NonNullable<typeof a> => a !== undefined)
+            if (assets.length === 0) return null
+            return (
+              <CollapsibleSection
+                title={t('detail.house.owned_real_estate')}
+                count={assets.length}
+                open={sections.isOpen('owned_real_estate')}
+                onToggle={() => sections.toggle('owned_real_estate')}
+              >
+                <div className="flex flex-col gap-1">
+                  {assets.map((asset) => {
+                    const holdingName = getHoldingQualifiedName(
+                      worldState,
+                      resolveName,
+                      asset.holdingId,
+                    )
+                    const weeklyIncome = estimateWeeklyOwnerIncome(worldState, defaultConfig, asset)
+                    const annualIncome = weeklyIncome * WEEKS_PER_YEAR
+                    const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                    const maxLevel =
+                      def.maxLevelByHoldingKind[
+                        worldState.holdings[asset.holdingId]?.kind ?? 'manor'
+                      ] ?? 3
+                    return (
+                      <div key={asset.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                        <div className="flex items-baseline justify-between">
+                          <span className="font-medium text-gray-200">
+                            {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
+                              defaultValue: asset.realEstateKind,
+                            })}
+                          </span>
+                          <span className="text-gray-500">
+                            Lv.{asset.level}/{maxLevel}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">
+                            {t('detail.house.real_estate_location')}:
+                          </span>
+                          {onHoldingClick ? (
+                            <button
+                              className="text-blue-400 hover:text-blue-300"
+                              onClick={() => onHoldingClick(asset.holdingId)}
+                            >
+                              {holdingName}
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">{holdingName}</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">
+                            {t('detail.house.real_estate_annual_income')}:
+                          </span>
+                          <span className={annualIncome > 0 ? 'text-emerald-400' : 'text-gray-500'}>
+                            {annualIncome > 0 ? '+' : ''}
+                            {formatAmount(annualIncome)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CollapsibleSection>
+            )
+          })()}
+        <CollapsibleSection
+          title={t('detail.house.members')}
+          count={aliveMembers}
+          open={sections.isOpen('members')}
+          onToggle={() => sections.toggle('members')}
+        >
+          {onOpenFamilyTree && (
+            <div className="mb-1 flex justify-end">
               <button
                 className="rounded border border-gray-600 px-2 py-0.5 text-xs text-blue-400 hover:bg-gray-700 hover:text-blue-300"
                 onClick={() => onOpenFamilyTree(house.id)}
               >
                 {t('detail.family_tree.open')}
               </button>
-            )}
-          </div>
+            </div>
+          )}
           <div className="flex flex-col gap-0.5 text-sm">
             {house.memberIds
               .filter((pid) => currentState?.persons?.[pid]?.alive === true)
@@ -397,7 +479,7 @@ export function HouseDetail({
               <span className="text-xs text-gray-500">+{aliveMembers - 8} more</span>
             )}
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
 
       {house.founderId !== undefined && (

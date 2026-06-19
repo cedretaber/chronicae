@@ -70,7 +70,14 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
         const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
         const hasActiveDev = existingPids.some((pid) => {
           const p = ws.projects[pid]
-          return p && p.kind === 'develop_holding' && p.status === 'active'
+          return (
+            p &&
+            (p.kind === 'develop_holding' ||
+              p.kind === 'develop_real_estate' ||
+              p.kind === 'acquire_real_estate' ||
+              p.kind === 'upgrade_owned_real_estate') &&
+            p.status === 'active'
+          )
         })
         if (hasActiveDev) continue
       }

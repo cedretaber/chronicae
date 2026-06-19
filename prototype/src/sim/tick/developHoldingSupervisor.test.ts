@@ -99,7 +99,7 @@ describe('develop_holding find_supervisor (§10.3)', () => {
       deadlineWeek: base.absoluteWeek + 48,
       reasonIds: [],
       holdingId,
-      improvementKind: 'field_system',
+      improvementKind: 'irrigation_infrastructure',
       targetImprovementLevel: 1,
       budget: { required: 10, allocated: 10, remaining: 10, spent: 0, source: { kind: 'owner' } },
     }

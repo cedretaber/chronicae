@@ -242,6 +242,9 @@ function makeWorldState(
     nextClanId: 1,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    realEstateAssets: {},
+    realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    nextRealEstateAssetId: 0,
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!

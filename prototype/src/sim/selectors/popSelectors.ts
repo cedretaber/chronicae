@@ -1,10 +1,14 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
-import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
+import type { PopGroup, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { RealEstateKind } from '../types/realEstateAsset'
 import { clamp } from '../utils/math'
-import { computeHoldingOccupationCapacity } from './holdingImprovementSelectors'
+import {
+  computeHoldingClassCapacity,
+  computeSlotOveruseModifier,
+} from './holdingImprovementSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -63,11 +67,7 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
   return weightedSum / totalPopulation
 }
 
-const CLASS_OCCUPATION_PAIRS: [PopClass, PopOccupation][] = [
-  ['peasants', 'agriculture'],
-  ['townsmen', 'urban_labor'],
-  ['nobles', 'elite_service'],
-]
+const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
 export function getProvinceCarryingCapacity(
   state: WorldState,
@@ -79,8 +79,8 @@ export function getProvinceCarryingCapacity(
 
   let totalCapacity = 0
   for (const holdingId of province.holdingIds) {
-    for (const [popClass, occupation] of CLASS_OCCUPATION_PAIRS) {
-      totalCapacity += getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
+    for (const popClass of POP_CLASSES) {
+      totalCapacity += getHoldingClassCapacity(state, config, holdingId, popClass)
     }
   }
   return Math.max(config.minProvinceCarryingCapacity, totalCapacity)
@@ -195,52 +195,69 @@ export function getHoldingPopSizeByClass(
   return getHoldingPopsByClass(state, holdingId, popClass).reduce((sum, p) => sum + p.size, 0)
 }
 
-// --- v0.24 Occupation capacity selectors ---
-
-export function getHoldingPopsByClassAndOccupation(
+export function getHoldingPopsByClassAndEmployment(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
+  employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.class === popClass && p.occupation === occupation,
+    (p) => p.class === popClass && p.employed === employed,
   )
 }
 
-export function getHoldingPopSizeByClassAndOccupation(
+export function getHoldingEmployedPopSize(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
 ): number {
-  return getHoldingPopsByClassAndOccupation(state, holdingId, popClass, occupation).reduce(
+  return getHoldingPopsByClassAndEmployment(state, holdingId, popClass, true).reduce(
     (sum, p) => sum + p.size,
     0,
   )
 }
 
-export function getHoldingOccupationCapacity(
+export function getHoldingUnemployedPopSize(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  return getHoldingPopsByClassAndEmployment(state, holdingId, popClass, false).reduce(
+    (sum, p) => sum + p.size,
+    0,
+  )
+}
+
+export function getHoldingClassCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-  _popClass: PopClass,
-  occupation: PopOccupation,
+  popClass: PopClass,
 ): number {
-  if (occupation === 'none') return 0
   const holding = state.holdings[holdingId]
   if (!holding) return 0
   const province = state.provinces[holding.provinceId]
   if (!province) return 0
-  // v0.33 §6.3: (base + improvementDerivedCapacity) * weight * landQuality。devMod は使わない。
+
   const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
   const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
   for (const impId of improvementIds) {
     const imp = state.holdingImprovements[impId]
-    // v0.48.1 §3: condition を渡して capacity 側の機能不全 effectiveness を有効化する (★)
     if (imp) improvements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
   }
-  return computeHoldingOccupationCapacity(
+
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  const assets: { realEstateKind: RealEstateKind; level: number }[] = []
+  for (const aId of assetIds) {
+    const asset = state.realEstateAssets[aId]
+    if (asset) assets.push({ realEstateKind: asset.realEstateKind, level: asset.level })
+  }
+
+  const usedSlots = assets.length
+  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
+
+  return computeHoldingClassCapacity(
     holding.kind,
     holding.weight,
     holding.landQuality,
@@ -248,18 +265,33 @@ export function getHoldingOccupationCapacity(
     province.features,
     improvements,
     config,
-    occupation,
+    popClass,
+    assets,
+    overuseMod,
   )
 }
 
-export function getHoldingOccupationRemainingCapacity(
+export function getHoldingClassRemainingCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
 ): number {
-  const capacity = getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
-  const used = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
+  const capacity = getHoldingClassCapacity(state, config, holdingId, popClass)
+  const used = getHoldingEmployedPopSize(state, holdingId, popClass)
   return Math.max(0, capacity - used)
+}
+
+export function hasCapacityPressure(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): boolean {
+  for (const pc of POP_CLASSES) {
+    const cap = getHoldingClassCapacity(state, config, holdingId, pc)
+    if (cap <= 0) continue
+    const employed = getHoldingEmployedPopSize(state, holdingId, pc)
+    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
+  }
+  return false
 }

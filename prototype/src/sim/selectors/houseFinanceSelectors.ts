@@ -1,31 +1,32 @@
 import type { WorldState } from '@sim/types/world'
-import type { HouseId, PersonId } from '@sim/types/ids'
+import type { HouseId, PersonId, PolityId } from '@sim/types/ids'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { getActorInfluenceInPolity } from './influenceSelectors'
-import { getHousePolityIds } from './polityRelations'
 import { getPolityDistributablePerCycle } from './landContractSelectors'
+import { assetOwnerKey } from '../types/realEstateAsset'
+import { estimateWeeklyOwnerIncome } from './realEstateSelectors'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 // politySurplusDistributionSystem は 4 週ごと (= 年 12 回) に分配する。
 // COMPENSATION_CALLS_PER_YEAR (officeCompensationSystem) と同値で、給与年額と直接比較できる。
 const SURPLUS_DISTRIBUTIONS_PER_YEAR = 12
 
 // v0.37: 家の「定常的な年間収入」の投影。
-// 家が定期的に得る収入は PolitySurplusDistribution (share 比例) のみ
-// (estate settlement や外交移転は不定期なので投影に含めない)。
-// politySurplusDistributionSystem と同じ式を辿り、1 サイクル分の分配額を年額に換算する:
-//   annual = Σ_polity (house の share% × distributablePerCycle) × 12
+// 定期収入源: PolitySurplusDistribution (influence 比例) + 不動産収入 (owner income)。
+// estate settlement や外交移転は不定期なので投影に含めない。
 export function getHouseProjectedAnnualIncome(
   state: WorldState,
   houseId: HouseId,
   config: SimulationConfig = defaultConfig,
 ): number {
-  // v0.42 §19.2: share 比例 → influence 比例の投影 (politySurplusDistribution の新分配と整合)。
-  // 走査対象は家が土地で関与する polity (getHousePolityIds)。office / right のみで influence
-  // entry を持つ polity の取り分は小さく、投影としては無視する (過小評価側に倒す)。
   let annual = 0
-  for (const polityId of getHousePolityIds(state, houseId)) {
+
+  // 1. PolitySurplusDistribution (influence 比例)
+  // politySurplusDistributionSystem と同じスコープ: 全 active Polity を走査し、
+  // この House の influence シェアに応じた分配額を投影する。
+  for (const polityId of Object.keys(state.polities) as PolityId[]) {
     const polity = state.polities[polityId]
     if (!polity || !polity.active) continue
     const distributable = getPolityDistributablePerCycle(state, polityId, config)
@@ -36,6 +37,16 @@ export function getHouseProjectedAnnualIncome(
     if (influenceRatio <= 0) continue
     annual += influenceRatio * distributable * SURPLUS_DISTRIBUTIONS_PER_YEAR
   }
+
+  // 2. 不動産収入 (owner income)
+  const ownerKey = assetOwnerKey({ kind: 'house', id: houseId })
+  const assetIds = state.realEstateAssetIndex.byOwner[ownerKey] ?? []
+  for (const assetId of assetIds) {
+    const asset = state.realEstateAssets[assetId]
+    if (!asset) continue
+    annual += estimateWeeklyOwnerIncome(state, config, asset) * WEEKS_PER_YEAR
+  }
+
   return annual
 }
 

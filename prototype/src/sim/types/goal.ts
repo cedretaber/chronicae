@@ -121,6 +121,10 @@ export type HouseAimKind =
   | 'revoke_rival_right'
   // v0.51 陰謀リファイン: 自家の分家 (cadet) の当主を交代させる王朝統制陰謀 (旧 replace_house_leader plot)
   | 'intervene_cadet_succession'
+  // v0.52 不動産取得: Holding 所属の無主 RealEstateAsset を House が購入
+  | 'acquire_real_estate_asset'
+  // v0.52 所有不動産増築: House が自分の RealEstateAsset を level up
+  | 'improve_house_real_estate'
 
 export type PersonAimKind =
   | 'support_organization_aim'

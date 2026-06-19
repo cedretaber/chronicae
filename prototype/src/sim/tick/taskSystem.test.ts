@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { buildAndCreateCompromiseOffer } from './taskCompromise'
+import { computeLandClaimCompensation } from './diplomaticOfferEvaluation'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 import type {
   DiplomaticPlayId,
@@ -152,7 +153,9 @@ describe('buildAndCreateCompromiseOffer', () => {
       const dem1 = offer.demands[1]!
       expect(dem1.kind).toBe('pay_wealth')
       if (dem1.kind === 'pay_wealth') {
-        expect(dem1.amount).toBe(500)
+        expect(dem1.amount).toBe(
+          Math.round(computeLandClaimCompensation(ws, defaultConfig, holdingId)),
+        )
       }
     })
   })
@@ -262,7 +265,9 @@ describe('buildAndCreateCompromiseOffer', () => {
         DiplomaticDemand,
         { kind: 'pay_wealth' }
       >
-      expect(payDemandOut.amount).toBe(650)
+      expect(payDemandOut.amount).toBe(
+        Math.round(computeLandClaimCompensation(ws, defaultConfig, holdingId) * 1.3),
+      )
     })
 
     it('prefers lastRejectedOfferId over currentOfferId', () => {

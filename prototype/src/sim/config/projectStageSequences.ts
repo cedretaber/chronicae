@@ -90,6 +90,27 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
   revoke_political_right: [{ key: 'execute_project', type: 'final' }],
   replace_house_leader: [{ key: 'execute_project', type: 'final' }],
 
+  // v0.52 不動産開発: develop_holding と同型 (find_supervisor → secure_budget → execute_project)
+  develop_real_estate: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+  ],
+
+  // v0.52 不動産取得: develop_real_estate と同型
+  acquire_real_estate: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+  ],
+
+  // v0.52 所有不動産増築: develop_real_estate と同型
+  upgrade_owned_real_estate: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+  ],
+
   // v0.48 Crisis: develop_holding に倣う。find_supervisor → secure_budget (treasury 前借り) →
   //   mitigate (final, advance_project task 駆動で progress を積み severity を削る, §3.4)。
   handle_crisis: [

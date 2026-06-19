@@ -2,12 +2,14 @@ import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
-import type { PopOccupation, PopClass } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
+import type { RealEstateInfrastructureModifier } from './realEstateDefinitions'
 import type { LandContractConfig } from './landContractConfig'
 import { defaultLandContractConfig } from './landContractConfig'
 
@@ -232,10 +234,7 @@ export type SimulationConfig = {
   overExtractionWealthPenalty: number
   overExtractionUnrestGain: number
   // v0.24 Occupation capacity
-  occupationCapacityBaseByHoldingKind: Record<
-    HoldingKind,
-    Record<Exclude<PopOccupation, 'none'>, number>
-  >
+  classCapacityBaseByHoldingKind: Record<HoldingKind, Record<PopClass, number>>
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: Record<ProvinceTerrain, number>
   provinceTerrainWeights: Record<ProvinceTerrain, number>
@@ -247,8 +246,10 @@ export type SimulationConfig = {
   provinceFeatureLakeBaseChance: number
   provinceFeatureLakeTerrainDelta: Partial<Record<ProvinceTerrain, number>>
   // v0.24 Occupation production/manpower multipliers
-  occupationProductivityMultiplier: Record<PopOccupation, number>
-  occupationManpowerMultiplier: Record<PopOccupation, number>
+  employedProductivityMultiplier: number
+  unemployedProductivityMultiplier: number
+  employedManpowerMultiplierByClass: Record<PopClass, number>
+  unemployedManpowerMultiplier: number
   // v0.24 Unemployed POP penalties
   unemployedWealthDecayByClass: Record<PopClass, number>
   unemployedUnrestGainByClass: Record<PopClass, number>
@@ -303,6 +304,7 @@ export type SimulationConfig = {
   facilityConditionDecayPerCyclePerLevel: number // 維持サイクル(4週)ごとの減衰 = これ × level
   facilityDisrepairThreshold: number // これ未満で機能不全 (生産低下 + disrepair Crisis 発火)
   facilityDisrepairMinEffectiveness: number // 生産 effectiveness の下限 (condition 0 時)
+  criticalInfraMinEffectiveness: number // critical infrastructure (manor_house/town_hall) の conditionEffectiveness 下限
   facilityRepairConditionRestore: number // 修理完了 / 部分崩壊後に回復する condition
   warDamageConditionDrop: number // 戦災 1 回あたりの condition 減少幅
   crisisDisrepairNeglectMultiplier: number // disrepair 放置時の neglect affection 低下の倍率 (他 Crisis より穏やかに)
@@ -1085,9 +1087,9 @@ export type SimulationConfig = {
   developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
   // v0.33: capacity 生成テーブル（§8.3-8.5）。Partial = 未定義は寄与 0 / multiplier 1.0
-  holdingImprovementOccupationCapacityPerLevel: Record<
+  holdingImprovementClassCapacityPerLevel: Record<
     HoldingImprovementKind,
-    Partial<Record<PopOccupation, number>>
+    Partial<Record<PopClass, number>>
   >
   holdingImprovementTerrainCapacityMultiplier: Record<
     HoldingImprovementKind,
@@ -1376,6 +1378,24 @@ export type SimulationConfig = {
   warSupplyPlunderSpilloverPressureFactor: number
   warSupplyMaxSpilloverHoldings: number
   warSupplyAttritionEventStrengthThreshold: number
+  // === v0.52 RealEstateAsset ===
+  realEstateTerrainCapacityMultiplier: Record<
+    RealEstateKind,
+    Partial<Record<ProvinceTerrain, number>>
+  >
+  realEstateFeatureCapacityMultiplier: Record<
+    RealEstateKind,
+    Partial<Record<ProvinceFeature, number>>
+  >
+  realEstateInfrastructureModifiers: Record<RealEstateKind, RealEstateInfrastructureModifier[]>
+  developRealEstateCapacityPressureThreshold: number
+  minSlotOveruseModifier: number
+  realEstateSlotCapacityBase: Record<HoldingKind, number>
+  developRealEstateProjectBaseCost: Record<RealEstateKind, number>
+  developRealEstateProjectBaseProgress: Record<RealEstateKind, number>
+  realEstateOwnerIncomeRate: number
+  realEstateKindIncomeWeight: Record<RealEstateKind, number>
+  realEstateSalePriceYears: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -1578,10 +1598,9 @@ export const defaultConfig: SimulationConfig = {
   overExtractionUnrestSafeThreshold: 45,
   overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
-  // v0.24 Occupation capacity
-  occupationCapacityBaseByHoldingKind: {
-    manor: { agriculture: 80, urban_labor: 8, elite_service: 3 },
-    city: { agriculture: 15, urban_labor: 70, elite_service: 5 },
+  classCapacityBaseByHoldingKind: {
+    manor: { peasants: 0, townsmen: 0, nobles: 0 },
+    city: { peasants: 0, townsmen: 0, nobles: 0 },
   },
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: {
@@ -1605,19 +1624,10 @@ export const defaultConfig: SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
   provinceFeatureLakeBaseChance: 0.06,
   provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
-  // v0.24 Occupation production/manpower multipliers
-  occupationProductivityMultiplier: {
-    agriculture: 1.0,
-    urban_labor: 1.0,
-    elite_service: 1.0,
-    none: 0.1,
-  },
-  occupationManpowerMultiplier: {
-    agriculture: 1.0,
-    urban_labor: 0.8,
-    elite_service: 1.2,
-    none: 0.5,
-  },
+  employedProductivityMultiplier: 1.0,
+  unemployedProductivityMultiplier: 0.1,
+  employedManpowerMultiplierByClass: { peasants: 1.0, townsmen: 0.8, nobles: 1.2 },
+  unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
   unemployedWealthDecayByClass: { peasants: 0.2, townsmen: 0.3, nobles: 0.15 },
   unemployedUnrestGainByClass: { peasants: 0.2, townsmen: 0.35, nobles: 0.45 },
@@ -1693,6 +1703,7 @@ export const defaultConfig: SimulationConfig = {
   facilityConditionDecayPerCyclePerLevel: 0.9,
   facilityDisrepairThreshold: 50,
   facilityDisrepairMinEffectiveness: 0,
+  criticalInfraMinEffectiveness: 0.5,
   facilityRepairConditionRestore: 100,
   warDamageConditionDrop: 40,
   facilityConditionSeedJitterMin: 70,
@@ -2469,8 +2480,8 @@ export const defaultConfig: SimulationConfig = {
   taskOutcomeSuccessMargin: 20,
   // v0.27 HoldingImprovement / development selector
   holdingImprovementDevelopmentScorePerLevel: {
-    field_system: 4,
-    pastoral_infrastructure: 4,
+    manor_house: 2,
+    town_hall: 2,
     irrigation_infrastructure: 6,
     market_infrastructure: 6,
     workshop_infrastructure: 6,
@@ -2478,8 +2489,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: 7,
   },
   holdingImprovementMaxLevelByKind: {
-    field_system: { manor: 3, city: 0 },
-    pastoral_infrastructure: { manor: 3, city: 0 },
+    manor_house: { manor: 1, city: 0 },
+    town_hall: { manor: 0, city: 1 },
     irrigation_infrastructure: { manor: 3, city: 0 },
     market_infrastructure: { manor: 0, city: 3 },
     workshop_infrastructure: { manor: 0, city: 3 },
@@ -2488,8 +2499,8 @@ export const defaultConfig: SimulationConfig = {
   },
   developHoldingTargetDevelopmentThreshold: 40,
   developHoldingProjectBaseCostByImprovementKind: {
-    field_system: 30,
-    pastoral_infrastructure: 28,
+    manor_house: 20,
+    town_hall: 20,
     irrigation_infrastructure: 35,
     market_infrastructure: 35,
     workshop_infrastructure: 32,
@@ -2497,56 +2508,38 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: 30,
   },
   developHoldingProjectBaseProgressByImprovementKind: {
-    field_system: 100,
-    pastoral_infrastructure: 100,
+    manor_house: 60,
+    town_hall: 60,
     irrigation_infrastructure: 110,
     market_infrastructure: 100,
     workshop_infrastructure: 100,
     storage_infrastructure: 80,
     transport_infrastructure: 100,
   },
-  holdingImprovementOccupationCapacityPerLevel: {
-    field_system: { agriculture: 60 },
-    pastoral_infrastructure: { agriculture: 45 },
-    irrigation_infrastructure: { agriculture: 25 },
-    market_infrastructure: { urban_labor: 55, elite_service: 5 },
-    workshop_infrastructure: { urban_labor: 65 },
+  holdingImprovementClassCapacityPerLevel: {
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: {},
+    market_infrastructure: {},
+    workshop_infrastructure: {},
     storage_infrastructure: {},
     transport_infrastructure: {},
   },
   holdingImprovementTerrainCapacityMultiplier: {
-    field_system: { plains: 1.3, wetlands: 0.7, hills: 0.75, forest: 0.5, mountains: 0.25 },
-    pastoral_infrastructure: {
-      plains: 1.0,
-      hills: 1.3,
-      mountains: 0.8,
-      forest: 0.65,
-      wetlands: 0.4,
-    },
-    irrigation_infrastructure: {
-      plains: 1.0,
-      wetlands: 1.4,
-      hills: 0.7,
-      forest: 0.5,
-      mountains: 0.3,
-    },
-    market_infrastructure: { plains: 1.1, hills: 0.9, forest: 0.8, wetlands: 0.75, mountains: 0.6 },
-    workshop_infrastructure: {
-      plains: 1.0,
-      hills: 0.9,
-      forest: 0.85,
-      wetlands: 0.75,
-      mountains: 0.7,
-    },
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: {},
+    market_infrastructure: {},
+    workshop_infrastructure: {},
     storage_infrastructure: {},
     transport_infrastructure: {},
   },
   holdingImprovementFeatureCapacityMultiplier: {
-    field_system: { major_river: 1.1, lake: 1.05 },
-    pastoral_infrastructure: {},
-    irrigation_infrastructure: { major_river: 1.3, lake: 1.2 },
-    market_infrastructure: { coastal: 1.15, major_river: 1.15, lake: 1.1 },
-    workshop_infrastructure: { coastal: 1.05, major_river: 1.05 },
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: {},
+    market_infrastructure: {},
+    workshop_infrastructure: {},
     storage_infrastructure: {},
     transport_infrastructure: {},
   },
@@ -2875,4 +2868,46 @@ export const defaultConfig: SimulationConfig = {
   warSupplyPlunderSpilloverPressureFactor: 0.003,
   warSupplyMaxSpilloverHoldings: 2,
   warSupplyAttritionEventStrengthThreshold: 5,
+  // === v0.52 RealEstateAsset ===
+  realEstateTerrainCapacityMultiplier: {
+    field: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
+    pasture: { plains: 1.0, hills: 1.3, mountains: 0.8, forest: 0.65, wetlands: 0.4 },
+    workshop: { plains: 1.0, hills: 0.9, forest: 0.85, wetlands: 0.75, mountains: 0.7 },
+  },
+  realEstateFeatureCapacityMultiplier: {
+    field: { major_river: 1.1, lake: 1.05 },
+    pasture: {},
+    workshop: { coastal: 1.05, major_river: 1.05 },
+  },
+  realEstateInfrastructureModifiers: {
+    field: [
+      { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.15 },
+      { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+    ],
+    pasture: [
+      { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.1 },
+      { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+    ],
+    workshop: [
+      { infraKind: 'workshop_infrastructure', modifierPerLevel: 0.15 },
+      { infraKind: 'market_infrastructure', modifierPerLevel: 0.1 },
+    ],
+  },
+  developRealEstateCapacityPressureThreshold: 0.8,
+  minSlotOveruseModifier: 0.5,
+  realEstateSlotCapacityBase: { manor: 3, city: 4 },
+  developRealEstateProjectBaseCost: {
+    field: 30,
+    pasture: 28,
+    workshop: 35,
+  },
+  developRealEstateProjectBaseProgress: {
+    field: 100,
+    pasture: 100,
+    workshop: 110,
+  },
+  // v0.52 owner income / 不動産売買
+  realEstateOwnerIncomeRate: 0.05,
+  realEstateKindIncomeWeight: { field: 1.0, pasture: 1.0, workshop: 1.0 },
+  realEstateSalePriceYears: 20,
 }

@@ -482,6 +482,9 @@ describe('runControlSystem — capital province maxControl', () => {
       nextPopGroupId: 0,
       clans: {},
       nextClanId: 1,
+      realEstateAssets: {},
+      realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+      nextRealEstateAssetId: 0,
     }
 
     const result = runControlSystem(makeCtx(world))

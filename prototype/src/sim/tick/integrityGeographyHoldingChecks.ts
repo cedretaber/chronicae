@@ -5,14 +5,17 @@ import type {
   HoldingId,
   HoldingOfficeAssignmentId,
   HoldingImprovementId,
+  RealEstateAssetId,
 } from '../types/ids'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
-import { getHoldingOccupationCapacity } from '../selectors/popSelectors'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { VALID_HOLDING_IMPROVEMENT_KINDS } from './integrityConstants'
+import { assetOwnerKey } from '../types/realEstateAsset'
 
 export function checkGeographyAndHoldings(
   state: WorldState,
@@ -528,46 +531,205 @@ export function checkGeographyAndHoldings(
           })
         }
       }
-      // capacityRole==='capacity' は targetOccupations の capacityPerLevel が正値で存在
-      if (def.capacityRole === 'capacity') {
-        for (const occ of def.targetOccupations ?? []) {
-          const perLevel = config.holdingImprovementOccupationCapacityPerLevel[kind][occ]
-          if (perLevel === undefined || perLevel <= 0) {
-            errors.push({
-              code: 'INTEGRITY_VIOLATION',
-              message: `IMPROVEMENT config: ${kind} capacityRole=capacity but occupationCapacityPerLevel[${occ}]=${perLevel ?? 'undefined'} (§13.3)`,
-            })
-          }
-        }
+      // v0.52: HoldingImprovement は全て production_quality (infrastructure) に移行。
+      // capacity を直接生む improvement は無い (RealEstateAsset が担う)。
+    }
+  }
+
+  // --- v0.52: critical infrastructure 存在保証 (manor → manor_house, city → town_hall) ---
+  {
+    const criticalByHolding: Record<string, { manor_house: boolean; town_hall: boolean }> = {}
+    for (const [, imp] of Object.entries(state.holdingImprovements)) {
+      if (!imp) continue
+      if (imp.kind === 'manor_house' || imp.kind === 'town_hall') {
+        const entry = (criticalByHolding[imp.holdingId as string] ??= {
+          manor_house: false,
+          town_hall: false,
+        })
+        entry[imp.kind] = true
+      }
+    }
+    for (const [, holding] of Object.entries(state.holdings)) {
+      if (!holding) continue
+      const entry = criticalByHolding[holding.id as string]
+      if (holding.kind === 'manor' && !entry?.manor_house) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holding.id}: manor must have manor_house infrastructure (v0.52 critical)`,
+        })
+      }
+      if (holding.kind === 'city' && !entry?.town_hall) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holding.id}: city must have town_hall infrastructure (v0.52 critical)`,
+        })
       }
     }
   }
 
-  // --- v0.33 §13.4: occupation capacity の健全性（NaN/Infinity/負を返さない、none=0） ---
+  // --- v0.52: RealEstateAsset integrity checks ---
+  {
+    const byHoldingRebuilt: Record<string, RealEstateAssetId[]> = {}
+    const byOwnerRebuilt: Record<string, RealEstateAssetId[]> = {}
+
+    for (const [assetIdStr, asset] of Object.entries(state.realEstateAssets)) {
+      if (!asset) continue
+      const assetId = assetIdStr as RealEstateAssetId
+
+      if (!(assetId as string).startsWith('re-')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: id must start with re-`,
+        })
+      }
+
+      if (!state.holdings[asset.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: holdingId=${asset.holdingId as string} does not exist`,
+        })
+      }
+
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      if (!def) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: unknown realEstateKind=${asset.realEstateKind}`,
+        })
+      }
+
+      if (asset.level < 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateAsset ${assetIdStr}: level=${asset.level} must be >= 1`,
+        })
+      }
+
+      if (def) {
+        const holding = state.holdings[asset.holdingId]
+        if (holding) {
+          const maxLevel = def.maxLevelByHoldingKind[holding.kind]
+          if (maxLevel !== undefined && asset.level > maxLevel) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: level=${asset.level} exceeds maxLevel=${maxLevel} for ${holding.kind}`,
+            })
+          }
+          if (!def.allowedHoldingKinds.includes(holding.kind)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: kind=${asset.realEstateKind} not allowed in ${holding.kind}`,
+            })
+          }
+        }
+      }
+
+      if (asset.owner) {
+        switch (asset.owner.kind) {
+          case 'person': {
+            const person = state.persons[asset.owner.id]
+            if (!person) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner person ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+          case 'house': {
+            const house = state.houses[asset.owner.id]
+            if (!house) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner house ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+          case 'polity': {
+            const polity = state.polities[asset.owner.id]
+            if (!polity) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `RealEstateAsset ${assetIdStr}: owner polity ${asset.owner.id as string} does not exist`,
+              })
+            }
+            break
+          }
+        }
+      }
+
+      const holdingKey = asset.holdingId as string
+      ;(byHoldingRebuilt[holdingKey] ??= []).push(assetId)
+
+      if (asset.owner) {
+        const ownerK = assetOwnerKey(asset.owner)
+        ;(byOwnerRebuilt[ownerK] ??= []).push(assetId)
+      }
+    }
+
+    const idx = state.realEstateAssetIndex
+    for (const [key, ids] of Object.entries(idx.byHolding)) {
+      const expected = byHoldingRebuilt[key]
+      if (!expected) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding[${key}] has ${(ids ?? []).length} entries but no assets exist for this holding`,
+        })
+      } else if (ids && ids.length !== expected.length) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding[${key}] has ${ids.length} entries but expected ${expected.length}`,
+        })
+      }
+    }
+    for (const [key, expected] of Object.entries(byHoldingRebuilt)) {
+      if (!idx.byHolding[key]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byHolding missing key ${key} (${expected.length} assets)`,
+        })
+      }
+    }
+
+    for (const [key, ids] of Object.entries(idx.byOwner)) {
+      const expected = byOwnerRebuilt[key]
+      if (!expected) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner[${key}] has ${(ids ?? []).length} entries but no owned assets exist for this owner`,
+        })
+      } else if (ids && ids.length !== expected.length) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner[${key}] has ${ids.length} entries but expected ${expected.length}`,
+        })
+      }
+    }
+    for (const [key, expected] of Object.entries(byOwnerRebuilt)) {
+      if (!idx.byOwner[key]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateAssetIndex.byOwner missing key ${key} (${expected.length} assets)`,
+        })
+      }
+    }
+  }
+
+  // --- v0.33 §13.4: class capacity の健全性（NaN/Infinity/負を返さない） ---
   if (config) {
-    const CAP_PAIRS = [
-      ['peasants', 'agriculture'],
-      ['townsmen', 'urban_labor'],
-      ['nobles', 'elite_service'],
-    ] as const
+    const POP_CLASSES = ['peasants', 'townsmen', 'nobles'] as const
     for (const [holdingIdStr, holding] of Object.entries(state.holdings)) {
       if (!holding) continue
       const hid = holdingIdStr as HoldingId
-      for (const [popClass, occupation] of CAP_PAIRS) {
-        const cap = getHoldingOccupationCapacity(state, config, hid, popClass, occupation)
+      for (const popClass of POP_CLASSES) {
+        const cap = getHoldingClassCapacity(state, config, hid, popClass)
         if (!Number.isFinite(cap) || cap < 0) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `Holding ${holdingIdStr}: occupation capacity for ${occupation} is invalid (${cap}) (§13.4)`,
+            message: `Holding ${holdingIdStr}: class capacity for ${popClass} is invalid (${cap})`,
           })
         }
-      }
-      const noneCap = getHoldingOccupationCapacity(state, config, hid, 'peasants', 'none')
-      if (noneCap !== 0) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Holding ${holdingIdStr}: occupation 'none' capacity must be 0 (got ${noneCap}) (§13.4)`,
-        })
       }
     }
   }
