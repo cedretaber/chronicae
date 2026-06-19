@@ -24,6 +24,7 @@ import { getHoldingLandContractChain } from '@sim/selectors/landContractSelector
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
 import {
   getHoldingOfficeAppointmentRight,
@@ -195,7 +196,7 @@ export function PolityLandContracts({
           const rate = seg.terms.taxRateToGrantor
           const retained = remaining * (1 - rate)
           if (i === idx) {
-            estimatedRevenue = Math.round(retained * 10) / 10
+            estimatedRevenue = Math.round(retained * WEEKS_PER_YEAR * 10) / 10
             break
           }
           remaining = remaining * rate
@@ -246,6 +247,7 @@ export function PolityLandContracts({
       <div className="text-sm font-semibold text-gray-300">
         {t('detail.polity.land_contracts')} ({totalContracts}):
       </div>
+      <div className="text-xs text-gray-500">{t('detail.polity.land_contracts_note')}</div>
       <div className="max-h-64 overflow-y-auto text-sm">
         {groups.map((g) => (
           <div key={g.provinceId} className="mb-1">

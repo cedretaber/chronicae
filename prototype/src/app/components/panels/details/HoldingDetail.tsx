@@ -30,10 +30,10 @@ import {
 import { personAttitudeKey } from '@sim/helpers/attitudeHelpers'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
-import { getPrimaryOccupationForClass } from '@/sim/types/popGroup'
 import {
-  getHoldingPopSizeByClassAndOccupation,
-  getHoldingOccupationCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingUnemployedPopSize,
+  getHoldingClassCapacity,
   getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
@@ -144,29 +144,14 @@ export function HoldingDetail({
           const emptySlots = Math.max(0, slotCap - assets.length)
           if (assets.length === 0 && emptySlots === 0) return null
 
-          const fillCache = new Map<string, { employed: number; cap: number }>()
-          const getFill = (
-            popClass: Parameters<typeof getHoldingPopSizeByClassAndOccupation>[2],
-            occupation: Parameters<typeof getHoldingPopSizeByClassAndOccupation>[3],
-          ) => {
-            const key = `${popClass}:${occupation}`
-            const cached = fillCache.get(key)
+          const fillCache = new Map<string, { employedSize: number; cap: number }>()
+          const getFill = (popClass: import('@sim/types/popGroup').PopClass) => {
+            const cached = fillCache.get(popClass)
             if (cached) return cached
-            const employed = getHoldingPopSizeByClassAndOccupation(
-              currentState,
-              holding.id,
-              popClass,
-              occupation,
-            )
-            const cap = getHoldingOccupationCapacity(
-              currentState,
-              defaultConfig,
-              holding.id,
-              popClass,
-              occupation,
-            )
-            const result = { employed, cap }
-            fillCache.set(key, result)
+            const employedSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
+            const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
+            const result = { employedSize, cap }
+            fillCache.set(popClass, result)
             return result
           }
 
@@ -216,15 +201,13 @@ export function HoldingDetail({
                         )}
                       </div>
                       {def.employmentSlots.map((slot) => {
-                        const fill = getFill(slot.popClass, slot.occupation)
-                        const pct = fill.cap > 0 ? clamp100((fill.employed / fill.cap) * 100) : 0
+                        const fill = getFill(slot.popClass)
+                        const pct =
+                          fill.cap > 0 ? clamp100((fill.employedSize / fill.cap) * 100) : 0
                         return (
-                          <div
-                            key={`${slot.popClass}:${slot.occupation}`}
-                            className="mt-0.5 flex items-center gap-1.5"
-                          >
+                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-gray-500">
-                              {t(`popOccupation.${slot.occupation}`)}
+                              {t(`detail.province.${slot.popClass}`)}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div
@@ -233,7 +216,7 @@ export function HoldingDetail({
                               />
                             </div>
                             <span className="w-16 text-right text-gray-400">
-                              {fill.employed.toFixed(0)}/{fill.cap.toFixed(0)}
+                              {fill.employedSize.toFixed(0)}/{fill.cap.toFixed(0)}
                             </span>
                           </div>
                         )
@@ -309,27 +292,22 @@ export function HoldingDetail({
                     </div>
                     {impDef.employmentSlots &&
                       impDef.employmentSlots.map((slot) => {
-                        const employed = getHoldingPopSizeByClassAndOccupation(
+                        const empSize = getHoldingEmployedPopSize(
                           currentState,
                           holding.id,
                           slot.popClass,
-                          slot.occupation,
                         )
-                        const cap = getHoldingOccupationCapacity(
+                        const cap = getHoldingClassCapacity(
                           currentState,
                           defaultConfig,
                           holding.id,
                           slot.popClass,
-                          slot.occupation,
                         )
-                        const pct = cap > 0 ? clamp100((employed / cap) * 100) : 0
+                        const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
                         return (
-                          <div
-                            key={`${slot.popClass}:${slot.occupation}`}
-                            className="mt-0.5 flex items-center gap-1.5"
-                          >
+                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-xs text-gray-500">
-                              {t(`popOccupation.${slot.occupation}`)}
+                              {t(`detail.province.${slot.popClass}`)}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div
@@ -338,7 +316,7 @@ export function HoldingDetail({
                               />
                             </div>
                             <span className="w-16 text-right text-xs text-gray-400">
-                              {employed.toFixed(0)}/{cap.toFixed(0)}
+                              {empSize.toFixed(0)}/{cap.toFixed(0)}
                             </span>
                           </div>
                         )
@@ -716,41 +694,26 @@ export function HoldingDetail({
         <>
           <DetailSection title="POP" />
           {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
-            const primaryOcc = getPrimaryOccupationForClass(popClass)
-            const employed = getHoldingPopSizeByClassAndOccupation(
-              currentState,
-              holding.id,
-              popClass,
-              primaryOcc,
-            )
-            const cap = getHoldingOccupationCapacity(
-              currentState,
-              defaultConfig,
-              holding.id,
-              popClass,
-              primaryOcc,
-            )
-            const unemployed = getHoldingPopSizeByClassAndOccupation(
-              currentState,
-              holding.id,
-              popClass,
-              'none',
-            )
-            if (employed === 0 && unemployed === 0) return null
+            const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
+            const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
+            const unempSize = getHoldingUnemployedPopSize(currentState, holding.id, popClass)
+            if (empSize === 0 && unempSize === 0) return null
             return (
               <div key={popClass} className="text-sm">
                 <div className="font-medium text-gray-300">{t(`detail.province.${popClass}`)}</div>
                 <div className="ml-2 text-gray-400">
                   <div className="flex justify-between">
-                    <span>{t(`popOccupation.${primaryOcc}`)}:</span>
+                    <span>{t('detail.province.pop_employed')}:</span>
                     <span>
-                      {employed.toFixed(1)} / {cap.toFixed(1)}
+                      {empSize.toFixed(1)} / {cap.toFixed(1)}
                     </span>
                   </div>
-                  {unemployed > 0 && (
+                  {unempSize > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-yellow-400">{t('popOccupation.none')}:</span>
-                      <span className="text-yellow-400">{unemployed.toFixed(1)}</span>
+                      <span className="text-yellow-400">
+                        {t('detail.province.pop_unemployed')}:
+                      </span>
+                      <span className="text-yellow-400">{unempSize.toFixed(1)}</span>
                     </div>
                   )}
                 </div>
@@ -776,7 +739,11 @@ export function HoldingDetail({
                   >
                     {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
                     <span className="text-xs font-normal text-gray-400">
-                      ({t(`popOccupation.${pop.occupation}`)})
+                      (
+                      {pop.employed
+                        ? t('detail.province.pop_employed')
+                        : t('detail.province.pop_unemployed')}
+                      )
                     </span>{' '}
                     →
                   </button>

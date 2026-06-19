@@ -145,6 +145,7 @@ export function WindowManager() {
                 eventHistory={eventHistory}
                 onClanClick={onClanClick}
                 onOpenFamilyTree={onOpenFamilyTree}
+                onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
           )
@@ -202,7 +203,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Pop: ${popGroup.class} (${popGroup.occupation})`}
+              title={`Pop: ${popGroup.class} (${popGroup.employed ? 'employed' : 'unemployed'})`}
             >
               <PopGroupDetail
                 popGroup={popGroup}

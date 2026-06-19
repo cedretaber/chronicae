@@ -218,6 +218,7 @@ detail:
       rights_suffix: 'rights'
     houses_with_land: 'Houses with land here'
     land_contracts: 'Land Contracts'
+    land_contracts_note: 'Revenue figures are estimated annual values.'
     regiments: 'Regiments'
     regiment_suffix: 'Regiment'
     cavalry_regiment: 'Cavalry Regiment'
@@ -284,6 +285,9 @@ detail:
     project_supervisor: 'Supervisor'
     project_deadline: 'Deadline'
     projects_section: 'Projects'
+    owned_real_estate: 'Owned Real Estate'
+    real_estate_location: 'Location'
+    real_estate_annual_income: 'Est. Annual Income'
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
@@ -476,6 +480,9 @@ detail:
       undermine_influence: "Undermines the target's influence through conspiracy."
       revoke_political_right: "Revokes the target's appointment right through conspiracy, returning it to the polity (incumbents keep their posts)."
       replace_house_leader: "Replaces a cadet branch's head with its highest-prestige member through conspiracy."
+      develop_real_estate: 'Builds or upgrades an unowned real estate asset in the target holding, raising its employment capacity.'
+      acquire_real_estate: 'Purchases an unowned real estate asset for the house, generating ongoing owner income from its production.'
+      upgrade_owned_real_estate: "Upgrades the house's owned real estate asset to a higher level, increasing its income and employment capacity."
     pressure_source: 'Pressure From'
     pressure_type: 'Pressure Type'
     pressure_play: 'Related Play'
@@ -577,6 +584,8 @@ detail:
     holdings: 'Holdings'
     population_section: 'Population'
     pop_groups: 'POP Groups'
+    pop_employed: 'Employed'
+    pop_unemployed: 'Unemployed'
     revolt_risk: 'Revolt Risk'
     attitudes: 'Attitudes'
     dev: 'Dev'

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList } from './shared/widgets'
-import { getHoldingOccupationCapacity } from '@sim/selectors/popSelectors'
+import { getHoldingClassCapacity } from '@sim/selectors/popSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 
 export function PopGroupDetail({
@@ -45,7 +45,9 @@ export function PopGroupDetail({
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{classLabel}</span>
         <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">
-          {t(`popOccupation.${popGroup.occupation}`)}
+          {popGroup.employed
+            ? t('detail.province.pop_employed')
+            : t('detail.province.pop_unemployed')}
         </span>
         <CopyJsonButton payload={buildEntitySnapshot('popGroup', popGroup, worldState)} />
       </div>
@@ -84,18 +86,17 @@ export function PopGroupDetail({
         </div>
       </div>
 
-      {popGroup.occupation !== 'none' && currentState && (
+      {popGroup.employed && currentState && (
         <div className="text-sm">
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.province.capacity')}:</span>
             <span>
               {popGroup.size.toFixed(1)} /{' '}
-              {getHoldingOccupationCapacity(
+              {getHoldingClassCapacity(
                 currentState,
                 defaultConfig,
                 popGroup.holdingId,
                 popGroup.class,
-                popGroup.occupation,
               ).toFixed(1)}
             </span>
           </div>

@@ -22,8 +22,9 @@ import {
   getProvinceAveragePopWealth,
   getProvinceUnrest,
   getPopWealthByClass,
-  getHoldingPopSizeByClassAndOccupation,
-  getHoldingOccupationCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingUnemployedPopSize,
+  getHoldingClassCapacity,
 } from '@sim/selectors/popSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import {
@@ -51,7 +52,6 @@ import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
-import { getPrimaryOccupationForClass } from '@/sim/types/popGroup'
 import { getChronicleEntriesForProvince } from '@sim/selectors/chronicleSelectors'
 
 export function ProvinceDetail({
@@ -375,38 +375,30 @@ export function ProvinceDetail({
                 </div>
                 <div className="mt-1 border-t border-gray-700 pt-1">
                   {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
-                    const primaryOcc = getPrimaryOccupationForClass(popClass)
-                    const employed = getHoldingPopSizeByClassAndOccupation(
-                      currentState,
-                      holding.id,
-                      popClass,
-                      primaryOcc,
-                    )
-                    const cap = getHoldingOccupationCapacity(
+                    const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
+                    const cap = getHoldingClassCapacity(
                       currentState,
                       defaultConfig,
                       holding.id,
                       popClass,
-                      primaryOcc,
                     )
-                    const unemployed = getHoldingPopSizeByClassAndOccupation(
+                    const unempSize = getHoldingUnemployedPopSize(
                       currentState,
                       holding.id,
                       popClass,
-                      'none',
                     )
-                    if (employed === 0 && unemployed === 0) return null
+                    if (empSize === 0 && unempSize === 0) return null
                     return (
                       <div key={popClass} className="text-xs text-gray-400">
                         <span className="text-gray-300">{t(`detail.province.${popClass}`)}</span>
                         <div className="ml-2">
                           <span>
-                            {t(`popOccupation.${primaryOcc}`)}: {employed.toFixed(1)} /{' '}
+                            {t('detail.province.pop_employed')}: {empSize.toFixed(1)} /{' '}
                             {cap.toFixed(1)}
                           </span>
-                          {unemployed > 0 && (
+                          {unempSize > 0 && (
                             <span className="ml-2 text-yellow-400">
-                              {t('popOccupation.none')}: {unemployed.toFixed(1)}
+                              {t('detail.province.pop_unemployed')}: {unempSize.toFixed(1)}
                             </span>
                           )}
                         </div>
@@ -474,7 +466,11 @@ export function ProvinceDetail({
               >
                 {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
                 <span className="text-xs font-normal text-gray-400">
-                  ({t(`popOccupation.${pop.occupation}`)})
+                  (
+                  {pop.employed
+                    ? t('detail.province.pop_employed')
+                    : t('detail.province.pop_unemployed')}
+                  )
                 </span>{' '}
                 →
               </button>
