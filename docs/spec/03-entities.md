@@ -93,10 +93,10 @@ type Holding = {
 type HoldingImprovementId = string  // prefix: "hi-"
 
 type HoldingImprovementKind =
+  | 'manor_house'
+  | 'town_hall'
   | 'storage_infrastructure'
   | 'transport_infrastructure'
-  | 'field_system'
-  | 'pastoral_infrastructure'
   | 'irrigation_infrastructure'
   | 'market_infrastructure'
   | 'workshop_infrastructure'
@@ -116,27 +116,28 @@ type HoldingImprovement = {
 - `condition`: 老朽化・破壊は future。現状は常に 100 で capacity / production のいずれにも影響しない（将来の荒廃・修復システム用に温存）
 - development は各 Improvement の level × scorePerLevel の合計として `getHoldingDevelopment` selector で算出（§4.1 参照）
 
-kind ごとの構造メタデータ（建設可能 HoldingKind / terrain / 必須 feature / capacityRole / 対象 occupation）は `sim/config/improvementDefinitions.ts` の `IMPROVEMENT_DEFINITIONS` const に一元化し、数値バランスは `SimulationConfig` に分離する（§9）。
+kind ごとの構造メタデータ（建設可能 HoldingKind / terrain / 必須 feature / capacityRole / employmentSlots）は `sim/config/improvementDefinitions.ts` の `IMPROVEMENT_DEFINITIONS` const に一元化し、数値バランスは `SimulationConfig` に分離する（§9）。
 
-| Kind | 主な意味 | capacityRole | allowed kind / terrain / feature |
-|---|---|---|---|
-| `field_system` | 農地整備・穀物生産基盤 | capacity (agriculture) | manor / plains・hills・wetlands・forest |
-| `pastoral_infrastructure` | 牧草地・放牧・畜産基盤 | capacity (agriculture) | manor / plains・hills・mountains・forest |
-| `irrigation_infrastructure` | 灌漑・排水・水利 | capacity (agriculture) | manor / plains・wetlands・hills ＋ `major_river` か `lake` 必須 |
-| `market_infrastructure` | 市場・取引施設 | capacity (urban_labor + 少量 elite_service) | city |
-| `workshop_infrastructure` | 工房・加工設備 | capacity (urban_labor) | city |
-| `storage_infrastructure` | 倉庫・穀倉・貯蔵 | production_quality | manor / city |
-| `transport_infrastructure` | 道路・橋・水運 | production_quality | manor / city |
+| Kind | 主な意味 | capacityRole | employmentSlots (PopClass) | allowed kind / terrain / feature |
+|---|---|---|---|---|
+| `manor_house` | 荘園邸宅（v0.52 導入） | capacity | nobles 3/lv | manor |
+| `town_hall` | 都市庁舎（v0.52 導入） | capacity | townsmen 10/lv + nobles 3/lv | city |
+| `irrigation_infrastructure` | 灌漑・排水・水利 | production_quality | — | manor / plains・wetlands・hills ＋ `major_river` か `lake` 必須 |
+| `market_infrastructure` | 市場・取引施設 | production_quality | — | city |
+| `workshop_infrastructure` | 工房・加工設備 | production_quality | — | city |
+| `storage_infrastructure` | 倉庫・穀倉・貯蔵 | capacity | townsmen 20/lv | manor / city |
+| `transport_infrastructure` | 道路・橋・水運 | production_quality | — | manor / city |
 
-- `capacityRole === 'capacity'` の設備は occupation capacity を生む（§4.2）。`production_quality`（storage / transport）は capacity を生まず、development → production modifier 側で効く
+- `capacityRole === 'capacity'` の設備は employmentSlots により PopClass ごとの雇用枠を生む（§4.2）。`production_quality`（irrigation / market / workshop / transport）は雇用枠を生まず、development → production modifier 側で効く
+- v0.52 で `field_system` / `pastoral_infrastructure` を廃止し `manor_house` / `town_hall` に置換。農地・牧草地は RealEstateAsset（§3.2a）として Holding 内に個別管理する
 - 後回し（未導入）: forestry / mining / quarrying / harbor / fortification / orchard / vineyard / mill。資源・商品・交易・戦争システム導入時に再検討する
 
 **max level（kind × HoldingKind、0 = 建設不可）**:
 
 | ImprovementKind | manor | city |
 |---|---|---|
-| field_system | 3 | 0 |
-| pastoral_infrastructure | 3 | 0 |
+| manor_house | 1 | 0 |
+| town_hall | 0 | 1 |
 | irrigation_infrastructure | 3 | 0 |
 | market_infrastructure | 0 | 3 |
 | workshop_infrastructure | 0 | 3 |
@@ -155,18 +156,16 @@ holdingImprovementIndex: {
 nextHoldingImprovementId: number
 ```
 
-### 3.2 PopClass / PopOccupation / PopGroup（民衆集団）
+### 3.2 PopClass / PopGroup（民衆集団）
 
 ```ts
 type PopClass = 'peasants' | 'townsmen' | 'nobles'
-
-type PopOccupation = 'agriculture' | 'urban_labor' | 'elite_service' | 'none'
 
 type PopGroup = {
   id: PopGroupId
   holdingId: HoldingId       // 所属 Holding
   class: PopClass
-  occupation: PopOccupation
+  employed: boolean          // v0.52 で PopOccupation を廃止。employed: boolean に置換
   size: number       // 抽象人口規模（実人数ではない）
   wealth: number     // 0..100（豊かさ指数。金額ではない）
   unrest: number     // 0..100
@@ -174,21 +173,60 @@ type PopGroup = {
 }
 ```
 
-| class | 意味 | 主な役割 | 標準 occupation |
-|-------|------|----------|----------------|
-| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 | agriculture |
-| townsmen | 都市民・商工民 | 税収・富・都市的発展 | urban_labor |
-| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 | elite_service |
+| class | 意味 | 主な役割 |
+|-------|------|----------|
+| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 |
+| townsmen | 都市民・商工民 | 税収・富・都市的発展 |
+| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 |
+
+v0.52 で `PopOccupation` を廃止。`employed: boolean` に置換した。雇用枠は HoldingImprovement の `employmentSlots`（§3.1d）および RealEstateAsset（§3.2a）から PopClass 単位で供給される。
 
 PopGroup の構造:
 - PopGroup は Province ではなく **Holding** に所属する
-- `occupation` により職業状態を表現する。`none` は職業枠からあぶれた POP（失業者・土地なし・扶持なし）
-- `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は size が `popSizeEpsilon` 以下で削除される
-- 同一 merge key (`holdingId + class + occupation`) の POP は原則 1 つに統合される
+- `employed` により就業状態を表現する。`employed === false` は雇用枠からあぶれた POP（失業者・土地なし・扶持なし）
+- `employed === true` の POP は `minPopSizeByClass` で下限保証。`employed === false` の POP は size が `popSizeEpsilon` 以下で削除される
+- 同一 merge key (`holdingId + class + employed`) の POP は原則 1 つに統合される
 - Province 単位の POP は Holding POP から selector で集計する（§4.2 参照）
 - Province は popGroupIds を持たない。POP の参照は `popIndex.byHolding` 経由
 
 Province の unrest は POP unrest の人口加重平均として selector で算出する（§4 参照）。
+
+### 3.2a RealEstateAsset（不動産・生産単位）（v0.52）
+
+Holding 内に存在する具体的な不動産・生産単位。v0.52 で導入。従来 HoldingImprovement（`field_system` / `pastoral_infrastructure`）が担っていた農地・牧草地の機能を、Holding 内の個別アセットとして管理する。
+
+```ts
+type RealEstateKind = 'field' | 'pasture' | 'workshop'
+
+type AssetOwnerRef =
+  | { kind: 'house'; id: HouseId }
+  | { kind: 'person'; id: PersonId }
+  | { kind: 'polity'; id: PolityId }
+
+type RealEstateAsset = {
+  id: RealEstateAssetId       // prefix: "re-"
+  holdingId: HoldingId
+  realEstateKind: RealEstateKind
+  level: number
+  owner?: AssetOwnerRef
+  createdWeek: number
+}
+```
+
+- `owner === undefined` は正規状態（Holding 所属の一般不動産。terminal Polity が実質管理）
+- owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
+- `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
+
+**WorldState 追加**:
+
+```ts
+realEstateAssets: Record<RealEstateAssetId, RealEstateAsset>
+realEstateAssetIndex: RealEstateAssetIndex  // { byHolding, byOwner }
+nextRealEstateAssetId: number
+```
+
+- `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス
+- `realEstateAssetIndex.byOwner`: `assetOwnerKey(owner)` → RealEstateAssetId[] のインデックス（owner ありのみ）
 
 ### 3.3 Polity（政治主体）
 
@@ -1242,7 +1280,7 @@ type Goal = {
 type AimStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
 type AimOrigin = 'goal_driven' | 'pressure_response'
 type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms' | 'eliminate_overlord_contract' | 'eliminate_vassal_contract' | 'demand_tax_increase_from_vassal'
-type HouseAimKind = 'acquire_political_right' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
+type HouseAimKind = 'acquire_political_right' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle' | 'acquire_real_estate_asset' | 'improve_house_real_estate'
 // v0.42: increase_polity_share は廃止 (influence は read-model)。acquire_political_right の
 // aim.target は EntityRef の political_right_target variant ({ kind, target: PoliticalRightTargetRef })
 type PersonAimKind = 'support_organization_aim' | 'increase_house_influence' | 'obtain_office' | 'retain_office' | 'accumulate_wealth' | 'improve_ability'
@@ -1503,6 +1541,9 @@ type ProjectKind =
   | 'respond_to_pressure'
   | 'handle_crisis'       // v0.48: Crisis（災害/戦災/反乱前段）の対処（§6.6）
   | 'personal_training'   // v0.44: improve_ability Aim の project 化（§6.66）
+  | 'develop_real_estate'          // v0.52: Holding 内 RealEstateAsset の新設 or level up（owner=Polity）
+  | 'acquire_real_estate'          // v0.52: 無主 RealEstateAsset を House が購入
+  | 'upgrade_owned_real_estate'    // v0.52: 所有 RealEstateAsset の level up（owner=House）
 
 // v0.44: terminal 化サイトで status と同時にセット必須（§6.66）
 type ProjectTerminalReason =
@@ -1546,6 +1587,10 @@ type BaseProject = {
   - `UndermineInfluenceProject`: polityId / target (InfluenceModifierTargetRef)。完了で負の InfluenceModifier 生成
   - `RevokePoliticalRightProject`: polityId / target (PoliticalRightTargetRef)。完了で対象 right を国に返却（difficulty は holder 種別依存）
   - `ReplaceHouseLeaderProject`: targetHouseId（自家の分家）。完了で分家当主を交代（旧 replace_house_leader plot 移植）
+- **不動産 Project（v0.52、すべて budget あり・find_supervisor → secure_budget → execute_project）**:
+  - `DevelopRealEstateProject`: owner=Polity / holdingId / realEstateKind / targetRealEstateAssetId? / targetRealEstateLevel / budget。targetRealEstateAssetId が undefined なら新設、あれば既存 asset の level up
+  - `AcquireRealEstateProject`: owner={kind:'house'} / holdingId / targetRealEstateAssetId / salePrice / budget。購入完了で buyer House.wealth から salePrice を控除し seller Polity.treasury に加算、asset.owner を buyer House に変更
+  - `UpgradeOwnedRealEstateProject`: owner=asset owner (Phase 1: House) / holdingId / targetRealEstateAssetId / realEstateKind / targetRealEstateLevel / budget
 
 #### ProjectStage 一般化
 
@@ -1578,6 +1623,9 @@ type ProjectStageEntry = {
 | personal_training | execute_project (final) |
 | respond_to_pressure | choose_stance (imm) → propose_initial_offer (imm) → prepare_response (prep) → negotiate (final) |
 | handle_crisis | find_supervisor (imm) → secure_budget (imm) → mitigate (final) |
+| develop_real_estate | find_supervisor (imm) → secure_budget (imm) → execute_project (final) |
+| acquire_real_estate | find_supervisor (imm) → secure_budget (imm) → execute_project (final) |
+| upgrade_owned_real_estate | find_supervisor (imm) → secure_budget (imm) → execute_project (final) |
 
 - `immediate`: ProjectStageSystem が即時解決。Task を生成しない
 - `preparatory`: Task を生成。success → 次 stage 遷移、partial → 同 stage 継続、failure → stageAttemptCount increment → 上限超過で Project failed

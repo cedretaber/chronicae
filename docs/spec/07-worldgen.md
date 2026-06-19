@@ -31,26 +31,26 @@ config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInh
 
 ### 7.2 PopGroup 初期生成
 
-各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは occupation capacity に基づく。
+各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは class capacity に基づく。
 
-**size の初期値**（occupation capacity ベース）:
+**size の初期値**（class capacity ベース）:
 ```ts
-// 各 Holding について、class ごとに occupation capacity を算出。
-// state 非依存の pure helper computeHoldingOccupationCapacity を selector と共有し、
-// capacity = (base + improvementDerivedCapacity) * weight * landQuality で算出する。
-// 改善配置（§7.3c）は POP seeding より前段で確定済み。
-const agriCap  = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'agriculture')
-const urbanCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'urban_labor')
-const eliteCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'elite_service')
+// 各 Holding について、class ごとに class capacity を算出。
+// getHoldingClassCapacity(state, config, holdingId, popClass) を selector と共有し、
+// capacity は RealEstateAsset の employmentSlots + HoldingImprovement の classCapacityPerLevel から導出する。
+// RealEstateAsset 配置（§7.3d）および改善配置（§7.3c）は POP seeding より前段で確定済み。
+const peasantCap  = getHoldingClassCapacity(state, config, holdingId, 'peasants')
+const townsmenCap = getHoldingClassCapacity(state, config, holdingId, 'townsmen')
+const nobleCap    = getHoldingClassCapacity(state, config, holdingId, 'nobles')
 
 const fillRatio = rng.nextFloat(initialPopFillRatioMin, initialPopFillRatioMax) / 100
 
-peasants.size  = max(minPopSizeByClass.peasants, agriCap * fillRatio)
-townsmen.size  = max(minPopSizeByClass.townsmen, urbanCap * fillRatio)
-nobles.size    = max(minPopSizeByClass.nobles, eliteCap * fillRatio)
+peasants.size  = max(minPopSizeByClass.peasants, peasantCap * fillRatio)
+townsmen.size  = max(minPopSizeByClass.townsmen, townsmenCap * fillRatio)
+nobles.size    = max(minPopSizeByClass.nobles, nobleCap * fillRatio)
 ```
 
-全 POP は `occupation` に対応する標準職業（peasants→agriculture, townsmen→urban_labor, nobles→elite_service）で生成する。worldgen では `none` POP を生成しない。
+全 POP は `employed: true` で生成する。worldgen では未就業（`employed: false`）POP を生成しない。
 
 **wealth の初期値**（class ごとに差をつける）:
 ```ts
@@ -150,13 +150,13 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 
 ```text
 manor:
-  field_system               0.40
-  pastoral_infrastructure     0.20
+  manor_house                 0.30
   irrigation_infrastructure   0.30  ← feature ゲートで実質低下
   storage_infrastructure      0.15
   transport_infrastructure    0.15
 
 city:
+  town_hall                   0.30
   market_infrastructure       0.40
   workshop_infrastructure      0.25
   storage_infrastructure      0.25
@@ -164,6 +164,28 @@ city:
 ```
 
 **RNG 消費順（決定性）**: 各 holding × 候補 kind について、draw 前に `canBuildHoldingImprovementPure(holding.kind, terrain, features, 0, kind, config)` を判定する。**建設不可なら `randomFloat` を消費せず continue**、通過した kind のみ 1 回 draw して確率判定する。これにより同一 seed の決定性を保証する。確率値は `generateWorld.ts` 内インライン（バランス調整で変更可）。
+
+### 7.3d 初期 RealEstateAsset の配置
+
+各 Holding に RealEstateAsset（field / pasture / workshop）を一定確率で配置する。RealEstateAsset は雇用枠（employmentSlots）を提供し、POP の class capacity の主な供給源となる。
+
+**生成手順**:
+
+1. Holding ごとに全 `RealEstateKind`（field / pasture / workshop）を列挙し、`canBuildRealEstateAssetPure(holding.kind, terrain, features, kind)` で建設可能な kind を絞り込む
+2. 建設可能な kind ごとに `randomFloat` を 1 回消費し、確率 0.6 で配置する。`realEstateSlotCapacityBase`（manor: 3, city: 4）に達したら打ち切り
+3. **補完**: 上記で 1 つも配置されなかった Holding には、建設可能な先頭 kind を 1 つ追加する（最低 1 asset 保証）
+
+```text
+全 buildable kinds:  確率 0.6 で配置（slotCapacityBase まで）
+補完:                0 asset の Holding に primary kind を 1 つ追加
+```
+
+**初期属性**:
+- `owner`: `undefined`（無主。House/Person が acquire_real_estate Project で取得可能）
+- `level`: 1
+- `createdWeek`: 1
+
+**RNG 消費順（決定性）**: 建設不可な kind は `randomFloat` を消費しない。buildable kinds の列挙順は `REAL_ESTATE_DEFINITIONS` のキー順（field → pasture → workshop）で固定。
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 

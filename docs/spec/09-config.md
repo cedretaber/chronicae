@@ -478,7 +478,7 @@
 | rightInheritanceFlipChance | 0.15 | 継承判定の反転確率（主君の気まぐれ・houseless/owner家同一は skip） §6.64a-(8) |
 | **POP システム** | | |
 | popSystemEnabled | true | POP システム有効 |
-| minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、occupation:none 以外） |
+| minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、employed=true の POP） |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
 | productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
@@ -497,16 +497,18 @@
 | overExtractionUnrestSafeThreshold | 45 | この unrest 以下ならペナルティ回避 |
 | overExtractionWealthPenalty | 1.0 | 過剰徴収による wealth 低下係数 |
 | overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
-| **Occupation capacity** | | |
-| occupationCapacityBaseByHoldingKind | manor:{agri:80,urban:8,elite:3}, city:{agri:15,urban:70,elite:5} | Holding 種別ごとの occupation 基礎容量 |
-| occupationProductivityMultiplier | {agri:1.0,urban:1.0,elite:1.0,none:0.1} | occupation 別の生産性倍率 |
-| occupationManpowerMultiplier | {agri:1.0,urban:0.8,elite:1.2,none:0.5} | occupation 別の兵力倍率 |
-| unemployedWealthDecayByClass | {peasants:0.20,townsmen:0.30,nobles:0.15} | none POP の 4 週あたり wealth 減衰量 |
-| unemployedUnrestGainByClass | {peasants:0.20,townsmen:0.35,nobles:0.45} | none POP の 4 週あたり unrest 上昇量 |
-| unemployedGrowthModifierByClass | {peasants:0.6,townsmen:0.5,nobles:0.7} | none POP の成長率倍率 |
+| **Employment capacity（v0.52: occupation 廃止・employed boolean 化）** | | |
+| ~~occupationCapacityBaseByHoldingKind~~ | — | v0.52 廃止。基礎容量は RealEstateAsset の employmentSlots + HoldingImprovement の classCapacityPerLevel から導出（`getHoldingClassCapacity`） |
+| employedProductivityMultiplier | 1.0 | employed=true の POP の生産性倍率 |
+| unemployedProductivityMultiplier | 0.1 | employed=false の POP の生産性倍率 |
+| employedManpowerMultiplierByClass | {peasants:1.0, townsmen:0.8, nobles:1.2} | employed=true の class 別兵力倍率 |
+| unemployedManpowerMultiplier | 0.5 | employed=false の POP の兵力倍率 |
+| unemployedWealthDecayByClass | {peasants:0.20,townsmen:0.30,nobles:0.15} | 未就業（employed=false）POP の 4 週あたり wealth 減衰量 |
+| unemployedUnrestGainByClass | {peasants:0.20,townsmen:0.35,nobles:0.45} | 未就業（employed=false）POP の 4 週あたり unrest 上昇量 |
+| unemployedGrowthModifierByClass | {peasants:0.6,townsmen:0.5,nobles:0.7} | 未就業（employed=false）POP の成長率倍率 |
 | initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
 | initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
-| popSizeEpsilon | 0.01 | none POP がこのサイズ以下で削除 |
+| popSizeEpsilon | 0.01 | 未就業（employed=false）POP がこのサイズ以下で削除 |
 | **Houseless Person** | | |
 | houselessPersonsPerHolding | 0.5 | holdings 数あたりの無家人物 target 比率 |
 | houselessMaleRatio | 0.75 | 無家人物生成時の男性比率 |
@@ -683,18 +685,28 @@
 | **Task 成否判定** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
 | **HoldingImprovement / ProjectBudget** | | |
-| holdingImprovementDevelopmentScorePerLevel | {field_system:4, pastoral:4, irrigation:6, market:6, workshop:6, storage:7, transport:7} | ImprovementKind ごとの level あたり development 寄与（7 種） |
-| holdingImprovementMaxLevelByKind | field/pastoral/irrigation:{manor:3,city:0}, market/workshop:{manor:0,city:3}, storage/transport:{manor:3,city:3} | `Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`。0/undefined = 建設不可 |
-| developHoldingProjectBaseCostByImprovementKind | {field:30, pastoral:28, irrigation:35, market:35, workshop:32, storage:25, transport:30} | ImprovementKind ごとの基礎コスト（7 種） |
-| developHoldingProjectBaseProgressByImprovementKind | {field:100, pastoral:100, irrigation:110, market:100, workshop:100, storage:80, transport:100} | ImprovementKind ごとの基礎 targetProgress（7 種） |
-| holdingImprovementOccupationCapacityPerLevel | field:{agri:60}, pastoral:{agri:45}, irrigation:{agri:25}, market:{urban:55,elite:5}, workshop:{urban:65}, storage:{}, transport:{} | capacity 設備が level あたり生む occupation 枠。`Partial<Record<PopOccupation, number>>` |
-| holdingImprovementTerrainCapacityMultiplier | kind × terrain の乗数（未定義 → 1.0、clamp なし）。例: field={plains:1.3,wetlands:0.7,hills:0.75,forest:0.5,mountains:0.25} | terrain 傾向。storage/transport は空 |
-| holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | feature ボーナス。storage/transport/pastoral は空 |
+| holdingImprovementDevelopmentScorePerLevel | {manor_house:2, town_hall:2, irrigation:6, market:6, workshop:6, storage:7, transport:7} | ImprovementKind ごとの level あたり development 寄与（7 種。v0.52: field_system/pastoral → manor_house/town_hall に置換） |
+| holdingImprovementMaxLevelByKind | manor_house:{manor:1,city:0}, town_hall:{manor:0,city:1}, irrigation:{manor:3,city:0}, market/workshop:{manor:0,city:3}, storage/transport:{manor:3,city:3} | `Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`。0/undefined = 建設不可 |
+| developHoldingProjectBaseCostByImprovementKind | {manor_house:20, town_hall:20, irrigation:35, market:35, workshop:32, storage:25, transport:30} | ImprovementKind ごとの基礎コスト（7 種） |
+| developHoldingProjectBaseProgressByImprovementKind | {manor_house:60, town_hall:60, irrigation:110, market:100, workshop:100, storage:80, transport:100} | ImprovementKind ごとの基礎 targetProgress（7 種） |
+| holdingImprovementClassCapacityPerLevel | {manor_house:{}, town_hall:{}, irrigation:{}, market:{}, workshop:{}, storage:{}, transport:{}} | v0.52: 全種空（雇用枠は RealEstateAsset の employmentSlots が提供。HoldingImprovement は development・terrain・feature のみ寄与）。`Partial<Record<PopClass, number>>` |
+| holdingImprovementTerrainCapacityMultiplier | kind × terrain の乗数（未定義 → 1.0、clamp なし）。例: irrigation={major_river:1.3,lake:1.2} 等 | terrain 傾向。manor_house/town_hall/storage/transport は空 |
+| holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | feature ボーナス。manor_house/town_hall/storage/transport は空 |
 | improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率 |
 | improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率 |
 | projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
+| **RealEstateAsset（v0.52）** | | |
+| realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
+| realEstateOwnerIncomeRate | 0.05 | RealEstateAsset owner の収入率（Holding 粗収入に対する比率） |
+| realEstateKindIncomeWeight | {field:1.0, pasture:1.0, workshop:1.0} | RealEstateKind ごとの収入重み（同一 Holding 内の asset 間で重み按分） |
+| realEstateTerrainCapacityMultiplier | kind × terrain の乗数。例: field={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, pasture={plains:1.0,hills:1.3,mountains:0.8,forest:0.65,wetlands:0.4} | RealEstateAsset の容量に対する terrain 補正 |
+| realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
+| realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
+| developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
+| developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上 |
+| minSlotOveruseModifier | 0.5 | スロット上限超過時の容量乗算下限（slotCap/usedSlots を clamp） |
 | **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |
