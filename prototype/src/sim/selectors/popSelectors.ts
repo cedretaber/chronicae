@@ -1,12 +1,12 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
-import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
+import type { PopGroup, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { clamp } from '../utils/math'
 import {
-  computeHoldingOccupationCapacity,
+  computeHoldingClassCapacity,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 
@@ -67,11 +67,7 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
   return weightedSum / totalPopulation
 }
 
-const CLASS_OCCUPATION_PAIRS: [PopClass, PopOccupation][] = [
-  ['peasants', 'agriculture'],
-  ['townsmen', 'urban_labor'],
-  ['nobles', 'elite_service'],
-]
+const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
 export function getProvinceCarryingCapacity(
   state: WorldState,
@@ -83,8 +79,8 @@ export function getProvinceCarryingCapacity(
 
   let totalCapacity = 0
   for (const holdingId of province.holdingIds) {
-    for (const [popClass, occupation] of CLASS_OCCUPATION_PAIRS) {
-      totalCapacity += getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
+    for (const popClass of POP_CLASSES) {
+      totalCapacity += getHoldingClassCapacity(state, config, holdingId, popClass)
     }
   }
   return Math.max(config.minProvinceCarryingCapacity, totalCapacity)
@@ -199,39 +195,45 @@ export function getHoldingPopSizeByClass(
   return getHoldingPopsByClass(state, holdingId, popClass).reduce((sum, p) => sum + p.size, 0)
 }
 
-// --- v0.24 Occupation capacity selectors ---
-
-export function getHoldingPopsByClassAndOccupation(
+export function getHoldingPopsByClassAndEmployment(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
+  employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.class === popClass && p.occupation === occupation,
+    (p) => p.class === popClass && p.employed === employed,
   )
 }
 
-export function getHoldingPopSizeByClassAndOccupation(
+export function getHoldingEmployedPopSize(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
 ): number {
-  return getHoldingPopsByClassAndOccupation(state, holdingId, popClass, occupation).reduce(
+  return getHoldingPopsByClassAndEmployment(state, holdingId, popClass, true).reduce(
     (sum, p) => sum + p.size,
     0,
   )
 }
 
-export function getHoldingOccupationCapacity(
+export function getHoldingUnemployedPopSize(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  return getHoldingPopsByClassAndEmployment(state, holdingId, popClass, false).reduce(
+    (sum, p) => sum + p.size,
+    0,
+  )
+}
+
+export function getHoldingClassCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
 ): number {
-  if (occupation === 'none') return 0
   const holding = state.holdings[holdingId]
   if (!holding) return 0
   const province = state.provinces[holding.provinceId]
@@ -255,7 +257,7 @@ export function getHoldingOccupationCapacity(
   const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
   const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
 
-  return computeHoldingOccupationCapacity(
+  return computeHoldingClassCapacity(
     holding.kind,
     holding.weight,
     holding.landQuality,
@@ -263,22 +265,20 @@ export function getHoldingOccupationCapacity(
     province.features,
     improvements,
     config,
-    occupation,
     popClass,
     assets,
     overuseMod,
   )
 }
 
-export function getHoldingOccupationRemainingCapacity(
+export function getHoldingClassRemainingCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popClass: PopClass,
-  occupation: PopOccupation,
 ): number {
-  const capacity = getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
-  const used = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
+  const capacity = getHoldingClassCapacity(state, config, holdingId, popClass)
+  const used = getHoldingEmployedPopSize(state, holdingId, popClass)
   return Math.max(0, capacity - used)
 }
 
@@ -287,15 +287,10 @@ export function hasCapacityPressure(
   config: SimulationConfig,
   holdingId: HoldingId,
 ): boolean {
-  const pairs: [PopClass, PopOccupation][] = [
-    ['peasants', 'agriculture'],
-    ['townsmen', 'urban_labor'],
-    ['nobles', 'elite_service'],
-  ]
-  for (const [pc, occ] of pairs) {
-    const cap = getHoldingOccupationCapacity(state, config, holdingId, pc, occ)
+  for (const pc of POP_CLASSES) {
+    const cap = getHoldingClassCapacity(state, config, holdingId, pc)
     if (cap <= 0) continue
-    const employed = getHoldingPopSizeByClassAndOccupation(state, holdingId, pc, occ)
+    const employed = getHoldingEmployedPopSize(state, holdingId, pc)
     if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
   }
   return false

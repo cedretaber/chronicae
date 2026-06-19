@@ -81,7 +81,7 @@ function buildEscalationState(terminalRank: 2 | 3 | 5): {
         id: POP_ID,
         holdingId,
         class: 'peasants',
-        occupation: 'agriculture',
+        employed: true,
         size: 100,
         wealth: 10,
         unrest: 80,

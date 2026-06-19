@@ -79,7 +79,7 @@ function withPopGroup(
     id,
     holdingId,
     class: 'peasants',
-    occupation: 'agriculture',
+    employed: true,
     wealth: 50,
     attitudes: {},
     ...overrides,

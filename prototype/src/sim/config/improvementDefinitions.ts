@@ -1,11 +1,10 @@
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopOccupation, PopClass } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 
 export type ImprovementEmploymentSlot = {
   popClass: PopClass
-  occupation: PopOccupation
   capacityPerLevel: number
 }
 
@@ -24,7 +23,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, Improvement
     kind: 'manor_house',
     allowedHoldingKinds: ['manor'],
     capacityRole: 'capacity',
-    employmentSlots: [{ popClass: 'nobles', occupation: 'elite_service', capacityPerLevel: 3 }],
+    employmentSlots: [{ popClass: 'nobles', capacityPerLevel: 3 }],
     critical: true,
   },
   town_hall: {
@@ -32,8 +31,8 @@ export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, Improvement
     allowedHoldingKinds: ['city'],
     capacityRole: 'capacity',
     employmentSlots: [
-      { popClass: 'townsmen', occupation: 'urban_labor', capacityPerLevel: 10 },
-      { popClass: 'nobles', occupation: 'elite_service', capacityPerLevel: 3 },
+      { popClass: 'townsmen', capacityPerLevel: 10 },
+      { popClass: 'nobles', capacityPerLevel: 3 },
     ],
     critical: true,
   },
@@ -58,7 +57,7 @@ export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, Improvement
     kind: 'storage_infrastructure',
     allowedHoldingKinds: ['manor', 'city'],
     capacityRole: 'capacity',
-    employmentSlots: [{ popClass: 'townsmen', occupation: 'urban_labor', capacityPerLevel: 20 }],
+    employmentSlots: [{ popClass: 'townsmen', capacityPerLevel: 20 }],
   },
   transport_infrastructure: {
     kind: 'transport_infrastructure',

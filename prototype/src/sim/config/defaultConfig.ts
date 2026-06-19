@@ -2,7 +2,7 @@ import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
-import type { PopOccupation, PopClass } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
@@ -234,10 +234,7 @@ export type SimulationConfig = {
   overExtractionWealthPenalty: number
   overExtractionUnrestGain: number
   // v0.24 Occupation capacity
-  occupationCapacityBaseByHoldingKind: Record<
-    HoldingKind,
-    Record<Exclude<PopOccupation, 'none'>, number>
-  >
+  classCapacityBaseByHoldingKind: Record<HoldingKind, Record<PopClass, number>>
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: Record<ProvinceTerrain, number>
   provinceTerrainWeights: Record<ProvinceTerrain, number>
@@ -249,8 +246,10 @@ export type SimulationConfig = {
   provinceFeatureLakeBaseChance: number
   provinceFeatureLakeTerrainDelta: Partial<Record<ProvinceTerrain, number>>
   // v0.24 Occupation production/manpower multipliers
-  occupationProductivityMultiplier: Record<PopOccupation, number>
-  occupationManpowerMultiplier: Record<PopOccupation, number>
+  employedProductivityMultiplier: number
+  unemployedProductivityMultiplier: number
+  employedManpowerMultiplierByClass: Record<PopClass, number>
+  unemployedManpowerMultiplier: number
   // v0.24 Unemployed POP penalties
   unemployedWealthDecayByClass: Record<PopClass, number>
   unemployedUnrestGainByClass: Record<PopClass, number>
@@ -1088,9 +1087,9 @@ export type SimulationConfig = {
   developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
   // v0.33: capacity 生成テーブル（§8.3-8.5）。Partial = 未定義は寄与 0 / multiplier 1.0
-  holdingImprovementOccupationCapacityPerLevel: Record<
+  holdingImprovementClassCapacityPerLevel: Record<
     HoldingImprovementKind,
-    Partial<Record<PopOccupation, number>>
+    Partial<Record<PopClass, number>>
   >
   holdingImprovementTerrainCapacityMultiplier: Record<
     HoldingImprovementKind,
@@ -1599,10 +1598,9 @@ export const defaultConfig: SimulationConfig = {
   overExtractionUnrestSafeThreshold: 45,
   overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
-  // v0.24 Occupation capacity
-  occupationCapacityBaseByHoldingKind: {
-    manor: { agriculture: 0, urban_labor: 0, elite_service: 0 },
-    city: { agriculture: 0, urban_labor: 0, elite_service: 0 },
+  classCapacityBaseByHoldingKind: {
+    manor: { peasants: 0, townsmen: 0, nobles: 0 },
+    city: { peasants: 0, townsmen: 0, nobles: 0 },
   },
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: {
@@ -1626,19 +1624,10 @@ export const defaultConfig: SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
   provinceFeatureLakeBaseChance: 0.06,
   provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
-  // v0.24 Occupation production/manpower multipliers
-  occupationProductivityMultiplier: {
-    agriculture: 1.0,
-    urban_labor: 1.0,
-    elite_service: 1.0,
-    none: 0.1,
-  },
-  occupationManpowerMultiplier: {
-    agriculture: 1.0,
-    urban_labor: 0.8,
-    elite_service: 1.2,
-    none: 0.5,
-  },
+  employedProductivityMultiplier: 1.0,
+  unemployedProductivityMultiplier: 0.1,
+  employedManpowerMultiplierByClass: { peasants: 1.0, townsmen: 0.8, nobles: 1.2 },
+  unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
   unemployedWealthDecayByClass: { peasants: 0.2, townsmen: 0.3, nobles: 0.15 },
   unemployedUnrestGainByClass: { peasants: 0.2, townsmen: 0.35, nobles: 0.45 },
@@ -2527,7 +2516,7 @@ export const defaultConfig: SimulationConfig = {
     storage_infrastructure: 80,
     transport_infrastructure: 100,
   },
-  holdingImprovementOccupationCapacityPerLevel: {
+  holdingImprovementClassCapacityPerLevel: {
     manor_house: {},
     town_hall: {},
     irrigation_infrastructure: {},

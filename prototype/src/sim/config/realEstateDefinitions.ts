@@ -1,11 +1,10 @@
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopOccupation, PopClass } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 
 export type RealEstateEmploymentSlot = {
   popClass: PopClass
-  occupation: PopOccupation
   capacityPerLevel: number
 }
 
@@ -30,7 +29,7 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     allowedHoldingKinds: ['manor'],
     allowedTerrains: ['plains', 'hills', 'wetlands', 'forest'],
     maxLevelByHoldingKind: { manor: 3 },
-    employmentSlots: [{ popClass: 'peasants', occupation: 'agriculture', capacityPerLevel: 50 }],
+    employmentSlots: [{ popClass: 'peasants', capacityPerLevel: 50 }],
     developmentScorePerLevel: 3,
   },
   pasture: {
@@ -38,14 +37,14 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     allowedHoldingKinds: ['manor'],
     allowedTerrains: ['plains', 'hills', 'mountains', 'forest'],
     maxLevelByHoldingKind: { manor: 3 },
-    employmentSlots: [{ popClass: 'peasants', occupation: 'agriculture', capacityPerLevel: 40 }],
+    employmentSlots: [{ popClass: 'peasants', capacityPerLevel: 40 }],
     developmentScorePerLevel: 3,
   },
   workshop: {
     realEstateKind: 'workshop',
     allowedHoldingKinds: ['city'],
     maxLevelByHoldingKind: { city: 3 },
-    employmentSlots: [{ popClass: 'townsmen', occupation: 'urban_labor', capacityPerLevel: 80 }],
+    employmentSlots: [{ popClass: 'townsmen', capacityPerLevel: 80 }],
     developmentScorePerLevel: 4,
   },
 }

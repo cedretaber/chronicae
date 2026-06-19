@@ -4,7 +4,7 @@ import type { HoldingId } from '../types/ids'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopClass, PopOccupation } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
@@ -144,7 +144,7 @@ export function computeSlotOveruseModifier(
 // v0.52: capacity = (asset_term + infra_term) × weight
 // asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod × landQuality
 // infra_term = Σ(slot.capacityPerLevel × imp.level × conditionEffectiveness)
-export function computeHoldingOccupationCapacity(
+export function computeHoldingClassCapacity(
   _holdingKind: HoldingKind,
   weight: number,
   landQuality: number,
@@ -152,20 +152,16 @@ export function computeHoldingOccupationCapacity(
   features: readonly ProvinceFeature[],
   improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
   config: SimulationConfig,
-  occupation: PopOccupation,
-  popClass?: PopClass,
+  popClass: PopClass,
   assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
   slotOveruseModifier?: number,
 ): number {
-  if (occupation === 'none') return 0
-
   let assetTerm = 0
   if (assets && assets.length > 0) {
     for (const asset of assets) {
       const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
       for (const slot of def.employmentSlots) {
-        if (slot.occupation !== occupation) continue
-        if (popClass !== undefined && slot.popClass !== popClass) continue
+        if (slot.popClass !== popClass) continue
 
         const terrainMult =
           config.realEstateTerrainCapacityMultiplier[asset.realEstateKind][terrain] ?? 1.0
@@ -188,8 +184,7 @@ export function computeHoldingOccupationCapacity(
     const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
     if (!impDef.employmentSlots) continue
     for (const slot of impDef.employmentSlots) {
-      if (slot.occupation !== occupation) continue
-      if (popClass !== undefined && slot.popClass !== popClass) continue
+      if (slot.popClass !== popClass) continue
       let eff = conditionEffectiveness(
         imp.condition,
         config.facilityDisrepairThreshold,

@@ -357,7 +357,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     }
   }
 
-  // PopGroup merge key uniqueness: no duplicate (holdingId, class, occupation) combinations
+  // PopGroup merge key uniqueness: no duplicate (holdingId, class, employed) combinations
   for (const holdingIdStr of Object.keys(state.popIndex.byHolding).sort()) {
     const holdingId = holdingIdStr as HoldingId
     const popIds = state.popIndex.byHolding[holdingId]
@@ -367,11 +367,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      const mergeKey = `${pop.class}|${pop.occupation}`
+      const mergeKey = `${pop.class}|${pop.employed}`
       if (seen.has(mergeKey)) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} occupation=${pop.occupation} (popId=${popId as string})`,
+          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} employed=${pop.employed} (popId=${popId as string})`,
         })
       }
       seen.add(mergeKey)
@@ -404,7 +404,6 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
 
   // PopGroup field validity checks (§17.2)
   const VALID_POP_CLASSES = ['peasants', 'townsmen', 'nobles']
-  const VALID_POP_OCCUPATIONS = ['agriculture', 'urban_labor', 'elite_service', 'none']
   for (const popGroupId of Object.keys(state.popGroups).sort() as PopGroupId[]) {
     const pop = state.popGroups[popGroupId]
     if (!pop) continue
@@ -425,11 +424,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
 
-    // 3. occupation is valid
-    if (!VALID_POP_OCCUPATIONS.includes(pop.occupation)) {
+    // 3. employed is boolean
+    if (typeof pop.employed !== 'boolean') {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `PopGroup ${popGroupId} has invalid occupation '${pop.occupation}'`,
+        message: `PopGroup ${popGroupId} has invalid employed value '${String(pop.employed)}'`,
       })
     }
 

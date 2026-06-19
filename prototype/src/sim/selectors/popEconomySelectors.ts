@@ -5,7 +5,7 @@ import type { PopGroupId } from '../types/ids'
 import { getHoldingDevelopmentModifier } from './holdingImprovementSelectors'
 
 // POP production formula:
-// production = pop.size * productivityByClass * occupationProductivityMultiplier * (wealth / 100) * developmentModifier * (polityControl / 100)
+// production = pop.size * productivityByClass * productivityMultiplier * (wealth / 100) * developmentModifier * (polityControl / 100)
 function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number {
   const pop = state.popGroups[popId]
   if (!pop) return 0
@@ -13,10 +13,13 @@ function getPopProduction(state: WorldState, config: SimulationConfig, popId: Po
   if (!holding) return 0
   const productivity = config.productivityByClass[pop.class]
   const holdingDevelopmentModifier = getHoldingDevelopmentModifier(state, config, pop.holdingId)
+  const prodMult = pop.employed
+    ? config.employedProductivityMultiplier
+    : config.unemployedProductivityMultiplier
   return (
     pop.size *
     productivity *
-    config.occupationProductivityMultiplier[pop.occupation] *
+    prodMult *
     (pop.wealth / 100) *
     holdingDevelopmentModifier *
     (holding.polityControl / 100)
@@ -59,7 +62,7 @@ export function getProvinceProduction(
 }
 
 // Province country manpower base:
-// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * config.occupationManpowerMultiplier[pop.occupation] * (holding.polityControl / 100)
+// sum over pops: pop.size * manpowerFactor * manpowerMultiplier * (polityControl / 100)
 export function getProvinceCountryManpowerBase(
   state: WorldState,
   config: SimulationConfig,
@@ -77,11 +80,10 @@ export function getProvinceCountryManpowerBase(
       const pop = state.popGroups[popId]
       if (!pop) continue
       const manpowerFactor = config.manpowerFactorByClass[pop.class]
-      total +=
-        pop.size *
-        manpowerFactor *
-        config.occupationManpowerMultiplier[pop.occupation] *
-        (polityControl / 100)
+      const mpMult = pop.employed
+        ? config.employedManpowerMultiplierByClass[pop.class]
+        : config.unemployedManpowerMultiplier
+      total += pop.size * manpowerFactor * mpMult * (polityControl / 100)
     }
   }
   return total

@@ -38,7 +38,7 @@ function withPopGroup(
     id,
     holdingId,
     class: popClass,
-    occupation: 'agriculture',
+    employed: true,
     size,
     wealth,
     unrest,

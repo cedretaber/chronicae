@@ -37,7 +37,7 @@ function buildWorld(): WorldState {
         id: POP,
         holdingId: HOLDING,
         class: 'peasants',
-        occupation: 'agriculture',
+        employed: true,
         size: 1000,
         wealth: 30,
         unrest: 80,

@@ -58,7 +58,7 @@ function buildWorld(opts: {
         id: popId,
         holdingId,
         class: 'peasants',
-        occupation: 'agriculture',
+        employed: true,
         size: opts.popSize,
         wealth: 10,
         unrest: opts.popUnrest,

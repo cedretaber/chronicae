@@ -73,7 +73,7 @@ import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScoreFromAbilities } from '../selectors/abilitySelectors'
 import {
-  computeHoldingOccupationCapacity,
+  computeHoldingClassCapacity,
   canBuildHoldingImprovementPure,
 } from '../selectors/holdingImprovementSelectors'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
@@ -1603,7 +1603,7 @@ export function generateWorld(
         usedSlots <= slotCap
           ? 1.0
           : Math.max(defaultConfig.minSlotOveruseModifier, slotCap / usedSlots)
-      const agriCap = computeHoldingOccupationCapacity(
+      const agriCap = computeHoldingClassCapacity(
         holding.kind,
         holding.weight,
         holding.landQuality,
@@ -1611,12 +1611,11 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'agriculture',
         'peasants',
         seedAssets,
         overuseMod,
       )
-      const urbanCap = computeHoldingOccupationCapacity(
+      const urbanCap = computeHoldingClassCapacity(
         holding.kind,
         holding.weight,
         holding.landQuality,
@@ -1624,12 +1623,11 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'urban_labor',
         'townsmen',
         seedAssets,
         overuseMod,
       )
-      const eliteCap = computeHoldingOccupationCapacity(
+      const eliteCap = computeHoldingClassCapacity(
         holding.kind,
         holding.weight,
         holding.landQuality,
@@ -1637,7 +1635,6 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'elite_service',
         'nobles',
         seedAssets,
         overuseMod,
@@ -1666,7 +1663,7 @@ export function generateWorld(
         id: peasantsId,
         holdingId,
         class: 'peasants',
-        occupation: 'agriculture',
+        employed: true,
         size: Math.max(minPopSizeByClass.peasants, agriCap * fillRatio),
         wealth: peasantWealth,
         unrest: peasantUnrest,
@@ -1676,7 +1673,7 @@ export function generateWorld(
         id: townsmanId,
         holdingId,
         class: 'townsmen',
-        occupation: 'urban_labor',
+        employed: true,
         size: Math.max(minPopSizeByClass.townsmen, urbanCap * fillRatio),
         wealth: townsmanWealth,
         unrest: townsmanUnrest,
@@ -1686,7 +1683,7 @@ export function generateWorld(
         id: noblesId,
         holdingId,
         class: 'nobles',
-        occupation: 'elite_service',
+        employed: true,
         size: Math.max(minPopSizeByClass.nobles, eliteCap * fillRatio),
         wealth: noblesWealth,
         unrest: noblesUnrest,

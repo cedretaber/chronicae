@@ -11,7 +11,7 @@ function pop(id: PopGroupId, holdingId: HoldingId, popClass: PopClass, size: num
     id,
     holdingId,
     class: popClass,
-    occupation: 'agriculture',
+    employed: true,
     size,
     wealth: 50,
     unrest: 0,

@@ -10,7 +10,7 @@ import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
-import { getHoldingOccupationCapacity } from '../selectors/popSelectors'
+import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { VALID_HOLDING_IMPROVEMENT_KINDS } from './integrityConstants'
 
@@ -564,31 +564,20 @@ export function checkGeographyAndHoldings(
     }
   }
 
-  // --- v0.33 §13.4: occupation capacity の健全性（NaN/Infinity/負を返さない、none=0） ---
+  // --- v0.33 §13.4: class capacity の健全性（NaN/Infinity/負を返さない） ---
   if (config) {
-    const CAP_PAIRS = [
-      ['peasants', 'agriculture'],
-      ['townsmen', 'urban_labor'],
-      ['nobles', 'elite_service'],
-    ] as const
+    const POP_CLASSES = ['peasants', 'townsmen', 'nobles'] as const
     for (const [holdingIdStr, holding] of Object.entries(state.holdings)) {
       if (!holding) continue
       const hid = holdingIdStr as HoldingId
-      for (const [popClass, occupation] of CAP_PAIRS) {
-        const cap = getHoldingOccupationCapacity(state, config, hid, popClass, occupation)
+      for (const popClass of POP_CLASSES) {
+        const cap = getHoldingClassCapacity(state, config, hid, popClass)
         if (!Number.isFinite(cap) || cap < 0) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `Holding ${holdingIdStr}: occupation capacity for ${occupation} is invalid (${cap}) (§13.4)`,
+            message: `Holding ${holdingIdStr}: class capacity for ${popClass} is invalid (${cap})`,
           })
         }
-      }
-      const noneCap = getHoldingOccupationCapacity(state, config, hid, 'peasants', 'none')
-      if (noneCap !== 0) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Holding ${holdingIdStr}: occupation 'none' capacity must be 0 (got ${noneCap}) (§13.4)`,
-        })
       }
     }
   }

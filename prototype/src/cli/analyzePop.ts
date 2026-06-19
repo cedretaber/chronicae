@@ -2,13 +2,14 @@ import { generateWorld } from '@sim/worldgen/generateWorld'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import type { WorldState } from '@sim/types/world'
-import type { PopClass, PopOccupation } from '@sim/types/popGroup'
+import type { PopClass } from '@sim/types/popGroup'
 import type { ProvinceId } from '@sim/types/ids'
 import {
   getProvincePopulation,
   getProvinceCarryingCapacity,
-  getHoldingOccupationCapacity,
-  getHoldingPopSizeByClassAndOccupation,
+  getHoldingClassCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingUnemployedPopSize,
 } from '@sim/selectors/popSelectors'
 import { clamp } from '@sim/utils/math'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
@@ -17,11 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 
-const CLASS_OCCUPATION_PAIRS: [PopClass, PopOccupation][] = [
-  ['peasants', 'agriculture'],
-  ['townsmen', 'urban_labor'],
-  ['nobles', 'elite_service'],
-]
+const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
 function collectPopStats(state: WorldState) {
   let totalPop = 0
@@ -54,21 +51,10 @@ function collectPopStats(state: WorldState) {
     if (!province) continue
 
     for (const holdingId of province.holdingIds) {
-      for (const [popClass, occupation] of CLASS_OCCUPATION_PAIRS) {
-        const cap = getHoldingOccupationCapacity(
-          state,
-          defaultConfig,
-          holdingId,
-          popClass,
-          occupation,
-        )
-        const employed = getHoldingPopSizeByClassAndOccupation(
-          state,
-          holdingId,
-          popClass,
-          occupation,
-        )
-        const unemployed = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, 'none')
+      for (const popClass of POP_CLASSES) {
+        const cap = getHoldingClassCapacity(state, defaultConfig, holdingId, popClass)
+        const employed = getHoldingEmployedPopSize(state, holdingId, popClass)
+        const unemployed = getHoldingUnemployedPopSize(state, holdingId, popClass)
 
         const cls = byClass[popClass]
         if (!cls) continue
