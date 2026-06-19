@@ -239,6 +239,9 @@ detail:
     revoke_political_right: '任命権失効の陰謀'
     replace_house_leader: '分家当主の交代'
     handle_crisis: '危機対応'
+    develop_real_estate: '不動産開発'
+    acquire_real_estate: '不動産取得'
+    upgrade_owned_real_estate: '所有不動産の増築'
   # v0.48 Crisis (holding 詳細パネルの active Crisis セクション)
   crisis:
     section_title: '進行中の危機'
@@ -257,6 +260,7 @@ detail:
   facility:
     condition: '状態'
     disrepair_badge: '機能不全'
+    pop_fill: '充足率'
   activity:
     project_completed: '{{kind}}完了（Lv.{{level}}）'
     project_failed: '{{kind}}失敗（Lv.{{level}}）'
@@ -686,23 +690,19 @@ detail:
     capacity: '容量'
     employment_rate: '就業率'
     improvements: '施設'
-    improvement_field_system: '農地整備'
-    improvement_pastoral_infrastructure: '牧畜基盤'
+    improvement_manor_house: '領主館'
+    improvement_town_hall: '市庁舎'
     improvement_irrigation_infrastructure: '灌漑施設'
     improvement_market_infrastructure: '市場施設'
     improvement_workshop_infrastructure: '工房施設'
     improvement_storage_infrastructure: '貯蔵基盤'
     improvement_transport_infrastructure: '交通基盤'
     improvement_level: 'Lv.{{level}}'
-    improvement_name_field_system_manor_1: '開墾地'
-    improvement_name_field_system_manor_2: '区画耕地'
-    improvement_name_field_system_manor_3: '三圃農場'
-    improvement_name_pastoral_infrastructure_manor_1: '放牧地'
-    improvement_name_pastoral_infrastructure_manor_2: '囲い牧場'
-    improvement_name_pastoral_infrastructure_manor_3: '大牧場'
+    improvement_name_manor_house_manor_1: '領主館'
+    improvement_name_town_hall_city_1: '市庁舎'
     improvement_name_irrigation_infrastructure_manor_1: '用水路'
-    improvement_name_irrigation_infrastructure_manor_2: '灌漑網'
-    improvement_name_irrigation_infrastructure_manor_3: '大水利'
+    improvement_name_irrigation_infrastructure_manor_2: '灌漑'
+    improvement_name_irrigation_infrastructure_manor_3: '揚水水車'
     improvement_name_market_infrastructure_city_1: '露店市'
     improvement_name_market_infrastructure_city_2: '市場広場'
     improvement_name_market_infrastructure_city_3: '大市場'
@@ -729,6 +729,18 @@ detail:
     project_budget_total: '予算'
     project_budget_remaining: '残額'
     project_budget_spent: '支出済'
+
+  # v0.52 不動産
+  realEstate:
+    title: '不動産'
+    kind_field: '農地'
+    kind_pasture: '牧場'
+    kind_workshop: '工房'
+    owner: '所有者'
+    unowned: '未所有'
+    empty_slot: '空きスロット'
+    pop_fill: '充足率'
+    slots: 'スロット'
 
   # 土地詳細 (v0.38 Chronicle)
   holding:

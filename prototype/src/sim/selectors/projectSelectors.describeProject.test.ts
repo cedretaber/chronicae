@@ -9,6 +9,7 @@ import type {
   HoldingId,
   PressureId,
   CrisisId,
+  RealEstateAssetId,
 } from '../types/ids'
 
 // describeProject は純粋関数 (state を引かない) なので、各 kind の最小 fixture で網羅する。
@@ -204,13 +205,31 @@ const samples: Record<ProjectKind, Project> = {
     targetRealEstateLevel: 2,
     budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
   },
+  acquire_real_estate: {
+    ...base,
+    kind: 'acquire_real_estate',
+    owner: { kind: 'house', id: 'h-1' as HouseId },
+    holdingId: 'hld-1' as HoldingId,
+    targetRealEstateAssetId: 're-1' as RealEstateAssetId,
+    salePrice: 100,
+    budget: { required: 100, allocated: 100, remaining: 100, spent: 0, source: { kind: 'owner' } },
+  },
+  upgrade_owned_real_estate: {
+    ...base,
+    kind: 'upgrade_owned_real_estate',
+    holdingId: 'hld-1' as HoldingId,
+    targetRealEstateAssetId: 're-1' as RealEstateAssetId,
+    realEstateKind: 'field',
+    targetRealEstateLevel: 2,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
 }
 
 describe('describeProject', () => {
   const kinds = Object.keys(samples) as ProjectKind[]
 
-  it('covers all 22 project kinds', () => {
-    expect(kinds.length).toBe(22)
+  it('covers all 24 project kinds', () => {
+    expect(kinds.length).toBe(24)
   })
 
   it.each(kinds)('returns a descriptor for kind=%s without throwing', (kind) => {

@@ -10,6 +10,7 @@ import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { removeCrisisMut } from '../mutations/crisisMutations'
 import { spawnDisrepairCrisisMut, cancelActiveResponseProjectMut } from './crisisSystem'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 
 // v0.48.1 §2: 設備維持管理システム。HoldingImprovement.condition 領域 (減衰・閾値発火・破壊) を所有する。
 //   Crisis のライフサイクル (週次デバフ/attitude/owner 解決/severity 表示同期) は引き続き crisisSystem。
@@ -149,8 +150,8 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
     const decayed = ws.holdingImprovements[impId]
     if (!decayed) continue
 
-    if (decayed.condition <= 0) {
-      // §2.3 破壊 (レベルダウン / 全壊)
+    if (decayed.condition <= 0 && !IMPROVEMENT_DEFINITIONS[decayed.kind].critical) {
+      // §2.3 破壊 (レベルダウン / 全壊) — critical infrastructure は破壊しない
       degradeHoldingImprovementMut(ws, config, decayed, emitEvent)
       mutated = true
     } else if (decayed.condition < config.facilityDisrepairThreshold) {

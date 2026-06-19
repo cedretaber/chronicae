@@ -19,10 +19,10 @@ import {
   getHoldingImprovementLevel,
   canBuildHoldingImprovement,
   canBuildRealEstateAsset,
-  getRealEstateAssetLevel,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
 import { hasCapacityPressure } from '../selectors/popSelectors'
+import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
@@ -181,13 +181,24 @@ function selectRealEstateKind(
   if (!holding) return undefined
   const province = ws.provinces[holding.provinceId]
   if (!province) return undefined
+
+  const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const usedSlots = assetIds.length
+  const hasSlotRoom = usedSlots < slotCap
+
   const ALL_KINDS = Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]
   let bestKind: RealEstateKind | undefined
   let bestEffectiveGain = 0
   for (const kind of ALL_KINDS) {
     const def = REAL_ESTATE_DEFINITIONS[kind]
-    if (def.fixedInstitution) continue
     if (!canBuildRealEstateAsset(ws, holdingId, kind)) continue
+    const maxLevel = def.maxLevelByHoldingKind[holding.kind] ?? 3
+    const hasUpgradeable = assetIds.some((aId) => {
+      const a = ws.realEstateAssets[aId]
+      return a && a.realEstateKind === kind && a.level < maxLevel && !a.owner
+    })
+    if (!hasUpgradeable && !hasSlotRoom) continue
     const terrainMult = config.realEstateTerrainCapacityMultiplier[kind][province.terrain] ?? 1.0
     let totalGain = 0
     for (const slot of def.employmentSlots) {
@@ -245,28 +256,34 @@ function buildProjectFieldsForAim(
       if (hasCapPressure) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
         if (!realEstateKind) {
-          // fallback: all slot-using assets at max level → try infrastructure instead
+          // fallback: no buildable kind → try infrastructure instead
         } else {
-          const currentLevel = getRealEstateAssetLevel(ws, holdingId, realEstateKind)
-          const targetLevel = currentLevel + 1
+          const holding = ws.holdings[holdingId]
+          const maxLevel =
+            REAL_ESTATE_DEFINITIONS[realEstateKind].maxLevelByHoldingKind[
+              holding?.kind ?? 'manor'
+            ] ?? 3
+          // upgrade: find existing asset of this kind with level < maxLevel
+          const upgradeTarget = (() => {
+            const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+            for (const aId of assetIds) {
+              const a = ws.realEstateAssets[aId]
+              if (a && a.realEstateKind === realEstateKind && a.level < maxLevel && !a.owner)
+                return a
+            }
+            return undefined
+          })()
+          const targetLevel = upgradeTarget ? upgradeTarget.level + 1 : 1
           const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
           const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
           const required = baseCost * costMult * config.projectBudgetMarginMultiplier
           const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
           const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
-          const existingAssetId = (() => {
-            const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-            for (const aId of assetIds) {
-              const a = ws.realEstateAssets[aId]
-              if (a && a.realEstateKind === realEstateKind) return aId
-            }
-            return undefined
-          })()
           return {
             kind: 'develop_real_estate',
             holdingId,
             realEstateKind,
-            targetRealEstateAssetId: existingAssetId,
+            targetRealEstateAssetId: upgradeTarget?.id,
             targetRealEstateLevel: targetLevel,
             currentStageKey: getInitialProjectStageKey('develop_real_estate'),
             budget: {
@@ -554,6 +571,105 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('consolidate_internal_contracts'),
       }
     }
+    case 'acquire_real_estate': {
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      if (!holdingId) return undefined
+      const refKey = `holding:${holdingId}`
+      const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
+      const hasActiveAcquire = existingPids.some((pid) => {
+        const p = ws.projects[pid]
+        return p && p.kind === 'acquire_real_estate' && p.status === 'active'
+      })
+      if (hasActiveAcquire) return undefined
+      const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+      let targetAsset: { id: import('../types/ids').RealEstateAssetId } | undefined
+      for (const aId of assetIds) {
+        const a = ws.realEstateAssets[aId]
+        if (a && !a.owner) {
+          targetAsset = a
+          break
+        }
+      }
+      if (!targetAsset) return undefined
+      const asset = ws.realEstateAssets[targetAsset.id]
+      if (!asset) return undefined
+      const salePrice = estimateRealEstateSalePrice(ws, config, asset)
+      if (salePrice <= 0) return undefined
+      return {
+        holdingId,
+        targetRealEstateAssetId: targetAsset.id,
+        salePrice,
+        currentStageKey: getInitialProjectStageKey('acquire_real_estate'),
+        budget: {
+          required: salePrice,
+          allocated: 0,
+          remaining: 0,
+          spent: 0,
+          source: { kind: 'owner' },
+        } satisfies ProjectBudget,
+        targetProgress: config.projectDefaultTargetProgress,
+      }
+    }
+    case 'upgrade_owned_real_estate': {
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      if (!holdingId) return undefined
+      if (aim.owner.kind !== 'house') return undefined
+      const ownerKey = `house:${aim.owner.id as string}`
+      const ownedAssetIds = ws.realEstateAssetIndex.byOwner[ownerKey] ?? []
+      const holding = ws.holdings[holdingId]
+      if (!holding) return undefined
+
+      const refKey = `holding:${holdingId}`
+      const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
+
+      let bestAssetId: import('../types/ids').RealEstateAssetId | undefined
+      let bestLevel = Infinity
+      for (const aId of ownedAssetIds) {
+        const a = ws.realEstateAssets[aId]
+        if (!a || (a.holdingId as string) !== (holdingId as string)) continue
+        const def = REAL_ESTATE_DEFINITIONS[a.realEstateKind]
+        const maxLevel = def.maxLevelByHoldingKind[holding.kind] ?? 3
+        if (a.level >= maxLevel) continue
+        const hasConflict = existingPids.some((pid) => {
+          const p = ws.projects[pid]
+          if (!p || p.status !== 'active') return false
+          if (p.kind === 'upgrade_owned_real_estate' || p.kind === 'develop_real_estate') {
+            return (
+              'targetRealEstateAssetId' in p &&
+              (p.targetRealEstateAssetId as string) === (aId as string)
+            )
+          }
+          return false
+        })
+        if (hasConflict) continue
+        if (a.level < bestLevel) {
+          bestLevel = a.level
+          bestAssetId = aId
+        }
+      }
+      if (!bestAssetId) return undefined
+      const bestAsset = ws.realEstateAssets[bestAssetId]
+      if (!bestAsset) return undefined
+      const upgradeCost =
+        (config.developRealEstateProjectBaseCost[bestAsset.realEstateKind] ?? 30) *
+        (bestAsset.level + 1)
+      return {
+        holdingId,
+        targetRealEstateAssetId: bestAssetId,
+        realEstateKind: bestAsset.realEstateKind,
+        targetRealEstateLevel: bestAsset.level + 1,
+        currentStageKey: getInitialProjectStageKey('upgrade_owned_real_estate'),
+        budget: {
+          required: upgradeCost,
+          allocated: 0,
+          remaining: 0,
+          spent: 0,
+          source: { kind: 'owner' },
+        } satisfies ProjectBudget,
+        targetProgress:
+          config.developRealEstateProjectBaseProgress[bestAsset.realEstateKind] ?? 100,
+      }
+    }
     default:
       return { currentStageKey: getInitialProjectStageKey(projectKind as ProjectKind) }
   }
@@ -672,6 +788,8 @@ export function handleAdvanceProjectCompletionMut(
   if (
     project.kind === 'develop_holding' ||
     project.kind === 'develop_real_estate' ||
+    project.kind === 'acquire_real_estate' ||
+    project.kind === 'upgrade_owned_real_estate' ||
     project.kind === 'handle_crisis'
   ) {
     const expectedTasks = Math.max(

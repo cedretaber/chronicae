@@ -72,7 +72,10 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
           const p = ws.projects[pid]
           return (
             p &&
-            (p.kind === 'develop_holding' || p.kind === 'develop_real_estate') &&
+            (p.kind === 'develop_holding' ||
+              p.kind === 'develop_real_estate' ||
+              p.kind === 'acquire_real_estate' ||
+              p.kind === 'upgrade_owned_real_estate') &&
             p.status === 'active'
           )
         })

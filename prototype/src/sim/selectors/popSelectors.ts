@@ -245,18 +245,13 @@ export function getHoldingOccupationCapacity(
   }
 
   const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-  const assets: { realEstateKind: RealEstateKind; level: number; usesSlot: boolean }[] = []
+  const assets: { realEstateKind: RealEstateKind; level: number }[] = []
   for (const aId of assetIds) {
     const asset = state.realEstateAssets[aId]
-    if (asset)
-      assets.push({
-        realEstateKind: asset.realEstateKind,
-        level: asset.level,
-        usesSlot: asset.usesSlot,
-      })
+    if (asset) assets.push({ realEstateKind: asset.realEstateKind, level: asset.level })
   }
 
-  const usedSlots = assets.filter((a) => a.usesSlot).length
+  const usedSlots = assets.length
   const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
   const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
 

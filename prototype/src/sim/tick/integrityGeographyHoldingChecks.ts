@@ -533,6 +533,37 @@ export function checkGeographyAndHoldings(
     }
   }
 
+  // --- v0.52: critical infrastructure 存在保証 (manor → manor_house, city → town_hall) ---
+  {
+    const criticalByHolding: Record<string, { manor_house: boolean; town_hall: boolean }> = {}
+    for (const [, imp] of Object.entries(state.holdingImprovements)) {
+      if (!imp) continue
+      if (imp.kind === 'manor_house' || imp.kind === 'town_hall') {
+        const entry = (criticalByHolding[imp.holdingId as string] ??= {
+          manor_house: false,
+          town_hall: false,
+        })
+        entry[imp.kind] = true
+      }
+    }
+    for (const [, holding] of Object.entries(state.holdings)) {
+      if (!holding) continue
+      const entry = criticalByHolding[holding.id as string]
+      if (holding.kind === 'manor' && !entry?.manor_house) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holding.id}: manor must have manor_house infrastructure (v0.52 critical)`,
+        })
+      }
+      if (holding.kind === 'city' && !entry?.town_hall) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holding.id}: city must have town_hall infrastructure (v0.52 critical)`,
+        })
+      }
+    }
+  }
+
   // --- v0.33 §13.4: occupation capacity の健全性（NaN/Infinity/負を返さない、none=0） ---
   if (config) {
     const CAP_PAIRS = [

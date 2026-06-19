@@ -141,8 +141,9 @@ export function computeSlotOveruseModifier(
   return clamp(currentSlotCapacity / usedSlots, config.minSlotOveruseModifier, 1.0)
 }
 
-// v0.52: RealEstateAsset ベースの capacity 算出。
-// capacity = Σ(asset の該当 employmentSlot × level × terrainMult × featureMult × infraMod) × slotOveruseMod × weight × landQuality
+// v0.52: capacity = (asset_term + infra_term) × weight
+// asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod × landQuality
+// infra_term = Σ(slot.capacityPerLevel × imp.level × conditionEffectiveness)
 export function computeHoldingOccupationCapacity(
   _holdingKind: HoldingKind,
   weight: number,
@@ -153,12 +154,12 @@ export function computeHoldingOccupationCapacity(
   config: SimulationConfig,
   occupation: PopOccupation,
   popClass?: PopClass,
-  assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number; usesSlot: boolean }>,
+  assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
   slotOveruseModifier?: number,
 ): number {
   if (occupation === 'none') return 0
 
-  let derived = 0
+  let assetTerm = 0
   if (assets && assets.length > 0) {
     for (const asset of assets) {
       const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
@@ -175,13 +176,31 @@ export function computeHoldingOccupationCapacity(
         }
         const featureMult = clamp(featureProduct, 0.75, 1.5)
         const infraMod = computeInfrastructureModifier(asset.realEstateKind, improvements, config)
-        derived += slot.capacityPerLevel * asset.level * terrainMult * featureMult * infraMod
+        assetTerm += slot.capacityPerLevel * asset.level * terrainMult * featureMult * infraMod
       }
     }
   }
-
   const overuseMod = slotOveruseModifier ?? 1.0
-  return derived * overuseMod * weight * landQuality
+  assetTerm = assetTerm * overuseMod * landQuality
+
+  let infraTerm = 0
+  for (const imp of improvements) {
+    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+    if (!impDef.employmentSlots) continue
+    for (const slot of impDef.employmentSlots) {
+      if (slot.occupation !== occupation) continue
+      if (popClass !== undefined && slot.popClass !== popClass) continue
+      let eff = conditionEffectiveness(
+        imp.condition,
+        config.facilityDisrepairThreshold,
+        config.facilityDisrepairMinEffectiveness,
+      )
+      if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
+      infraTerm += slot.capacityPerLevel * imp.level * eff
+    }
+  }
+
+  return (assetTerm + infraTerm) * weight
 }
 
 // v0.33 §9.1: state 非依存の建設可否判定。worldgen 初期生成からも呼ぶ。
@@ -213,7 +232,6 @@ export function canBuildRealEstateAssetPure(
   holdingKind: HoldingKind,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
-  currentLevel: number,
   kind: RealEstateKind,
 ): boolean {
   const def = REAL_ESTATE_DEFINITIONS[kind]
@@ -224,22 +242,7 @@ export function canBuildRealEstateAssetPure(
   }
   const maxLevel = def.maxLevelByHoldingKind[holdingKind] ?? 0
   if (maxLevel <= 0) return false
-  if (currentLevel >= maxLevel) return false
   return true
-}
-
-export function getRealEstateAssetLevel(
-  state: WorldState,
-  holdingId: HoldingId,
-  kind: RealEstateKind,
-): number {
-  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string]
-  if (!assetIds) return 0
-  for (const aId of assetIds) {
-    const asset = state.realEstateAssets[aId]
-    if (asset && asset.realEstateKind === kind) return asset.level
-  }
-  return 0
 }
 
 export function canBuildRealEstateAsset(
@@ -251,14 +254,7 @@ export function canBuildRealEstateAsset(
   if (!holding) return false
   const province = state.provinces[holding.provinceId]
   if (!province) return false
-  const currentLevel = getRealEstateAssetLevel(state, holdingId, kind)
-  return canBuildRealEstateAssetPure(
-    holding.kind,
-    province.terrain,
-    province.features,
-    currentLevel,
-    kind,
-  )
+  return canBuildRealEstateAssetPure(holding.kind, province.terrain, province.features, kind)
 }
 
 // state を取る薄いラッパ。currentLevel は既存 improvement から導出。

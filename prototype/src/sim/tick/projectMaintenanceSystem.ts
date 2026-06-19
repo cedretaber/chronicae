@@ -143,6 +143,9 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
     if (
       ((project.kind === 'develop_holding' && project.currentStageKey === 'execute_project') ||
         (project.kind === 'develop_real_estate' && project.currentStageKey === 'execute_project') ||
+        (project.kind === 'acquire_real_estate' && project.currentStageKey === 'execute_project') ||
+        (project.kind === 'upgrade_owned_real_estate' &&
+          project.currentStageKey === 'execute_project') ||
         (project.kind === 'handle_crisis' && project.currentStageKey === 'mitigate')) &&
       project.budget.remaining <= 0 &&
       project.progress < project.targetProgress

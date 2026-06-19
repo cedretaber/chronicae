@@ -91,6 +91,12 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
 
     // v0.52 不動産開発: develop_holding と同じ administration
     develop_real_estate: 'administration',
+
+    // v0.52 不動産取得: 外交的交渉を伴う取得
+    acquire_real_estate: 'diplomacy',
+
+    // v0.52 所有不動産増築: 統治実務
+    upgrade_owned_real_estate: 'administration',
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

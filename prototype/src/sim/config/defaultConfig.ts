@@ -305,6 +305,7 @@ export type SimulationConfig = {
   facilityConditionDecayPerCyclePerLevel: number // 維持サイクル(4週)ごとの減衰 = これ × level
   facilityDisrepairThreshold: number // これ未満で機能不全 (生産低下 + disrepair Crisis 発火)
   facilityDisrepairMinEffectiveness: number // 生産 effectiveness の下限 (condition 0 時)
+  criticalInfraMinEffectiveness: number // critical infrastructure (manor_house/town_hall) の conditionEffectiveness 下限
   facilityRepairConditionRestore: number // 修理完了 / 部分崩壊後に回復する condition
   warDamageConditionDrop: number // 戦災 1 回あたりの condition 減少幅
   crisisDisrepairNeglectMultiplier: number // disrepair 放置時の neglect affection 低下の倍率 (他 Crisis より穏やかに)
@@ -1393,6 +1394,9 @@ export type SimulationConfig = {
   realEstateSlotCapacityBase: Record<HoldingKind, number>
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
   developRealEstateProjectBaseProgress: Record<RealEstateKind, number>
+  realEstateOwnerIncomeRate: number
+  realEstateKindIncomeWeight: Record<RealEstateKind, number>
+  realEstateSalePriceYears: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -1710,6 +1714,7 @@ export const defaultConfig: SimulationConfig = {
   facilityConditionDecayPerCyclePerLevel: 0.9,
   facilityDisrepairThreshold: 50,
   facilityDisrepairMinEffectiveness: 0,
+  criticalInfraMinEffectiveness: 0.5,
   facilityRepairConditionRestore: 100,
   warDamageConditionDrop: 40,
   facilityConditionSeedJitterMin: 70,
@@ -2486,6 +2491,8 @@ export const defaultConfig: SimulationConfig = {
   taskOutcomeSuccessMargin: 20,
   // v0.27 HoldingImprovement / development selector
   holdingImprovementDevelopmentScorePerLevel: {
+    manor_house: 2,
+    town_hall: 2,
     irrigation_infrastructure: 6,
     market_infrastructure: 6,
     workshop_infrastructure: 6,
@@ -2493,6 +2500,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: 7,
   },
   holdingImprovementMaxLevelByKind: {
+    manor_house: { manor: 1, city: 0 },
+    town_hall: { manor: 0, city: 1 },
     irrigation_infrastructure: { manor: 3, city: 0 },
     market_infrastructure: { manor: 0, city: 3 },
     workshop_infrastructure: { manor: 0, city: 3 },
@@ -2501,6 +2510,8 @@ export const defaultConfig: SimulationConfig = {
   },
   developHoldingTargetDevelopmentThreshold: 40,
   developHoldingProjectBaseCostByImprovementKind: {
+    manor_house: 20,
+    town_hall: 20,
     irrigation_infrastructure: 35,
     market_infrastructure: 35,
     workshop_infrastructure: 32,
@@ -2508,6 +2519,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: 30,
   },
   developHoldingProjectBaseProgressByImprovementKind: {
+    manor_house: 60,
+    town_hall: 60,
     irrigation_infrastructure: 110,
     market_infrastructure: 100,
     workshop_infrastructure: 100,
@@ -2515,6 +2528,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: 100,
   },
   holdingImprovementOccupationCapacityPerLevel: {
+    manor_house: {},
+    town_hall: {},
     irrigation_infrastructure: {},
     market_infrastructure: {},
     workshop_infrastructure: {},
@@ -2522,6 +2537,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: {},
   },
   holdingImprovementTerrainCapacityMultiplier: {
+    manor_house: {},
+    town_hall: {},
     irrigation_infrastructure: {},
     market_infrastructure: {},
     workshop_infrastructure: {},
@@ -2529,6 +2546,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: {},
   },
   holdingImprovementFeatureCapacityMultiplier: {
+    manor_house: {},
+    town_hall: {},
     irrigation_infrastructure: {},
     market_infrastructure: {},
     workshop_infrastructure: {},
@@ -2865,19 +2884,11 @@ export const defaultConfig: SimulationConfig = {
     field: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
     pasture: { plains: 1.0, hills: 1.3, mountains: 0.8, forest: 0.65, wetlands: 0.4 },
     workshop: { plains: 1.0, hills: 0.9, forest: 0.85, wetlands: 0.75, mountains: 0.7 },
-    shop: { plains: 1.1, hills: 0.9, forest: 0.8, wetlands: 0.75, mountains: 0.6 },
-    warehouse: {},
-    lord_hall: {},
-    town_hall: {},
   },
   realEstateFeatureCapacityMultiplier: {
     field: { major_river: 1.1, lake: 1.05 },
     pasture: {},
     workshop: { coastal: 1.05, major_river: 1.05 },
-    shop: { coastal: 1.15, major_river: 1.15, lake: 1.1 },
-    warehouse: { coastal: 1.1, major_river: 1.1 },
-    lord_hall: {},
-    town_hall: {},
   },
   realEstateInfrastructureModifiers: {
     field: [
@@ -2888,14 +2899,10 @@ export const defaultConfig: SimulationConfig = {
       { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.1 },
       { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
     ],
-    workshop: [{ infraKind: 'workshop_infrastructure', modifierPerLevel: 0.15 }],
-    shop: [{ infraKind: 'market_infrastructure', modifierPerLevel: 0.15 }],
-    warehouse: [
-      { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+    workshop: [
+      { infraKind: 'workshop_infrastructure', modifierPerLevel: 0.15 },
       { infraKind: 'market_infrastructure', modifierPerLevel: 0.1 },
     ],
-    lord_hall: [],
-    town_hall: [],
   },
   developRealEstateCapacityPressureThreshold: 0.8,
   minSlotOveruseModifier: 0.5,
@@ -2904,18 +2911,14 @@ export const defaultConfig: SimulationConfig = {
     field: 30,
     pasture: 28,
     workshop: 35,
-    shop: 32,
-    warehouse: 25,
-    lord_hall: 20,
-    town_hall: 20,
   },
   developRealEstateProjectBaseProgress: {
     field: 100,
     pasture: 100,
     workshop: 110,
-    shop: 100,
-    warehouse: 80,
-    lord_hall: 60,
-    town_hall: 60,
   },
+  // v0.52 owner income / 不動産売買
+  realEstateOwnerIncomeRate: 0.05,
+  realEstateKindIncomeWeight: { field: 1.0, pasture: 1.0, workshop: 1.0 },
+  realEstateSalePriceYears: 20,
 }

@@ -18,6 +18,8 @@ import {
 } from '../selectors/landContractSelectors'
 import { syncClanActive } from './clanMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
+import { changeRealEstateAssetOwnerMut } from './realEstateAssetMutations'
+import { assetOwnerKey } from '../types/realEstateAsset'
 import { getHouseAggregateInfluenceInPolity } from '../selectors/influenceSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { createLogger } from '../debug/logger'
@@ -212,16 +214,35 @@ function handleNormalHouseExtinction(
     }
   }
 
+  // v0.52: 絶家の所有不動産を owner: undefined に戻す (Holding に返す)
+  let currentCtx = ctx
+  const ownerKey = assetOwnerKey({ kind: 'house', id: houseId })
+  const ownedAssetIds = [...(currentCtx.state.realEstateAssetIndex.byOwner[ownerKey] ?? [])]
+  if (ownedAssetIds.length > 0) {
+    const raDraft: WorldState = {
+      ...currentCtx.state,
+      realEstateAssets: { ...currentCtx.state.realEstateAssets },
+      realEstateAssetIndex: {
+        byHolding: { ...currentCtx.state.realEstateAssetIndex.byHolding },
+        byOwner: { ...currentCtx.state.realEstateAssetIndex.byOwner },
+      },
+    }
+    for (const assetId of ownedAssetIds) {
+      changeRealEstateAssetOwnerMut(raDraft, assetId, undefined)
+    }
+    currentCtx = { ...currentCtx, state: raDraft }
+  }
+
   // members の移籍先 (narrative のみ — 土地は polityReceivers で個別に動く): 先頭 Polity の
   // 継承先を主継承先とする。Polity を持たない滅亡 (在野没落) は従来スコープで 1 家を選ぶ。
   const receiverHouseId: HouseId | undefined =
     (inheritedPolityIds.length > 0 ? polityReceivers.get(inheritedPolityIds[0]!) : undefined) ??
-    chooseReceiverHouse(ctx.state, ctx.config, houseId, affectedPolityIds)
+    chooseReceiverHouse(currentCtx.state, currentCtx.config, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
     // v0.17 §5.6: 受け継ぎ家が見つからない場合、living non-placeholder member を AnonymousHouse に散らす。
     // dead / placeholder member は元 house に残し、house は active=false とする。
-    let workingState = ctx.state
+    let workingState = currentCtx.state
     const livingMemberIds: PersonId[] = []
     for (const memberId of house.memberIds) {
       const p = workingState.persons[memberId]
@@ -237,7 +258,7 @@ function handleNormalHouseExtinction(
 
     const newHouses = { ...workingState.houses }
     const extinctHouseObj = newHouses[houseId]
-    if (!extinctHouseObj) return ctx
+    if (!extinctHouseObj) return currentCtx
     newHouses[houseId] = {
       ...extinctHouseObj,
       active: false,
@@ -250,7 +271,7 @@ function handleNormalHouseExtinction(
       stateForClanSync = syncClanActive(stateForClanSync, extinctHouseObj.clanId)
     }
     const finalState = stateForClanSync
-    let eventCtx: TickContext = { ...ctx, state: finalState }
+    let eventCtx: TickContext = { ...currentCtx, state: finalState }
 
     if (livingMemberIds.length > 0) {
       const { event: dispersedEvent, ctx: ec1 } = createSimEvent(eventCtx, {
@@ -277,7 +298,7 @@ function handleNormalHouseExtinction(
     return { ...ec2, events: [...ec2.events, event2] }
   }
 
-  let resultCtx = ctx
+  let resultCtx = currentCtx
 
   // v0.16 §22.3: extinct House が ownerHouse である Polity すべてを receiver House に継承させる
   // (王朝交代)。LandContracts は変更しない (Polity と Province の関係は不変、ownerHouse のみ差し替え)。

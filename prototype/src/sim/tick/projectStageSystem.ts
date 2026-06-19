@@ -8,6 +8,8 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
   DevelopRealEstateProject,
+  AcquireRealEstateProject,
+  UpgradeOwnedRealEstateProject,
   HandleCrisisProject,
   LandClaimProject,
   ContractRevisionProject,
@@ -190,6 +192,24 @@ function resolveImmediateStage(
     }
     if (project.currentStageKey === 'secure_budget') {
       return resolveSecureBudget(ws, config, project, projectId, absoluteWeek)
+    }
+  }
+
+  if (project.kind === 'acquire_real_estate') {
+    if (project.currentStageKey === 'find_supervisor') {
+      return resolveFindSupervisor(ws, config, project, projectId, absoluteWeek)
+    }
+    if (project.currentStageKey === 'secure_budget') {
+      return resolveAcquireRealEstateSecureBudget(ws, config, project, projectId, absoluteWeek)
+    }
+  }
+
+  if (project.kind === 'upgrade_owned_real_estate') {
+    if (project.currentStageKey === 'find_supervisor') {
+      return resolveUpgradeOwnedFindSupervisor(ws, config, project, projectId)
+    }
+    if (project.currentStageKey === 'secure_budget') {
+      return resolveUpgradeOwnedSecureBudget(ws, config, project, projectId, absoluteWeek)
     }
   }
 
@@ -670,7 +690,11 @@ function resolveFinalizeLandGrant(
 function resolveFindSupervisor(
   ws: WorldState,
   config: SimulationConfig,
-  project: DevelopHoldingProject | DevelopRealEstateProject | HandleCrisisProject,
+  project:
+    | DevelopHoldingProject
+    | DevelopRealEstateProject
+    | AcquireRealEstateProject
+    | HandleCrisisProject,
   projectId: ProjectId,
   absoluteWeek: number,
 ): boolean {
@@ -730,11 +754,7 @@ function resolveFindSupervisor(
   })
 
   removeProjectFromIndexMut(ws, project)
-  const updated: DevelopHoldingProject | DevelopRealEstateProject | HandleCrisisProject = {
-    ...project,
-    supervisorPersonId: supervisorId,
-    currentStageKey: nextKey,
-  }
+  const updated = { ...project, supervisorPersonId: supervisorId, currentStageKey: nextKey }
   ws.projects[projectId] = updated
   addProjectToIndexMut(ws, updated)
   return true
@@ -799,6 +819,122 @@ function resolveSecureBudget(
     delete updated.deadlineWeek
   }
   ws.projects[projectId] = updated
+  return true
+}
+
+function resolveAcquireRealEstateSecureBudget(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: AcquireRealEstateProject,
+  projectId: ProjectId,
+  absoluteWeek: number,
+): boolean {
+  if (project.owner.kind !== 'house') return false
+  const house = ws.houses[project.owner.id]
+  if (!house || !house.active || house.wealth < project.salePrice) return false
+
+  ws.houses = {
+    ...ws.houses,
+    [project.owner.id]: { ...house, wealth: house.wealth - project.salePrice },
+  }
+
+  const nextKey = getNextProjectStageKey(project)
+  if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+  })
+
+  const deadlineWeek =
+    absoluteWeek + getProjectDeadlineWeeks(config, project.kind, project.targetProgress)
+
+  removeProjectFromIndexMut(ws, project)
+  const updated = {
+    ...project,
+    currentStageKey: nextKey,
+    deadlineWeek,
+    budget: { ...project.budget, allocated: project.salePrice, remaining: project.salePrice },
+  }
+  ws.projects[projectId] = updated
+  addProjectToIndexMut(ws, updated)
+  return true
+}
+
+function resolveUpgradeOwnedFindSupervisor(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: UpgradeOwnedRealEstateProject,
+  projectId: ProjectId,
+): boolean {
+  const supervisorId =
+    selectProjectSupervisor(ws, config, project.owner, project.kind, project.creatorPersonId) ??
+    project.creatorPersonId
+
+  const nextKey = getNextProjectStageKey(project)
+  if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+  })
+
+  removeProjectFromIndexMut(ws, project)
+  const updated = { ...project, supervisorPersonId: supervisorId, currentStageKey: nextKey }
+  ws.projects[projectId] = updated
+  addProjectToIndexMut(ws, updated)
+  return true
+}
+
+function resolveUpgradeOwnedSecureBudget(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: UpgradeOwnedRealEstateProject,
+  projectId: ProjectId,
+  absoluteWeek: number,
+): boolean {
+  if (project.owner.kind !== 'house') return false
+  const house = ws.houses[project.owner.id]
+  if (!house || !house.active || house.wealth < project.budget.required) return false
+
+  ws.houses = {
+    ...ws.houses,
+    [project.owner.id]: { ...house, wealth: house.wealth - project.budget.required },
+  }
+
+  const nextKey = getNextProjectStageKey(project)
+  if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+  })
+
+  const deadlineWeek =
+    absoluteWeek + getProjectDeadlineWeeks(config, project.kind, project.targetProgress)
+
+  removeProjectFromIndexMut(ws, project)
+  const updated = {
+    ...project,
+    currentStageKey: nextKey,
+    deadlineWeek,
+    budget: {
+      ...project.budget,
+      allocated: project.budget.required,
+      remaining: project.budget.required,
+    },
+  }
+  ws.projects[projectId] = updated
+  addProjectToIndexMut(ws, updated)
   return true
 }
 

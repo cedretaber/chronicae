@@ -18,6 +18,7 @@ import {
   getRecentBailiffRevenueTaskStatus,
   getBailiffPolicy,
 } from '../selectors/bailiffSelectors'
+import { computeHoldingOwnerIncomes } from '../selectors/realEstateSelectors'
 import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
@@ -34,6 +35,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     ...ctx.state,
     persons: { ...ctx.state.persons },
     popGroups: { ...ctx.state.popGroups },
+    houses: { ...ctx.state.houses },
   }
 
   // 旧 addPersonWealth と同一挙動 (person 不在なら no-op、wealth は 0 でクランプ)。
@@ -56,17 +58,37 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       const grossHoldingRevenue = getHoldingProduction(draft, ctx.config, holdingId)
       if (grossHoldingRevenue <= 0) continue
 
+      // v0.52 owner income: owner あり RealEstateAsset の owner に収益を配分
+      // bailiff extraction の対象外 (gross から先に差し引く)
+      let ownerIncomeTotalForHolding = 0
+      const ownerIncomes = computeHoldingOwnerIncomes(
+        draft,
+        ctx.config,
+        holdingId,
+        grossHoldingRevenue,
+      )
+      for (const entry of ownerIncomes) {
+        if (entry.owner.kind === 'house') {
+          const house = draft.houses[entry.owner.id]
+          if (house && house.active) {
+            draft.houses[entry.owner.id] = { ...house, wealth: house.wealth + entry.income }
+            ownerIncomeTotalForHolding += entry.income
+          }
+        }
+      }
+      const revenueAfterOwnerIncome = grossHoldingRevenue - ownerIncomeTotalForHolding
+
       const assignmentId = draft.holdingOfficeIndex.byHolding[holdingId]
       let remittanceToTerminal: number
 
       if (!assignmentId) {
-        remittanceToTerminal = grossHoldingRevenue
-        provinceCollected += grossHoldingRevenue
+        remittanceToTerminal = revenueAfterOwnerIncome
+        provinceCollected += revenueAfterOwnerIncome
       } else {
         const assignment = draft.holdingOfficeAssignments[assignmentId]
         if (!assignment || !assignment.active) {
-          remittanceToTerminal = grossHoldingRevenue
-          provinceCollected += grossHoldingRevenue
+          remittanceToTerminal = revenueAfterOwnerIncome
+          provinceCollected += revenueAfterOwnerIncome
         } else {
           const recentTaskStatus = getRecentBailiffRevenueTaskStatus(draft, assignmentId)
           const localExtractionRate = getBailiffLocalExtractionRate(draft, ctx.config, assignmentId)
@@ -76,7 +98,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
             assignmentId,
             recentTaskStatus,
           )
-          const collected = grossHoldingRevenue * localExtractionRate * collectionEfficiency
+          const collected = revenueAfterOwnerIncome * localExtractionRate * collectionEfficiency
           const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
           const bailiffFee = collected * bailiffFeeRate
           remittanceToTerminal = collected - bailiffFee

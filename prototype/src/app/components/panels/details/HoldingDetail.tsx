@@ -17,7 +17,7 @@ import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { clamp100 } from '@sim/utils/math'
-import { PersonLink } from './shared/links'
+import { PersonLink, HouseLink, PolityLink } from './shared/links'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
   getBailiffPolicy,
@@ -38,6 +38,8 @@ import {
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
+import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 
 export function HoldingDetail({
   holding,
@@ -138,27 +140,116 @@ export function HoldingDetail({
           const assets = assetIds
             .map((id) => currentState.realEstateAssets[id])
             .filter((a): a is NonNullable<typeof a> => a !== undefined)
-          if (assets.length === 0) return null
+          const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+          const emptySlots = Math.max(0, slotCap - assets.length)
+          if (assets.length === 0 && emptySlots === 0) return null
+
+          const fillCache = new Map<string, { employed: number; cap: number }>()
+          const getFill = (
+            popClass: Parameters<typeof getHoldingPopSizeByClassAndOccupation>[2],
+            occupation: Parameters<typeof getHoldingPopSizeByClassAndOccupation>[3],
+          ) => {
+            const key = `${popClass}:${occupation}`
+            const cached = fillCache.get(key)
+            if (cached) return cached
+            const employed = getHoldingPopSizeByClassAndOccupation(
+              currentState,
+              holding.id,
+              popClass,
+              occupation,
+            )
+            const cap = getHoldingOccupationCapacity(
+              currentState,
+              defaultConfig,
+              holding.id,
+              popClass,
+              occupation,
+            )
+            const result = { employed, cap }
+            fillCache.set(key, result)
+            return result
+          }
+
           return (
             <div className="text-sm">
-              <DetailSection title={t('detail.realEstate.title')} />
-              {assets.map((asset) => (
-                <div key={asset.id} className="ml-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-gray-200">
-                      {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
-                        defaultValue: asset.realEstateKind,
-                      })}
-                      {asset.fixedInstitution && (
-                        <span className="ml-1 rounded bg-blue-900 px-1 py-0.5 text-xs text-blue-300">
-                          {t('detail.realEstate.fixed_badge')}
+              <DetailSection title={t('detail.realEstate.title')} count={assets.length} />
+              <div className="mt-1 text-xs text-gray-500">
+                {t('detail.realEstate.slots')}: {assets.length}/{slotCap}
+              </div>
+              <div className="mt-1 flex flex-col gap-1">
+                {assets.map((asset) => {
+                  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                  return (
+                    <div key={asset.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-medium text-gray-200">
+                          {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
+                            defaultValue: asset.realEstateKind,
+                          })}
                         </span>
-                      )}
-                    </span>
-                    <span className="text-xs text-gray-500">Lv.{asset.level}</span>
+                        <span className="text-gray-500">Lv.{asset.level}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{t('detail.realEstate.owner')}:</span>
+                        {asset.owner ? (
+                          asset.owner.kind === 'house' ? (
+                            <HouseLink
+                              houseId={asset.owner.id}
+                              houses={currentState.houses}
+                              onClick={onHouseClick}
+                            />
+                          ) : asset.owner.kind === 'person' ? (
+                            <PersonLink
+                              personId={asset.owner.id}
+                              persons={currentState.persons}
+                              onClick={onPersonClick}
+                            />
+                          ) : (
+                            <PolityLink
+                              polityId={asset.owner.id}
+                              world={currentState}
+                              onClick={onPolityClick}
+                            />
+                          )
+                        ) : (
+                          <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
+                        )}
+                      </div>
+                      {def.employmentSlots.map((slot) => {
+                        const fill = getFill(slot.popClass, slot.occupation)
+                        const pct = fill.cap > 0 ? clamp100((fill.employed / fill.cap) * 100) : 0
+                        return (
+                          <div
+                            key={`${slot.popClass}:${slot.occupation}`}
+                            className="mt-0.5 flex items-center gap-1.5"
+                          >
+                            <span className="text-gray-500">
+                              {t(`popOccupation.${slot.occupation}`)}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                              <div
+                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-gray-400">
+                              {fill.employed.toFixed(0)}/{fill.cap.toFixed(0)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+                {Array.from({ length: emptySlots }, (_, i) => (
+                  <div
+                    key={`empty-${String(i)}`}
+                    className="flex items-center justify-center rounded border border-dashed border-gray-600 p-2 text-xs text-gray-500"
+                  >
+                    {t('detail.realEstate.empty_slot')}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )
         })()}
@@ -185,6 +276,7 @@ export function HoldingDetail({
                 const threshold = defaultConfig.facilityDisrepairThreshold
                 const condition = clamp100(imp.condition)
                 const disrepaired = condition < threshold
+                const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
                 return (
                   <div key={imp.id} className="ml-2">
                     <div className="flex items-baseline justify-between">
@@ -215,6 +307,42 @@ export function HoldingDetail({
                         {condition.toFixed(0)}
                       </span>
                     </div>
+                    {impDef.employmentSlots &&
+                      impDef.employmentSlots.map((slot) => {
+                        const employed = getHoldingPopSizeByClassAndOccupation(
+                          currentState,
+                          holding.id,
+                          slot.popClass,
+                          slot.occupation,
+                        )
+                        const cap = getHoldingOccupationCapacity(
+                          currentState,
+                          defaultConfig,
+                          holding.id,
+                          slot.popClass,
+                          slot.occupation,
+                        )
+                        const pct = cap > 0 ? clamp100((employed / cap) * 100) : 0
+                        return (
+                          <div
+                            key={`${slot.popClass}:${slot.occupation}`}
+                            className="mt-0.5 flex items-center gap-1.5"
+                          >
+                            <span className="text-xs text-gray-500">
+                              {t(`popOccupation.${slot.occupation}`)}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                              <div
+                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-xs text-gray-400">
+                              {employed.toFixed(0)}/{cap.toFixed(0)}
+                            </span>
+                          </div>
+                        )
+                      })}
                   </div>
                 )
               })}
@@ -233,12 +361,15 @@ export function HoldingDetail({
               (p): p is NonNullable<typeof p> =>
                 p !== undefined &&
                 p.status === 'active' &&
-                (p.kind === 'develop_holding' || p.kind === 'develop_real_estate'),
+                (p.kind === 'develop_holding' ||
+                  p.kind === 'develop_real_estate' ||
+                  p.kind === 'upgrade_owned_real_estate'),
             )
           if (!activeProject) return null
           if (
             activeProject.kind !== 'develop_holding' &&
-            activeProject.kind !== 'develop_real_estate'
+            activeProject.kind !== 'develop_real_estate' &&
+            activeProject.kind !== 'upgrade_owned_real_estate'
           )
             return null
           const supervisor = currentState.persons[activeProject.supervisorPersonId]

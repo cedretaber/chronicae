@@ -32,6 +32,9 @@ import {
 } from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { hasCapacityPressure } from './popSelectors'
+import { estimateRealEstateSalePrice } from './realEstateSelectors'
+import { assetOwnerKey } from '../types/realEstateAsset'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
@@ -854,6 +857,69 @@ function pickHouseAim(
     }
     if (house.wealth >= 40) {
       candidates.push({ kind: 'commission_chronicle', score: 25 })
+    }
+  }
+
+  // acquire_real_estate_asset: House が terminal Polity の Holding 内の無主不動産を購入
+  for (const polityId of ownedPolityIds) {
+    const polity = state.polities[polityId]
+    if (!polity || !polity.active) continue
+    const influencePct = influencePctOf.get(polityId) ?? 0
+    if (influencePct < 10) continue
+    const provinceIds = getPolityTerminalProvinceIds(state, polityId)
+    let found = false
+    for (const pid of provinceIds) {
+      if (found) break
+      const pHoldings = getProvinceHoldings(state, pid)
+      for (const ph of pHoldings) {
+        if (found) break
+        const assetIds = state.realEstateAssetIndex.byHolding[ph.id as string] ?? []
+        for (const aId of assetIds) {
+          const asset = state.realEstateAssets[aId]
+          if (!asset || asset.owner) continue
+          const salePrice = estimateRealEstateSalePrice(state, config, asset)
+          if (house.wealth >= salePrice * 1.2) {
+            candidates.push({
+              kind: 'acquire_real_estate_asset',
+              target: { kind: 'holding', id: ph.id },
+              score: 15,
+            })
+            found = true
+            break
+          }
+        }
+      }
+    }
+  }
+
+  // improve_house_real_estate: House が自分の所有する RealEstateAsset を level up
+  {
+    const ownerKey = assetOwnerKey({ kind: 'house', id: houseId })
+    const ownedAssetIds = state.realEstateAssetIndex.byOwner[ownerKey] ?? []
+    let bestTarget: { holdingId: import('../types/ids').HoldingId; cost: number } | undefined
+    let bestLevel = Infinity
+    for (const aId of ownedAssetIds) {
+      const asset = state.realEstateAssets[aId]
+      if (!asset) continue
+      const holding = state.holdings[asset.holdingId]
+      if (!holding) continue
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      const maxLevel = def.maxLevelByHoldingKind[holding.kind] ?? 3
+      if (asset.level >= maxLevel) continue
+      const upgradeCost =
+        (config.developRealEstateProjectBaseCost[asset.realEstateKind] ?? 30) * (asset.level + 1)
+      if (house.wealth < upgradeCost * 1.2) continue
+      if (asset.level < bestLevel) {
+        bestLevel = asset.level
+        bestTarget = { holdingId: asset.holdingId, cost: upgradeCost }
+      }
+    }
+    if (bestTarget) {
+      candidates.push({
+        kind: 'improve_house_real_estate',
+        target: { kind: 'holding', id: bestTarget.holdingId },
+        score: 15,
+      })
     }
   }
 

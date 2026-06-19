@@ -1,13 +1,6 @@
 import type { RealEstateAssetId, HoldingId, HouseId, PersonId, PolityId } from './ids'
 
-export type RealEstateKind =
-  | 'field'
-  | 'pasture'
-  | 'workshop'
-  | 'shop'
-  | 'warehouse'
-  | 'lord_hall'
-  | 'town_hall'
+export type RealEstateKind = 'field' | 'pasture' | 'workshop'
 
 export type AssetOwnerRef =
   | { kind: 'house'; id: HouseId }
@@ -19,8 +12,6 @@ export type RealEstateAsset = {
   holdingId: HoldingId
   realEstateKind: RealEstateKind
   level: number
-  usesSlot: boolean
-  fixedInstitution: boolean
   owner?: AssetOwnerRef
   createdWeek: number
 }

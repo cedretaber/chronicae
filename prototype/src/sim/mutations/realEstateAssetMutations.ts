@@ -10,8 +10,6 @@ export function createRealEstateAssetMut(
     holdingId: HoldingId
     realEstateKind: RealEstateKind
     level: number
-    usesSlot: boolean
-    fixedInstitution: boolean
     owner?: AssetOwnerRef
     createdWeek: number
   },

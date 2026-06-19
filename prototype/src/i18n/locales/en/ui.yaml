@@ -126,6 +126,8 @@ detail:
     acquire_political_right: 'Acquire Political Right'
     develop_holding: 'Develop Infrastructure'
     develop_real_estate: 'Develop Real Estate'
+    acquire_real_estate: 'Acquire Real Estate'
+    upgrade_owned_real_estate: 'Upgrade Owned Real Estate'
     promote_policy_shift: 'Policy Lobbying'
     patronize_artist: 'Patronize Artist'
     commission_chronicle: 'Commission Chronicle'
@@ -163,6 +165,7 @@ detail:
   facility:
     condition: 'Condition'
     disrepair_badge: 'Disrepair'
+    pop_fill: 'Staffing'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'
@@ -592,15 +595,19 @@ detail:
     capacity: 'Capacity'
     employment_rate: 'Employment Rate'
     improvements: 'Infrastructure'
+    improvement_manor_house: 'Manor House'
+    improvement_town_hall: 'Town Hall'
     improvement_irrigation_infrastructure: 'Irrigation Infrastructure'
     improvement_market_infrastructure: 'Market Infrastructure'
     improvement_workshop_infrastructure: 'Workshop Infrastructure'
     improvement_storage_infrastructure: 'Storage Infrastructure'
     improvement_transport_infrastructure: 'Transport Infrastructure'
     improvement_level: 'Lv.{{level}}'
+    improvement_name_manor_house_manor_1: 'Manor House'
+    improvement_name_town_hall_city_1: 'Town Hall'
     improvement_name_irrigation_infrastructure_manor_1: 'Irrigation Ditch'
-    improvement_name_irrigation_infrastructure_manor_2: 'Canal Network'
-    improvement_name_irrigation_infrastructure_manor_3: 'Waterworks'
+    improvement_name_irrigation_infrastructure_manor_2: 'Irrigation Canal'
+    improvement_name_irrigation_infrastructure_manor_3: 'Noria'
     improvement_name_market_infrastructure_city_1: 'Market Stalls'
     improvement_name_market_infrastructure_city_2: 'Marketplace'
     improvement_name_market_infrastructure_city_3: 'Grand Market'
@@ -631,14 +638,14 @@ detail:
   # v0.52 RealEstateAsset
   realEstate:
     title: 'Real Estate'
-    fixed_badge: 'institutional'
     kind_field: 'Field'
     kind_pasture: 'Pasture'
     kind_workshop: 'Workshop'
-    kind_shop: 'Shop'
-    kind_warehouse: 'Warehouse'
-    kind_lord_hall: "Lord's Hall"
-    kind_town_hall: 'Town Hall'
+    owner: 'Owner'
+    unowned: 'Unowned'
+    empty_slot: 'Empty Slot'
+    pop_fill: 'Staffing'
+    slots: 'Slots'
 
   # Holding detail (v0.38 Chronicle)
   holding:

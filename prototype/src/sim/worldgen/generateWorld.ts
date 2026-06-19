@@ -1343,11 +1343,13 @@ export function generateWorld(
     { kind: HoldingImprovementKind; probability: number }[]
   > = {
     manor: [
+      { kind: 'manor_house', probability: 1.0 },
       { kind: 'irrigation_infrastructure', probability: 0.3 },
       { kind: 'storage_infrastructure', probability: 0.15 },
       { kind: 'transport_infrastructure', probability: 0.15 },
     ],
     city: [
+      { kind: 'town_hall', probability: 1.0 },
       { kind: 'market_infrastructure', probability: 0.4 },
       { kind: 'workshop_infrastructure', probability: 0.25 },
       { kind: 'storage_infrastructure', probability: 0.25 },
@@ -1413,38 +1415,15 @@ export function generateWorld(
     const province = provincesRecord[holding.provinceId]
     if (!province) continue
 
-    // 1. fixedInstitution 確定生成 (RNG draw なし)
-    for (const kind of ALL_REAL_ESTATE_KINDS) {
-      const def = REAL_ESTATE_DEFINITIONS[kind]
-      if (!def.fixedInstitution) continue
-      if (!def.allowedHoldingKinds.includes(holding.kind)) continue
-      const id = createRealEstateAssetId(nextRealEstateAssetId++)
-      realEstateAssets[id] = {
-        id,
-        holdingId: holding.id,
-        realEstateKind: kind,
-        level: 1,
-        usesSlot: false,
-        fixedInstitution: true,
-        createdWeek: 1,
-      }
-      const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
-      slot.push(id)
-      realEstateAssetIndexByHolding[holding.id as string] = slot
-    }
-
-    // 2. chance table + capacity target 補完
+    // RealEstateAsset chance table + capacity target 補完
     const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
     let usedSlots = 0
 
-    const buildableSlotKinds = ALL_REAL_ESTATE_KINDS.filter((kind) => {
-      const def = REAL_ESTATE_DEFINITIONS[kind]
-      if (def.fixedInstitution) return false
-      if (!def.usesSlot) return false
-      return canBuildRealEstateAssetPure(holding.kind, province.terrain, province.features, 0, kind)
-    })
+    const buildableKinds = ALL_REAL_ESTATE_KINDS.filter((kind) =>
+      canBuildRealEstateAssetPure(holding.kind, province.terrain, province.features, kind),
+    )
 
-    for (const kind of buildableSlotKinds) {
+    for (const kind of buildableKinds) {
       if (usedSlots >= slotCap) break
       const { value: roll, rng: rNext } = randomFloat(rng)
       rng = rNext
@@ -1455,8 +1434,6 @@ export function generateWorld(
           holdingId: holding.id,
           realEstateKind: kind,
           level: 1,
-          usesSlot: true,
-          fixedInstitution: false,
           createdWeek: 1,
         }
         const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
@@ -1466,25 +1443,17 @@ export function generateWorld(
       }
     }
 
-    // 3. capacity target 補完: slot capacity に余裕があれば primary kind を 1 つ追加
-    if (usedSlots < slotCap && buildableSlotKinds.length > 0) {
-      const primaryKind = buildableSlotKinds[0]
+    // capacity target 補完: slot capacity に余裕があれば primary kind を 1 つ追加
+    if (usedSlots < slotCap && buildableKinds.length > 0) {
+      const primaryKind = buildableKinds[0]
       if (primaryKind) {
-        const existingLevel = (() => {
-          const assetIds = realEstateAssetIndexByHolding[holding.id as string] ?? []
-          for (const aId of assetIds) {
-            const a = realEstateAssets[aId]
-            if (a && a.realEstateKind === primaryKind) return a.level
-          }
-          return 0
-        })()
+        const hasAny = (realEstateAssetIndexByHolding[holding.id as string] ?? []).length > 0
         if (
-          existingLevel === 0 &&
+          !hasAny &&
           canBuildRealEstateAssetPure(
             holding.kind,
             province.terrain,
             province.features,
-            0,
             primaryKind,
           )
         ) {
@@ -1494,8 +1463,6 @@ export function generateWorld(
             holdingId: holding.id,
             realEstateKind: primaryKind,
             level: 1,
-            usesSlot: true,
-            fixedInstitution: false,
             createdWeek: 1,
           }
           const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
@@ -1625,17 +1592,12 @@ export function generateWorld(
           seedImprovements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
       }
       const seedAssetIds = realEstateAssetIndexByHolding[holding.id as string] ?? []
-      const seedAssets: { realEstateKind: RealEstateKind; level: number; usesSlot: boolean }[] = []
+      const seedAssets: { realEstateKind: RealEstateKind; level: number }[] = []
       for (const aId of seedAssetIds) {
         const a = realEstateAssets[aId]
-        if (a)
-          seedAssets.push({
-            realEstateKind: a.realEstateKind,
-            level: a.level,
-            usesSlot: a.usesSlot,
-          })
+        if (a) seedAssets.push({ realEstateKind: a.realEstateKind, level: a.level })
       }
-      const usedSlots = seedAssets.filter((a) => a.usesSlot).length
+      const usedSlots = seedAssets.length
       const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
       const overuseMod =
         usedSlots <= slotCap
