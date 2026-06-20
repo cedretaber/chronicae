@@ -161,6 +161,13 @@ detail:
       war_damage: 'War Devastation'
       unrest: 'Unrest'
       disrepair: 'Disrepair'
+  # v0.53 external pressure facing a polity
+  pressure:
+    section_title: 'Pressures Faced'
+    source: 'Source'
+    deadline: 'Deadline'
+    responding: 'Responding'
+    unanswered: 'Unanswered'
   # v0.48.1 facility maintenance (condition bar / disrepair badge / repair project)
   facility:
     condition: 'Condition'
@@ -493,6 +500,8 @@ detail:
     pressure_kind:
       diplomatic_land_claim: 'Land Claim'
       diplomatic_contract_revision: 'Contract Revision Demand'
+      real_estate_seizure: 'Real Estate Seizure'
+      land_contract_default: 'Tribute Withholding'
     right_target:
       polity_office_role: 'Office Appointment Right'
       holding_office_role: 'Bailiff Appointment Right'
@@ -655,6 +664,26 @@ detail:
     empty_slot: 'Empty Slot'
     pop_fill: 'Staffing'
     slots: 'Slots'
+    seized: 'Seized'
+    prescriptionRemaining: '{{years}} yr until prescription'
+
+  # v0.53 RealEstateSeizure / LandContractDefault state display
+  obligation:
+    seized: 'Seized'
+    seized_by: 'Seizer'
+    rightful_owner: 'Rightful owner'
+    unpaid_accumulated: 'Unpaid total'
+    prescription_remaining: '{{years}} yr until prescription'
+    default_active: 'Tribute withheld'
+    default_claimant: 'Claimant'
+    default_occupier: 'Occupier'
+    default_revolt: 'Revolt occupation'
+    withholding: 'Withholding tribute'
+    being_withheld: 'Tribute being withheld'
+    seized_assets_section: 'Seized real estate'
+    seizing_section: 'Real estate being seized'
+    defaults_as_claimant: 'Contracts withheld from this realm'
+    defaults_as_occupier: 'Contracts this realm is withholding'
 
   # Holding detail (v0.38 Chronicle)
   holding:

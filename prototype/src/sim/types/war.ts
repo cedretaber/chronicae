@@ -1,4 +1,12 @@
-import type { WarId, DiplomaticPlayId, HoldingId, PolityId, LandContractId, PersonId } from './ids'
+import type {
+  WarId,
+  DiplomaticPlayId,
+  HoldingId,
+  PolityId,
+  LandContractId,
+  LandContractDefaultId,
+  PersonId,
+} from './ids'
 import type { OrganizationRef } from './office'
 
 // v0.34: DiplomaticPlay の escalation を、複数 tick かけて warScore で進行する War entity に置換する。
@@ -111,6 +119,8 @@ export type ChangeContractTaxRateWarGoal = {
   //   integrity は 0..1 の range のみ検査し、live rate との一致は検査しない (§14.5)。
   baseTaxRateToGrantor: number
   newTaxRateToGrantor: number
+  // v0.53 Phase 4: enforce_land_contract_default 由来なら、勝利適用時にこの default を resolved にする。
+  resolvesLandContractDefaultId?: LandContractDefaultId
   requiredWarScore: number
 }
 
@@ -121,7 +131,7 @@ export type PopularRevoltIndependenceWarGoal = {
   commonwealthPolityId: PolityId
   originalHolderPolityId: PolityId
   holdingIds: HoldingId[]
-  revoltSeizureContractIds: LandContractId[]
+  revoltDefaultIds: LandContractDefaultId[]
   leaderPersonId: PersonId
   requiredWarScore: number
 }

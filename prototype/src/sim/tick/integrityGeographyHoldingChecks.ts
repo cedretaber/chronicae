@@ -6,12 +6,14 @@ import type {
   HoldingOfficeAssignmentId,
   HoldingImprovementId,
   RealEstateAssetId,
+  RealEstateSeizureId,
 } from '../types/ids'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { assertArrayIndexMatches } from './integrityIndexHelpers'
 import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { VALID_HOLDING_IMPROVEMENT_KINDS } from './integrityConstants'
@@ -714,6 +716,137 @@ export function checkGeographyAndHoldings(
         })
       }
     }
+  }
+
+  // --- v0.53: RealEstateSeizure integrity checks (spec §18.1) ---
+  {
+    const byHoldingRebuilt: Record<string, RealEstateSeizureId[]> = {}
+    const byAssetRebuilt: Record<string, RealEstateSeizureId> = {}
+    const byOwnerHouseRebuilt: Record<string, RealEstateSeizureId[]> = {}
+
+    for (const [idStr, seizure] of Object.entries(state.realEstateSeizures)) {
+      if (!seizure) continue
+      const id = idStr as RealEstateSeizureId
+
+      // [全 entity]
+      if (!(id as string).startsWith('rs-')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateSeizure ${idStr}: id must start with rs-`,
+        })
+      }
+      if (seizure.rightfulOwner.kind !== 'house') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateSeizure ${idStr}: rightfulOwner must be a house in Phase 1`,
+        })
+      }
+      if (seizure.startedWeek > state.absoluteWeek) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateSeizure ${idStr}: startedWeek ${seizure.startedWeek} > absoluteWeek ${state.absoluteWeek}`,
+        })
+      }
+      if (
+        seizure.lastContestedWeek !== undefined &&
+        (seizure.lastContestedWeek < seizure.startedWeek ||
+          seizure.lastContestedWeek > state.absoluteWeek)
+      ) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateSeizure ${idStr}: lastContestedWeek ${seizure.lastContestedWeek} outside [startedWeek, absoluteWeek]`,
+        })
+      }
+      if (seizure.accumulatedUnpaidAmount < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `RealEstateSeizure ${idStr}: accumulatedUnpaidAmount ${seizure.accumulatedUnpaidAmount} < 0`,
+        })
+      }
+
+      // [active のみ] FK 存在検査 (terminal/retained は cancel 原因で dangling 許容, A2)
+      if (seizure.status === 'active') {
+        const holding = state.holdings[seizure.holdingId]
+        if (!holding) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: holdingId ${seizure.holdingId as string} does not exist`,
+          })
+        }
+        const asset = state.realEstateAssets[seizure.assetId]
+        if (!asset) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: assetId ${seizure.assetId as string} does not exist`,
+          })
+        } else if ((asset.holdingId as string) !== (seizure.holdingId as string)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: asset.holdingId ${asset.holdingId as string} !== seizure.holdingId ${seizure.holdingId as string}`,
+          })
+        }
+        if (!state.polities[seizure.seizerPolityId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: seizerPolityId ${seizure.seizerPolityId as string} does not exist`,
+          })
+        }
+        if (seizure.rightfulOwner.kind === 'house' && !state.houses[seizure.rightfulOwner.id]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: rightfulOwner house ${seizure.rightfulOwner.id as string} does not exist`,
+          })
+        }
+        // active seizure は同一 asset に最大 1
+        if (byAssetRebuilt[seizure.assetId as string]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateSeizure ${idStr}: asset ${seizure.assetId as string} has more than one active seizure`,
+          })
+        }
+        byAssetRebuilt[seizure.assetId as string] = id
+        byHoldingRebuilt[seizure.holdingId as string] = [
+          ...(byHoldingRebuilt[seizure.holdingId as string] ?? []),
+          id,
+        ]
+        if (seizure.rightfulOwner.kind === 'house') {
+          const hk = seizure.rightfulOwner.id as string
+          byOwnerHouseRebuilt[hk] = [...(byOwnerHouseRebuilt[hk] ?? []), id]
+        }
+      }
+    }
+
+    // index は active entity のみを保持する (B7)。byAsset を rebuilt と照合。
+    const idx = state.realEstateSeizureIndex
+    for (const [key, id] of Object.entries(idx.byAsset)) {
+      if (byAssetRebuilt[key] !== id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateSeizureIndex.byAsset[${key}]=${id as string} does not match active seizures`,
+        })
+      }
+    }
+    for (const key of Object.keys(byAssetRebuilt)) {
+      if (idx.byAsset[key] === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `realEstateSeizureIndex.byAsset missing key ${key}`,
+        })
+      }
+    }
+    // 配列 index (byHolding / byRightfulOwnerHouse) を set 比較で照合する (§18.1)
+    assertArrayIndexMatches(
+      errors,
+      'realEstateSeizureIndex.byHolding',
+      idx.byHolding,
+      byHoldingRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'realEstateSeizureIndex.byRightfulOwnerHouse',
+      idx.byRightfulOwnerHouse,
+      byOwnerHouseRebuilt,
+    )
   }
 
   // --- v0.33 §13.4: class capacity の健全性（NaN/Infinity/負を返さない） ---

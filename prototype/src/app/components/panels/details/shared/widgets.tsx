@@ -3,6 +3,7 @@
 export {
   PanelHeader,
   DetailSection,
+  DetailSubSection,
   CollapsibleSection,
   EntityChronicleSection,
   WatchButton,
@@ -14,5 +15,6 @@ export {
   AttitudeList,
   PolityLandContracts,
   PolityRegiments,
+  PolityThreats,
   RepublicPowerProfileSection,
 } from './widgetsPolity'

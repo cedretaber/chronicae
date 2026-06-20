@@ -10,6 +10,9 @@ import type {
   PressureId,
   CrisisId,
   RealEstateAssetId,
+  LandContractId,
+  RealEstateSeizureId,
+  LandContractDefaultId,
 } from '../types/ids'
 
 // describeProject は純粋関数 (state を引かない) なので、各 kind の最小 fixture で網羅する。
@@ -223,13 +226,45 @@ const samples: Record<ProjectKind, Project> = {
     targetRealEstateLevel: 2,
     budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
   },
+  seize_real_estate_income: {
+    ...base,
+    kind: 'seize_real_estate_income',
+    owner: { kind: 'polity', id: 'pol1' as PolityId },
+    holdingId: 'hld-1' as HoldingId,
+    targetRealEstateAssetId: 're-1' as RealEstateAssetId,
+  },
+  withhold_land_contract_tax: {
+    ...base,
+    kind: 'withhold_land_contract_tax',
+    owner: { kind: 'polity', id: 'pol1' as PolityId },
+    holdingId: 'hld-1' as HoldingId,
+    targetLandContractId: 'lc-1' as LandContractId,
+  },
+  enforce_obligation: {
+    ...base,
+    kind: 'enforce_obligation',
+    target: { kind: 'real_estate_seizure', id: 'rs-1' as RealEstateSeizureId },
+  },
+  enforce_land_contract_default: {
+    ...base,
+    kind: 'enforce_land_contract_default',
+    owner: { kind: 'polity', id: 'pol1' as PolityId },
+    targetLandContractDefaultId: 'lcd-1' as LandContractDefaultId,
+    holdingId: 'hld-1' as HoldingId,
+    landContractId: 'lc-1' as LandContractId,
+    counterpartyPolityId: 'pol2' as PolityId,
+    desiredTaxRateToGrantor: 0.2,
+    preparation: 0,
+    leverage: 0,
+    commitment: 0,
+  },
 }
 
 describe('describeProject', () => {
   const kinds = Object.keys(samples) as ProjectKind[]
 
-  it('covers all 24 project kinds', () => {
-    expect(kinds.length).toBe(24)
+  it('covers all 28 project kinds', () => {
+    expect(kinds.length).toBe(28)
   })
 
   it.each(kinds)('returns a descriptor for kind=%s without throwing', (kind) => {

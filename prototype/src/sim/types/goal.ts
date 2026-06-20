@@ -103,6 +103,10 @@ export type PolityAimKind =
   | 'eliminate_vassal_contract'
   // v0.47 §3.1: rank 5→4 / 4→3 / 3→2 の陞爵を目指す (rank 2→1 は対象外)
   | 'seek_rank_promotion'
+  // v0.53 押領: 自国 terminal Holding 内の脆弱な House-owned 不動産収益を狙う (target=holding)
+  | 'seize_vulnerable_real_estate_income'
+  // v0.53 上納拒否: 自身の terminal contract に基づく上位者への上納を力で拒否する (target=land_contract)
+  | 'withhold_overlord_tax'
 
 export type HouseAimKind =
   // v0.42 §13.2: 具体的な政治権利の取得 (influence は read-model — 旧 increase_polity_share の置換)

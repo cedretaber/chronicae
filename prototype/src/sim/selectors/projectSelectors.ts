@@ -150,6 +150,23 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // v0.52 所有不動産増築
     case 'upgrade_owned_real_estate':
       return [{ kind: 'holding', id: project.holdingId }]
+
+    // v0.53 押領・上納拒否: 対象 holding を related に (HoldingDetail 索引)
+    case 'seize_real_estate_income':
+    case 'withhold_land_contract_tax':
+      return [{ kind: 'holding', id: project.holdingId }]
+
+    // v0.53 Phase 4: LandContractDefault 強制 (diplomatic)。対象 holding + 相手 polity を related に。
+    case 'enforce_land_contract_default':
+      return [
+        { kind: 'holding', id: project.holdingId },
+        { kind: 'polity', id: project.counterpartyPolityId },
+      ]
+
+    // v0.53 義務強制: target は seizure/default (EntityRef 非対応)。索引は entity 側
+    //   activeEnforceProjectId で引くため related は持たない。
+    case 'enforce_obligation':
+      return []
   }
 }
 
@@ -185,6 +202,7 @@ type ProjectFieldRole =
   | 'preparation'
   | 'leverage'
   | 'commitment'
+  | 'obligationTarget'
 
 export type ProjectInfoField =
   | { kind: 'entity'; role: ProjectFieldRole; ref: EntityRef }
@@ -527,6 +545,37 @@ export function describeProject(project: Project): ProjectDescriptor {
       })
     }
 
+    // v0.53 押領・上納拒否: 対象 holding を主対象に
+    case 'seize_real_estate_income':
+    case 'withhold_land_contract_tax': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+      ]
+      return descriptor(fields)
+    }
+
+    // v0.53 義務強制: target は seizure/default (パネル非対応)。obligation 種別を enum で示す。
+    case 'enforce_obligation': {
+      const fields: ProjectInfoField[] = [
+        {
+          kind: 'enum',
+          role: 'obligationTarget',
+          enumNs: 'obligationKind',
+          value: project.target.kind,
+        },
+      ]
+      return descriptor(fields)
+    }
+
+    // v0.53 Phase 4: LandContractDefault 強制 (diplomatic)。対象 holding + 相手を主対象に。
+    case 'enforce_land_contract_default': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+        ent('targetPolity', { kind: 'polity', id: project.counterpartyPolityId }),
+      ]
+      return descriptor(fields)
+    }
+
     default: {
       const _exhaustive: never = project
       return _exhaustive
@@ -568,6 +617,11 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   acquire_real_estate: 'stewardship',
   // v0.52 所有不動産増築
   upgrade_owned_real_estate: 'stewardship',
+  // v0.53 押領・上納拒否・義務強制: 力による収奪・強制は軍事指揮 (spec §20: seize=intrigue/warCommand)
+  seize_real_estate_income: 'warCommand',
+  withhold_land_contract_tax: 'warCommand',
+  enforce_obligation: 'warCommand',
+  enforce_land_contract_default: 'diplomacy',
 }
 
 export function getPersonProjectWorkload(

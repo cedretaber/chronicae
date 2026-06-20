@@ -1,11 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, LandContractId, HoldingId } from '../types/ids'
-import type {
-  LandContract,
-  LandContractIndex,
-  RootAuthorityId,
-  LandContractSpecialStatus,
-} from '../types/landContract'
+import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
@@ -28,7 +23,6 @@ type CreateChildContractParams = {
   granteePolityId: PolityId
   taxRateToGrantor: number
   holdingId?: HoldingId
-  specialStatus?: LandContractSpecialStatus
 }
 
 type CreateResult = {
@@ -123,7 +117,6 @@ export function createChildLandContract(
     // 欠落させると removeContract の byHolding cleanup (下記) や war/peace の
     // contract.holdingId === goal.holdingId 照合・UI の holding 名解決がすり抜ける。
     ...(params.holdingId ? { holdingId: params.holdingId } : {}),
-    ...(params.specialStatus ? { specialStatus: params.specialStatus } : {}),
   }
   const granteeSlot = emptyGranteeSlot(state.landContractIndex, params.granteePolityId)
   const nextState: WorldState = {
@@ -654,4 +647,85 @@ export function eliminateContractFromChain(
   }
 
   return recomputeTerminalCacheAndResyncBailiffs(nextState, contract.provinceId)
+}
+
+// v0.53 §13.4/B2: holding の chain を「keep 契約を新 root にする」形へ正規化する。
+//   keep 契約 (= terminal occupier の契約) の祖先をすべて除去し、keep を root に昇格
+//   (parentContractId 削除 / rootAuthorityId=ROOT_WORLD / taxRateToGrantor=0)。
+//   時効 legalize と反乱確立で「不払い/占拠を貫いた holder が de facto 独立 root 化」する操作。
+//   各 holding の chain は holding 専用 (worldgen が clone) なので祖先除去で他 holding は壊れない。
+// v0.53 (§14/D4): 義務 (押領なし — 上納拒否 / 反乱独立) の既成事実化。占拠者/反乱者の契約 (keep) の
+//   「直近の grantor 契約 1 段だけ」を chain から splice out し、keep をその祖父契約へ **claimant の旧条件
+//   (live 税率) で再親契約** する。直近 grantor が root だった場合のみ keep を root 化する。
+//
+//   旧実装 (normalizeHoldingChainToRoot) は keep 以外の chain 全体を削除して keep を root 化していたが、
+//   それだと上位契約者全員が当該 holding の取り分を恒久的に失う → 全上位が鎮圧に動く動機を持つ。
+//   実際の鎮圧参加は直近領主のみ (estimateSuppressionPower) なので、損をするのも直近領主 (claimant) だけに
+//   揃える。keep の子 (subvassal) は keep に付いたまま残る (旧実装は誤って削除していた)。
+//
+//   rank invariant (§25 #7 grantor.rank < grantee.rank) は推移律で保たれる:
+//   grandparent.rank < claimant.rank < keep.rank。税率制約も自動充足:
+//   claimant 非 root → その terms は >0 (§18.3 OK)、claimant root → keep は root tax 0 (§25 #11 OK)。
+export function spliceOutClaimantContract(
+  state: WorldState,
+  holdingId: HoldingId,
+  keepContractId: LandContractId,
+): WorldState {
+  const keep = state.landContracts[keepContractId]
+  if (!keep) return state
+  const claimantContractId = keep.parentContractId
+  // keep が既に root (親なし) → splice 対象なし。
+  if (claimantContractId === undefined) return state
+  const claimantContract = state.landContracts[claimantContractId]
+
+  const nextLandContracts = { ...state.landContracts }
+  const newByParent = { ...state.landContractIndex.byParent }
+  const newByGrantee = { ...state.landContractIndex.byGranteePolity }
+  const newByHolding = { ...state.landContractIndex.byHolding }
+
+  // claimant 契約 (keep の直近 grantor) を chain から除去。
+  if (claimantContract) {
+    delete nextLandContracts[claimantContractId]
+    delete newByParent[claimantContractId]
+    const slot = newByGrantee[claimantContract.granteePolityId] ?? []
+    newByGrantee[claimantContract.granteePolityId] = slot.filter((id) => id !== claimantContractId)
+  }
+  newByHolding[holdingId] = (newByHolding[holdingId] ?? []).filter(
+    (id) => id !== claimantContractId,
+  )
+
+  const grandparentId = claimantContract?.parentContractId
+  if (grandparentId !== undefined && nextLandContracts[grandparentId]) {
+    // claimant が非 root → keep を祖父契約へ claimant の旧 (live) 条件で再親契約。
+    const spliced: LandContract = {
+      ...keep,
+      parentContractId: grandparentId,
+      terms: {
+        taxRateToGrantor: claimantContract?.terms.taxRateToGrantor ?? keep.terms.taxRateToGrantor,
+      },
+    }
+    nextLandContracts[keepContractId] = spliced
+    newByParent[grandparentId] = keepContractId // 祖父の child を claimant → keep に付け替え
+  } else {
+    // claimant が root (または祖父不在) → keep を root 化 (tax 0)。
+    const promoted: LandContract = {
+      ...keep,
+      rootAuthorityId: ROOT_WORLD,
+      terms: { taxRateToGrantor: 0 },
+    }
+    delete (promoted as { parentContractId?: LandContractId }).parentContractId
+    nextLandContracts[keepContractId] = promoted
+  }
+
+  const nextState: WorldState = {
+    ...state,
+    landContracts: nextLandContracts,
+    landContractIndex: {
+      byHolding: newByHolding,
+      byGranteePolity: newByGrantee,
+      byParent: newByParent,
+    },
+  }
+
+  return recomputeTerminalCacheAndResyncBailiffs(nextState, keep.provinceId)
 }

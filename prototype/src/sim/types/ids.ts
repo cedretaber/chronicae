@@ -215,3 +215,17 @@ export type RealEstateAssetId = Branded<string, 'RealEstateAssetId'>
 export function createRealEstateAssetId(n: number): RealEstateAssetId {
   return ('re-' + n) as RealEstateAssetId
 }
+
+// v0.53 RealEstateSeizure: House-owned 不動産の収益権侵害 (押領)。prefix `rs-`。
+export type RealEstateSeizureId = Branded<string, 'RealEstateSeizureId'>
+
+export function createRealEstateSeizureId(n: number): RealEstateSeizureId {
+  return ('rs-' + n) as RealEstateSeizureId
+}
+
+// v0.53 LandContractDefault: 土地契約の上納義務不履行 (上納拒否・反乱独立占拠)。prefix `lcd-`。
+export type LandContractDefaultId = Branded<string, 'LandContractDefaultId'>
+
+export function createLandContractDefaultId(n: number): LandContractDefaultId {
+  return ('lcd-' + n) as LandContractDefaultId
+}

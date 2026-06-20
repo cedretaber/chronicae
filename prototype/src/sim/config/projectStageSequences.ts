@@ -118,6 +118,28 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'secure_budget', type: 'immediate' },
     { key: 'mitigate', type: 'final' },
   ],
+
+  // v0.53 押領・上納拒否・義務強制: prepare_argument → execute_project の 2 段 (C2)。
+  //   find_supervisor / budget は持たず supervisor は作成時に選定。budget 無しで回る
+  //   self-executed political project (Phase 1-2)。Phase 4 で enforce のみ外交接続に差し替える。
+  seize_real_estate_income: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'execute_project', type: 'final' },
+  ],
+  withhold_land_contract_tax: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'execute_project', type: 'final' },
+  ],
+  enforce_obligation: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'execute_project', type: 'final' },
+  ],
+  // v0.53 Phase 4: LandContractDefault 強制は外交 (improve_contract_terms と同型)。
+  enforce_land_contract_default: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
 }
 
 export function getInitialProjectStageKey(kind: ProjectKind): ProjectStageKey {

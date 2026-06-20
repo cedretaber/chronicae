@@ -1396,6 +1396,31 @@ export type SimulationConfig = {
   realEstateOwnerIncomeRate: number
   realEstateKindIncomeWeight: Record<RealEstateKind, number>
   realEstateSalePriceYears: number
+  // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
+  realEstateSeizurePrescriptionYears: number
+  landContractDefaultPrescriptionYears: number
+  realEstateSeizureOpportunityThreshold: number
+  landContractDefaultOpportunityThreshold: number
+  seizureProjectCooldownWeeks: number
+  landContractDefaultProjectCooldownWeeks: number
+  enforceObligationProjectCooldownWeeks: number
+  revoltOccupationNominalTaxRate: number
+  violenceOpportunityMilitaryAdvantageWeight: number
+  violenceOpportunityAmbitionWeight: number
+  violenceOpportunityCautionWeight: number
+  violenceOpportunityFiscalPressureWeight: number
+  violenceOpportunityTargetWeaknessWeight: number
+  violenceOpportunityBadAttitudeWeight: number
+  violenceOpportunityPrizeWeight: number
+  // seize の targetWeakness = max(0, seizeResistanceReference - ownerHouseResistance)。
+  // 典型 resistance 上限を少し上回る基準値 (低 resistance ほど大きな weakness ボーナス)。
+  seizeResistanceReference: number
+  // withhold の militaryAdvantage gate: vassal は overlord 全体の military を上回れない (構造的) ため、
+  // ownPolityPower > grantorPolityPower × factor で「力で踏み倒せる」を判定する (factor < 1)。
+  withholdMilitaryAdvantageFactor: number
+  realEstateSeizureEnforceResistanceThreshold: number
+  landContractDefaultEnforcePowerThreshold: number
+  terminalObligationRetentionWeeks: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2910,4 +2935,29 @@ export const defaultConfig: SimulationConfig = {
   realEstateOwnerIncomeRate: 0.05,
   realEstateKindIncomeWeight: { field: 1.0, pasture: 1.0, workshop: 1.0 },
   realEstateSalePriceYears: 20,
+  // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
+  // 初期値は保守的にし、押領・上納拒否が乱発しないようにする。観察後に調整する。
+  realEstateSeizurePrescriptionYears: 20,
+  landContractDefaultPrescriptionYears: 20,
+  realEstateSeizureOpportunityThreshold: 40,
+  landContractDefaultOpportunityThreshold: 40,
+  seizureProjectCooldownWeeks: 96,
+  landContractDefaultProjectCooldownWeeks: 96,
+  enforceObligationProjectCooldownWeeks: 96,
+  // 反乱占拠中に仮発行する nominal occupation contract の名目税率。実効上納は active default で
+  // 0 に落ちる (LandRevenue) ため値自体は徴収に効かないが、UI/契約上「あくまで反乱中の仮の契約」と
+  // 見えるよう中庸の 50% にする (極端に低い/高い名目は不自然)。非 root tax-0 不変条件 (>0) も満たす。
+  revoltOccupationNominalTaxRate: 0.5,
+  violenceOpportunityMilitaryAdvantageWeight: 0.1,
+  violenceOpportunityAmbitionWeight: 20,
+  violenceOpportunityCautionWeight: 20,
+  violenceOpportunityFiscalPressureWeight: 0.1,
+  violenceOpportunityTargetWeaknessWeight: 0.2,
+  violenceOpportunityBadAttitudeWeight: 0.2,
+  violenceOpportunityPrizeWeight: 0.04,
+  seizeResistanceReference: 150,
+  withholdMilitaryAdvantageFactor: 0.6,
+  realEstateSeizureEnforceResistanceThreshold: 40,
+  landContractDefaultEnforcePowerThreshold: 40,
+  terminalObligationRetentionWeeks: 48,
 }

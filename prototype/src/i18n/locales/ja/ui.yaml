@@ -58,6 +58,14 @@ event_type:
   DISASTER_RELIEF_FUNDED: '災害救済'
   DISASTER_RELIEF_FAILED: '救済失敗'
   COUNTRY_LAND_DEVELOPED: '国家開発'
+  REAL_ESTATE_SEIZURE_STARTED: '押領'
+  REAL_ESTATE_SEIZURE_RESOLVED: '押領解消'
+  REAL_ESTATE_SEIZURE_LEGALIZED: '押領時効'
+  REAL_ESTATE_SEIZURE_CANCELLED: '押領消滅'
+  LAND_CONTRACT_DEFAULT_STARTED: '上納拒否'
+  LAND_CONTRACT_DEFAULT_RESOLVED: '上納回復'
+  LAND_CONTRACT_DEFAULT_LEGALIZED: '上納時効'
+  LAND_CONTRACT_DEFAULT_CANCELLED: '不履行消滅'
   HOUSE_LAND_DEVELOPED: '家門開発'
   POP_LAND_DEVELOPED: '住民開発'
   POP_HARDSHIP: '住民困窮'
@@ -256,6 +264,13 @@ detail:
       war_damage: '戦災'
       unrest: '騒乱'
       disrepair: '設備不全'
+  # v0.53 Polity が直面している外圧
+  pressure:
+    section_title: '直面している外圧'
+    source: '圧力源'
+    deadline: '期限'
+    responding: '対応中'
+    unanswered: '未対応'
   # v0.48.1 設備維持管理 (condition バー・機能不全バッジ・修理 Project)
   facility:
     condition: '状態'
@@ -588,6 +603,8 @@ detail:
     pressure_kind:
       diplomatic_land_claim: '領地の請求'
       diplomatic_contract_revision: '契約条件の改定要求'
+      real_estate_seizure: '不動産の押領'
+      land_contract_default: '上納拒否'
     right_target:
       polity_office_role: '役職の任命権'
       holding_office_role: '代官の任命権'
@@ -750,6 +767,26 @@ detail:
     empty_slot: '空きスロット'
     pop_fill: '充足率'
     slots: 'スロット'
+    seized: '押領中'
+    prescriptionRemaining: '時効まで残り {{years}} 年'
+
+  # v0.53 押領・上納拒否 (RealEstateSeizure / LandContractDefault) の状態表示
+  obligation:
+    seized: '押領中'
+    seized_by: '押領者'
+    rightful_owner: '正当な権利者'
+    unpaid_accumulated: '未収累計'
+    prescription_remaining: '時効まで残り {{years}} 年'
+    default_active: '上納拒否中'
+    default_claimant: '請求元'
+    default_occupier: '占拠者'
+    default_revolt: '反乱占拠'
+    withholding: '上納拒否中'
+    being_withheld: '上納を拒否されている'
+    seized_assets_section: '押領されている不動産'
+    seizing_section: '押領中の不動産'
+    defaults_as_claimant: '上納を拒否されている契約'
+    defaults_as_occupier: '上納を拒否中の契約'
 
   # 土地詳細 (v0.38 Chronicle)
   holding:

@@ -8,6 +8,7 @@ import type {
   ProvinceId,
   PolityId,
   LandContractId,
+  LandContractDefaultId,
   HoldingId,
   GoalId,
   AimId,
@@ -72,6 +73,8 @@ export type DiplomaticDemand =
       holdingId: HoldingId
       landContractId: LandContractId
       newTaxRateToGrantor: number
+      // v0.53 Phase 4: enforce_land_contract_default 経由なら、適用時にこの LandContractDefault を resolved にする。
+      resolvesLandContractDefaultId?: LandContractDefaultId
     }
   | {
       kind: 'pay_wealth'
@@ -121,6 +124,9 @@ export type ContractTaxRevisionIssue = {
   baseTaxRateToGrantor: number
   desiredTaxRateToGrantor: number
   direction: TaxRevisionDirection
+  // v0.53 Phase 4: enforce_land_contract_default 由来の play なら、解消対象の default を指す。
+  //   war 化時に WarGoal へ、和平/受諾時に demand 経由で resolved に伝播する。
+  resolvesLandContractDefaultId?: LandContractDefaultId
 }
 
 type DiplomaticIssue = LandClaimIssue | ContractTaxRevisionIssue

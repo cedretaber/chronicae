@@ -256,6 +256,20 @@ pressure:
 clan:
   founded: '{{rootHouseName}} から派生した諸家が「{{rootHouseName}} 氏族」として認識された。'
 
+# v0.53 押領 (RealEstateSeizure)
+real_estate_seizure:
+  started: '{{polity}}が{{province}}の{{house}}家の不動産収益を押領した。'
+  resolved: '{{house}}家が{{province}}で押領された不動産収益を取り戻した。'
+  legalized: '{{province}}における{{house}}家の押領地が時効により所領へ帰属した。'
+  cancelled: '{{province}}の{{house}}家に対する押領が立ち消えになった。'
+
+# v0.53 土地契約不履行 (LandContractDefault)
+land_contract_default:
+  started: '{{occupier}}が{{province}}をめぐり{{claimant}}への上納を停止した。'
+  resolved: '{{claimant}}が{{province}}で{{occupier}}への上納請求権を回復した。'
+  legalized: '{{occupier}}の{{province}}の所領が時効により{{claimant}}から独立した。'
+  cancelled: '{{province}}の{{occupier}}による{{claimant}}への不履行が立ち消えになった。'
+
 # v0.35: battle event の enum 表示ラベル (battlefieldKind / result / avoidingSide)。
 #   sim 層の params は raw enum 文字列のまま。表示時に eventRenderer がここを参照する。
 #   battlefieldKind は戦闘類型名（〜戦）として記述する。terrain (detail.terrain_value) とは
@@ -397,3 +411,6 @@ enum:
     request_cadet_branch_title_transfer: '分家の創設'
     republic_house_foundation: '共和国での家門創設'
     consolidate_internal_contracts: '所領の集約'
+    seize_real_estate_income: '不動産収益の押領'
+    withhold_land_contract_tax: '上納の拒否'
+    enforce_obligation: '義務の強制'

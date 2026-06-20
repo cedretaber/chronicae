@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
   CrisisId,
   RealEstateAssetId,
+  LandContractDefaultId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
@@ -20,7 +21,7 @@ import type { PoliticalRightTargetRef } from './politicalRight'
 import type { InfluenceModifierTargetRef } from './influenceModifier'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { RealEstateKind } from './realEstateAsset'
-import type { PressureResponseStance } from './pressure'
+import type { PressureResponseStance, ObligationRef } from './pressure'
 
 type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
@@ -28,7 +29,7 @@ type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 // 必ずセットする (セット漏れは IntegrityCheck §12.2 違反。terminal Project は
 // projectOutcomeSystem / flushTerminalEntities が同 tick 〜 4 週内に削除するため、
 // 年末 integrity では検出できない — --integrity-per-system で検証する)。
-type ProjectTerminalReason =
+export type ProjectTerminalReason =
   | 'completed'
   | 'deadline_expired'
   | 'stage_attempts_exceeded'
@@ -39,6 +40,8 @@ type ProjectTerminalReason =
   | 'owner_inactive'
   | 'aim_terminal'
   | 'play_terminal'
+  // v0.53 §13.3/§13.4: 対象 seizure/default が legalized / cancelled になり enforce が無意味化
+  | 'obligation_terminal'
   // v0.47 §6.2: owner Polity が titular 化したため territorial 前提の Project を打ち切る
   | 'owner_titularized'
   // v0.48.1 §2.3: 修理対象の improvement が破壊 (レベルダウン/全壊) され修理 Project が無意味化
@@ -85,6 +88,15 @@ export type ProjectKind =
   | 'acquire_real_estate'
   // v0.52 所有不動産増築 Project。owner=asset owner (Phase 1: House のみ)、自分の asset を level up。
   | 'upgrade_owned_real_estate'
+  // v0.53 押領 Project。owner=Polity。outcome で RealEstateSeizure を作成 (self-executed, 非外交)。
+  | 'seize_real_estate_income'
+  // v0.53 上納拒否 Project。owner=Polity。outcome で LandContractDefault.origin='tax_default' を作成。
+  | 'withhold_land_contract_tax'
+  // v0.53 義務強制 Project (seizure 用、self-executed)。owner=House/Polity。簡易解決 (対象 seizure を resolved)。
+  | 'enforce_obligation'
+  // v0.53 Phase 4: LandContractDefault 強制 Project (diplomatic)。owner=claimant Polity。
+  //   contract_tax_revision play → war 経由で default を resolved にする。
+  | 'enforce_land_contract_default'
 
 export type BaseProject = {
   id: ProjectId
@@ -182,6 +194,23 @@ export type ContractRevisionProject = BaseProject & {
   landContractId?: LandContractId
   counterpartyPolityId?: PolityId
   desiredTaxRateToGrantor?: number
+  diplomaticPlayId?: DiplomaticPlayId
+  preparation: number
+  leverage: number
+  commitment: number
+}
+
+// v0.53 Phase 4: LandContractDefault 強制 Project (diplomatic)。owner=claimant Polity。
+//   contract_tax_revision play を再利用し、demand に resolvesLandContractDefaultId を載せて
+//   和平/受諾/勝利時に対象 default を resolved にする。ContractRevisionProject と同じ play 経路。
+export type EnforceLandContractDefaultProject = BaseProject & {
+  kind: 'enforce_land_contract_default'
+  owner: { kind: 'polity'; id: PolityId }
+  targetLandContractDefaultId: LandContractDefaultId
+  holdingId: HoldingId
+  landContractId: LandContractId
+  counterpartyPolityId: PolityId
+  desiredTaxRateToGrantor: number
   diplomaticPlayId?: DiplomaticPlayId
   preparation: number
   leverage: number
@@ -340,6 +369,35 @@ export type MovementCampaignProject = BaseProject & {
   spentBudget: number
 }
 
+// v0.53 押領 Project。owner=Polity。targetRealEstateAssetId は holding 内で最も脆弱な
+// House-owned asset (作成時に共通 selector で確定、C1)。outcome で RealEstateSeizure を作成。
+export type SeizeRealEstateIncomeProject = BaseProject & {
+  kind: 'seize_real_estate_income'
+  owner: { kind: 'polity'; id: PolityId }
+  holdingId: HoldingId
+  targetRealEstateAssetId: RealEstateAssetId
+}
+
+// v0.53 上納拒否 Project。owner=Polity。targetLandContractId は自身が grantee の terminal contract。
+// outcome で LandContractDefault.origin='tax_default' を作成。
+export type WithholdLandContractTaxProject = BaseProject & {
+  kind: 'withhold_land_contract_tax'
+  owner: { kind: 'polity'; id: PolityId }
+  holdingId: HoldingId
+  targetLandContractId: LandContractId
+}
+
+// v0.53 義務強制 Project の対象 (Pressure.relatedObligation と共用)。
+export type EnforceObligationTarget = ObligationRef
+
+// v0.53 義務強制 Project。owner=House (seizure 権利者) or Polity (default claimant)。
+// Phase 1-2 は self-executed 簡易解決。Phase 4 で DiplomaticPlay/War に接続する。
+export type EnforceObligationProject = BaseProject & {
+  kind: 'enforce_obligation'
+  target: EnforceObligationTarget
+  diplomaticPlayId?: DiplomaticPlayId
+}
+
 export type Project =
   | DevelopHoldingProject
   | DevelopRealEstateProject
@@ -363,6 +421,10 @@ export type Project =
   | HandleCrisisProject
   | AcquireRealEstateProject
   | UpgradeOwnedRealEstateProject
+  | SeizeRealEstateIncomeProject
+  | WithholdLandContractTaxProject
+  | EnforceObligationProject
+  | EnforceLandContractDefaultProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

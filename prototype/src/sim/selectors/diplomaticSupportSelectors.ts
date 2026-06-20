@@ -251,7 +251,7 @@ export function isPolityInActiveWar(state: WorldState, polityId: PolityId): bool
 // v0.47.2 (ルートA): side を渡すと「叛乱の鎮圧側 (revolt_negotiation の target)」に限り
 //   宗主-臣下除外をスキップする。叛乱では target の宗主チェーン (収入を失う上位契約者) と
 //   又臣下こそが鎮圧の自然な利害当事者であり、それを third-party 除外で弾くと鎮圧側が永久に
-//   援軍ゼロになる。なお revolt_seizure 子契約により initiator (反乱軍 commonwealth) の overlord
+//   援軍ゼロになる。なお nominal occupation contract により initiator (反乱軍 commonwealth) の overlord
 //   集合は target チェーンに汚染されているため、両方向のチェック (vs initiator / vs target) を
 //   まとめてスキップして初めて宗主が候補に乗る。side 省略時は従来どおり除外を全適用する。
 //

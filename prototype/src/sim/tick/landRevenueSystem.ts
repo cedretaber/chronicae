@@ -225,7 +225,11 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       let remaining = remittanceToTerminal
       for (let i = chain.length - 1; i >= 0; i--) {
         const contract = chain[i]!
-        const taxRate = contract.terms.taxRateToGrantor
+        // v0.53 §11.2: active LandContractDefault がある contract は実効 taxRate=0 (contract record は不変)。
+        //   grantee が全額を手元に留め上位 grantor へ繰り上げない (D3: 上流 chain 全体が干上がる)。
+        const hasActiveDefault =
+          draft.landContractDefaultIndex.byContract[contract.id as string] !== undefined
+        const taxRate = hasActiveDefault ? 0 : contract.terms.taxRateToGrantor
         const retained = remaining * (1 - taxRate)
         treasuryDeltas.set(
           contract.granteePolityId,

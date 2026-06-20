@@ -4,6 +4,7 @@ import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types
 import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
 import { createDiplomaticOfferId } from '../types/ids'
+import { resolveLandContractDefaultState } from './landContractDefaultMutations'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   applyLandContractTransferGoal,
@@ -191,7 +192,13 @@ function applyChangeContractTaxRate(
   const newRate = demand.newTaxRateToGrantor
   const config = ctx.config
 
-  if (newRate <= config.taxRevisionMinRate || newRate >= config.taxRevisionMaxRate) {
+  // v0.53 Phase 4: enforce_land_contract_default 由来 (resolvesLandContractDefaultId あり) は
+  //   契約の「復元」が目的なので、境界税率でも契約を eliminate しない (税率調整 + default 解消のみ)。
+  const isEnforceRestore = demand.resolvesLandContractDefaultId !== undefined
+  if (
+    !isEnforceRestore &&
+    (newRate <= config.taxRevisionMinRate || newRate >= config.taxRevisionMaxRate)
+  ) {
     const contract = ctx.state.landContracts[demand.landContractId]
     if (contract) {
       const isReduction = newRate <= config.taxRevisionMinRate
@@ -239,6 +246,8 @@ function applyChangeContractTaxRate(
       },
     }
   }
+  // v0.53 Phase 4: enforce 由来の和平/受諾なら対象 default を resolved にする (peaceful restore)。
+  newState = resolveLandContractDefaultState(newState, demand.resolvesLandContractDefaultId)
   return { ...ctx, state: newState }
 }
 

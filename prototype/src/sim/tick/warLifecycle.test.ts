@@ -311,7 +311,7 @@ describe('WarCreationSystem (§6)', () => {
     const holdingId = s.provinces[pRev]!.holdingIds[0]!
     s = withPolity(s, cw, {
       kind: 'commonwealth',
-      revoltState: { kind: 'revolting', revoltSeizureContractIds: [] },
+      revoltState: { kind: 'revolting', revoltDefaultIds: [] },
       origin: {
         kind: 'popular_revolt',
         originalPolityId: holder,

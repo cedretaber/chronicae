@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PersonId } from '../types/ids'
-import type { Project, ProjectKind } from '../types/project'
+import type { PersonId, ProjectId } from '../types/ids'
+import type { Project, ProjectKind, ProjectTerminalReason } from '../types/project'
 import type { AimKind } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { getProjectRelatedRefs, selectProjectSupervisor } from '../selectors/projectSelectors'
@@ -126,6 +126,20 @@ export function removeProjectFromIndexMut(ws: WorldState, project: Project): voi
   }
 }
 
+// v0.53 §13.3/§13.4: 義務 entity が legalized / cancelled になった際、紐づく active enforce
+//   Project が宙に浮く (対象消滅で no-op するだけ)。terminal 化して index から外す。
+//   ws.projects / ws.projectIndex の slice は呼び出し側が clone 済みであること。
+export function cancelEnforceProjectMut(
+  ws: WorldState,
+  projectId: ProjectId,
+  reason: ProjectTerminalReason,
+): void {
+  const project = ws.projects[projectId]
+  if (!project || project.status !== 'active') return
+  removeProjectFromIndexMut(ws, project)
+  ws.projects[projectId] = { ...project, status: 'cancelled', terminalReason: reason }
+}
+
 export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined {
   switch (aimKind) {
     case 'consolidate_province_holdings':
@@ -176,6 +190,11 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'acquire_real_estate'
     case 'improve_house_real_estate':
       return 'upgrade_owned_real_estate'
+    // v0.53 押領・上納拒否 (enforce は pressure 駆動なので aim mapping を持たない)
+    case 'seize_vulnerable_real_estate_income':
+      return 'seize_real_estate_income'
+    case 'withhold_overlord_tax':
+      return 'withhold_land_contract_tax'
     default:
       return undefined
   }
@@ -187,7 +206,9 @@ export function isDiplomaticProjectKind(kind: ProjectKind): boolean {
     kind === 'sell_land' ||
     kind === 'improve_contract_terms' ||
     kind === 'demand_tax_increase' ||
-    kind === 'respond_to_pressure'
+    kind === 'respond_to_pressure' ||
+    // v0.53 Phase 4: LandContractDefault 強制は外交経路。seize 用 enforce_obligation は self-executed のまま。
+    kind === 'enforce_land_contract_default'
   )
 }
 

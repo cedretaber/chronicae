@@ -33,6 +33,9 @@ import {
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { hasCapacityPressure } from './popSelectors'
 import { estimateRealEstateSalePrice } from './realEstateSelectors'
+import { selectMostVulnerableHouseOwnedAsset } from './realEstateSeizureSelectors'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { getPolityLeader } from './officeSelectors'
 import { assetOwnerKey } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { calcPolityMilitaryPower } from './militarySelectors'
@@ -440,6 +443,9 @@ function pickPolityAim(
     const parentId = contract.parentContractId
     const parentContract = parentId !== undefined ? state.landContracts[parentId] : undefined
     if (!parentContract || parentContract.rootAuthorityId) continue
+    // v0.53 §14.6: active LandContractDefault (revolt_independence の nominal occupation contract 含む) は
+    //   通常の契約除去対象から外す (反乱占拠の取り消しを防ぐ)。
+    if (state.landContractDefaultIndex.byContract[contract.id as string]) continue
     if (grantorIsSameHouse(contract.id)) continue
     if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {
@@ -482,6 +488,113 @@ function pickPolityAim(
           : { kind: 'province', id: child.provinceId },
         score: 15 + (config.taxRevisionMaxRateForIncrease - child.terms.taxRateToGrantor) * 50,
       })
+    }
+  }
+
+  // v0.53 押領 (seize_vulnerable_real_estate_income): 自国 terminal Holding 内の脆弱な
+  //   House-owned 不動産収益を狙う。external_expansion ではなく内部収奪 (B3) なので両 goal 共通ブロック。
+  //   asset 選定は scoring と Project 作成で同一 selector (C1)。force-gate は ownerHouseResistance、
+  //   prize は owner income (D2)。乱発防止に opportunity threshold + cooldown。
+  {
+    const leaderId = getPolityLeader(state, polityId)
+    const leader = leaderId ? state.persons[leaderId] : undefined
+    if (leader && isLivingPerson(leader)) {
+      const ambition = leader.traits.ambition
+      const caution = leader.traits.caution
+      const fiscalPressure = polity.treasury < 0 ? Math.min(100, -polity.treasury) : 0
+      const terminalProvinceIds = getPolityTerminalProvinceIds(state, polityId)
+      const checkedHoldings = new Set<string>()
+      for (const pid of terminalProvinceIds) {
+        for (const h of getProvinceHoldings(state, pid)) {
+          const tp = state.holdingTerminalPolityCache[h.id]
+          if (!tp || (tp as string) !== (polityId as string)) continue
+          if (checkedHoldings.has(h.id)) continue
+          checkedHoldings.add(h.id)
+          const pick = selectMostVulnerableHouseOwnedAsset(state, config, polityId, h.id)
+          if (!pick) continue
+          // §8.3: seizer-vs-owner の単純戦力差は使わない。owner House の「絶対」抵抗力 (resistance) が
+          //   低いほど opportunity が高い (targetWeakness)。prize は資本化した asset 価値 (salePrice, D2)。
+          const salePrice = estimateRealEstateSalePrice(state, config, pick.asset)
+          if (salePrice <= 0) continue
+          const ownerHouseId = pick.asset.owner?.kind === 'house' ? pick.asset.owner.id : undefined
+          const badAttitude = ownerHouseId
+            ? Math.max(
+                0,
+                -getAttitudeOrDefault(state, leader, { kind: 'house', id: ownerHouseId }).affection,
+              )
+            : 0
+          const targetWeakness = Math.max(0, config.seizeResistanceReference - pick.resistance)
+          const score =
+            config.violenceOpportunityTargetWeaknessWeight * targetWeakness +
+            config.violenceOpportunityPrizeWeight * salePrice * (1 + fiscalPressure / 100) +
+            config.violenceOpportunityAmbitionWeight * ambition -
+            config.violenceOpportunityCautionWeight * caution +
+            config.violenceOpportunityFiscalPressureWeight * fiscalPressure +
+            config.violenceOpportunityBadAttitudeWeight * badAttitude
+          if (score >= config.realEstateSeizureOpportunityThreshold) {
+            candidates.push({
+              kind: 'seize_vulnerable_real_estate_income',
+              target: { kind: 'holding', id: h.id },
+              score,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // v0.53 上納拒否 (withhold_overlord_tax): 自身が grantee の非 root terminal contract について、
+  //   交渉 (improve/eliminate) では減税が通らず (grantorWouldResist) かつ力で踏み倒せる
+  //   (militaryAdvantage) 場合のみ候補化する (B4)。improve/eliminate と裏で棲み分ける。
+  {
+    const leaderId = getPolityLeader(state, polityId)
+    const leader = leaderId ? state.persons[leaderId] : undefined
+    if (leader && isLivingPerson(leader)) {
+      const ownPower = calcPolityMilitaryPower(state, config, polityId)
+      const ambition = leader.traits.ambition
+      const caution = leader.traits.caution
+      const fiscalPressure = polity.treasury < 0 ? Math.min(100, -polity.treasury) : 0
+      for (const cid of contractIds) {
+        const contract = state.landContracts[cid]
+        if (!contract || contract.rootAuthorityId) continue
+        if (contract.terms.taxRateToGrantor <= 0) continue
+        if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
+          continue
+        // 既に active default がある契約は対象外
+        if (state.landContractDefaultIndex.byContract[contract.id as string]) continue
+        if (grantorIsSameHouse(contract.id)) continue
+        // 交渉が通る (grantor が resist しない) なら withhold ではなく improve/eliminate を使う
+        if (!grantorWouldResist(contract.id)) continue
+        const grantor = getLandContractGrantor(state, contract.id)
+        if (!grantor || grantor.kind !== 'polity') continue
+        const grantorPolity = state.polities[grantor.id]
+        if (!grantorPolity || !grantorPolity.active) continue
+        const grantorPower = calcPolityMilitaryPower(state, config, grantor.id)
+        // militaryAdvantage: vassal は overlord 全体 power を上回れない (構造的) ため、
+        //   grantorPower × factor (factor<1) を踏み倒し閾値とする (§8.2)。
+        const advantageThreshold = grantorPower * config.withholdMilitaryAdvantageFactor
+        if (ownPower <= advantageThreshold) continue
+        const badAttitude = Math.max(
+          0,
+          -getAttitudeOrDefault(state, leader, { kind: 'polity', id: grantor.id }).affection,
+        )
+        const score =
+          config.violenceOpportunityMilitaryAdvantageWeight * (ownPower - advantageThreshold) +
+          config.violenceOpportunityAmbitionWeight * ambition -
+          config.violenceOpportunityCautionWeight * caution +
+          config.violenceOpportunityFiscalPressureWeight * fiscalPressure +
+          config.violenceOpportunityBadAttitudeWeight * badAttitude +
+          contract.terms.taxRateToGrantor * 50 // 高税率ほど踏み倒す動機が強い
+        if (score >= config.landContractDefaultOpportunityThreshold) {
+          candidates.push({
+            kind: 'withhold_overlord_tax',
+            target: contract.holdingId
+              ? { kind: 'holding', id: contract.holdingId }
+              : { kind: 'province', id: contract.provinceId },
+            score,
+          })
+        }
+      }
     }
   }
 

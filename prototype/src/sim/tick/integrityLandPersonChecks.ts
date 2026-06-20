@@ -1,9 +1,17 @@
-import type { PolityId, HouseId, LandContractId, PersonId, HoldingId } from '../types/ids'
+import type {
+  PolityId,
+  HouseId,
+  LandContractId,
+  PersonId,
+  HoldingId,
+  LandContractDefaultId,
+} from '../types/ids'
 import { getGrantorRank, getLandContractGrantor } from '../selectors/landContractSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
 import { VALID_PROVINCE_TERRAINS, VALID_PROVINCE_FEATURES } from './integrityConstants'
+import { assertArrayIndexMatches } from './integrityIndexHelpers'
 
 export function checkLandContractsAndPersons(state: WorldState, errors: SimError[]): void {
   // ─── v0.16 §25 LandContract / AnonymousHouse / HoldingOffice 不変条件 ───
@@ -34,6 +42,14 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `LandContract ${contractId} provinceId ${contract.provinceId} differs from parent ${parent.id} provinceId ${parent.provinceId} (§25 #6)`,
+        })
+      }
+      // v0.53 §14.5/§18.3: 非 root contract の taxRateToGrantor は 0 であってはならない
+      //   (revolt_seizure tax-0 子契約を廃止したため。占拠は nominal 正税率 + LandContractDefault で表現)。
+      if (contract.terms.taxRateToGrantor === 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Non-root LandContract ${contractId} taxRateToGrantor=0 is not allowed (v0.53 §18.3)`,
         })
       }
     } else {
@@ -433,5 +449,134 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
         })
       }
     }
+  }
+
+  // --- v0.53: LandContractDefault integrity (spec §18.2) ---
+  {
+    const byContractRebuilt: Record<string, LandContractDefaultId> = {}
+    const byHoldingRebuilt: Record<string, LandContractDefaultId[]> = {}
+    const byClaimantRebuilt: Record<string, LandContractDefaultId[]> = {}
+    const byOccupierRebuilt: Record<string, LandContractDefaultId[]> = {}
+    // active revolt_independence default は同一 holding に最大 1 (§18.2)
+    const revoltActiveByHolding: Record<string, number> = {}
+    for (const [idStr, d] of Object.entries(state.landContractDefaults)) {
+      if (!d) continue
+      const id = idStr as LandContractDefaultId
+
+      // [全 entity]
+      if (!(id as string).startsWith('lcd-')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `LandContractDefault ${idStr}: id must start with lcd-`,
+        })
+      }
+      // origin は型で tax_default | revolt_independence に制約済 (実行時チェック不要)
+      if (d.originalTaxRateToGrantor < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `LandContractDefault ${idStr}: originalTaxRateToGrantor < 0`,
+        })
+      }
+      if (d.accumulatedUnpaidAmount < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `LandContractDefault ${idStr}: accumulatedUnpaidAmount < 0`,
+        })
+      }
+
+      // [active のみ] FK 存在検査 (terminal/retained は dangling 許容, A2)
+      if (d.status === 'active') {
+        if (!state.holdings[d.holdingId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `LandContractDefault ${idStr}: holdingId ${d.holdingId as string} does not exist`,
+          })
+        }
+        if (!state.polities[d.occupiedByPolityId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `LandContractDefault ${idStr}: occupiedByPolityId ${d.occupiedByPolityId as string} does not exist`,
+          })
+        }
+        if (!state.polities[d.claimantPolityId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `LandContractDefault ${idStr}: claimantPolityId ${d.claimantPolityId as string} does not exist`,
+          })
+        }
+        if (!state.landContracts[d.targetLandContractId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `LandContractDefault ${idStr}: targetLandContractId ${d.targetLandContractId as string} does not exist`,
+          })
+        }
+        if (byContractRebuilt[d.targetLandContractId as string]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `LandContractDefault ${idStr}: contract ${d.targetLandContractId as string} has more than one active default`,
+          })
+        }
+        byContractRebuilt[d.targetLandContractId as string] = id
+        byHoldingRebuilt[d.holdingId as string] = [
+          ...(byHoldingRebuilt[d.holdingId as string] ?? []),
+          id,
+        ]
+        byClaimantRebuilt[d.claimantPolityId as string] = [
+          ...(byClaimantRebuilt[d.claimantPolityId as string] ?? []),
+          id,
+        ]
+        byOccupierRebuilt[d.occupiedByPolityId as string] = [
+          ...(byOccupierRebuilt[d.occupiedByPolityId as string] ?? []),
+          id,
+        ]
+        if (d.origin === 'revolt_independence') {
+          const hk = d.holdingId as string
+          revoltActiveByHolding[hk] = (revoltActiveByHolding[hk] ?? 0) + 1
+          if (revoltActiveByHolding[hk] > 1) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `LandContractDefault: holding ${hk} has more than one active revolt_independence default`,
+            })
+          }
+        }
+      }
+    }
+
+    const idx = state.landContractDefaultIndex
+    for (const [key, id] of Object.entries(idx.byContract)) {
+      if (byContractRebuilt[key] !== id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `landContractDefaultIndex.byContract[${key}]=${id as string} does not match active defaults`,
+        })
+      }
+    }
+    for (const key of Object.keys(byContractRebuilt)) {
+      if (idx.byContract[key] === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `landContractDefaultIndex.byContract missing key ${key}`,
+        })
+      }
+    }
+    // 配列 index (byHolding / byClaimantPolity / byOccupierPolity) を set 比較で照合する (§18.2)
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byHolding',
+      idx.byHolding,
+      byHoldingRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byClaimantPolity',
+      idx.byClaimantPolity,
+      byClaimantRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byOccupierPolity',
+      idx.byOccupierPolity,
+      byOccupierRebuilt,
+    )
   }
 }

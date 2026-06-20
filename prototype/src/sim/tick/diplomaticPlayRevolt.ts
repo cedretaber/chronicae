@@ -22,6 +22,7 @@ import {
   adjustLandContractTaxRate,
   createChildLandContract,
 } from '../mutations/landContractMutations'
+import { createLandContractDefaultMut } from '../mutations/landContractDefaultMutations'
 import { createRegiment, syncRegimentOwnerToHomeTerminalMut } from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
@@ -796,25 +797,44 @@ export function applyRevoltEscalation(
     return resolveInternalRevolt(ctx, play, demand, commonwealthId, terminalHolderId, provinceId)
   }
 
-  // rank 2-4: revolt_seizure contract + Local Levy + escalated
+  // rank 2-4: nominal occupation contract + revolt_independence default + Local Levy + escalated
   let state = ctx.state
 
-  // 1. Add revolt_seizure child contract (現 terminalContractId 上に作る)
+  // 1. v0.53 (§14.3): nominal occupation contract (正税率, specialStatus なし) を現 terminalContractId 上に作る。
+  //   commonwealth を terminal holder にする占拠契約。tax-0 / revolt_seizure specialStatus は使わない。
   const createResult = createChildLandContract(state, {
     provinceId,
     parentContractId: terminalContractId,
     granteePolityId: commonwealthId,
-    taxRateToGrantor: 0,
+    taxRateToGrantor: config.revoltOccupationNominalTaxRate,
     holdingId: demand.holdingId,
-    specialStatus: {
-      kind: 'revolt_seizure',
-      revoltPolityId: commonwealthId,
-      originalTerminalPolityId: targetPolityId,
-      startedWeek: state.absoluteWeek,
-    },
   })
   state = createResult.state
-  const seizureContractId = createResult.contractId
+  const nominalContractId = createResult.contractId
+
+  // 1b. v0.53 (§14.4): revolt_independence default を作成。occupiedBy=commonwealth、claimant=旧 terminal holder。
+  //   LandRevenue 上は nominal tax が実効 0 に上書きされる (commonwealth は旧 overlord に払わない, §11.2)。
+  state = {
+    ...state,
+    landContractDefaults: { ...state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...state.landContractDefaultIndex.byHolding },
+      byContract: { ...state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...state.landContractDefaultIndex.byOccupierPolity },
+    },
+  }
+  const revoltDefault = createLandContractDefaultMut(state, {
+    origin: 'revolt_independence',
+    holdingId: demand.holdingId,
+    occupiedByPolityId: commonwealthId,
+    claimantPolityId: terminalHolderId,
+    targetLandContractId: nominalContractId,
+    originalGrantorPolityId: terminalHolderId,
+    originalGranteePolityId: commonwealthId,
+    originalTaxRateToGrantor: terminalContract.terms.taxRateToGrantor,
+    startedWeek: state.absoluteWeek,
+  })
 
   // 2. Create Local Levy
   const peasants = getHoldingPopSizeByClass(state, demand.holdingId, 'peasants')
@@ -850,7 +870,7 @@ export function applyRevoltEscalation(
     })
     levy.disbandAfterWar = true
 
-    // 奪取 (revolt_seizure 子契約) で holding の terminal Polity が commonwealth に変わったため、
+    // 占拠 (nominal occupation contract) で holding の terminal Polity が commonwealth に変わったため、
     // 当該 holding の既存常設連隊 (worldgen 由来 levy/noble_retinue 等) の owner を開戦前に即同期する。
     // regimentMaintenanceSystem の lazy 付け替え (§14.6) は warManeuver の後に走り、奪取→即開戦の
     // 叛乱には間に合わない (放置すると当該連隊が領主=defender 側として動員され叛乱側に来ない)。
@@ -873,7 +893,7 @@ export function applyRevoltEscalation(
           ...commonwealth,
           revoltState: {
             kind: 'revolting',
-            revoltSeizureContractIds: [seizureContractId],
+            revoltDefaultIds: [revoltDefault.id],
           },
         },
       },

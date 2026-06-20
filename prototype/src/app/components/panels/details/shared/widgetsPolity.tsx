@@ -21,7 +21,20 @@ import type {
 } from '@/sim/types/ids'
 import type { Polity } from '@/sim/types/polity'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
+import {
+  getActiveDefaultForContract,
+  getActiveDefaultsForClaimantPolity,
+  getDefaultPrescriptionRemainingYears,
+} from '@sim/selectors/landContractDefaultSelectors'
+import type { LandContractDefault } from '@sim/types/landContractDefault'
+import {
+  getActivePressuresForPolity,
+  getActiveCrisesForPolity,
+} from '@sim/selectors/polityThreatSelectors'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
+import { EntityRefLink } from './ProjectCard'
+import { useSimulationStore } from '@/app/stores/simulationStore'
+import { formatAbsoluteWeek } from '@/app/utils/format'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
@@ -35,6 +48,7 @@ import type { PoliticalRight, PoliticalRightHolderRef } from '@sim/types/politic
 import type { PolityInfluenceHolderRef } from '@sim/types/influence'
 import type { RepublicPowerProfile } from '@sim/selectors/republicSelectors'
 import { RightHolderLine } from './widgetsRights'
+import { DetailSection } from './widgetsLayout'
 
 export function AttitudeList({
   attitudes,
@@ -162,12 +176,26 @@ export function PolityLandContracts({
     estimatedRevenue: number
     bailiffPersonId: PersonId | undefined
     appointmentRight: PoliticalRight | undefined
+    // v0.53: この契約 (この Polity が grantee) 自身が上納拒否されている = この Polity が「拒否している側」(加害)。
+    withholdingDefault: LandContractDefault | undefined
+    // v0.53: この Polity が claimant の default (= 下位がこの Polity への上納を拒否) = 「拒否されている側」(被害)。
+    //   default は子契約上にあるため byClaimantPolity で引き holdingId でこのカードに紐付ける。
+    beingWithheldDefaults: LandContractDefault[]
   }
   type ProvinceGroup = {
     provinceId: ProvinceId
     provinceName: string
     holdings: ContractInfo[]
     totalRevenue: number
+  }
+
+  // 被害側 (この Polity が claimant) の default を holdingId で索引し、該当契約カードへ紐付ける。
+  const beingWithheldByHolding = new Map<string, LandContractDefault[]>()
+  for (const d of getActiveDefaultsForClaimantPolity(worldState, polity.id)) {
+    const k = d.holdingId as string
+    const arr = beingWithheldByHolding.get(k) ?? []
+    arr.push(d)
+    beingWithheldByHolding.set(k, arr)
   }
 
   const groupMap = new Map<string, ProvinceGroup>()
@@ -235,6 +263,10 @@ export function PolityLandContracts({
         isTerminal && holdingId
           ? getHoldingOfficeAppointmentRight(worldState, holdingId)
           : undefined,
+      // v0.53: 加害 = この契約自身が上納拒否されている (この Polity が grantee = 占拠側)。
+      withholdingDefault: getActiveDefaultForContract(worldState, c.id),
+      // v0.53: 被害 = この Polity が claimant の default を holdingId で紐付け。
+      beingWithheldDefaults: holdingId ? (beingWithheldByHolding.get(holdingId) ?? []) : [],
     })
     group.totalRevenue += estimatedRevenue
   }
@@ -243,12 +275,10 @@ export function PolityLandContracts({
   const totalContracts = groups.reduce((sum, g) => sum + g.holdings.length, 0)
 
   return (
-    <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.land_contracts')} ({totalContracts}):
-      </div>
-      <div className="text-xs text-gray-500">{t('detail.polity.land_contracts_note')}</div>
-      <div className="max-h-64 overflow-y-auto text-sm">
+    <div>
+      <DetailSection title={t('detail.polity.land_contracts')} count={totalContracts} />
+      <div className="pl-2 text-xs text-gray-500">{t('detail.polity.land_contracts_note')}</div>
+      <div className="mt-1 max-h-64 overflow-y-auto text-sm">
         {groups.map((g) => (
           <div key={g.provinceId} className="mb-1">
             <div className="flex items-baseline gap-1">
@@ -283,6 +313,54 @@ export function PolityLandContracts({
                       {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
                     </span>
                   </div>
+                  {/* v0.53 加害: この Polity がこの契約の上納を拒否している (能動) — 橙 */}
+                  {c.withholdingDefault && (
+                    <div className="mt-0.5 rounded bg-amber-950/40 px-1 text-[10px] text-amber-300">
+                      ⚠{' '}
+                      {c.withholdingDefault.origin === 'revolt_independence'
+                        ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                        : t('detail.obligation.withholding', { defaultValue: '上納拒否中' })}{' '}
+                      · {t('detail.obligation.default_claimant', { defaultValue: '請求元' })}:{' '}
+                      {getPolityShortName(
+                        worldState,
+                        resolveName,
+                        c.withholdingDefault.claimantPolityId,
+                      )}{' '}
+                      ·{' '}
+                      {t('detail.obligation.prescription_remaining', {
+                        defaultValue: '時効まで残り {{years}} 年',
+                        years: Math.floor(
+                          getDefaultPrescriptionRemainingYears(
+                            worldState,
+                            defaultConfig,
+                            c.withholdingDefault,
+                          ),
+                        ),
+                      })}
+                    </div>
+                  )}
+                  {/* v0.53 被害: 下位がこの Polity への上納を拒否している (受動) — 赤 */}
+                  {c.beingWithheldDefaults.map((d) => (
+                    <div
+                      key={d.id}
+                      className="mt-0.5 rounded bg-red-950/50 px-1 text-[10px] text-red-300"
+                    >
+                      ⚠{' '}
+                      {d.origin === 'revolt_independence'
+                        ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                        : t('detail.obligation.being_withheld', {
+                            defaultValue: '上納を拒否されている',
+                          })}{' '}
+                      · {t('detail.obligation.default_occupier', { defaultValue: '占拠者' })}:{' '}
+                      {getPolityShortName(worldState, resolveName, d.occupiedByPolityId)} ·{' '}
+                      {t('detail.obligation.prescription_remaining', {
+                        defaultValue: '時効まで残り {{years}} 年',
+                        years: Math.floor(
+                          getDefaultPrescriptionRemainingYears(worldState, defaultConfig, d),
+                        ),
+                      })}
+                    </div>
+                  ))}
                   {c.bailiffPersonId !== undefined && (
                     <div className="mt-0.5 truncate text-[11px] text-gray-500">
                       {t('holding.bailiff', { ns: 'roles' })}:{' '}
@@ -307,6 +385,97 @@ export function PolityLandContracts({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// v0.53: この Polity が直面している外圧 (Pressure, target=polity) と領内 (実効支配 holding) の危機 (Crisis)。
+//   観賞用スナップショット。active のみ表示。どちらも無ければ何も描画しない。
+export function PolityThreats({
+  polity,
+  worldState,
+}: {
+  polity: Polity
+  worldState: WorldState | null
+}) {
+  const { t } = useTranslation()
+  const onNavigate = useSimulationStore((s) => s.openDetailWindow)
+  if (!worldState) return null
+  const pressures = getActivePressuresForPolity(worldState, polity.id)
+  const crises = getActiveCrisesForPolity(worldState, polity.id)
+  if (pressures.length === 0 && crises.length === 0) return null
+  return (
+    <div>
+      {pressures.length > 0 && (
+        <>
+          <DetailSection title={t('detail.pressure.section_title')} count={pressures.length} />
+          <div className="mt-1 flex flex-col gap-0.5 text-xs">
+            {pressures.map((p) => (
+              <div key={p.id} className="rounded bg-amber-950/30 px-1.5 py-1">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="font-medium text-amber-200">
+                    {t(`detail.project.pressure_kind.${p.kind}`, { defaultValue: p.kind })}
+                  </span>
+                  <span
+                    className={p.responseProjectId !== undefined ? 'text-gray-400' : 'text-red-300'}
+                  >
+                    {p.responseProjectId !== undefined
+                      ? t('detail.pressure.responding')
+                      : t('detail.pressure.unanswered')}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-1 text-gray-400">
+                  <span className="shrink-0">{t('detail.pressure.source')}:</span>
+                  <EntityRefLink
+                    entityRef={p.source}
+                    worldState={worldState}
+                    onNavigate={onNavigate}
+                  />
+                </div>
+                {p.deadlineWeek !== undefined && (
+                  <div className="flex justify-between text-gray-400">
+                    <span>{t('detail.pressure.deadline')}:</span>
+                    <span>{formatAbsoluteWeek(p.deadlineWeek)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {crises.length > 0 && (
+        <>
+          <DetailSection
+            title={t('detail.crisis.section_title')}
+            count={crises.length}
+            tone="alert"
+          />
+          <div className="mt-1 flex flex-col gap-0.5 text-xs">
+            {crises.map((c) => (
+              <div key={c.id} className="rounded bg-red-950/30 px-1.5 py-1">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="font-medium text-red-200">
+                    {t(`detail.crisis.kind.${c.kind}`, { defaultValue: c.kind })}
+                  </span>
+                  <span className="text-gray-400">
+                    {t('detail.crisis.severity')}: {c.severity.toFixed(0)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-1 text-gray-400">
+                  <EntityRefLink
+                    entityRef={{ kind: 'holding', id: c.holdingId }}
+                    worldState={worldState}
+                    onNavigate={onNavigate}
+                  />
+                  {c.kind !== 'disrepair' && (
+                    <span className="shrink-0">{formatAbsoluteWeek(c.deadlineWeek)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -362,14 +531,10 @@ export function PolityRegiments({
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.regiments')} ({rows.length}):
-        <span className="ml-2 text-xs font-normal text-gray-500">
-          {t('detail.polity.reg_baseline_hint')}
-        </span>
-      </div>
-      <div className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto text-xs">
+    <div>
+      <DetailSection title={t('detail.polity.regiments')} count={rows.length} />
+      <div className="pl-2 text-xs text-gray-500">{t('detail.polity.reg_baseline_hint')}</div>
+      <div className="mt-1 grid max-h-64 grid-cols-2 gap-1 overflow-y-auto text-xs">
         {rows.map((r) => (
           <div key={r.id} className="rounded bg-gray-700/60 p-1.5">
             <div className="truncate font-medium text-gray-300">{r.name}</div>

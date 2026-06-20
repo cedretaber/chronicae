@@ -56,6 +56,19 @@ export function DetailSection({
   )
 }
 
+// DetailSection の 1 段下のサブ見出し。節 (DetailSection/CollapsibleSection) の *内側* で、
+// さらに細かい括り (例: 現在の目標の下の「狙い」「外交劇」、指導部ブロックの「役職」「大株主」) を示す。
+//   peer 節と区別するため、冷色アクセント罫を持たず・小さめ (text-xs)・薄色 (gray-400)・軽い字下げ。
+//   従来バラついていた `<strong>`+inline margin / `text-sm font-semibold text-gray-300` のサブ見出しをこれに統一する。
+export function DetailSubSection({ title, count }: { title: ReactNode; count?: number }) {
+  return (
+    <div className="mt-1.5 flex items-baseline gap-1.5 pl-2 text-xs font-semibold text-gray-400">
+      <span>{title}</span>
+      {count !== undefined && <span className="font-normal text-gray-500">({count})</span>}
+    </div>
+  )
+}
+
 // 折りたたみ可能なセクション。DetailSection と同じ冷色アクセントの見出しに開閉シェブロンを足し、
 // open のとき children を描く。状態は呼び出し側 (useCollapsedSections) が集約管理する controlled。
 //   情報量の多い詳細パネルで、ユーザーが不要な節を畳めるようにする (既定は開)。

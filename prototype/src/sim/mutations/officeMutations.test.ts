@@ -214,6 +214,17 @@ function makeOfficeState(): {
     nextClanId: 1,
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
+    realEstateSeizures: {},
+    realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
+    nextRealEstateSeizureId: 0,
+    landContractDefaults: {},
+    landContractDefaultIndex: {
+      byHolding: {},
+      byContract: {},
+      byClaimantPolity: {},
+      byOccupierPolity: {},
+    },
+    nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
   }
   return { state, officeId, holderId, houseId, polityId }

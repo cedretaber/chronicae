@@ -11,6 +11,7 @@ import {
   eliminateContractFromChain,
 } from '../mutations/landContractMutations'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
+import { resolveLandContractDefaultState } from '../mutations/landContractDefaultMutations'
 import { emitWarOutcome, emitWarEnded, emitPeaceSettlementApplied } from './warEvents'
 import { spawnWarDamageCrisis } from './crisisSystem'
 import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
@@ -60,7 +61,7 @@ function settleDefenderWon(ctx: TickContext, warId: WarId): TickContext {
   if (revoltGoal && revoltGoal.kind === 'popular_revolt_independence') {
     const result = suppressRevolt(ctx, {
       commonwealthPolityId: revoltGoal.commonwealthPolityId,
-      revoltSeizureContractIds: revoltGoal.revoltSeizureContractIds,
+      revoltDefaultIds: revoltGoal.revoltDefaultIds,
       holdingIds: revoltGoal.holdingIds,
     })
     let next = result.ok ? result.value.ctx : ctx
@@ -82,14 +83,37 @@ function applyTaxGoal(
   goal: ChangeContractTaxRateWarGoal,
   defenderPolityId: PolityId | undefined,
 ): { ctx: TickContext; applied: boolean } {
+  const result = applyTaxGoalCore(ctx, goal, defenderPolityId)
+  // v0.53 Phase 4: enforce_land_contract_default 由来の勝利は、税率適用後に対象 default を resolved にする。
+  if (result.applied && goal.resolvesLandContractDefaultId !== undefined) {
+    const nextState = resolveLandContractDefaultState(
+      result.ctx.state,
+      goal.resolvesLandContractDefaultId,
+    )
+    return { ctx: { ...result.ctx, state: nextState }, applied: true }
+  }
+  return result
+}
+
+function applyTaxGoalCore(
+  ctx: TickContext,
+  goal: ChangeContractTaxRateWarGoal,
+  defenderPolityId: PolityId | undefined,
+): { ctx: TickContext; applied: boolean } {
   const config = ctx.config
   const state = ctx.state
   const contract = state.landContracts[goal.landContractId]
   if (!contract || contract.holdingId !== goal.holdingId) return { ctx, applied: false }
 
   const newRate = goal.newTaxRateToGrantor
+  // v0.53 Phase 4: enforce_land_contract_default 由来 (resolvesLandContractDefaultId あり) は
+  //   契約の「復元」が目的。境界税率でも eliminate せず税率調整のみ (default 解消は wrapper が行う)。
+  const isEnforceRestore = goal.resolvesLandContractDefaultId !== undefined
   // 通常の税率変更。
-  if (newRate > config.taxRevisionMinRate && newRate < config.taxRevisionMaxRate) {
+  if (
+    isEnforceRestore ||
+    (newRate > config.taxRevisionMinRate && newRate < config.taxRevisionMaxRate)
+  ) {
     return {
       ctx: { ...ctx, state: adjustLandContractTaxRate(state, goal.landContractId, newRate) },
       applied: true,
@@ -165,7 +189,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
   if (goal.kind === 'popular_revolt_independence') {
     const result = establishCommonwealth(ctx, {
       commonwealthPolityId: goal.commonwealthPolityId,
-      revoltSeizureContractIds: goal.revoltSeizureContractIds,
+      revoltDefaultIds: goal.revoltDefaultIds,
       leaderPersonId: goal.leaderPersonId,
     })
     if (!result.ok) return settleWhitePeace(ctx, warId)

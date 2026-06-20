@@ -80,8 +80,105 @@ export function createDiplomaticPlayFromProjectMut(
       existingPlayKeys,
       emitEvent,
     )
+  } else if (project.kind === 'enforce_land_contract_default') {
+    return createEnforceLandContractDefaultPlayFromProjectMut(ws, config, project, existingPlayKeys)
   }
   return { kind: 'invalid_inputs' }
+}
+
+// v0.53 Phase 4: LandContractDefault 強制 play。contract_tax_revision play を再利用し、
+//   issue/demand に resolvesLandContractDefaultId を載せて和平/受諾/勝利時に default を resolved にする。
+//   demand は「現税率を維持 (restore)」= 税率は変えず default 解消が核 (tax_default は契約税率不変)。
+function createEnforceLandContractDefaultPlayFromProjectMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Extract<Project, { kind: 'enforce_land_contract_default' }>,
+  existingPlayKeys: Set<string>,
+): CreatePlayResult {
+  const d = ws.landContractDefaults[project.targetLandContractDefaultId]
+  if (!d || d.status !== 'active') return { kind: 'invalid_inputs' }
+  const contract = ws.landContracts[project.landContractId]
+  if (!contract) return { kind: 'invalid_inputs' }
+  const provinceId = ws.holdings[project.holdingId]?.provinceId
+  if (!provinceId) return { kind: 'invalid_inputs' }
+
+  const initiator: OrganizationRef = { kind: 'polity', id: project.owner.id }
+  const target: OrganizationRef = { kind: 'polity', id: project.counterpartyPolityId }
+  if (!ws.polities[target.id]?.active) return { kind: 'invalid_inputs' }
+
+  const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
+  if (existingPlayKeys.has(dedupeKey)) return { kind: 'duplicate' }
+
+  const currentRate = contract.terms.taxRateToGrantor
+  const initiatorPower = getActorMilitaryPower(ws, config, initiator)
+  const targetPower = getActorMilitaryPower(ws, config, target)
+  const hasAdvantage = initiatorPower > targetPower
+
+  const playId: DiplomaticPlayId = createDiplomaticPlayId(ws.nextDiplomaticPlayId)
+  const initiatorDelegate = getDiplomaticPlayDelegate(ws, initiator)
+  const targetDelegate = getDiplomaticPlayDelegate(ws, target, initiatorDelegate)
+
+  const issue: ContractTaxRevisionIssue = {
+    kind: 'contract_tax_revision',
+    holdingId: project.holdingId,
+    landContractId: contract.id,
+    baseTaxRateToGrantor: currentRate,
+    desiredTaxRateToGrantor: currentRate, // restore: 税率は変えず default を解消
+    direction: 'increase',
+    resolvesLandContractDefaultId: d.id,
+  }
+
+  const play: DiplomaticPlay = {
+    id: playId,
+    kind: 'contract_tax_revision',
+    initiator,
+    target,
+    originProjectId: project.id,
+    issue,
+    status: 'active',
+    startedWeek: ws.absoluteWeek,
+    deadlineWeek: ws.absoluteWeek + config.taxRevisionNegotiationDurationWeeks,
+    progress: hasAdvantage ? config.taxRevisionInitialProgressOnAdvantage : 0,
+    tension: hasAdvantage ? 0 : config.taxRevisionInitialTensionOnPressure,
+    ...(initiatorDelegate ? { initiatorDelegatePersonId: initiatorDelegate } : {}),
+    ...(targetDelegate ? { targetDelegatePersonId: targetDelegate } : {}),
+    initiatorPreparation: project.preparation,
+    initiatorLeverage: project.leverage,
+    initiatorCommitment: project.commitment,
+    targetPreparation: 0,
+    targetLeverage: 0,
+    targetCommitment: 0,
+    initiatorSupporters: [],
+    targetSupporters: [],
+    initiatorActiveTaskIds: [],
+    targetActiveTaskIds: [],
+    offerHistoryIds: [],
+  }
+  ws.diplomaticPlays[playId] = play
+
+  const initialOfferDemands: DiplomaticDemand[] = [
+    {
+      kind: 'change_contract_tax_rate',
+      holdingId: project.holdingId,
+      landContractId: contract.id,
+      newTaxRateToGrantor: currentRate,
+      resolvesLandContractDefaultId: d.id,
+    },
+  ]
+  createDiplomaticOfferMut(ws, playId, initiator, initialOfferDemands, [])
+
+  ws.nextDiplomaticPlayId++
+  existingPlayKeys.add(dedupeKey)
+
+  // v0.53 §10.3: play が実質開始した = 係争中。prescription が war 中に legalize しないよう
+  //   lastContestedWeek を更新する。caller の draft は landContractDefaults を含まないため
+  //   copy-on-write で共有 state 破壊を避ける ([[project_mutable_draft_writeback_slices]])。
+  ws.landContractDefaults = {
+    ...ws.landContractDefaults,
+    [d.id]: { ...d, lastContestedWeek: ws.absoluteWeek },
+  }
+
+  return { kind: 'created', playId }
 }
 
 function createLandClaimPlayFromProjectMut(

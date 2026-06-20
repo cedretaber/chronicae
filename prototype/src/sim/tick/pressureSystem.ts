@@ -2,14 +2,25 @@ import type { TickContext, CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
-import type { RespondToPressureProject } from '../types/project'
-import type { EventId, ProjectId } from '../types/ids'
+import type {
+  RespondToPressureProject,
+  EnforceObligationProject,
+  EnforceObligationTarget,
+  EnforceLandContractDefaultProject,
+} from '../types/project'
+import type { Pressure } from '../types/pressure'
+import type { EventId, ProjectId, PersonId } from '../types/ids'
 import { createProjectId } from '../types/ids'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { setPressureResponseProjectMut } from '../mutations/pressureMutations'
-import { getPolityLeader } from '../selectors/officeSelectors'
+import { setRealEstateSeizureEnforceMut } from '../mutations/realEstateSeizureMutations'
+import { setLandContractDefaultEnforceMut } from '../mutations/landContractDefaultMutations'
+import { getPolityLeader, getHouseDecisionMaker } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
+import { getOwnerNameRefForEmit } from '../utils/ownerNames'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
+import { computeOwnerHouseResistance } from '../selectors/realEstateSeizureSelectors'
+import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import { createLogger } from '../debug/logger'
 
@@ -55,12 +66,26 @@ export function runPressureSystem(ctx: TickContext): TickContext {
       bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
+    // v0.53: enforce 起案で activeEnforceProjectId / nextEnforceAllowedWeek を書くため
+    //   義務 entity slice を draft に含める ([[project_mutable_draft_writeback_slices]])。
+    realEstateSeizures: { ...ctx.state.realEstateSeizures },
+    landContractDefaults: { ...ctx.state.landContractDefaults },
   }
+
+  const log = createLogger(config.debug)
 
   for (const [, pressure] of Object.entries(ws.pressures)) {
     if (!pressure || pressure.status !== 'active') continue
-    if (pressure.responseProjectId) continue
 
+    // v0.53 §9.2: kind 別 routing。diplomatic_* は既存 respond_to_pressure、obligation 系は
+    //   enforce_obligation を起案する (respond_to_pressure に流さない)。
+    if (pressure.kind === 'real_estate_seizure' || pressure.kind === 'land_contract_default') {
+      maybeCreateEnforceProjectMut(ws, config, pressure, absoluteWeek, emitEvent, log)
+      continue
+    }
+
+    // --- diplomatic_* (既存経路) ---
+    if (pressure.responseProjectId) continue
     if (pressure.target.kind !== 'polity') continue
     const polityId = pressure.target.id
     const leaderId = getPolityLeader(ws, polityId)
@@ -111,7 +136,6 @@ export function runPressureSystem(ctx: TickContext): TickContext {
     addProjectToIndexMut(ws, project)
     setPressureResponseProjectMut(ws, pressure.id, projectId)
 
-    const log = createLogger(config.debug)
     log.log('PRESSURE', {
       pressureId: pressure.id,
       responseProjectId: projectId,
@@ -140,4 +164,198 @@ export function runPressureSystem(ctx: TickContext): TickContext {
     events: [...ctx.events, ...newEvents],
     nextEventIndex,
   }
+}
+
+// v0.53 §9.2/§10: obligation 系 Pressure から enforce_obligation を起案する。
+//   strength gate を生成段に置き (B1)、勝ち目が無いなら作らない。再起案 cooldown は
+//   entity 側 nextEnforceAllowedWeek (B6)。Phase 1 は real_estate_seizure のみ対応。
+function maybeCreateEnforceProjectMut(
+  ws: WorldState,
+  config: import('../config/defaultConfig').SimulationConfig,
+  pressure: Pressure,
+  absoluteWeek: number,
+  emitEvent: (input: CreateSimEventInput) => void,
+  log: ReturnType<typeof createLogger>,
+): void {
+  const obligation = pressure.relatedObligation
+  if (!obligation) return
+
+  if (obligation.kind === 'real_estate_seizure') {
+    const seizure = ws.realEstateSeizures[obligation.id]
+    if (!seizure || seizure.status !== 'active') return
+    // 既に active enforce があるなら作らない (B6)
+    if (seizure.activeEnforceProjectId) return
+    // cooldown 中なら作らない (B6)
+    if (
+      seizure.nextEnforceAllowedWeek !== undefined &&
+      absoluteWeek < seizure.nextEnforceAllowedWeek
+    )
+      return
+    // 権利者 House (Phase 1 では house のみ)
+    if (seizure.rightfulOwner.kind !== 'house') return
+    const ownerHouseId = seizure.rightfulOwner.id
+    const ownerHouse = ws.houses[ownerHouseId]
+    if (!ownerHouse || !ownerHouse.active) return
+
+    // strength gate (B1, §10.2): owner House の独立抵抗力が seizer に対して閾値以上のときのみ生成。
+    //   弱い House は enforce を起案できず、seizure は無係争で時効へ向かう。
+    const resistance = computeOwnerHouseResistance(ws, config, ownerHouseId, seizure.seizerPolityId)
+    if (resistance < config.realEstateSeizureEnforceResistanceThreshold) return
+
+    // House decision maker を creator に
+    const decisionMakerId = getHouseDecisionMaker(ws, ownerHouseId)
+    if (!decisionMakerId) return
+    const decisionMaker = ws.persons[decisionMakerId]
+    if (!decisionMaker || !decisionMaker.alive || decisionMaker.kind === 'placeholder') return
+
+    const owner = { kind: 'house', id: ownerHouseId } as const
+    const supervisorId =
+      selectProjectSupervisor(ws, config, owner, 'enforce_obligation', decisionMakerId) ??
+      decisionMakerId
+    const target: EnforceObligationTarget = { kind: 'real_estate_seizure', id: seizure.id }
+
+    const projectId = createEnforceProjectMut(
+      ws,
+      config,
+      owner,
+      decisionMakerId,
+      supervisorId,
+      target,
+      absoluteWeek,
+    )
+    setRealEstateSeizureEnforceMut(ws, seizure.id, { activeEnforceProjectId: projectId })
+
+    log.log('PRESSURE', {
+      pressureId: pressure.id,
+      enforceProjectId: projectId,
+      target: `real_estate_seizure:${seizure.id}`,
+    })
+
+    emitEnforceStartedEvent(ws, owner, emitEvent)
+    return
+  }
+
+  if (obligation.kind === 'land_contract_default') {
+    const d = ws.landContractDefaults[obligation.id]
+    if (!d || d.status !== 'active') return
+    if (d.activeEnforceProjectId) return
+    if (d.nextEnforceAllowedWeek !== undefined && absoluteWeek < d.nextEnforceAllowedWeek) return
+    const claimant = ws.polities[d.claimantPolityId]
+    if (!claimant || !claimant.active) return
+    const occupier = ws.polities[d.occupiedByPolityId]
+    if (!occupier || !occupier.active) return
+
+    // strength gate (§10.2): claimant が occupier に対し軍事的に十分なときのみ enforce 生成。
+    const claimantPower = calcPolityMilitaryPower(ws, config, d.claimantPolityId)
+    const occupierPower = calcPolityMilitaryPower(ws, config, d.occupiedByPolityId)
+    if (claimantPower < config.landContractDefaultEnforcePowerThreshold) return
+    if (claimantPower <= occupierPower * 1.1) return
+
+    // 対象契約 (default の targetLandContractId) が消えていれば起案しない
+    const contract = ws.landContracts[d.targetLandContractId]
+    if (!contract) return
+
+    const leaderId = getPolityLeader(ws, d.claimantPolityId)
+    if (!leaderId) return
+    const leader = ws.persons[leaderId]
+    if (!leader || !leader.alive || leader.kind === 'placeholder') return
+
+    const owner = { kind: 'polity', id: d.claimantPolityId } as const
+    const supervisorId =
+      selectProjectSupervisor(ws, config, owner, 'enforce_land_contract_default', leaderId) ??
+      leaderId
+
+    // v0.53 Phase 4: 外交 enforce_land_contract_default Project を起案する。
+    //   desiredTaxRate = 契約の現税率 (restore: 税率は変えず default を解消するのが核)。
+    const projectId: ProjectId = createProjectId(ws.nextProjectId)
+    ws.nextProjectId++
+    const project: EnforceLandContractDefaultProject = {
+      id: projectId,
+      owner,
+      origin: { kind: 'system', reasonKey: 'enforce_land_contract_default' },
+      kind: 'enforce_land_contract_default',
+      creatorPersonId: leaderId,
+      supervisorPersonId: supervisorId,
+      targetLandContractDefaultId: d.id,
+      holdingId: d.holdingId,
+      landContractId: d.targetLandContractId,
+      counterpartyPolityId: d.occupiedByPolityId,
+      desiredTaxRateToGrantor: contract.terms.taxRateToGrantor,
+      preparation: 0,
+      leverage: 0,
+      commitment: 0,
+      status: 'active',
+      progress: 0,
+      targetProgress: config.projectDefaultTargetProgress,
+      currentStageKey: getInitialProjectStageKey('enforce_land_contract_default'),
+      createdWeek: absoluteWeek,
+      deadlineWeek: absoluteWeek + config.projectDeadlineWeeksDiplomatic,
+      reasonIds: [],
+    }
+    ws.projects[projectId] = project
+    addProjectToIndexMut(ws, project)
+    setLandContractDefaultEnforceMut(ws, d.id, { activeEnforceProjectId: projectId })
+
+    log.log('PRESSURE', {
+      pressureId: pressure.id,
+      enforceProjectId: projectId,
+      target: `land_contract_default:${d.id}`,
+    })
+
+    emitEnforceStartedEvent(ws, owner, emitEvent)
+  }
+}
+
+function createEnforceProjectMut(
+  ws: WorldState,
+  config: import('../config/defaultConfig').SimulationConfig,
+  owner:
+    | { kind: 'house'; id: import('../types/ids').HouseId }
+    | { kind: 'polity'; id: import('../types/ids').PolityId },
+  creatorPersonId: PersonId,
+  supervisorPersonId: PersonId,
+  target: EnforceObligationTarget,
+  absoluteWeek: number,
+): ProjectId {
+  const projectId: ProjectId = createProjectId(ws.nextProjectId)
+  ws.nextProjectId++
+  const project: EnforceObligationProject = {
+    id: projectId,
+    owner,
+    origin: { kind: 'system', reasonKey: 'enforce_obligation' },
+    kind: 'enforce_obligation',
+    creatorPersonId,
+    supervisorPersonId,
+    target,
+    status: 'active',
+    progress: 0,
+    targetProgress: config.projectDefaultTargetProgress,
+    currentStageKey: getInitialProjectStageKey('enforce_obligation'),
+    createdWeek: absoluteWeek,
+    deadlineWeek: absoluteWeek + config.projectDeadlineWeeksDevelopment,
+    reasonIds: [],
+  }
+  ws.projects[projectId] = project
+  addProjectToIndexMut(ws, project)
+  return projectId
+}
+
+function emitEnforceStartedEvent(
+  ws: WorldState,
+  owner:
+    | { kind: 'house'; id: import('../types/ids').HouseId }
+    | { kind: 'polity'; id: import('../types/ids').PolityId },
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const ownerRef = getOwnerNameRefForEmit(ws, owner)
+  emitEvent({
+    type: 'PROJECT_STARTED',
+    importance: 'minor',
+    messageKey: 'project.started',
+    messageParams: {
+      owner: nameParam(ownerRef.category, ownerRef.nameKey),
+      kind: 'enforce_obligation',
+    },
+    entityRefs: [entityRef(owner.kind, owner.id, 'owner', ownerRef.nameKey)],
+  })
 }

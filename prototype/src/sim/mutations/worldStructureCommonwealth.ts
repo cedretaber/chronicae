@@ -2,7 +2,7 @@ import type { TickContext } from '../tick/context'
 import { makePersonId, makePolityId, createSimEvent } from '../tick/context'
 import { nameParam, entityRef } from '../types/event'
 import { randomFloat, randomInt } from '../rng/rng'
-import type { PersonId, ProvinceId, PolityId, HoldingId, LandContractId } from '../types/ids'
+import type { PersonId, ProvinceId, PolityId, HoldingId } from '../types/ids'
 import type { Polity } from '../types/polity'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
@@ -21,7 +21,12 @@ import { removeRightsByPolity } from './politicalRightMutations'
 import { reassignProjectsOfDeadSupervisor } from './projectMutations'
 import { cancelTasksOfDeadAssignee } from './taskMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
-import { eliminateContractFromChain as eliminateContract } from './landContractMutations'
+import {
+  eliminateContractFromChain as eliminateContract,
+  spliceOutClaimantContract,
+} from './landContractMutations'
+import { changeLandContractDefaultStatusMut } from './landContractDefaultMutations'
+import type { LandContractDefaultId } from '../types/ids'
 
 // ============================================================================
 // v0.39 B-2: selectOrCreateCommonwealthLeader
@@ -354,7 +359,7 @@ export function establishCommonwealth(
   ctx: TickContext,
   input: {
     commonwealthPolityId: PolityId
-    revoltSeizureContractIds: LandContractId[]
+    revoltDefaultIds: LandContractDefaultId[]
     leaderPersonId: PersonId
   },
 ): CtxResult<void> {
@@ -375,14 +380,25 @@ export function establishCommonwealth(
     },
   }
 
-  // 2. revolt_seizure 契約の specialStatus を除去（正式契約化）
-  for (const contractId of input.revoltSeizureContractIds) {
-    const c = state.landContracts[contractId]
-    if (c?.specialStatus?.kind === 'revolt_seizure') {
-      const updated = { ...c }
-      delete updated.specialStatus
-      state = { ...state, landContracts: { ...state.landContracts, [contractId]: updated } }
-    }
+  // 2. v0.53 (§14/D4): 反乱独立 default を legalize し、nominal occupation contract を新 root 化する
+  //   (= 当該 holding が旧 overlord から正式に独立)。default status 変更は mutable なので fresh copy を作る。
+  state = {
+    ...state,
+    landContractDefaults: { ...state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...state.landContractDefaultIndex.byHolding },
+      byContract: { ...state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...state.landContractDefaultIndex.byOccupierPolity },
+    },
+  }
+  // 注: revolt_independence default は applyRevoltEscalation で Pressure を伴わず作成されるため
+  //   (obligation Pressure は project outcome 由来のみ)、ここで removeObligationPressuresMut は不要。
+  for (const defaultId of input.revoltDefaultIds) {
+    const d = state.landContractDefaults[defaultId]
+    if (!d) continue
+    state = spliceOutClaimantContract(state, d.holdingId, d.targetLandContractId)
+    changeLandContractDefaultStatusMut(state, defaultId, 'legalized')
   }
 
   // 3. Leader prestige boost
@@ -461,17 +477,31 @@ export function suppressRevolt(
   ctx: TickContext,
   input: {
     commonwealthPolityId: PolityId
-    revoltSeizureContractIds: LandContractId[]
+    revoltDefaultIds: LandContractDefaultId[]
     holdingIds: HoldingId[]
   },
 ): CtxResult<void> {
   let state = ctx.state
 
-  // 1. revolt_seizure 契約を削除
-  for (const contractId of input.revoltSeizureContractIds) {
-    const c = state.landContracts[contractId]
-    if (c) {
-      state = eliminateContract(state, contractId)
+  // 1. v0.53 (§14/D4): nominal occupation contract を eliminate (子を親に再接続) し、
+  //   反乱独立 default を cancelled にする (旧 overlord 支配の回復)。
+  state = {
+    ...state,
+    landContractDefaults: { ...state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...state.landContractDefaultIndex.byHolding },
+      byContract: { ...state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...state.landContractDefaultIndex.byOccupierPolity },
+    },
+  }
+  for (const defaultId of input.revoltDefaultIds) {
+    const d = state.landContractDefaults[defaultId]
+    if (!d) continue
+    const nominalContractId = d.targetLandContractId
+    changeLandContractDefaultStatusMut(state, defaultId, 'cancelled')
+    if (state.landContracts[nominalContractId]) {
+      state = eliminateContract(state, nominalContractId)
     }
   }
 

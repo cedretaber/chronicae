@@ -6,7 +6,7 @@ import type {
   PersonId,
   DiplomaticPlayId,
   WarId,
-  LandContractId,
+  LandContractDefaultId,
 } from './ids'
 import type { PopClass } from './popGroup'
 
@@ -57,7 +57,7 @@ export type PolityOrigin =
 
 type PopularRevoltState =
   | { kind: 'negotiating'; diplomaticPlayId: DiplomaticPlayId }
-  | { kind: 'revolting'; warId?: WarId; revoltSeizureContractIds: LandContractId[] }
+  | { kind: 'revolting'; warId?: WarId; revoltDefaultIds: LandContractDefaultId[] }
   | { kind: 'established' }
 
 // v0.41 (§3.2/§3.3): Polity の名前情報。pool 由来は自前の nameKey を持ち、

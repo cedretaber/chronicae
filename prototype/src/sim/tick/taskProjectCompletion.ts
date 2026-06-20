@@ -23,6 +23,7 @@ import {
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
 import { hasCapacityPressure } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
+import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
@@ -668,6 +669,44 @@ function buildProjectFieldsForAim(
         } satisfies ProjectBudget,
         targetProgress:
           config.developRealEstateProjectBaseProgress[bestAsset.realEstateKind] ?? 100,
+      }
+    }
+    // v0.53 押領: 対象 asset は scoring と同一 selector で確定 (C1)。budget なし。
+    case 'seize_real_estate_income': {
+      if (aim.owner.kind !== 'polity') return undefined
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      if (!holdingId) return undefined
+      const pick = selectMostVulnerableHouseOwnedAsset(ws, config, aim.owner.id, holdingId)
+      if (!pick) return undefined
+      return {
+        holdingId,
+        targetRealEstateAssetId: pick.asset.id,
+        currentStageKey: getInitialProjectStageKey('seize_real_estate_income'),
+      }
+    }
+    // v0.53 上納拒否: aim target holding の terminal contract (自分が grantee・非 root・active default なし) を確定。
+    case 'withhold_land_contract_tax': {
+      if (aim.owner.kind !== 'polity') return undefined
+      const polityId = aim.owner.id
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      const contractIds = ws.landContractIndex.byGranteePolity[polityId] ?? []
+      let targetContractId: import('../types/ids').LandContractId | undefined
+      let resolvedHoldingId = holdingId
+      for (const cid of contractIds) {
+        const contract = ws.landContracts[cid]
+        if (!contract || contract.rootAuthorityId) continue
+        if (contract.terms.taxRateToGrantor <= 0) continue
+        if (ws.landContractDefaultIndex.byContract[contract.id as string]) continue
+        if (holdingId && (contract.holdingId as string) !== (holdingId as string)) continue
+        targetContractId = contract.id
+        resolvedHoldingId = contract.holdingId ?? holdingId
+        break
+      }
+      if (!targetContractId || !resolvedHoldingId) return undefined
+      return {
+        holdingId: resolvedHoldingId,
+        targetLandContractId: targetContractId,
+        currentStageKey: getInitialProjectStageKey('withhold_land_contract_tax'),
       }
     }
     default:

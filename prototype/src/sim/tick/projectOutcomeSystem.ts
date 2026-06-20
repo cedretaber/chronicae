@@ -15,6 +15,18 @@ import {
   changeRealEstateAssetOwnerMut,
 } from '../mutations/realEstateAssetMutations'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import {
+  createRealEstateSeizureMut,
+  changeRealEstateSeizureStatusMut,
+  setRealEstateSeizureEnforceMut,
+} from '../mutations/realEstateSeizureMutations'
+import {
+  createLandContractDefaultMut,
+  changeLandContractDefaultStatusMut,
+  setLandContractDefaultEnforceMut,
+} from '../mutations/landContractDefaultMutations'
+import { getLandContractGrantor } from '../selectors/landContractSelectors'
+import { createPressureMut, removeObligationPressuresMut } from '../mutations/pressureMutations'
 import { removeCrisisMut, setCrisisStatusMut } from '../mutations/crisisMutations'
 import { cancelActiveResponseProjectMut } from './crisisSystem'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
@@ -77,6 +89,29 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     pressures: { ...ctx.state.pressures },
+    // v0.53: seize/enforce outcome が createPressureMut → addPressureToIndexMut を呼ぶため
+    //   pressureIndex を draft に含める (共有 state in-place 破壊防止, [[project_mutable_draft_writeback_slices]])。
+    pressureIndex: {
+      byTarget: { ...ctx.state.pressureIndex.byTarget },
+      bySource: { ...ctx.state.pressureIndex.bySource },
+      byDiplomaticPlay: { ...ctx.state.pressureIndex.byDiplomaticPlay },
+      byProject: { ...ctx.state.pressureIndex.byProject },
+    },
+    // v0.53: seize outcome が RealEstateSeizure を作成するため slice を含める。
+    realEstateSeizures: { ...ctx.state.realEstateSeizures },
+    realEstateSeizureIndex: {
+      byHolding: { ...ctx.state.realEstateSeizureIndex.byHolding },
+      byAsset: { ...ctx.state.realEstateSeizureIndex.byAsset },
+      byRightfulOwnerHouse: { ...ctx.state.realEstateSeizureIndex.byRightfulOwnerHouse },
+    },
+    // v0.53: withhold outcome が LandContractDefault を作成するため slice を含める。
+    landContractDefaults: { ...ctx.state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...ctx.state.landContractDefaultIndex.byHolding },
+      byContract: { ...ctx.state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...ctx.state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...ctx.state.landContractDefaultIndex.byOccupierPolity },
+    },
     // v0.48 Crisis: handle_crisis 完了時に Crisis を resolved 化・purge するため slice を draft に含める
     //   (含めないと removeCrisisMut が共有 state を破壊する)。popGroups は spread しないので
     //   この system では Crisis のデバフ適用は行わない (= crisisSystem の責務)。
@@ -239,6 +274,10 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     // v0.51 陰謀リファイン: 陰謀 Project が terminal 化したら owner 家に cooldown を記録する
     //   (completed/failed どちらも)。旧 Klaus ループ (完了直後の即再立案) を防ぐ (§4.3)。
     recordConspiracyCooldownMut(ws, project)
+
+    // v0.53 (B6): 義務強制 Project が解消せず terminal 化した場合、対象 obligation の
+    //   activeEnforceProjectId を解除し cooldown を設定する (cooldown 後に再起案可能にする)。
+    reconcileEnforceTerminalMut(ws, config, project)
 
     removeProjectFromIndexMut(ws, project)
     delete ws.projects[project.id]
@@ -454,7 +493,247 @@ function applyNonDiplomaticEffectMut(
     case 'upgrade_owned_real_estate':
       applyUpgradeOwnedRealEstateMut(ws, project, emitEvent)
       break
+    // v0.53 押領: RealEstateSeizure 作成 + 権利者 House へ Pressure
+    case 'seize_real_estate_income':
+      applySeizeRealEstateIncomeMut(ws, project, emitEvent)
+      break
+    // v0.53 上納拒否: LandContractDefault.tax_default 作成 + claimant Polity へ Pressure
+    case 'withhold_land_contract_tax':
+      applyWithholdLandContractTaxMut(ws, project, emitEvent)
+      break
+    // v0.53 義務強制 (Phase 1-2 簡易版): 対象 seizure/default を resolved 化
+    case 'enforce_obligation':
+      applyEnforceObligationMut(ws, project, emitEvent)
+      break
   }
+}
+
+// v0.53 上納拒否 outcome (§7.2/§11.2)。owner Polity が自身の terminal contract の上納を拒否。
+//   LandContractDefault.origin='tax_default' を作成し、claimant (grantor) Polity へ Pressure を立てる。
+function applyWithholdLandContractTaxMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'withhold_land_contract_tax') return
+  const contract = ws.landContracts[project.targetLandContractId]
+  if (!contract || contract.rootAuthorityId) return
+  // 二重不履行防止
+  if (ws.landContractDefaultIndex.byContract[contract.id as string]) return
+  const grantor = getLandContractGrantor(ws, contract.id)
+  if (!grantor || grantor.kind !== 'polity') return
+  const claimantPolityId = grantor.id
+  if (!ws.polities[claimantPolityId]?.active) return
+  const occupiedByPolityId = project.owner.id
+
+  const d = createLandContractDefaultMut(ws, {
+    origin: 'tax_default',
+    holdingId: project.holdingId,
+    occupiedByPolityId,
+    claimantPolityId,
+    targetLandContractId: contract.id,
+    originalGrantorPolityId: claimantPolityId,
+    originalGranteePolityId: occupiedByPolityId,
+    originalTaxRateToGrantor: contract.terms.taxRateToGrantor,
+    startedWeek: ws.absoluteWeek,
+    reasonIds: [...project.reasonIds],
+  })
+
+  createPressureMut(ws, {
+    kind: 'land_contract_default',
+    source: { kind: 'polity', id: occupiedByPolityId },
+    target: { kind: 'polity', id: claimantPolityId },
+    relatedObligation: { kind: 'land_contract_default', id: d.id },
+    priority: 1,
+    createdWeek: ws.absoluteWeek,
+    status: 'active',
+    reasonIds: [],
+  })
+
+  const occupierRef = getPolityNameRefForEmit(ws, occupiedByPolityId)
+  const claimantRef = getPolityNameRefForEmit(ws, claimantPolityId)
+  const holding = ws.holdings[project.holdingId]
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'LAND_CONTRACT_DEFAULT_STARTED',
+    importance: 'minor',
+    messageKey: 'land_contract_default.started',
+    messageParams: {
+      occupier: nameParam(occupierRef.category, occupierRef.nameKey),
+      claimant: nameParam(claimantRef.category, claimantRef.nameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('polity', occupiedByPolityId, 'occupier', occupierRef.nameKey),
+      entityRef('polity', claimantPolityId, 'claimant', claimantRef.nameKey),
+      entityRef('holding', project.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
+    ],
+  })
+}
+
+// v0.53 (B6): 義務強制 Project の terminal 時に、対象 obligation がまだ active なら
+//   activeEnforceProjectId を解除し nextEnforceAllowedWeek (cooldown) を設定する。
+//   diplomatic enforce は play_terminal で cancelled になるため、解消できなかった default の
+//   再起案を cooldown 後に許す。seize 用 enforce_obligation の失敗も同様に retry を許可する。
+function reconcileEnforceTerminalMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+): void {
+  const cooldownWeek = ws.absoluteWeek + config.enforceObligationProjectCooldownWeeks
+  if (project.kind === 'enforce_obligation' && project.target.kind === 'real_estate_seizure') {
+    const seizure = ws.realEstateSeizures[project.target.id]
+    if (seizure && seizure.status === 'active' && seizure.activeEnforceProjectId === project.id) {
+      setRealEstateSeizureEnforceMut(ws, seizure.id, {
+        activeEnforceProjectId: null,
+        nextEnforceAllowedWeek: cooldownWeek,
+      })
+    }
+  } else if (project.kind === 'enforce_land_contract_default') {
+    const d = ws.landContractDefaults[project.targetLandContractDefaultId]
+    if (d && d.status === 'active' && d.activeEnforceProjectId === project.id) {
+      setLandContractDefaultEnforceMut(ws, d.id, {
+        activeEnforceProjectId: null,
+        nextEnforceAllowedWeek: cooldownWeek,
+      })
+    }
+  }
+}
+
+// v0.53 押領 outcome (§7.2/§11.1)。owner Polity が holding 内の脆弱 House-owned asset を押領。
+//   RealEstateSeizure を作成し、rightfulOwner House へ real_estate_seizure Pressure を立てる。
+//   asset.owner は保持したまま (LandRevenue 上だけ owner income を止める, §25)。
+function applySeizeRealEstateIncomeMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'seize_real_estate_income') return
+  const asset = ws.realEstateAssets[project.targetRealEstateAssetId]
+  if (!asset) return
+  if (asset.owner?.kind !== 'house') return
+  // 二重押領防止 (同一 asset に active seizure は最大 1)
+  if (ws.realEstateSeizureIndex.byAsset[asset.id as string]) return
+  const rightfulOwner = asset.owner
+  const ownerHouse = ws.houses[rightfulOwner.id]
+  if (!ownerHouse || !ownerHouse.active) return
+  const seizerPolityId = project.owner.id
+
+  const seizure = createRealEstateSeizureMut(ws, {
+    holdingId: project.holdingId,
+    assetId: asset.id,
+    seizerPolityId,
+    rightfulOwner,
+    startedWeek: ws.absoluteWeek,
+    reasonIds: [...project.reasonIds],
+  })
+
+  // 権利者 House へ Pressure (B1: pressureSystem が enforce を起案する)
+  createPressureMut(ws, {
+    kind: 'real_estate_seizure',
+    source: { kind: 'polity', id: seizerPolityId },
+    target: { kind: 'house', id: rightfulOwner.id },
+    relatedObligation: { kind: 'real_estate_seizure', id: seizure.id },
+    priority: 1,
+    createdWeek: ws.absoluteWeek,
+    status: 'active',
+    reasonIds: [],
+  })
+
+  const holding = ws.holdings[project.holdingId]
+  const polityRef = getPolityNameRefForEmit(ws, seizerPolityId)
+  const houseNameKey = ownerHouse.nameKey
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'REAL_ESTATE_SEIZURE_STARTED',
+    importance: 'minor',
+    messageKey: 'real_estate_seizure.started',
+    messageParams: {
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+      house: nameParam('house', houseNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('polity', seizerPolityId, 'polity', polityRef.nameKey),
+      entityRef('house', rightfulOwner.id, 'owner', houseNameKey),
+      entityRef('holding', project.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
+    ],
+  })
+}
+
+// v0.53 義務強制 outcome (Phase 1-2 簡易版, §10.1)。成功した enforce は対象 seizure/default を
+//   resolved にし、関連 Pressure を削除する。
+function applyEnforceObligationMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'enforce_obligation') return
+
+  if (project.target.kind === 'land_contract_default') {
+    const d = ws.landContractDefaults[project.target.id]
+    if (!d || d.status !== 'active') return
+    changeLandContractDefaultStatusMut(ws, d.id, 'resolved')
+    removeObligationPressuresMut(ws, { kind: 'land_contract_default', id: d.id })
+    const claimantRef = getPolityNameRefForEmit(ws, d.claimantPolityId)
+    const occupierRef = getPolityNameRefForEmit(ws, d.occupiedByPolityId)
+    const holding = ws.holdings[d.holdingId]
+    const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+    emitEvent({
+      type: 'LAND_CONTRACT_DEFAULT_RESOLVED',
+      importance: 'minor',
+      messageKey: 'land_contract_default.resolved',
+      messageParams: {
+        claimant: nameParam(claimantRef.category, claimantRef.nameKey),
+        occupier: nameParam(occupierRef.category, occupierRef.nameKey),
+        province: nameParam('province', provinceNameKey),
+      },
+      entityRefs: [
+        entityRef('polity', d.claimantPolityId, 'claimant', claimantRef.nameKey),
+        entityRef('polity', d.occupiedByPolityId, 'occupier', occupierRef.nameKey),
+        entityRef('holding', d.holdingId, 'holding'),
+        ...(holding
+          ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)]
+          : []),
+      ],
+    })
+    return
+  }
+
+  if (project.target.kind !== 'real_estate_seizure') return
+  const seizure = ws.realEstateSeizures[project.target.id]
+  if (!seizure || seizure.status !== 'active') return
+
+  changeRealEstateSeizureStatusMut(ws, seizure.id, 'resolved')
+
+  // この seizure に紐づく Pressure (relatedObligation 一致) を削除する
+  removeObligationPressuresMut(ws, { kind: 'real_estate_seizure', id: seizure.id })
+
+  const holding = ws.holdings[seizure.holdingId]
+  const ownerHouse =
+    seizure.rightfulOwner.kind === 'house' ? ws.houses[seizure.rightfulOwner.id] : undefined
+  const houseNameKey = ownerHouse?.nameKey ?? ''
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  const seizerRef = getPolityNameRefForEmit(ws, seizure.seizerPolityId)
+  emitEvent({
+    type: 'REAL_ESTATE_SEIZURE_RESOLVED',
+    importance: 'minor',
+    messageKey: 'real_estate_seizure.resolved',
+    messageParams: {
+      house: nameParam('house', houseNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('polity', seizure.seizerPolityId, 'polity', seizerRef.nameKey),
+      ...(seizure.rightfulOwner.kind === 'house'
+        ? [entityRef('house', seizure.rightfulOwner.id, 'owner', houseNameKey)]
+        : []),
+      entityRef('holding', seizure.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
+    ],
+  })
 }
 
 // v0.48 Crisis: handle_crisis 完了の効果。対処 Project が targetProgress に到達 = Crisis 解消。
