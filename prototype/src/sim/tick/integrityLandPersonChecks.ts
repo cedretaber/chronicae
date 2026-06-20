@@ -11,6 +11,7 @@ import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
 import { VALID_PROVINCE_TERRAINS, VALID_PROVINCE_FEATURES } from './integrityConstants'
+import { assertArrayIndexMatches } from './integrityIndexHelpers'
 
 export function checkLandContractsAndPersons(state: WorldState, errors: SimError[]): void {
   // ─── v0.16 §25 LandContract / AnonymousHouse / HoldingOffice 不変条件 ───
@@ -453,6 +454,11 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
   // --- v0.53: LandContractDefault integrity (spec §18.2) ---
   {
     const byContractRebuilt: Record<string, LandContractDefaultId> = {}
+    const byHoldingRebuilt: Record<string, LandContractDefaultId[]> = {}
+    const byClaimantRebuilt: Record<string, LandContractDefaultId[]> = {}
+    const byOccupierRebuilt: Record<string, LandContractDefaultId[]> = {}
+    // active revolt_independence default は同一 holding に最大 1 (§18.2)
+    const revoltActiveByHolding: Record<string, number> = {}
     for (const [idStr, d] of Object.entries(state.landContractDefaults)) {
       if (!d) continue
       const id = idStr as LandContractDefaultId
@@ -511,6 +517,28 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
           })
         }
         byContractRebuilt[d.targetLandContractId as string] = id
+        byHoldingRebuilt[d.holdingId as string] = [
+          ...(byHoldingRebuilt[d.holdingId as string] ?? []),
+          id,
+        ]
+        byClaimantRebuilt[d.claimantPolityId as string] = [
+          ...(byClaimantRebuilt[d.claimantPolityId as string] ?? []),
+          id,
+        ]
+        byOccupierRebuilt[d.occupiedByPolityId as string] = [
+          ...(byOccupierRebuilt[d.occupiedByPolityId as string] ?? []),
+          id,
+        ]
+        if (d.origin === 'revolt_independence') {
+          const hk = d.holdingId as string
+          revoltActiveByHolding[hk] = (revoltActiveByHolding[hk] ?? 0) + 1
+          if (revoltActiveByHolding[hk] > 1) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `LandContractDefault: holding ${hk} has more than one active revolt_independence default`,
+            })
+          }
+        }
       }
     }
 
@@ -531,5 +559,24 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
         })
       }
     }
+    // 配列 index (byHolding / byClaimantPolity / byOccupierPolity) を set 比較で照合する (§18.2)
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byHolding',
+      idx.byHolding,
+      byHoldingRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byClaimantPolity',
+      idx.byClaimantPolity,
+      byClaimantRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'landContractDefaultIndex.byOccupierPolity',
+      idx.byOccupierPolity,
+      byOccupierRebuilt,
+    )
   }
 }

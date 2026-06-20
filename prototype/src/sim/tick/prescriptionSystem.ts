@@ -8,6 +8,7 @@ import { changeLandContractDefaultStatusMut } from '../mutations/landContractDef
 import { changeRealEstateAssetOwnerMut } from '../mutations/realEstateAssetMutations'
 import { spliceOutClaimantContract } from '../mutations/landContractMutations'
 import { removeObligationPressuresMut } from '../mutations/pressureMutations'
+import { cancelEnforceProjectMut } from '../mutations/projectMutations'
 import { getSeizurePrescriptionRemainingWeeks } from '../selectors/realEstateSeizureSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
@@ -47,6 +48,16 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
       byDiplomaticPlay: { ...ctx.state.pressureIndex.byDiplomaticPlay },
       byProject: { ...ctx.state.pressureIndex.byProject },
     },
+    // §13.3/§13.4: legalize 時に紐づく enforce Project を terminal 化するため slice を clone
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
   }
 
   const newEvents: SimEvent[] = []
@@ -77,12 +88,17 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
     changeRealEstateSeizureStatusMut(ws, seizure.id, 'legalized')
     changeRealEstateAssetOwnerMut(ws, seizure.assetId, undefined)
     removeObligationPressuresMut(ws, { kind: 'real_estate_seizure', id: seizure.id })
+    // §13.3: 関連 enforce Project を terminal 化 (対象が legalized で無意味化)
+    if (seizure.activeEnforceProjectId) {
+      cancelEnforceProjectMut(ws, seizure.activeEnforceProjectId, 'obligation_terminal')
+    }
 
     const holding = ws.holdings[seizure.holdingId]
     const ownerHouse =
       seizure.rightfulOwner.kind === 'house' ? ws.houses[seizure.rightfulOwner.id] : undefined
     const houseNameKey = ownerHouse?.nameKey ?? ''
     const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+    const seizerRef = getPolityNameRefForEmit(ws, seizure.seizerPolityId)
     emitEvent({
       type: 'REAL_ESTATE_SEIZURE_LEGALIZED',
       importance: 'minor',
@@ -92,10 +108,14 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
         province: nameParam('province', provinceNameKey),
       },
       entityRefs: [
+        entityRef('polity', seizure.seizerPolityId, 'polity', seizerRef.nameKey),
         ...(seizure.rightfulOwner.kind === 'house'
           ? [entityRef('house', seizure.rightfulOwner.id, 'owner', houseNameKey)]
           : []),
         entityRef('holding', seizure.holdingId, 'holding'),
+        ...(holding
+          ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)]
+          : []),
       ],
     })
   }
@@ -110,6 +130,10 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
     //   その祖父へ claimant の旧条件で昇格 (§13.4/§14)。claimant が root なら占拠者を root 化。
     changeLandContractDefaultStatusMut(ws, d.id, 'legalized')
     removeObligationPressuresMut(ws, { kind: 'land_contract_default', id: d.id })
+    // §13.4: 関連 enforce Project を terminal 化 (対象が legalized で無意味化)
+    if (d.activeEnforceProjectId) {
+      cancelEnforceProjectMut(ws, d.activeEnforceProjectId, 'obligation_terminal')
+    }
     // spliceOutClaimantContract は immutable helper。全 slice 込みの新 state を返すため
     //   ws を丸ごと差し替える ([[project_mutable_draft_writeback_slices]])。
     ws = spliceOutClaimantContract(ws, d.holdingId, d.targetLandContractId)
@@ -131,6 +155,9 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
         entityRef('polity', d.occupiedByPolityId, 'occupier', occupierRef.nameKey),
         entityRef('polity', d.claimantPolityId, 'claimant', claimantRef.nameKey),
         entityRef('holding', d.holdingId, 'holding'),
+        ...(holding
+          ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)]
+          : []),
       ],
     })
   }

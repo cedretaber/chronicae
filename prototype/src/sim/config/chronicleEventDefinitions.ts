@@ -52,6 +52,17 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   BATTLE_OCCURRED: { category: 'battle', templateKey: selectBattleTemplate },
   // Land (LAND_CONTRACT_TRANSFERRED 一本。PURCHASED/CEDED/CONQUERED は二重計上回避で除外)
   LAND_CONTRACT_TRANSFERRED: { category: 'land' },
+  // v0.53 押領・上納拒否 (§16.2): started/resolved/legalized/cancelled の低頻度 terminal を land 史に。
+  //   毎週の accumulatedUnpaidAmount 増加は emit しないので fan-out しない。ref 制限なし
+  //   (seizer/owner/claimant/occupier の国史・家史に乗せる)。
+  REAL_ESTATE_SEIZURE_STARTED: { category: 'land' },
+  REAL_ESTATE_SEIZURE_RESOLVED: { category: 'land' },
+  REAL_ESTATE_SEIZURE_LEGALIZED: { category: 'land' },
+  REAL_ESTATE_SEIZURE_CANCELLED: { category: 'land' },
+  LAND_CONTRACT_DEFAULT_STARTED: { category: 'land' },
+  LAND_CONTRACT_DEFAULT_RESOLVED: { category: 'land' },
+  LAND_CONTRACT_DEFAULT_LEGALIZED: { category: 'land' },
+  LAND_CONTRACT_DEFAULT_CANCELLED: { category: 'land' },
   // House
   HOUSE_FOUNDED: { category: 'house' },
   CADET_HOUSE_FOUNDED: { category: 'house' },

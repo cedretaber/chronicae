@@ -13,6 +13,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { assertArrayIndexMatches } from './integrityIndexHelpers'
 import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { VALID_HOLDING_IMPROVEMENT_KINDS } from './integrityConstants'
@@ -833,6 +834,19 @@ export function checkGeographyAndHoldings(
         })
       }
     }
+    // 配列 index (byHolding / byRightfulOwnerHouse) を set 比較で照合する (§18.1)
+    assertArrayIndexMatches(
+      errors,
+      'realEstateSeizureIndex.byHolding',
+      idx.byHolding,
+      byHoldingRebuilt,
+    )
+    assertArrayIndexMatches(
+      errors,
+      'realEstateSeizureIndex.byRightfulOwnerHouse',
+      idx.byRightfulOwnerHouse,
+      byOwnerHouseRebuilt,
+    )
   }
 
   // --- v0.33 §13.4: class capacity の健全性（NaN/Infinity/負を返さない） ---

@@ -29,7 +29,7 @@ type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 // 必ずセットする (セット漏れは IntegrityCheck §12.2 違反。terminal Project は
 // projectOutcomeSystem / flushTerminalEntities が同 tick 〜 4 週内に削除するため、
 // 年末 integrity では検出できない — --integrity-per-system で検証する)。
-type ProjectTerminalReason =
+export type ProjectTerminalReason =
   | 'completed'
   | 'deadline_expired'
   | 'stage_attempts_exceeded'
@@ -40,6 +40,8 @@ type ProjectTerminalReason =
   | 'owner_inactive'
   | 'aim_terminal'
   | 'play_terminal'
+  // v0.53 §13.3/§13.4: 対象 seizure/default が legalized / cancelled になり enforce が無意味化
+  | 'obligation_terminal'
   // v0.47 §6.2: owner Polity が titular 化したため territorial 前提の Project を打ち切る
   | 'owner_titularized'
   // v0.48.1 §2.3: 修理対象の improvement が破壊 (レベルダウン/全壊) され修理 Project が無意味化

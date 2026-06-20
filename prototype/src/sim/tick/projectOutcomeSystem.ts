@@ -567,6 +567,7 @@ function applyWithholdLandContractTaxMut(
       entityRef('polity', occupiedByPolityId, 'occupier', occupierRef.nameKey),
       entityRef('polity', claimantPolityId, 'claimant', claimantRef.nameKey),
       entityRef('holding', project.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
     ],
   })
 }
@@ -693,6 +694,9 @@ function applyEnforceObligationMut(
         entityRef('polity', d.claimantPolityId, 'claimant', claimantRef.nameKey),
         entityRef('polity', d.occupiedByPolityId, 'occupier', occupierRef.nameKey),
         entityRef('holding', d.holdingId, 'holding'),
+        ...(holding
+          ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)]
+          : []),
       ],
     })
     return
@@ -712,6 +716,7 @@ function applyEnforceObligationMut(
     seizure.rightfulOwner.kind === 'house' ? ws.houses[seizure.rightfulOwner.id] : undefined
   const houseNameKey = ownerHouse?.nameKey ?? ''
   const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  const seizerRef = getPolityNameRefForEmit(ws, seizure.seizerPolityId)
   emitEvent({
     type: 'REAL_ESTATE_SEIZURE_RESOLVED',
     importance: 'minor',
@@ -721,10 +726,12 @@ function applyEnforceObligationMut(
       province: nameParam('province', provinceNameKey),
     },
     entityRefs: [
+      entityRef('polity', seizure.seizerPolityId, 'polity', seizerRef.nameKey),
       ...(seizure.rightfulOwner.kind === 'house'
         ? [entityRef('house', seizure.rightfulOwner.id, 'owner', houseNameKey)]
         : []),
       entityRef('holding', seizure.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
     ],
   })
 }

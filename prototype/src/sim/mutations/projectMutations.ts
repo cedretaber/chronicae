@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PersonId } from '../types/ids'
-import type { Project, ProjectKind } from '../types/project'
+import type { PersonId, ProjectId } from '../types/ids'
+import type { Project, ProjectKind, ProjectTerminalReason } from '../types/project'
 import type { AimKind } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { getProjectRelatedRefs, selectProjectSupervisor } from '../selectors/projectSelectors'
@@ -124,6 +124,20 @@ export function removeProjectFromIndexMut(ws: WorldState, project: Project): voi
       }
     }
   }
+}
+
+// v0.53 §13.3/§13.4: 義務 entity が legalized / cancelled になった際、紐づく active enforce
+//   Project が宙に浮く (対象消滅で no-op するだけ)。terminal 化して index から外す。
+//   ws.projects / ws.projectIndex の slice は呼び出し側が clone 済みであること。
+export function cancelEnforceProjectMut(
+  ws: WorldState,
+  projectId: ProjectId,
+  reason: ProjectTerminalReason,
+): void {
+  const project = ws.projects[projectId]
+  if (!project || project.status !== 'active') return
+  removeProjectFromIndexMut(ws, project)
+  ws.projects[projectId] = { ...project, status: 'cancelled', terminalReason: reason }
 }
 
 export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined {
