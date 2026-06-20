@@ -6,7 +6,7 @@ import type { WorldState } from '../types/world'
 import { changeRealEstateSeizureStatusMut } from '../mutations/realEstateSeizureMutations'
 import { changeLandContractDefaultStatusMut } from '../mutations/landContractDefaultMutations'
 import { changeRealEstateAssetOwnerMut } from '../mutations/realEstateAssetMutations'
-import { normalizeHoldingChainToRoot } from '../mutations/landContractMutations'
+import { spliceOutClaimantContract } from '../mutations/landContractMutations'
 import { removeObligationPressuresMut } from '../mutations/pressureMutations'
 import { getSeizurePrescriptionRemainingWeeks } from '../selectors/realEstateSeizureSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
@@ -106,12 +106,13 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
     const elapsed = ws.absoluteWeek - baseWeek
     if (elapsed < ctx.config.landContractDefaultPrescriptionYears * WEEKS_PER_YEAR) continue
 
-    // 時効到達: legalize → chain 正規化 (新 root 化、§13.4)。
+    // 時効到達: legalize → 直近 grantor (claimant) 契約 1 段を splice out し、占拠者契約を
+    //   その祖父へ claimant の旧条件で昇格 (§13.4/§14)。claimant が root なら占拠者を root 化。
     changeLandContractDefaultStatusMut(ws, d.id, 'legalized')
     removeObligationPressuresMut(ws, { kind: 'land_contract_default', id: d.id })
-    // normalizeHoldingChainToRoot は immutable helper。全 slice 込みの新 state を返すため
+    // spliceOutClaimantContract は immutable helper。全 slice 込みの新 state を返すため
     //   ws を丸ごと差し替える ([[project_mutable_draft_writeback_slices]])。
-    ws = normalizeHoldingChainToRoot(ws, d.holdingId, d.targetLandContractId)
+    ws = spliceOutClaimantContract(ws, d.holdingId, d.targetLandContractId)
 
     const claimantRef = getPolityNameRefForEmit(ws, d.claimantPolityId)
     const occupierRef = getPolityNameRefForEmit(ws, d.occupiedByPolityId)

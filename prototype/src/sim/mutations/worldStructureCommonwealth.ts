@@ -23,7 +23,7 @@ import { cancelTasksOfDeadAssignee } from './taskMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 import {
   eliminateContractFromChain as eliminateContract,
-  normalizeHoldingChainToRoot,
+  spliceOutClaimantContract,
 } from './landContractMutations'
 import { changeLandContractDefaultStatusMut } from './landContractDefaultMutations'
 import type { LandContractDefaultId } from '../types/ids'
@@ -397,7 +397,7 @@ export function establishCommonwealth(
   for (const defaultId of input.revoltDefaultIds) {
     const d = state.landContractDefaults[defaultId]
     if (!d) continue
-    state = normalizeHoldingChainToRoot(state, d.holdingId, d.targetLandContractId)
+    state = spliceOutClaimantContract(state, d.holdingId, d.targetLandContractId)
     changeLandContractDefaultStatusMut(state, defaultId, 'legalized')
   }
 
