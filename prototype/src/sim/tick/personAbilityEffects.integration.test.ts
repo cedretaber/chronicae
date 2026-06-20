@@ -496,6 +496,8 @@ describe('runControlSystem — capital province maxControl', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const result = runControlSystem(makeCtx(world))

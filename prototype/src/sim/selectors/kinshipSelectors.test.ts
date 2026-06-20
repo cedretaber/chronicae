@@ -171,6 +171,8 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
 }
 

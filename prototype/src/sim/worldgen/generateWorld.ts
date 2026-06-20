@@ -43,6 +43,7 @@ import { ROOT_WORLD } from '../types/landContract'
 import type { HoldingImprovement, HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateAsset, RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { canBuildRealEstateAssetPure } from '../selectors/holdingImprovementSelectors'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createRng, randomInt, randomFloat } from '../rng/rng'
@@ -711,6 +712,9 @@ export function generateWorld(
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
     nextRealEstateAssetId: 0,
+    // v0.54 資源経済 read-model
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
     // v0.53 RealEstateSeizure
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
@@ -1447,6 +1451,7 @@ export function generateWorld(
           realEstateKind: kind,
           level: 1,
           createdWeek: 1,
+          recipeSlots: getDefaultRecipeSlotsForRealEstateKind(kind),
         }
         const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
         slot.push(id)
@@ -1476,6 +1481,7 @@ export function generateWorld(
             realEstateKind: primaryKind,
             level: 1,
             createdWeek: 1,
+            recipeSlots: getDefaultRecipeSlotsForRealEstateKind(primaryKind),
           }
           const slot = realEstateAssetIndexByHolding[holding.id as string] ?? []
           slot.push(id)
@@ -1843,6 +1849,9 @@ export function generateWorld(
     realEstateAssets,
     realEstateAssetIndex: { byHolding: realEstateAssetIndexByHolding, byOwner: {} },
     nextRealEstateAssetId,
+    // v0.54 資源経済 read-model
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
     // v0.53 RealEstateSeizure
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },

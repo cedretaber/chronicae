@@ -147,6 +147,8 @@ function makeBaseState(): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
 }
 
@@ -789,6 +791,8 @@ describe('expireOfficeTermAssignment', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
     return { state, officeId, holderId, houseId, polityId }
   }

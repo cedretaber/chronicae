@@ -125,6 +125,8 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     },
     rng: createRng('test'),
     config: defaultConfig,

@@ -10,6 +10,8 @@ import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
 import type { RealEstateInfrastructureModifier } from './realEstateDefinitions'
+import type { RealEstateProductionFacilityModifier } from './resourceEconomyDefinitions'
+import { REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS } from './resourceEconomyDefinitions'
 import type { LandContractConfig } from './landContractConfig'
 import { defaultLandContractConfig } from './landContractConfig'
 
@@ -1396,6 +1398,42 @@ export type SimulationConfig = {
   realEstateOwnerIncomeRate: number
   realEstateKindIncomeWeight: Record<RealEstateKind, number>
   realEstateSalePriceYears: number
+  // === v0.54 資源経済 (spec §20) ===
+  // 市場・価格
+  resourceMarketSupplyEpsilon: number
+  marketResourcePriceHistoryLimit: number
+  marketPriceSmoothingPreviousWeight: number
+  marketPriceSmoothingCurrentWeight: number
+  // recipe slot
+  realEstateRecipeSlotCount: number
+  // 生産
+  resourceEconomyControlModifierMin: number
+  realEstateLevelOutputBonus?: number
+  realEstateProductionFacilityModifiers: Record<
+    RealEstateKind,
+    RealEstateProductionFacilityModifier[]
+  >
+  // owner income / holding due
+  realEstateHoldingDueRate: number
+  // POP 需要
+  popFoodDemandPerSizeByClass: Record<PopClass, number>
+  popProcessedGoodsDemandPerSizeByClass: Record<PopClass, number>
+  // 購買力 (wealth 0/50/100 の 2 区間線形補間)
+  foodPurchasingPowerFactorAtWealth0: number
+  foodPurchasingPowerFactorAtWealth50: number
+  foodPurchasingPowerFactorAtWealth100: number
+  processedGoodsPurchasingPowerFactorAtWealth0: number
+  processedGoodsPurchasingPowerFactorAtWealth50: number
+  processedGoodsPurchasingPowerFactorAtWealth100: number
+  // POP wealth / unrest 反映
+  foodShortageWealthPenalty: number
+  foodShortageUnrestGain: number
+  foodHighPriceWealthPenalty: number
+  foodHighPriceUnrestGain: number
+  processedGoodsShortageWealthPenalty: number
+  processedGoodsShortageUnrestGain: number
+  processedGoodsFulfillmentWealthGain: number
+  processedGoodsFulfillmentUnrestReduction: number
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   realEstateSeizurePrescriptionYears: number
   landContractDefaultPrescriptionYears: number
@@ -2935,6 +2973,32 @@ export const defaultConfig: SimulationConfig = {
   realEstateOwnerIncomeRate: 0.05,
   realEstateKindIncomeWeight: { field: 1.0, pasture: 1.0, workshop: 1.0 },
   realEstateSalePriceYears: 20,
+  // === v0.54 資源経済 (spec §20) ===
+  // 初期値は調整前提。Step 2 観察ゲート (§6.1) で rawRatio ≈ 1 / price ≈ basePrice に較正する。
+  resourceMarketSupplyEpsilon: 0.01,
+  marketResourcePriceHistoryLimit: 120,
+  marketPriceSmoothingPreviousWeight: 0.75,
+  marketPriceSmoothingCurrentWeight: 0.25,
+  realEstateRecipeSlotCount: 20,
+  resourceEconomyControlModifierMin: 0.5,
+  realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,
+  realEstateHoldingDueRate: 0.1,
+  popFoodDemandPerSizeByClass: { peasants: 1.0, townsmen: 1.05, nobles: 1.1 },
+  popProcessedGoodsDemandPerSizeByClass: { peasants: 0.2, townsmen: 0.6, nobles: 1.2 },
+  foodPurchasingPowerFactorAtWealth0: 0.6,
+  foodPurchasingPowerFactorAtWealth50: 1.0,
+  foodPurchasingPowerFactorAtWealth100: 1.2,
+  processedGoodsPurchasingPowerFactorAtWealth0: 0.1,
+  processedGoodsPurchasingPowerFactorAtWealth50: 0.7,
+  processedGoodsPurchasingPowerFactorAtWealth100: 1.3,
+  foodShortageWealthPenalty: 3.0,
+  foodShortageUnrestGain: 4.0,
+  foodHighPriceWealthPenalty: 1.5,
+  foodHighPriceUnrestGain: 1.5,
+  processedGoodsShortageWealthPenalty: 1.0,
+  processedGoodsShortageUnrestGain: 1.0,
+  processedGoodsFulfillmentWealthGain: 0.5,
+  processedGoodsFulfillmentUnrestReduction: 0.5,
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   // 初期値は保守的にし、押領・上納拒否が乱発しないようにする。観察後に調整する。
   realEstateSeizurePrescriptionYears: 20,

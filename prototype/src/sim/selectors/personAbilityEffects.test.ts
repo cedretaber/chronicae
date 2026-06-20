@@ -256,6 +256,8 @@ function makeWorldState(
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!

@@ -3,6 +3,8 @@ import type { RealEstateAssetId, HoldingId } from '../types/ids'
 import type { RealEstateKind, AssetOwnerRef, RealEstateAsset } from '../types/realEstateAsset'
 import { assetOwnerKey } from '../types/realEstateAsset'
 import { createRealEstateAssetId } from '../types/ids'
+import type { ProductionRecipeId } from '../types/ids'
+import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 
 export function createRealEstateAssetMut(
   ws: WorldState,
@@ -12,10 +14,17 @@ export function createRealEstateAssetMut(
     level: number
     owner?: AssetOwnerRef
     createdWeek: number
+    // v0.54: 未指定なら realEstateKind の既定 recipeSlots を割り当てる (§8.3)。
+    recipeSlots?: Partial<Record<ProductionRecipeId, number>>
   },
 ): RealEstateAsset {
   const id = createRealEstateAssetId(ws.nextRealEstateAssetId++)
-  const asset: RealEstateAsset = { id, ...fields }
+  const { recipeSlots, ...rest } = fields
+  const asset: RealEstateAsset = {
+    id,
+    ...rest,
+    recipeSlots: recipeSlots ?? getDefaultRecipeSlotsForRealEstateKind(fields.realEstateKind),
+  }
 
   ws.realEstateAssets[id] = asset
 

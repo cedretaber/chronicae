@@ -231,6 +231,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const ctx = makeCtx(world)
@@ -437,6 +439,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const ctx = makeCtx(world)
@@ -625,6 +629,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const ctx = makeCtx(world)
@@ -813,6 +819,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const ctx = makeCtx(world)
@@ -1002,6 +1010,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const errors = collectIntegrityErrors(world)
@@ -1178,6 +1188,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const errors = collectIntegrityErrors(world)
@@ -1355,6 +1367,8 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     }
 
     const errors = collectIntegrityErrors(world)

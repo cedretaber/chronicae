@@ -171,6 +171,8 @@ function makeBaseCtx(
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      marketResourcePrices: {},
+      monthlyHoldingResourceRevenue: {},
     },
     rng: { seedText: 'test', state: 42 },
     config: { ...defaultConfig, ...configOverride },
