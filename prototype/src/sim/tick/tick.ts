@@ -7,6 +7,7 @@ import {
 } from './context'
 import { advanceTime } from './advanceTime'
 import { runLandRevenueSystem } from './landRevenueSystem'
+import { runResourceEconomySystem } from './resourceEconomySystem'
 import { runObligationConsistencySystem } from './obligationConsistencySystem'
 import { runObligationAccrualSystem } from './obligationAccrualSystem'
 import { runPrescriptionSystem } from './prescriptionSystem'
@@ -139,6 +140,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runEmploymentRebalanceSystem,
+  },
+  // v0.54: 資源生産・市場・売却益を月次 snapshot に出力 (landRevenue が同月直後に読む)。
+  {
+    name: 'resourceEconomySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runResourceEconomySystem,
   },
   { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
   // v0.53 義務不履行 (押領・上納拒否・時効)。spec §22: LandRevenue → consistency → accrual → prescription → cleanup。
