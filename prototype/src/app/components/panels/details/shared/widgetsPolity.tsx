@@ -23,6 +23,7 @@ import type { Polity } from '@/sim/types/polity'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
 import {
   getActiveDefaultForContract,
+  getActiveDefaultsForClaimantPolity,
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
 import type { LandContractDefault } from '@sim/types/landContractDefault'
@@ -167,13 +168,26 @@ export function PolityLandContracts({
     estimatedRevenue: number
     bailiffPersonId: PersonId | undefined
     appointmentRight: PoliticalRight | undefined
-    activeDefault: LandContractDefault | undefined
+    // v0.53: この契約 (この Polity が grantee) 自身が上納拒否されている = この Polity が「拒否している側」(加害)。
+    withholdingDefault: LandContractDefault | undefined
+    // v0.53: この Polity が claimant の default (= 下位がこの Polity への上納を拒否) = 「拒否されている側」(被害)。
+    //   default は子契約上にあるため byClaimantPolity で引き holdingId でこのカードに紐付ける。
+    beingWithheldDefaults: LandContractDefault[]
   }
   type ProvinceGroup = {
     provinceId: ProvinceId
     provinceName: string
     holdings: ContractInfo[]
     totalRevenue: number
+  }
+
+  // 被害側 (この Polity が claimant) の default を holdingId で索引し、該当契約カードへ紐付ける。
+  const beingWithheldByHolding = new Map<string, LandContractDefault[]>()
+  for (const d of getActiveDefaultsForClaimantPolity(worldState, polity.id)) {
+    const k = d.holdingId as string
+    const arr = beingWithheldByHolding.get(k) ?? []
+    arr.push(d)
+    beingWithheldByHolding.set(k, arr)
   }
 
   const groupMap = new Map<string, ProvinceGroup>()
@@ -241,8 +255,10 @@ export function PolityLandContracts({
         isTerminal && holdingId
           ? getHoldingOfficeAppointmentRight(worldState, holdingId)
           : undefined,
-      // v0.53: この契約が上納拒否されている (この Polity が grantee = 占拠側) なら明示。
-      activeDefault: getActiveDefaultForContract(worldState, c.id),
+      // v0.53: 加害 = この契約自身が上納拒否されている (この Polity が grantee = 占拠側)。
+      withholdingDefault: getActiveDefaultForContract(worldState, c.id),
+      // v0.53: 被害 = この Polity が claimant の default を holdingId で紐付け。
+      beingWithheldDefaults: holdingId ? (beingWithheldByHolding.get(holdingId) ?? []) : [],
     })
     group.totalRevenue += estimatedRevenue
   }
@@ -291,14 +307,19 @@ export function PolityLandContracts({
                       {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
                     </span>
                   </div>
-                  {c.activeDefault && (
+                  {/* v0.53 加害: この Polity がこの契約の上納を拒否している (能動) */}
+                  {c.withholdingDefault && (
                     <div className="mt-0.5 rounded bg-red-950/50 px-1 text-[10px] text-red-300">
                       ⚠{' '}
-                      {c.activeDefault.origin === 'revolt_independence'
+                      {c.withholdingDefault.origin === 'revolt_independence'
                         ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
-                        : t('detail.obligation.default_active', {
-                            defaultValue: '上納拒否中',
-                          })}{' '}
+                        : t('detail.obligation.withholding', { defaultValue: '上納拒否中' })}{' '}
+                      · {t('detail.obligation.default_claimant', { defaultValue: '請求元' })}:{' '}
+                      {getPolityShortName(
+                        worldState,
+                        resolveName,
+                        c.withholdingDefault.claimantPolityId,
+                      )}{' '}
                       ·{' '}
                       {t('detail.obligation.prescription_remaining', {
                         defaultValue: '時効まで残り {{years}} 年',
@@ -306,12 +327,34 @@ export function PolityLandContracts({
                           getDefaultPrescriptionRemainingYears(
                             worldState,
                             defaultConfig,
-                            c.activeDefault,
+                            c.withholdingDefault,
                           ),
                         ),
                       })}
                     </div>
                   )}
+                  {/* v0.53 被害: 下位がこの Polity への上納を拒否している (受動) */}
+                  {c.beingWithheldDefaults.map((d) => (
+                    <div
+                      key={d.id}
+                      className="mt-0.5 rounded bg-amber-950/40 px-1 text-[10px] text-amber-300"
+                    >
+                      ⚠{' '}
+                      {d.origin === 'revolt_independence'
+                        ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                        : t('detail.obligation.being_withheld', {
+                            defaultValue: '上納を拒否されている',
+                          })}{' '}
+                      · {t('detail.obligation.default_occupier', { defaultValue: '占拠者' })}:{' '}
+                      {getPolityShortName(worldState, resolveName, d.occupiedByPolityId)} ·{' '}
+                      {t('detail.obligation.prescription_remaining', {
+                        defaultValue: '時効まで残り {{years}} 年',
+                        years: Math.floor(
+                          getDefaultPrescriptionRemainingYears(worldState, defaultConfig, d),
+                        ),
+                      })}
+                    </div>
+                  ))}
                   {c.bailiffPersonId !== undefined && (
                     <div className="mt-0.5 truncate text-[11px] text-gray-500">
                       {t('holding.bailiff', { ns: 'roles' })}:{' '}
