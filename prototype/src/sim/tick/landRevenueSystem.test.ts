@@ -6,7 +6,7 @@ import { createTickContext } from './context'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PopGroup, PopClass } from '../types/popGroup'
-import type { RealEstateAsset } from '../types/realEstateAsset'
+import type { RealEstateAsset, AssetOwnerRef } from '../types/realEstateAsset'
 import type {
   ProvinceId,
   PolityId,
@@ -15,6 +15,7 @@ import type {
   PopGroupId,
   HoldingId,
   RealEstateAssetId,
+  RealEstateSeizureId,
 } from '../types/ids'
 import {
   makeEmptyV016State,
@@ -337,5 +338,125 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
     expect(treasury).toBeCloseTo(expectedTreasury, 3)
     expect(treasury).toBeLessThan(gross * defaultLandContractConfig.taxFlowEfficiency)
+  })
+})
+
+// v0.54 §17.4/§17.5: owner income / holding due 分割と押領遮断。
+//   所有 asset 1 つ・net=NET の snapshot を注入し owner 支払いを検証する。
+function withOwnedAssetSnapshot(
+  state: WorldState,
+  holdingId: HoldingId,
+  owner: AssetOwnerRef,
+  net: number,
+  opts: { seized?: boolean } = {},
+): { state: WorldState; assetId: RealEstateAssetId } {
+  const assetId = ('re-owned-' + (holdingId as string)) as RealEstateAssetId
+  const asset: RealEstateAsset = {
+    id: assetId,
+    holdingId,
+    realEstateKind: 'field',
+    level: 1,
+    createdWeek: 0,
+    recipeSlots: {},
+    owner,
+  }
+  let next: WorldState = {
+    ...state,
+    realEstateAssets: { ...state.realEstateAssets, [assetId]: asset },
+    realEstateAssetIndex: {
+      byHolding: {
+        ...state.realEstateAssetIndex.byHolding,
+        [holdingId as string]: [assetId],
+      },
+      byOwner: state.realEstateAssetIndex.byOwner,
+    },
+    monthlyHoldingResourceRevenue: {
+      ...state.monthlyHoldingResourceRevenue,
+      [holdingId]: {
+        holdingId,
+        week: state.absoluteWeek,
+        totalNetRevenue: Math.max(0, net),
+        byResource: { food: net },
+        assetResults: [
+          {
+            assetId,
+            holdingId,
+            outputs: { food: net },
+            inputs: {},
+            soldOutputs: { food: net },
+            grossRevenue: net,
+            inputCost: 0,
+            netRevenue: net,
+            recipeResults: [],
+          },
+        ],
+      },
+    },
+  }
+  if (opts.seized) {
+    next = {
+      ...next,
+      realEstateSeizureIndex: {
+        ...next.realEstateSeizureIndex,
+        byAsset: {
+          ...next.realEstateSeizureIndex.byAsset,
+          [assetId as string]: 'rs-test' as RealEstateSeizureId,
+        },
+      },
+    }
+  }
+  return { state: next, assetId }
+}
+
+describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
+  const NET = 100
+  const DUE_RATE = defaultConfig.realEstateHoldingDueRate
+
+  it('house owner receives ownerIncome = positiveNet * (1 - dueRate); due flows to treasury', () => {
+    const base = setupBaseWorld()
+    const { state } = withOwnedAssetSnapshot(
+      base.state,
+      base.holdingId,
+      { kind: 'house', id: base.houseId },
+      NET,
+    )
+    const houseBefore = state.houses[base.houseId]!.wealth
+    const result = runLandRevenueSystem(makeCtx(state))
+    const houseAfter = result.state.houses[base.houseId]!.wealth
+    // owner は ownerIncome を受け取る
+    expect(houseAfter - houseBefore).toBeCloseTo(NET * (1 - DUE_RATE), 3)
+    // holding due (= NET * DUE_RATE) は bailiff/chain 経由で treasury に流れる (>0)
+    expect(result.state.polities[base.polityId]!.treasury).toBeGreaterThan(0)
+  })
+
+  it('person owner receives ownerIncome into Person.wealth', () => {
+    const base = setupBaseWorld()
+    const personId = 'pe-owner' as PersonId
+    let state = withPerson(base.state, personId, { houseId: base.houseId, age: 40, wealth: 10 })
+    state = withOwnedAssetSnapshot(
+      state,
+      base.holdingId,
+      { kind: 'person', id: personId },
+      NET,
+    ).state
+    const result = runLandRevenueSystem(makeCtx(state))
+    expect(result.state.persons[personId]!.wealth).toBeCloseTo(10 + NET * (1 - DUE_RATE), 3)
+  })
+
+  it('active seizure: owner is NOT paid; full positiveNet becomes holding taxable', () => {
+    const base = setupBaseWorld()
+    const { state } = withOwnedAssetSnapshot(
+      base.state,
+      base.holdingId,
+      { kind: 'house', id: base.houseId },
+      NET,
+      { seized: true },
+    )
+    const houseBefore = state.houses[base.houseId]!.wealth
+    const result = runLandRevenueSystem(makeCtx(state))
+    // 押領中: owner には支払われない
+    expect(result.state.houses[base.houseId]!.wealth).toBe(houseBefore)
+    // 全額 taxable → treasury に (一部) 流れる
+    expect(result.state.polities[base.polityId]!.treasury).toBeGreaterThan(0)
   })
 })
