@@ -540,6 +540,61 @@ function pickPolityAim(
     }
   }
 
+  // v0.53 上納拒否 (withhold_overlord_tax): 自身が grantee の非 root terminal contract について、
+  //   交渉 (improve/eliminate) では減税が通らず (grantorWouldResist) かつ力で踏み倒せる
+  //   (militaryAdvantage) 場合のみ候補化する (B4)。improve/eliminate と裏で棲み分ける。
+  {
+    const leaderId = getPolityLeader(state, polityId)
+    const leader = leaderId ? state.persons[leaderId] : undefined
+    if (leader && isLivingPerson(leader)) {
+      const ownPower = calcPolityMilitaryPower(state, config, polityId)
+      const ambition = leader.traits.ambition
+      const caution = leader.traits.caution
+      const fiscalPressure = polity.treasury < 0 ? Math.min(100, -polity.treasury) : 0
+      for (const cid of contractIds) {
+        const contract = state.landContracts[cid]
+        if (!contract || contract.rootAuthorityId) continue
+        if (contract.terms.taxRateToGrantor <= 0) continue
+        if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
+          continue
+        // 既に active default がある契約は対象外
+        if (state.landContractDefaultIndex.byContract[contract.id as string]) continue
+        if (grantorIsSameHouse(contract.id)) continue
+        // 交渉が通る (grantor が resist しない) なら withhold ではなく improve/eliminate を使う
+        if (!grantorWouldResist(contract.id)) continue
+        const grantor = getLandContractGrantor(state, contract.id)
+        if (!grantor || grantor.kind !== 'polity') continue
+        const grantorPolity = state.polities[grantor.id]
+        if (!grantorPolity || !grantorPolity.active) continue
+        const grantorPower = calcPolityMilitaryPower(state, config, grantor.id)
+        // militaryAdvantage: vassal は overlord 全体 power を上回れない (構造的) ため、
+        //   grantorPower × factor (factor<1) を踏み倒し閾値とする (§8.2)。
+        const advantageThreshold = grantorPower * config.withholdMilitaryAdvantageFactor
+        if (ownPower <= advantageThreshold) continue
+        const badAttitude = Math.max(
+          0,
+          -getAttitudeOrDefault(state, leader, { kind: 'polity', id: grantor.id }).affection,
+        )
+        const score =
+          config.violenceOpportunityMilitaryAdvantageWeight * (ownPower - advantageThreshold) +
+          config.violenceOpportunityAmbitionWeight * ambition -
+          config.violenceOpportunityCautionWeight * caution +
+          config.violenceOpportunityFiscalPressureWeight * fiscalPressure +
+          config.violenceOpportunityBadAttitudeWeight * badAttitude +
+          contract.terms.taxRateToGrantor * 50 // 高税率ほど踏み倒す動機が強い
+        if (score >= config.landContractDefaultOpportunityThreshold) {
+          candidates.push({
+            kind: 'withhold_overlord_tax',
+            target: contract.holdingId
+              ? { kind: 'holding', id: contract.holdingId }
+              : { kind: 'province', id: contract.provinceId },
+            score,
+          })
+        }
+      }
+    }
+  }
+
   if (goalKind !== 'external_expansion') {
     // internal_development
     // develop_owned_holding

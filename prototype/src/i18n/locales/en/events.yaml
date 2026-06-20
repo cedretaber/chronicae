@@ -264,6 +264,13 @@ real_estate_seizure:
   legalized: "House {{house}}'s seized estate in {{province}} passed into the holding by prescription."
   cancelled: 'The seizure against house {{house}} in {{province}} lapsed.'
 
+# v0.53 土地契約不履行 (LandContractDefault)
+land_contract_default:
+  started: '{{occupier}} stopped paying tribute to {{claimant}} over {{province}}.'
+  resolved: '{{claimant}} restored its tribute claim against {{occupier}} in {{province}}.'
+  legalized: "{{occupier}}'s holding in {{province}} broke free of {{claimant}} by prescription."
+  cancelled: 'The default by {{occupier}} against {{claimant}} in {{province}} lapsed.'
+
 # v0.35: display labels for battle event enums (battlefieldKind / result / avoidingSide).
 #   sim-layer params stay raw enum strings; eventRenderer resolves these at render time.
 #   battlefieldKind labels are battle-type names so the template "A {kind} broke out" reads

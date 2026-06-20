@@ -715,6 +715,14 @@ export function generateWorld(
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
     nextRealEstateSeizureId: 0,
+    landContractDefaults: {},
+    landContractDefaultIndex: {
+      byHolding: {},
+      byContract: {},
+      byClaimantPolity: {},
+      byOccupierPolity: {},
+    },
+    nextLandContractDefaultId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -1839,6 +1847,14 @@ export function generateWorld(
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
     nextRealEstateSeizureId: 0,
+    landContractDefaults: {},
+    landContractDefaultIndex: {
+      byHolding: {},
+      byContract: {},
+      byClaimantPolity: {},
+      byOccupierPolity: {},
+    },
+    nextLandContractDefaultId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {

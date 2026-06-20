@@ -13,11 +13,13 @@ import { createProjectId } from '../types/ids'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { setPressureResponseProjectMut } from '../mutations/pressureMutations'
 import { setRealEstateSeizureEnforceMut } from '../mutations/realEstateSeizureMutations'
+import { setLandContractDefaultEnforceMut } from '../mutations/landContractDefaultMutations'
 import { getPolityLeader, getHouseDecisionMaker } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { getOwnerNameRefForEmit } from '../utils/ownerNames'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { computeOwnerHouseResistance } from '../selectors/realEstateSeizureSelectors'
+import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import { createLogger } from '../debug/logger'
 
@@ -64,8 +66,9 @@ export function runPressureSystem(ctx: TickContext): TickContext {
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
     // v0.53: enforce 起案で activeEnforceProjectId / nextEnforceAllowedWeek を書くため
-    //   RealEstateSeizure slice を draft に含める ([[project_mutable_draft_writeback_slices]])。
+    //   義務 entity slice を draft に含める ([[project_mutable_draft_writeback_slices]])。
     realEstateSeizures: { ...ctx.state.realEstateSeizures },
+    landContractDefaults: { ...ctx.state.landContractDefaults },
   }
 
   const log = createLogger(config.debug)
@@ -228,8 +231,54 @@ function maybeCreateEnforceProjectMut(
     })
 
     emitEnforceStartedEvent(ws, owner, emitEvent)
+    return
   }
-  // land_contract_default は Phase 2 で対応
+
+  if (obligation.kind === 'land_contract_default') {
+    const d = ws.landContractDefaults[obligation.id]
+    if (!d || d.status !== 'active') return
+    if (d.activeEnforceProjectId) return
+    if (d.nextEnforceAllowedWeek !== undefined && absoluteWeek < d.nextEnforceAllowedWeek) return
+    const claimant = ws.polities[d.claimantPolityId]
+    if (!claimant || !claimant.active) return
+    const occupier = ws.polities[d.occupiedByPolityId]
+    if (!occupier || !occupier.active) return
+
+    // strength gate (§10.2): claimant が occupier に対し軍事的に十分なときのみ enforce 生成。
+    const claimantPower = calcPolityMilitaryPower(ws, config, d.claimantPolityId)
+    const occupierPower = calcPolityMilitaryPower(ws, config, d.occupiedByPolityId)
+    if (claimantPower < config.landContractDefaultEnforcePowerThreshold) return
+    if (claimantPower <= occupierPower * 1.1) return
+
+    const leaderId = getPolityLeader(ws, d.claimantPolityId)
+    if (!leaderId) return
+    const leader = ws.persons[leaderId]
+    if (!leader || !leader.alive || leader.kind === 'placeholder') return
+
+    const owner = { kind: 'polity', id: d.claimantPolityId } as const
+    const supervisorId =
+      selectProjectSupervisor(ws, config, owner, 'enforce_obligation', leaderId) ?? leaderId
+    const target: EnforceObligationTarget = { kind: 'land_contract_default', id: d.id }
+
+    const projectId = createEnforceProjectMut(
+      ws,
+      config,
+      owner,
+      leaderId,
+      supervisorId,
+      target,
+      absoluteWeek,
+    )
+    setLandContractDefaultEnforceMut(ws, d.id, { activeEnforceProjectId: projectId })
+
+    log.log('PRESSURE', {
+      pressureId: pressure.id,
+      enforceProjectId: projectId,
+      target: `land_contract_default:${d.id}`,
+    })
+
+    emitEnforceStartedEvent(ws, owner, emitEvent)
+  }
 }
 
 function createEnforceProjectMut(

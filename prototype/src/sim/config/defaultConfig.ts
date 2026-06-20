@@ -1415,6 +1415,9 @@ export type SimulationConfig = {
   // seize の targetWeakness = max(0, seizeResistanceReference - ownerHouseResistance)。
   // 典型 resistance 上限を少し上回る基準値 (低 resistance ほど大きな weakness ボーナス)。
   seizeResistanceReference: number
+  // withhold の militaryAdvantage gate: vassal は overlord 全体の military を上回れない (構造的) ため、
+  // ownPolityPower > grantorPolityPower × factor で「力で踏み倒せる」を判定する (factor < 1)。
+  withholdMilitaryAdvantageFactor: number
   realEstateSeizureEnforceResistanceThreshold: number
   landContractDefaultEnforcePowerThreshold: number
   terminalObligationRetentionWeeks: number
@@ -2950,6 +2953,7 @@ export const defaultConfig: SimulationConfig = {
   violenceOpportunityBadAttitudeWeight: 0.2,
   violenceOpportunityPrizeWeight: 0.04,
   seizeResistanceReference: 150,
+  withholdMilitaryAdvantageFactor: 0.6,
   realEstateSeizureEnforceResistanceThreshold: 40,
   landContractDefaultEnforcePowerThreshold: 40,
   terminalObligationRetentionWeeks: 48,

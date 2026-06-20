@@ -135,6 +135,14 @@ function makeBaseState(): WorldState {
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
     nextRealEstateSeizureId: 0,
+    landContractDefaults: {},
+    landContractDefaultIndex: {
+      byHolding: {},
+      byContract: {},
+      byClaimantPolity: {},
+      byOccupierPolity: {},
+    },
+    nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
   }
 }

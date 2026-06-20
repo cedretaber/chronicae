@@ -35,6 +35,7 @@ import type {
   CrisisId,
   RealEstateAssetId,
   RealEstateSeizureId,
+  LandContractDefaultId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -57,6 +58,7 @@ import type { Clan } from './clan'
 import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImprovement'
 import type { RealEstateAsset, RealEstateAssetIndex } from './realEstateAsset'
 import type { RealEstateSeizure, RealEstateSeizureIndex } from './realEstateSeizure'
+import type { LandContractDefault, LandContractDefaultIndex } from './landContractDefault'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
 import type { War, WarIndex } from './war'
@@ -123,6 +125,10 @@ export type WorldState = {
   realEstateSeizures: Record<RealEstateSeizureId, RealEstateSeizure>
   realEstateSeizureIndex: RealEstateSeizureIndex
   nextRealEstateSeizureId: number
+  // v0.53 LandContractDefault (土地契約不履行)
+  landContractDefaults: Record<LandContractDefaultId, LandContractDefault>
+  landContractDefaultIndex: LandContractDefaultIndex
+  nextLandContractDefaultId: number
   // v0.26 Project system
   projects: Record<ProjectId, Project>
   projectIndex: ProjectIndex

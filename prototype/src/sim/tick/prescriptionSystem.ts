@@ -4,23 +4,36 @@ import { nameParam, entityRef } from '../types/event'
 import type { EventId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { changeRealEstateSeizureStatusMut } from '../mutations/realEstateSeizureMutations'
+import { changeLandContractDefaultStatusMut } from '../mutations/landContractDefaultMutations'
 import { changeRealEstateAssetOwnerMut } from '../mutations/realEstateAssetMutations'
+import { normalizeHoldingChainToRoot } from '../mutations/landContractMutations'
 import { removeObligationPressuresMut } from '../mutations/pressureMutations'
 import { getSeizurePrescriptionRemainingWeeks } from '../selectors/realEstateSeizureSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 // v0.53 §13: 押領・不履行が 20年争われなかったら既成事実化する (lastContestedWeek 方式)。
 //   seizure legalized → asset.owner = undefined (Holding 所属不動産へ戻る)。
+//   default legalized → chain を新 root 化 (当該 holding が事実上独立)。
 export function runPrescriptionSystem(ctx: TickContext): TickContext {
   const hasActiveSeizure = Object.keys(ctx.state.realEstateSeizureIndex.byAsset).length > 0
-  if (!hasActiveSeizure) return ctx
+  const hasActiveDefault = Object.keys(ctx.state.landContractDefaultIndex.byContract).length > 0
+  if (!hasActiveSeizure && !hasActiveDefault) return ctx
 
-  const ws: WorldState = {
+  let ws: WorldState = {
     ...ctx.state,
     realEstateSeizures: { ...ctx.state.realEstateSeizures },
     realEstateSeizureIndex: {
       byHolding: { ...ctx.state.realEstateSeizureIndex.byHolding },
       byAsset: { ...ctx.state.realEstateSeizureIndex.byAsset },
       byRightfulOwnerHouse: { ...ctx.state.realEstateSeizureIndex.byRightfulOwnerHouse },
+    },
+    landContractDefaults: { ...ctx.state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...ctx.state.landContractDefaultIndex.byHolding },
+      byContract: { ...ctx.state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...ctx.state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...ctx.state.landContractDefaultIndex.byOccupierPolity },
     },
     realEstateAssets: { ...ctx.state.realEstateAssets },
     realEstateAssetIndex: {
@@ -83,6 +96,40 @@ export function runPrescriptionSystem(ctx: TickContext): TickContext {
           ? [entityRef('house', seizure.rightfulOwner.id, 'owner', houseNameKey)]
           : []),
         entityRef('holding', seizure.holdingId, 'holding'),
+      ],
+    })
+  }
+
+  for (const [, d] of Object.entries(ws.landContractDefaults)) {
+    if (!d || d.status !== 'active') continue
+    const baseWeek = d.lastContestedWeek ?? d.startedWeek
+    const elapsed = ws.absoluteWeek - baseWeek
+    if (elapsed < ctx.config.landContractDefaultPrescriptionYears * WEEKS_PER_YEAR) continue
+
+    // 時効到達: legalize → chain 正規化 (新 root 化、§13.4)。
+    changeLandContractDefaultStatusMut(ws, d.id, 'legalized')
+    removeObligationPressuresMut(ws, { kind: 'land_contract_default', id: d.id })
+    // normalizeHoldingChainToRoot は immutable helper。全 slice 込みの新 state を返すため
+    //   ws を丸ごと差し替える ([[project_mutable_draft_writeback_slices]])。
+    ws = normalizeHoldingChainToRoot(ws, d.holdingId, d.targetLandContractId)
+
+    const claimantRef = getPolityNameRefForEmit(ws, d.claimantPolityId)
+    const occupierRef = getPolityNameRefForEmit(ws, d.occupiedByPolityId)
+    const holding = ws.holdings[d.holdingId]
+    const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+    emitEvent({
+      type: 'LAND_CONTRACT_DEFAULT_LEGALIZED',
+      importance: 'minor',
+      messageKey: 'land_contract_default.legalized',
+      messageParams: {
+        occupier: nameParam(occupierRef.category, occupierRef.nameKey),
+        claimant: nameParam(claimantRef.category, claimantRef.nameKey),
+        province: nameParam('province', provinceNameKey),
+      },
+      entityRefs: [
+        entityRef('polity', d.occupiedByPolityId, 'occupier', occupierRef.nameKey),
+        entityRef('polity', d.claimantPolityId, 'claimant', claimantRef.nameKey),
+        entityRef('holding', d.holdingId, 'holding'),
       ],
     })
   }

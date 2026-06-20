@@ -655,3 +655,56 @@ export function eliminateContractFromChain(
 
   return recomputeTerminalCacheAndResyncBailiffs(nextState, contract.provinceId)
 }
+
+// v0.53 §13.4/B2: holding の chain を「keep 契約を新 root にする」形へ正規化する。
+//   keep 契約 (= terminal occupier の契約) の祖先をすべて除去し、keep を root に昇格
+//   (parentContractId 削除 / rootAuthorityId=ROOT_WORLD / taxRateToGrantor=0)。
+//   時効 legalize と反乱確立で「不払い/占拠を貫いた holder が de facto 独立 root 化」する操作。
+//   各 holding の chain は holding 専用 (worldgen が clone) なので祖先除去で他 holding は壊れない。
+export function normalizeHoldingChainToRoot(
+  state: WorldState,
+  holdingId: HoldingId,
+  keepContractId: LandContractId,
+): WorldState {
+  const keep = state.landContracts[keepContractId]
+  if (!keep) return state
+  const chain = getHoldingLandContractChain(state, holdingId)
+
+  const nextLandContracts = { ...state.landContracts }
+  const newByParent = { ...state.landContractIndex.byParent }
+  const newByGrantee = { ...state.landContractIndex.byGranteePolity }
+
+  // keep 以外の chain 契約 (祖先 + 万一の子) を除去
+  for (const c of chain) {
+    if (c.id === keepContractId) continue
+    delete nextLandContracts[c.id]
+    delete newByParent[c.id]
+    const slot = newByGrantee[c.granteePolityId] ?? []
+    newByGrantee[c.granteePolityId] = slot.filter((id) => id !== c.id)
+  }
+
+  // keep を root に昇格
+  const promoted: LandContract = {
+    ...keep,
+    rootAuthorityId: ROOT_WORLD,
+    terms: { taxRateToGrantor: 0 },
+  }
+  delete (promoted as { parentContractId?: LandContractId }).parentContractId
+  nextLandContracts[keepContractId] = promoted
+  delete newByParent[keepContractId]
+
+  const newByHolding = { ...state.landContractIndex.byHolding }
+  newByHolding[holdingId] = [keepContractId]
+
+  const nextState: WorldState = {
+    ...state,
+    landContracts: nextLandContracts,
+    landContractIndex: {
+      byHolding: newByHolding,
+      byGranteePolity: newByGrantee,
+      byParent: newByParent,
+    },
+  }
+
+  return recomputeTerminalCacheAndResyncBailiffs(nextState, keep.provinceId)
+}

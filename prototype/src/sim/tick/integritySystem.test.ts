@@ -222,6 +222,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -420,6 +428,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -600,6 +616,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -780,6 +804,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -961,6 +993,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -1129,6 +1169,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
@@ -1298,6 +1346,14 @@ describe('runIntegritySystem', () => {
       realEstateSeizures: {},
       realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
       nextRealEstateSeizureId: 0,
+      landContractDefaults: {},
+      landContractDefaultIndex: {
+        byHolding: {},
+        byContract: {},
+        byClaimantPolity: {},
+        byOccupierPolity: {},
+      },
+      nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
     }
 
