@@ -2,35 +2,17 @@ import type { ResourceKind } from '../types/resource'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 
-// v0.54 §6 価格計算 config (資源ごと)。
-//   price = basePrice * clamp(rawRatio ** elasticity, minMultiplier, maxMultiplier)
-//   rawRatio = effectiveDemand / max(supply, epsilon)
+// v0.54 市場清算 rewrite (§6.3c.1) 価格計算 config (資源ごと)。
+//   price = basePrice × (1 + marketPriceSwing × clamp(imbalance, −1, 1))。
+//   資源別の min/max/elasticity は廃止 — 価格幅は全資源共通 (marketPriceSwing) で basePrice のみ資源別に維持。
 export type ResourcePriceConfig = {
   basePrice: number
-  minMultiplier: number
-  maxMultiplier: number
-  elasticity: number
 }
 
 export const RESOURCE_PRICE_DEFINITIONS: Record<ResourceKind, ResourcePriceConfig> = {
-  food: {
-    basePrice: 1.0,
-    minMultiplier: 0.6,
-    maxMultiplier: 2.5,
-    elasticity: 0.6,
-  },
-  raw_materials: {
-    basePrice: 1.2,
-    minMultiplier: 0.5,
-    maxMultiplier: 2.2,
-    elasticity: 0.5,
-  },
-  processed_goods: {
-    basePrice: 2.0,
-    minMultiplier: 0.5,
-    maxMultiplier: 2.5,
-    elasticity: 0.6,
-  },
+  food: { basePrice: 1.0 },
+  raw_materials: { basePrice: 1.2 },
+  processed_goods: { basePrice: 2.0 },
 }
 
 // v0.54 §11.2 生産施設 modifier (capacity 用の realEstateInfrastructureModifiers とは別物)。

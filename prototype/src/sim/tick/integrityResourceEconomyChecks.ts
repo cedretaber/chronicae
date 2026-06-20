@@ -2,6 +2,10 @@ import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+
+// 価格レンジ・充足率の float 許容誤差。
+const PRICE_RANGE_EPSILON = 1e-6
 
 // v0.54 §21.2 / §21.3: 資源経済 read-model (marketResourcePrices / monthlyHoldingResourceRevenue) の整合性検査。
 //   slice が空 (ResourceEconomySystem 実行前) でも violation にしない (§21.3)。
@@ -38,19 +42,45 @@ export function checkResourceEconomy(
         message: `marketResourcePrices ${key}: history length=${record.history.length} exceeds limit=${config.marketResourcePriceHistoryLimit}`,
       })
     }
+    // §6.3c.1: price ∈ basePrice × [1−swing, 1+swing] (全資源共通レンジ)。config 無しなら範囲検査はスキップ。
+    if (config) {
+      const base = RESOURCE_PRICE_DEFINITIONS[record.resource].basePrice
+      const lo = base * (1 - config.marketPriceSwing) - PRICE_RANGE_EPSILON
+      const hi = base * (1 + config.marketPriceSwing) + PRICE_RANGE_EPSILON
+      if (record.lastPrice < lo || record.lastPrice > hi) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `marketResourcePrices ${key}: lastPrice=${record.lastPrice} out of range [${lo}, ${hi}]`,
+        })
+      }
+    }
     for (const point of record.history) {
+      // 非負検査 (sellOrders/buyOrders/producerRevenue/consumerCost/price)。
       const vals: [string, number][] = [
         ['price', point.price],
-        ['supply', point.supply],
-        ['effectiveDemand', point.effectiveDemand],
-        ['sold', point.sold],
-        ['unmetDemand', point.unmetDemand],
+        ['sellOrders', point.sellOrders],
+        ['buyOrders', point.buyOrders],
+        ['producerRevenue', point.producerRevenue],
+        ['consumerCost', point.consumerCost],
       ]
       for (const [name, v] of vals) {
         if (!(v >= 0)) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `marketResourcePrices ${key}: history ${name}=${v} must be >= 0`,
+          })
+        }
+      }
+      // §6.3c.1: fulfillmentRatio / shortageSeverity ∈ [0, 1]。
+      const bounded: [string, number][] = [
+        ['fulfillmentRatio', point.fulfillmentRatio],
+        ['shortageSeverity', point.shortageSeverity],
+      ]
+      for (const [name, v] of bounded) {
+        if (!(v >= 0 && v <= 1)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `marketResourcePrices ${key}: history ${name}=${v} must be in [0, 1]`,
           })
         }
       }

@@ -1,15 +1,21 @@
 import type { HoldingId, RealEstateAssetId, ProductionRecipeId } from './ids'
 import type { ResourceKind } from './resource'
 
-// v0.54 §5 価格履歴: StateRegion × ResourceKind ごとに保存する。
+// v0.54 §5 / 市場清算 rewrite (§6.3c.1) 価格履歴: StateRegion × ResourceKind ごとに保存する。
 //   marketKey は stateRegionId を string 化したもの。key = `${marketKey}:${resource}`。
+//   基本語彙は sellOrders (生産者が売りに出した量) / buyOrders (POP・workshop が求めた量)。
+//   producerRevenue=sellOrders×price / consumerCost=buyOrders×price。
+//   fulfillmentRatio = buyOrders≤0 ? 1 : clamp(sellOrders/buyOrders, 0, 1)。shortageSeverity ∈ [0,1]。
 export type MarketResourcePricePoint = {
   week: number
   price: number
-  supply: number
-  effectiveDemand: number
-  sold: number
-  unmetDemand: number
+  sellOrders: number
+  buyOrders: number
+  producerRevenue: number
+  consumerCost: number
+  fulfillmentRatio: number
+  shortage: boolean
+  shortageSeverity: number
 }
 
 export type MarketResourcePriceState = {

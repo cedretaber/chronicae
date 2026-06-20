@@ -11,6 +11,7 @@ import type { ProvinceId, HoldingId, PopGroupId, RealEstateAssetId, HouseId } fr
 import { makeEmptyV016State, withProvince, withHolding, withHouse } from '../testFixtures'
 import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { computeAllocatedLaborByAsset } from '../selectors/resourceProductionSelectors'
+import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 
 let assetCounter = 0
 function withAsset(
@@ -152,6 +153,68 @@ describe('runResourceEconomySystem — production & market', () => {
     }
     const ps = state.marketResourcePrices['sr-0:food']!
     expect(ps.history.length).toBe(3)
+  })
+
+  it('supply 過多: 全量売却され廃棄ゼロ (price 下限・producerRevenue>0)', () => {
+    // 大量の field 供給 + 極小の需要 (POP 少) → foodPrice は下限へ、しかし produced は全量売れる。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'field').state
+    state = withEmployedPop(state, hd, 'peasants', 500) // 大供給
+    state = withEmployedPop(state, hd, 'townsmen', 1) // 極小の food 需要
+    const result = runEcon(state)
+    const ps = result.marketResourcePrices['sr-0:food']!
+    const last = ps.history[ps.history.length - 1]!
+    // 供給 >> 需要 → 価格は下限近辺
+    expect(ps.lastPrice).toBeLessThan(RESOURCE_PRICE_DEFINITIONS.food.basePrice)
+    // 全量が sellOrders として計上され producerRevenue > 0 (廃棄されない)
+    expect(last.sellOrders).toBeGreaterThan(last.buyOrders)
+    expect(last.producerRevenue).toBeGreaterThan(0)
+    // field は入力なし → netRevenue > 0 (安値でも全量売れるため)
+    const snap = result.monthlyHoldingResourceRevenue[hd]!
+    expect(snap.totalNetRevenue).toBeGreaterThan(0)
+  })
+
+  it('raw 不足 workshop: input 全量 cost・output 縮小で netRevenue が負になり得る', () => {
+    // pasture (raw 供給) 無しの workshop → rawFulfillmentRatio=0 → processed 産出 0、しかし raw は全量 cost。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const city = 'hd-city' as HoldingId
+    state = withHolding(state, city, 'pr-0' as ProvinceId, { kind: 'city' })
+    const a = withAsset(state, city, 'workshop')
+    state = a.state
+    state = withEmployedPop(state, city, 'townsmen', 100)
+    const result = runEcon(state)
+    const snap = result.monthlyHoldingResourceRevenue[city]!
+    const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
+    // raw を満額 cost で買い、processed は産出 0 → 赤字
+    expect(ar.outputs.processed_goods ?? 0).toBe(0)
+    expect(ar.inputCost).toBeGreaterThan(0)
+    expect(ar.netRevenue).toBeLessThan(0)
+    // holding 集計は床留めで 0 (赤字は分配に乗らない)
+    expect(snap.totalNetRevenue).toBe(0)
+  })
+
+  it('consumerCost 二層性: POP food 需要は価格を上げるが asset inputCost に計上されない', () => {
+    // field のみ + 多数の POP → food buyOrders 大 → price 上昇。だが field は入力なしで inputCost=0。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    const a = withAsset(state, hd, 'field')
+    state = a.state
+    state = withEmployedPop(state, hd, 'peasants', 50) // 供給
+    state = withEmployedPop(state, hd, 'townsmen', 400) // food 需要のみ
+    const result = runEcon(state)
+    const snap = result.monthlyHoldingResourceRevenue[hd]!
+    const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
+    // POP の food 需要は market buyOrders を押し上げる (price>base)
+    expect(result.marketResourcePrices['sr-0:food']!.lastPrice).toBeGreaterThan(
+      RESOURCE_PRICE_DEFINITIONS.food.basePrice,
+    )
+    // しかし POP コストは asset の inputCost に計上されない (二層性)
+    expect(ar.inputCost).toBe(0)
+    expect(ar.netRevenue).toBeGreaterThan(0)
   })
 
   it('does not consume RNG and does not mutate treasury (Phase 2-3 side-effect boundary)', () => {

@@ -411,11 +411,12 @@ function computeEconomyStats(state: WorldState): {
       if (!ps || ps.resource !== r) continue
       n++
       priceRatioSum += ps.lastPrice / def.basePrice
-      const atFloor = Math.abs(ps.lastPrice - def.basePrice * def.minMultiplier) < 1e-3
-      const atCeil = Math.abs(ps.lastPrice - def.basePrice * def.maxMultiplier) < 1e-3
+      const swing = defaultConfig.marketPriceSwing
+      const atFloor = Math.abs(ps.lastPrice - def.basePrice * (1 - swing)) < 1e-3
+      const atCeil = Math.abs(ps.lastPrice - def.basePrice * (1 + swing)) < 1e-3
       if (atFloor || atCeil) clamped++
       const last = ps.history[ps.history.length - 1]
-      if (last) fulfillSum += last.effectiveDemand > 0 ? last.sold / last.effectiveDemand : 1
+      if (last) fulfillSum += last.fulfillmentRatio
     }
     resource[r] = {
       avgPriceRatio: n > 0 ? priceRatioSum / n : 0,

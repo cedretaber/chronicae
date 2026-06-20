@@ -492,4 +492,35 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
     // 全額 taxable → treasury に (一部) 流れる
     expect(result.state.polities[base.polityId]!.treasury).toBeGreaterThan(0)
   })
+
+  // v0.54 market-clearing rewrite: raw 不足 workshop は netRevenue が負になり得る。
+  //   positiveNet = max(0, netRevenue) の床留めで、負の asset は分配に寄与せず保存則が閉じる (§6.3c.1 / §21.4)。
+  //   net=0 の asset と net=-50 の asset は (どちらも床留め 0 で) 同一 treasury になることを確認する。
+  it('negative netRevenue asset: floored to 0 — owner not paid, treasury == zero-net case (conservation)', () => {
+    const zeroBase = setupBaseWorld()
+    const { state: zeroState } = withOwnedAssetSnapshot(
+      zeroBase.state,
+      zeroBase.holdingId,
+      { kind: 'house', id: zeroBase.houseId },
+      0,
+    )
+    const zeroHouseBefore = zeroState.houses[zeroBase.houseId]!.wealth
+    const zeroResult = runLandRevenueSystem(makeCtx(zeroState))
+    const zeroTreasury = zeroResult.state.polities[zeroBase.polityId]!.treasury
+
+    const lossBase = setupBaseWorld()
+    const { state } = withOwnedAssetSnapshot(
+      lossBase.state,
+      lossBase.holdingId,
+      { kind: 'house', id: lossBase.houseId },
+      -50, // 赤字 asset
+    )
+    const houseBefore = state.houses[lossBase.houseId]!.wealth
+    const result = runLandRevenueSystem(makeCtx(state))
+    // owner は赤字分を負担しない (床留め)。net=0 ケースでも owner は受け取らない。
+    expect(zeroResult.state.houses[zeroBase.houseId]!.wealth).toBe(zeroHouseBefore)
+    expect(result.state.houses[lossBase.houseId]!.wealth).toBe(houseBefore)
+    // 赤字 asset は分配に寄与せず treasury は net=0 ケースと一致
+    expect(result.state.polities[lossBase.polityId]!.treasury).toBeCloseTo(zeroTreasury, 6)
+  })
 })

@@ -85,13 +85,13 @@ export function MarketDetail({
               {last && (
                 <div className="mt-0.5 flex justify-between border-t border-gray-600/50 pt-0.5 text-[11px] text-gray-500">
                   <span>
-                    {t('detail.market.supply')}: {formatAmount(last.supply)}
+                    {t('detail.market.supply')}: {formatAmount(last.sellOrders)}
                   </span>
                   <span>
-                    {t('detail.market.demand')}: {formatAmount(last.effectiveDemand)}
+                    {t('detail.market.demand')}: {formatAmount(last.buyOrders)}
                   </span>
                   <span>
-                    {t('detail.market.sold')}: {formatAmount(last.sold)}
+                    {t('detail.market.sold')}: {formatAmount(last.fulfillmentRatio)}
                   </span>
                 </div>
               )}

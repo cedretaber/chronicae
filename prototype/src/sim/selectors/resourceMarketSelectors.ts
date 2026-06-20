@@ -4,18 +4,43 @@ import type { ResourceKind } from '../types/resource'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import { clamp } from '../utils/math'
 
-// v0.54 §6 価格計算: price = basePrice * clamp(rawRatio ** elasticity, min, max)。
-//   rawRatio = effectiveDemand / max(supply, epsilon)。在庫がないため unsold は消滅する。
+// v0.54 市場清算 rewrite (§6.3c.1) 価格計算 (imbalance ベース):
+//   imbalance = (buyOrders − sellOrders) / max(min(buyOrders, sellOrders), ε)
+//   price = basePrice × (1 + marketPriceSwing × clamp(imbalance, −1, 1))
+//   buy=0 / sell=0 は式 (min で割る) に入れず明示分岐で扱う。
 export function computeResourcePrice(
   resource: ResourceKind,
-  supply: number,
-  effectiveDemand: number,
+  sellOrders: number,
+  buyOrders: number,
   config: SimulationConfig,
 ): number {
   const def = RESOURCE_PRICE_DEFINITIONS[resource]
-  const rawRatio = effectiveDemand / Math.max(supply, config.resourceMarketSupplyEpsilon)
-  const priceMultiplier = clamp(rawRatio ** def.elasticity, def.minMultiplier, def.maxMultiplier)
+  const swing = config.marketPriceSwing
+  // エッジケース (§6.3c.1)。
+  if (buyOrders <= 0 && sellOrders <= 0) return def.basePrice
+  if (buyOrders <= 0) return def.basePrice * (1 - swing) // 需要ゼロ: 下限価格で全量売れた扱い
+  if (sellOrders <= 0) return def.basePrice * (1 + swing) // 供給ゼロ: 上限価格
+  const imbalance =
+    (buyOrders - sellOrders) /
+    Math.max(Math.min(buyOrders, sellOrders), config.resourceMarketSupplyEpsilon)
+  const priceMultiplier = 1 + swing * clamp(imbalance, -1, 1)
   return def.basePrice * priceMultiplier
+}
+
+// v0.54 市場清算 rewrite (§6.3c.1) 充足率・shortage:
+//   fulfillmentRatio = buyOrders≤0 ? 1 : clamp(sellOrders/buyOrders, 0, 1)
+//   shortage = buyOrders>0 && fulfillmentRatio < threshold
+//   shortageSeverity = shortage ? clamp((threshold − fulfillmentRatio)/threshold, 0, 1) : 0
+export function computeMarketFulfillment(
+  sellOrders: number,
+  buyOrders: number,
+  config: SimulationConfig,
+): { fulfillmentRatio: number; shortage: boolean; shortageSeverity: number } {
+  const fulfillmentRatio = buyOrders <= 0 ? 1 : clamp(sellOrders / buyOrders, 0, 1)
+  const threshold = config.resourceShortageFulfillmentThreshold
+  const shortage = buyOrders > 0 && fulfillmentRatio < threshold
+  const shortageSeverity = shortage ? clamp((threshold - fulfillmentRatio) / threshold, 0, 1) : 0
+  return { fulfillmentRatio, shortage, shortageSeverity }
 }
 
 // v0.54 §15.3 購買力係数: wealth 0/50/100 の係数を 2 区間線形補間する。raw_materials は POP 需要を持たない。

@@ -1401,6 +1401,10 @@ export type SimulationConfig = {
   // === v0.54 資源経済 (spec §20) ===
   // 市場・価格
   resourceMarketSupplyEpsilon: number
+  // 市場清算 rewrite (§6.3c.1): 価格幅 = basePrice × [1−swing, 1+swing] (全資源共通)。
+  marketPriceSwing: number
+  // fulfillmentRatio がこの閾値未満で shortage 判定 (§6.3c.1)。
+  resourceShortageFulfillmentThreshold: number
   marketResourcePriceHistoryLimit: number
   marketPriceSmoothingPreviousWeight: number
   marketPriceSmoothingCurrentWeight: number
@@ -2979,6 +2983,8 @@ export const defaultConfig: SimulationConfig = {
   // === v0.54 資源経済 (spec §20) ===
   // 初期値は調整前提。Step 2 観察ゲート (§6.1) で rawRatio ≈ 1 / price ≈ basePrice に較正する。
   resourceMarketSupplyEpsilon: 0.01,
+  marketPriceSwing: 0.75,
+  resourceShortageFulfillmentThreshold: 0.5,
   marketResourcePriceHistoryLimit: 120,
   marketPriceSmoothingPreviousWeight: 0.75,
   marketPriceSmoothingCurrentWeight: 0.25,
