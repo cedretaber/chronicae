@@ -35,7 +35,7 @@ import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContra
 import { EntityRefLink } from './ProjectCard'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatAbsoluteWeek } from '@/app/utils/format'
-import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
+import { getProvinceMonthlyResourceRevenue } from '@sim/selectors/resourceRevenueSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
@@ -216,7 +216,8 @@ export function PolityLandContracts({
       if (idx >= 0) {
         const polityControl = getProvincePolityControlFromHoldings(worldState, c.provinceId)
         const grossTax =
-          getProvinceProduction(worldState, defaultConfig, c.provinceId) * (polityControl / 100)
+          getProvinceMonthlyResourceRevenue(worldState, defaultConfig, c.provinceId) *
+          (polityControl / 100)
         let remaining = grossTax
         for (let i = chain.length - 1; i >= 0; i--) {
           const seg = chain[i]

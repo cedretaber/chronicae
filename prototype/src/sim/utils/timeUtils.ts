@@ -1,5 +1,7 @@
 export const WEEKS_PER_YEAR = 48
 const WEEKS_PER_PSEUDO_MONTH = 4
+// v0.54: 1年=48週=12擬似月。月次 (4週) 値を年額換算する際に使う。
+export const MONTHS_PER_YEAR = WEEKS_PER_YEAR / WEEKS_PER_PSEUDO_MONTH
 
 function weekToYearWeek(absoluteWeek: number): {
   year: number

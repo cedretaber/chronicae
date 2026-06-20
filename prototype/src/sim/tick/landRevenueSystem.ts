@@ -4,7 +4,7 @@ import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { governanceCompetence } from '../selectors/abilitySelectors'
-import { getHoldingProduction, getProvinceProduction } from '../selectors/popEconomySelectors'
+import type { AssetOwnerRef } from '../types/realEstateAsset'
 import {
   getHoldingLandContractChain,
   isPlaceholderPerson,
@@ -18,7 +18,6 @@ import {
   getRecentBailiffRevenueTaskStatus,
   getBailiffPolicy,
 } from '../selectors/bailiffSelectors'
-import { computeHoldingOwnerIncomes } from '../selectors/realEstateSelectors'
 import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
@@ -31,6 +30,9 @@ import { createLogger } from '../debug/logger'
 export function runLandRevenueSystem(ctx: TickContext): TickContext {
   const log = createLogger(ctx.config.debug)
   const treasuryDeltas = new Map<PolityId, number>()
+  // v0.54: owner income のうち polity owner 分は treasury へ直接加算する (税フロー効率の対象外)。
+  //   draft.polities は shallow copy しないため、末尾の newPolities 構築時にまとめて適用する。
+  const ownerTreasuryDeltas = new Map<PolityId, number>()
   const draft: WorldState = {
     ...ctx.state,
     persons: { ...ctx.state.persons },
@@ -45,38 +47,67 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     draft.persons[personId] = { ...p, wealth: Math.max(0, p.wealth + delta) }
   }
 
+  // v0.54 §17.4: RealEstateAsset owner へ ownerIncome を支払う。owner.kind で支払い先が変わる。
+  const payOwnerIncome = (owner: AssetOwnerRef, income: number): void => {
+    if (income <= 0) return
+    if (owner.kind === 'house') {
+      const house = draft.houses[owner.id]
+      if (house && house.active) {
+        draft.houses[owner.id] = { ...house, wealth: house.wealth + income }
+      }
+    } else if (owner.kind === 'person') {
+      const person = draft.persons[owner.id]
+      if (person && person.alive) {
+        draft.persons[owner.id] = { ...person, wealth: Math.max(0, person.wealth + income) }
+      }
+    } else {
+      const polity = draft.polities[owner.id]
+      if (polity && polity.active) {
+        ownerTreasuryDeltas.set(owner.id, (ownerTreasuryDeltas.get(owner.id) ?? 0) + income)
+      }
+    }
+  }
+
   for (const provinceId of Object.keys(ctx.state.provinces).sort() as ProvinceId[]) {
     const province = ctx.state.provinces[provinceId]
     if (!province) continue
 
     let provinceCollected = 0
+    // v0.54 §17.3: retainedRatio 分母を resource snapshot 由来の holding taxable 合計に同期する。
+    let provinceTaxable = 0
 
     for (const holdingId of province.holdingIds) {
       const holding = draft.holdings[holdingId]
       if (!holding) continue
 
-      const grossHoldingRevenue = getHoldingProduction(draft, ctx.config, holdingId)
-      if (grossHoldingRevenue <= 0) continue
-
-      // v0.52 owner income: owner あり RealEstateAsset の owner に収益を配分
-      // bailiff extraction の対象外 (gross から先に差し引く)
-      let ownerIncomeTotalForHolding = 0
-      const ownerIncomes = computeHoldingOwnerIncomes(
-        draft,
-        ctx.config,
-        holdingId,
-        grossHoldingRevenue,
-      )
-      for (const entry of ownerIncomes) {
-        if (entry.owner.kind === 'house') {
-          const house = draft.houses[entry.owner.id]
-          if (house && house.active) {
-            draft.houses[entry.owner.id] = { ...house, wealth: house.wealth + entry.income }
-            ownerIncomeTotalForHolding += entry.income
+      // v0.54 §17.1.1: 月次 resource snapshot を source に、per-asset で holding taxable と owner 支払いを確定。
+      //   positiveNet = max(0, asset netRevenue)。所有なし=全額 taxable / 所有あり=holdingDue のみ taxable で
+      //   ownerIncome は owner へ / 押領中=due+押領分を holding 側へ吸収 (rightful owner には払わない §17.5)。
+      const snapshot = draft.monthlyHoldingResourceRevenue[holdingId]
+      let holdingTaxable = 0
+      if (snapshot) {
+        for (const ar of snapshot.assetResults) {
+          const positiveNet = Math.max(0, ar.netRevenue)
+          if (positiveNet <= 0) continue
+          const asset = draft.realEstateAssets[ar.assetId]
+          if (!asset || !asset.owner) {
+            holdingTaxable += positiveNet
+            continue
           }
+          const seized = draft.realEstateSeizureIndex.byAsset[asset.id as string] !== undefined
+          const holdingDue = positiveNet * ctx.config.realEstateHoldingDueRate
+          const ownerIncome = positiveNet - holdingDue
+          if (seized) {
+            holdingTaxable += positiveNet
+            continue
+          }
+          holdingTaxable += holdingDue
+          payOwnerIncome(asset.owner, ownerIncome)
         }
       }
-      const revenueAfterOwnerIncome = grossHoldingRevenue - ownerIncomeTotalForHolding
+      provinceTaxable += holdingTaxable
+      if (holdingTaxable <= 0) continue
+      const revenueAfterOwnerIncome = holdingTaxable
 
       const assignmentId = draft.holdingOfficeIndex.byHolding[holdingId]
       let remittanceToTerminal: number
@@ -239,9 +270,11 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       }
     }
 
-    const provinceProduction = getProvinceProduction(draft, ctx.config, provinceId)
-    const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
-    const retainedRatio = provinceProduction > 0 ? retainedToPop / provinceProduction : 0
+    // v0.54 §17.3.1: POP retained = holding taxable (bailiff 徴収前) − bailiff collected。
+    //   owner income は POP の手元に残った富ではないので分子・分母とも taxable から除外済み。
+    //   分母も同一 resource snapshot 由来 (provinceTaxable) に同期 (live 再計算を混ぜない)。
+    const retainedToPop = Math.max(0, provinceTaxable - provinceCollected)
+    const retainedRatio = provinceTaxable > 0 ? retainedToPop / provinceTaxable : 0
     const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
     const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
@@ -270,9 +303,11 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, polityId, ctx.config)
     const delta = treasuryDeltas.get(polityId) ?? 0
     const flowEfficiency = ctx.config.taxFlowEfficiency
+    // v0.54: polity owner の ownerIncome は税フロー効率の対象外で直接加算 (§17.4)。
+    const ownerDelta = ownerTreasuryDeltas.get(polityId) ?? 0
     newPolities[polityId] = {
       ...polity,
-      treasury: polity.treasury + delta * taxEfficiency * flowEfficiency,
+      treasury: polity.treasury + delta * taxEfficiency * flowEfficiency + ownerDelta,
     }
   }
   draft.polities = newPolities

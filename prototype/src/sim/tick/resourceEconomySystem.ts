@@ -1,8 +1,5 @@
 import type { TickContext } from './context'
-import type { WorldState } from '../types/world'
-import type { SimulationConfig } from '../config/defaultConfig'
 import type { StateRegionId, HoldingId, ProductionRecipeId } from '../types/ids'
-import type { PopClass } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
 import type {
@@ -14,17 +11,11 @@ import type {
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
-import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import {
-  getRealEstateAssetClassCapacityContribution,
-  getRecipeScaleMultiplier,
-  computePolityControlModifier,
-  computeAssetLevelModifier,
-  computeProductionFacilityModifier,
+  computeAllocatedLaborByAsset,
+  computeAssetRecipePotentials,
 } from '../selectors/resourceProductionSelectors'
 import { computeResourcePrice, getPopResourceDemand } from '../selectors/resourceMarketSelectors'
-import { getHoldingEmployedPopSize } from '../selectors/popSelectors'
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
@@ -56,47 +47,13 @@ function emptyResourceRecord(): Record<ResourceKind, number> {
   return { food: 0, raw_materials: 0, processed_goods: 0 }
 }
 
-// holding 内の asset を主要雇用 class 別に分け、employed POP size を per-asset capacity 比で按分する。
-//   Σ allocatedLabor (class) == employed POP size (class) を保つ (labor conservation §10.2)。
-function computeAllocatedLaborByAsset(
-  state: WorldState,
-  config: SimulationConfig,
-  holdingId: HoldingId,
-  assets: RealEstateAsset[],
-): Map<string, number> {
-  const result = new Map<string, number>()
-  const classes: PopClass[] = ['nobles', 'peasants', 'townsmen']
-  for (const popClass of classes) {
-    const employed = getHoldingEmployedPopSize(state, holdingId, popClass)
-    if (employed <= 0) continue
-    // この class を主要雇用とする asset を抽出し weight を計算。
-    const members: { asset: RealEstateAsset; weight: number }[] = []
-    let totalWeight = 0
-    for (const asset of assets) {
-      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-      if (def.employmentSlots[0]?.popClass !== popClass) continue
-      const weight = getRealEstateAssetClassCapacityContribution(state, asset, popClass, config)
-      members.push({ asset, weight })
-      totalWeight += weight
-    }
-    if (totalWeight <= 0) continue // 受け皿 asset 無 → labor は遊休 (生産に使わない)
-    for (const m of members) {
-      const prev = result.get(m.asset.id) ?? 0
-      result.set(m.asset.id, prev + employed * (m.weight / totalWeight))
-    }
-  }
-  return result
-}
-
 export function runResourceEconomySystem(ctx: TickContext): TickContext {
   const { state, config } = ctx
   const log = createLogger(config.debug)
   const week = state.absoluteWeek
-  const totalSlots = config.realEstateRecipeSlotCount
 
   // marketKey ごとの集計。states を sorted key 順で反復し、market を生成順に並べる。
   const markets: MarketAccum[] = []
-  const marketByKey = new Map<string, MarketAccum>()
   const stateIds = (Object.keys(state.states) as StateRegionId[]).sort()
 
   // ─── Pass 1: 生産集計 (§13 step 2-4) + POP 需要 (step 8) ───
@@ -111,7 +68,6 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       demand: emptyResourceRecord(),
     }
     markets.push(accum)
-    marketByKey.set(marketKey, accum)
 
     for (const provinceId of region.provinceIds) {
       const province = state.provinces[provinceId]
@@ -120,7 +76,6 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const holdingId of province.holdingIds) {
         const holding = state.holdings[holdingId]
         if (!holding) continue
-        const controlMod = computePolityControlModifier(holding.polityControl, config)
 
         const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
         const assets: RealEstateAsset[] = []
@@ -132,62 +87,32 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
 
         for (const asset of assets) {
           const allocatedLabor = allocatedByAsset.get(asset.id) ?? 0
-          const levelMod = computeAssetLevelModifier(asset.level, config)
-          const facilityMod = computeProductionFacilityModifier(state, config, asset)
+          const recipePotentials = computeAssetRecipePotentials(
+            state,
+            config,
+            asset,
+            allocatedLabor,
+          )
 
-          // recipeSlots は sorted key 順で反復 (determinism)。
-          const recipeIds = (Object.keys(asset.recipeSlots) as ProductionRecipeId[]).sort()
-          for (const recipeId of recipeIds) {
-            const slotCount = asset.recipeSlots[recipeId]
-            if (slotCount === undefined || slotCount <= 0) continue
-            const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
-            if (!recipe) continue
-
-            const recipeLabor = allocatedLabor * (slotCount / totalSlots)
-            const scaleMult = getRecipeScaleMultiplier(
-              slotCount,
-              totalSlots,
-              recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
-            )
-            const potential =
-              recipeLabor *
-              recipe.baseOutputPerLabor *
-              scaleMult *
-              levelMod *
-              facilityMod *
-              controlMod
-
-            const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
-            for (const r of RESOURCE_KINDS) {
-              const coeff = recipe.outputs[r]
-              if (coeff !== undefined) potentialOutputs[r] = potential * coeff
-            }
-            const potentialInputs: Partial<Record<ResourceKind, number>> = {}
-            if (recipe.inputs) {
-              for (const r of RESOURCE_KINDS) {
-                const coeff = recipe.inputs[r]
-                if (coeff !== undefined) potentialInputs[r] = potential * coeff
-              }
-            }
-
+          for (const rp of recipePotentials) {
             accum.recipes.push({
               holdingId,
               asset,
-              recipeId,
-              slotCount,
-              recipeLabor,
-              potentialOutputs,
-              potentialInputs,
+              recipeId: rp.recipeId,
+              slotCount: rp.slotCount,
+              recipeLabor: rp.recipeLabor,
+              potentialOutputs: rp.potentialOutputs,
+              potentialInputs: rp.potentialInputs,
             })
 
             // 一次生産の supply 集計: food (field) / raw_materials (pasture)。
             //   processed_goods は raw 充足後に決まるためここでは加えない。
-            const foodOut = potentialOutputs.food
+            const foodOut = rp.potentialOutputs.food
             if (foodOut !== undefined) accum.supply.food += foodOut
-            const rawOut = potentialOutputs.raw_materials
+            const rawOut = rp.potentialOutputs.raw_materials
             if (rawOut !== undefined) accum.supply.raw_materials += rawOut
             // workshop の raw 潜在需要 (§13 step 4)。
-            const rawIn = potentialInputs.raw_materials
+            const rawIn = rp.potentialInputs.raw_materials
             if (rawIn !== undefined) accum.demand.raw_materials += rawIn
           }
         }

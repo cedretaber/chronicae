@@ -15,7 +15,7 @@ import {
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getTopInfluenceHoldersInPolity } from '@sim/selectors/influenceSelectors'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
-import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
+import { getProvinceMonthlyResourceRevenue } from '@sim/selectors/resourceRevenueSelectors'
 import { getPolityEmitNameKey } from '@sim/selectors/nameRefSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getPolityLeader, getHouseLeader } from '@sim/selectors/officeSelectors'
@@ -135,7 +135,8 @@ export function buildEntitySnapshot(
             if (province && idx >= 0) {
               const polityControl = ws ? getProvincePolityControlFromHoldings(ws, c.provinceId) : 0
               const grossTax =
-                getProvinceProduction(ws, defaultConfig, c.provinceId) * (polityControl / 100)
+                getProvinceMonthlyResourceRevenue(ws, defaultConfig, c.provinceId) *
+                (polityControl / 100)
               let remaining = grossTax
               for (let i = chain.length - 1; i >= 0; i--) {
                 const seg = chain[i]

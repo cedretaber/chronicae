@@ -56,7 +56,7 @@ import { getChronicleEntriesForHouse } from '@sim/selectors/chronicleSelectors'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { assetOwnerKey } from '@sim/types/realEstateAsset'
 import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
-import { estimateWeeklyOwnerIncome } from '@sim/selectors/realEstateSelectors'
+import { estimateMonthlyOwnerIncome } from '@sim/selectors/resourceRevenueSelectors'
 import {
   getActiveSeizureForAsset,
   getSeizurePrescriptionRemainingYears,
@@ -66,7 +66,7 @@ import {
   getActiveDefaultsForOccupierPolity,
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
-import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
+import { MONTHS_PER_YEAR } from '@sim/utils/timeUtils'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 
 export function HouseDetail({
@@ -406,8 +406,12 @@ export function HouseDetail({
                       resolveName,
                       asset.holdingId,
                     )
-                    const weeklyIncome = estimateWeeklyOwnerIncome(worldState, defaultConfig, asset)
-                    const annualIncome = weeklyIncome * WEEKS_PER_YEAR
+                    const monthlyIncome = estimateMonthlyOwnerIncome(
+                      worldState,
+                      defaultConfig,
+                      asset,
+                    )
+                    const annualIncome = monthlyIncome * MONTHS_PER_YEAR
                     const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
                     const maxLevel =
                       def.maxLevelByHoldingKind[

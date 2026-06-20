@@ -1,9 +1,13 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { HoldingId, ProductionRecipeId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { ResourceKind } from '../types/resource'
+import { RESOURCE_KINDS } from '../types/resource'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 import {
   computeInfrastructureModifier,
   computeSlotOveruseModifier,
@@ -123,4 +127,94 @@ export function computeProductionFacilityModifier(
     }
   }
   return modifier
+}
+
+// v0.54 §10.2: holding 内の asset を主要雇用 class 別に分け、employed POP size を per-asset capacity 比で
+//   按分する。Σ allocatedLabor (class) == employed POP size (class) を保つ (labor conservation)。
+//   受け皿 asset が無い class の労働は遊休 (生産に使わない)。RNG 非消費・純関数。
+export function computeAllocatedLaborByAsset(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  assets: RealEstateAsset[],
+): Map<string, number> {
+  const result = new Map<string, number>()
+  const classes: PopClass[] = ['nobles', 'peasants', 'townsmen']
+  for (const popClass of classes) {
+    const employed = getHoldingEmployedPopSize(state, holdingId, popClass)
+    if (employed <= 0) continue
+    const members: { asset: RealEstateAsset; weight: number }[] = []
+    let totalWeight = 0
+    for (const asset of assets) {
+      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+      if (def.employmentSlots[0]?.popClass !== popClass) continue
+      const weight = getRealEstateAssetClassCapacityContribution(state, asset, popClass, config)
+      members.push({ asset, weight })
+      totalWeight += weight
+    }
+    if (totalWeight <= 0) continue
+    for (const m of members) {
+      const prev = result.get(m.asset.id) ?? 0
+      result.set(m.asset.id, prev + employed * (m.weight / totalWeight))
+    }
+  }
+  return result
+}
+
+// v0.54 §12.1: asset の recipe ごとの potential 産出/投入を計算する (市場 clearing 前の潜在値)。
+//   recipeLabor = allocatedLabor * (slotCount / totalSlots)。recipeSlots は sorted key 順 (determinism)。
+//   ResourceEconomySystem (市場 clearing) と fallback selector (potential×basePrice) の双方が使う。
+export type AssetRecipePotential = {
+  recipeId: ProductionRecipeId
+  slotCount: number
+  recipeLabor: number
+  potentialOutputs: Partial<Record<ResourceKind, number>>
+  potentialInputs: Partial<Record<ResourceKind, number>>
+}
+
+export function computeAssetRecipePotentials(
+  state: WorldState,
+  config: SimulationConfig,
+  asset: RealEstateAsset,
+  allocatedLabor: number,
+): AssetRecipePotential[] {
+  const holding = state.holdings[asset.holdingId]
+  if (!holding) return []
+  const totalSlots = config.realEstateRecipeSlotCount
+  const controlMod = computePolityControlModifier(holding.polityControl, config)
+  const levelMod = computeAssetLevelModifier(asset.level, config)
+  const facilityMod = computeProductionFacilityModifier(state, config, asset)
+
+  const results: AssetRecipePotential[] = []
+  const recipeIds = (Object.keys(asset.recipeSlots) as ProductionRecipeId[]).sort()
+  for (const recipeId of recipeIds) {
+    const slotCount = asset.recipeSlots[recipeId]
+    if (slotCount === undefined || slotCount <= 0) continue
+    const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+    if (!recipe) continue
+
+    const recipeLabor = allocatedLabor * (slotCount / totalSlots)
+    const scaleMult = getRecipeScaleMultiplier(
+      slotCount,
+      totalSlots,
+      recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
+    )
+    const potential =
+      recipeLabor * recipe.baseOutputPerLabor * scaleMult * levelMod * facilityMod * controlMod
+
+    const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
+    for (const r of RESOURCE_KINDS) {
+      const coeff = recipe.outputs[r]
+      if (coeff !== undefined) potentialOutputs[r] = potential * coeff
+    }
+    const potentialInputs: Partial<Record<ResourceKind, number>> = {}
+    if (recipe.inputs) {
+      for (const r of RESOURCE_KINDS) {
+        const coeff = recipe.inputs[r]
+        if (coeff !== undefined) potentialInputs[r] = potential * coeff
+      }
+    }
+    results.push({ recipeId, slotCount, recipeLabor, potentialOutputs, potentialInputs })
+  }
+  return results
 }

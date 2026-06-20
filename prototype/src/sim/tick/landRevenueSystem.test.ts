@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { runLandRevenueSystem } from './landRevenueSystem'
-import { getHoldingProduction } from '../selectors/popEconomySelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext } from './context'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PopGroup, PopClass } from '../types/popGroup'
-import type { ProvinceId, PolityId, HouseId, PersonId, PopGroupId, HoldingId } from '../types/ids'
+import type { RealEstateAsset } from '../types/realEstateAsset'
+import type {
+  ProvinceId,
+  PolityId,
+  HouseId,
+  PersonId,
+  PopGroupId,
+  HoldingId,
+  RealEstateAssetId,
+} from '../types/ids'
 import {
   makeEmptyV016State,
   withProvince,
@@ -57,6 +65,60 @@ function withPopGroup(
   }
 }
 
+// v0.54: landRevenue の source は monthlyHoldingResourceRevenue snapshot。
+//   テスト用に「所有なし asset 1 つ・netRevenue=totalNet の月次 snapshot」を注入する。
+//   所有なし asset の holding taxable = max(0, netRevenue) なので totalNet が旧 gross に相当する。
+const GROSS = 100
+function withHoldingResourceRevenue(
+  state: WorldState,
+  holdingId: HoldingId,
+  totalNet: number,
+): WorldState {
+  const assetId = ('re-test-' + (holdingId as string)) as RealEstateAssetId
+  const asset: RealEstateAsset = {
+    id: assetId,
+    holdingId,
+    realEstateKind: 'field',
+    level: 1,
+    createdWeek: 0,
+    recipeSlots: {},
+  }
+  const existingByHolding = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  return {
+    ...state,
+    realEstateAssets: { ...state.realEstateAssets, [assetId]: asset },
+    realEstateAssetIndex: {
+      byHolding: {
+        ...state.realEstateAssetIndex.byHolding,
+        [holdingId as string]: [...existingByHolding, assetId],
+      },
+      byOwner: state.realEstateAssetIndex.byOwner,
+    },
+    monthlyHoldingResourceRevenue: {
+      ...state.monthlyHoldingResourceRevenue,
+      [holdingId]: {
+        holdingId,
+        week: state.absoluteWeek,
+        totalNetRevenue: Math.max(0, totalNet),
+        byResource: { food: totalNet },
+        assetResults: [
+          {
+            assetId,
+            holdingId,
+            outputs: { food: totalNet },
+            inputs: {},
+            soldOutputs: { food: totalNet },
+            grossRevenue: totalNet,
+            inputCost: 0,
+            netRevenue: totalNet,
+            recipeResults: [],
+          },
+        ],
+      },
+    },
+  }
+}
+
 function makeCtx(state: WorldState): TickContext {
   return createTickContext({ state, config: defaultConfig, rng: createRng('test') })
 }
@@ -85,6 +147,7 @@ function setupBaseWorld(): {
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   const holdingId = state.provinces[provinceId]!.holdingIds[0]!
   state = withPopGroup(state, popId, holdingId, 'peasants', 100, 100)
+  state = withHoldingResourceRevenue(state, holdingId, GROSS)
   return { state, polityId, houseId, provinceId, holdingId, popId }
 }
 
@@ -125,7 +188,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = getHoldingProduction(state, ctx.config, holdingId)
+    const gross = GROSS
     const collected = gross * localExtractionRate * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
     const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
@@ -148,7 +211,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = getHoldingProduction(state, ctx.config, holdingId)
+    const gross = GROSS
     const collected = gross * localExtractionRate * collectionEfficiency
     const bailiffFee = collected * bailiffFeeRate
     const remittance = collected - bailiffFee
@@ -163,14 +226,9 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
   })
 
   it('production=0: bailiff and treasury both 0', () => {
-    const { state, polityId, bailiffPersonId, popId } = setupWithNormalBailiff()
-    const zeroed = {
-      ...state,
-      popGroups: {
-        ...state.popGroups,
-        [popId]: { ...state.popGroups[popId]!, wealth: 0 },
-      },
-    }
+    const { state, polityId, bailiffPersonId, holdingId } = setupWithNormalBailiff()
+    // v0.54: source は月次 snapshot。revenue 0 の snapshot を注入すると holding taxable=0。
+    const zeroed = withHoldingResourceRevenue(state, holdingId, 0)
     const result = runLandRevenueSystem(makeCtx(zeroed))
     expect(result.state.persons[bailiffPersonId]!.wealth).toBe(0)
     expect(result.state.polities[polityId]!.treasury).toBe(0)
@@ -272,7 +330,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
       'none',
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
-    const gross = getHoldingProduction(state, ctx.config, holdingId)
+    const gross = GROSS
     const collected = gross * localExtractionRate * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
 
