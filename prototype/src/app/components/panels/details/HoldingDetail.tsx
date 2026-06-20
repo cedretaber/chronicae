@@ -153,6 +153,12 @@ export function HoldingDetail({
           const emptySlots = Math.max(0, slotCap - assets.length)
           if (assets.length === 0 && emptySlots === 0) return null
 
+          // v0.54: 月次資源 snapshot から asset 別 revenue を引く。
+          const revenueSnapshot = currentState.monthlyHoldingResourceRevenue[holding.id]
+          const assetResultById = new Map(
+            (revenueSnapshot?.assetResults ?? []).map((ar) => [ar.assetId as string, ar]),
+          )
+
           const fillCache = new Map<string, { employedSize: number; cap: number }>()
           const getFill = (popClass: import('@sim/types/popGroup').PopClass) => {
             const cached = fillCache.get(popClass)
@@ -167,8 +173,18 @@ export function HoldingDetail({
           return (
             <div className="text-sm">
               <DetailSection title={t('detail.realEstate.title')} count={assets.length} />
-              <div className="mt-1 text-xs text-gray-500">
-                {t('detail.realEstate.slots')}: {assets.length}/{slotCap}
+              <div className="mt-1 flex justify-between text-xs text-gray-500">
+                <span>
+                  {t('detail.realEstate.slots')}: {assets.length}/{slotCap}
+                </span>
+                {revenueSnapshot ? (
+                  <span>
+                    {t('detail.realEstate.monthly_net', { defaultValue: '月次純益' })}:{' '}
+                    <span className="text-emerald-400">
+                      {formatAmount(revenueSnapshot.totalNetRevenue)}
+                    </span>
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 flex flex-col gap-1">
                 {assets.map((asset) => {
@@ -273,6 +289,56 @@ export function HoldingDetail({
                           </div>
                         )
                       })}
+                      {(() => {
+                        // v0.54: 月次資源 snapshot がある場合、asset 別の産出・売却益を表示。
+                        const ar = assetResultById.get(asset.id)
+                        if (!ar) return null
+                        const outputs = Object.entries(ar.outputs)
+                          .filter(([, v]) => v !== undefined && v > 0)
+                          .map(
+                            ([res, v]) =>
+                              `${t(`detail.realEstate.resource_${res}`, { defaultValue: res })} ${(v ?? 0).toFixed(0)}`,
+                          )
+                          .join(', ')
+                        return (
+                          <div className="mt-1 border-t border-gray-600/50 pt-0.5 text-[11px]">
+                            {outputs ? (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">
+                                  {t('detail.realEstate.output', { defaultValue: '産出' })}:
+                                </span>
+                                <span className="text-gray-300">{outputs}</span>
+                              </div>
+                            ) : null}
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">
+                                {t('detail.realEstate.gross_revenue', { defaultValue: '売上' })}:
+                              </span>
+                              <span className="text-gray-300">{formatAmount(ar.grossRevenue)}</span>
+                            </div>
+                            {ar.inputCost > 0 ? (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">
+                                  {t('detail.realEstate.input_cost', { defaultValue: '原価' })}:
+                                </span>
+                                <span className="text-rose-400">-{formatAmount(ar.inputCost)}</span>
+                              </div>
+                            ) : null}
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">
+                                {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
+                              </span>
+                              <span
+                                className={
+                                  ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                }
+                              >
+                                {formatAmount(ar.netRevenue)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}

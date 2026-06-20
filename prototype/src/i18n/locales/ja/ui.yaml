@@ -769,6 +769,15 @@ detail:
     slots: 'スロット'
     seized: '押領中'
     prescriptionRemaining: '時効まで残り {{years}} 年'
+    # v0.54 資源経済
+    monthly_net: '月次純益'
+    output: '産出'
+    gross_revenue: '売上'
+    input_cost: '原価'
+    net_revenue: '純益'
+    resource_food: '食料'
+    resource_raw_materials: '原材料'
+    resource_processed_goods: '加工品'
 
   # v0.53 押領・上納拒否 (RealEstateSeizure / LandContractDefault) の状態表示
   obligation:

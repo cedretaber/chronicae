@@ -666,6 +666,15 @@ detail:
     slots: 'Slots'
     seized: 'Seized'
     prescriptionRemaining: '{{years}} yr until prescription'
+    # v0.54 resource economy
+    monthly_net: 'Monthly net'
+    output: 'Output'
+    gross_revenue: 'Revenue'
+    input_cost: 'Input cost'
+    net_revenue: 'Net'
+    resource_food: 'Food'
+    resource_raw_materials: 'Raw materials'
+    resource_processed_goods: 'Goods'
 
   # v0.53 RealEstateSeizure / LandContractDefault state display
   obligation:
