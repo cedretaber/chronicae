@@ -210,12 +210,38 @@ type RealEstateAsset = {
   level: number
   owner?: AssetOwnerRef
   createdWeek: number
+  recipeSlots: Partial<Record<ProductionRecipeId, number>>  // v0.54: 生産レシピの slot 配分（合計=realEstateRecipeSlotCount=20）
 }
 ```
 
 - `owner === undefined` は正規状態（Holding 所属の一般不動産。terminal Polity が実質管理）
 - owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
 - `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
+- v0.54: `recipeSlots` は生産内容を RealEstateKind ではなく `ProductionRecipe`（§3.2c）に持たせる仕組み。20 slot=100%、slot は労働配分比率（生産量乗数ではない）。IntegrityCheck で合計=20 / 整数 / recipe 実在 / allowedRealEstateKinds 整合を検査
+
+### 3.2c 資源経済の型（v0.54）
+
+```ts
+type ResourceKind = 'food' | 'raw_materials' | 'processed_goods'   // v0.54 は 3 種。v0.55 で細分化
+type ProductionRecipeId = Branded<string, 'ProductionRecipeId'>     // 'field_food' / 'pasture_raw_materials' / 'workshop_processed_goods'
+
+// 価格履歴（StateRegion × ResourceKind ごと、read-model）
+type MarketResourcePriceState = {
+  marketKey: string; resource: ResourceKind
+  lastPrice: number; smoothedPrice: number
+  history: MarketResourcePricePoint[]   // marketResourcePriceHistoryLimit=120 件まで
+}
+
+// 月次 holding snapshot（per-month。owner 会計は持たず生の per-asset 結果のみ）
+type HoldingResourceRevenueSnapshot = {
+  holdingId: HoldingId; week: number
+  totalNetRevenue: number               // = Σ max(0, asset netRevenue)（観察用集計。分配の課税基盤は per-asset で算出）
+  byResource: Partial<Record<ResourceKind, number>>
+  assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/soldOutputs/grossRevenue/inputCost/netRevenue
+}
+```
+
+ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config（basePrice/min/max/elasticity）は `config/resourceEconomyDefinitions.ts`。
 
 **WorldState 追加**:
 
@@ -223,6 +249,9 @@ type RealEstateAsset = {
 realEstateAssets: Record<RealEstateAssetId, RealEstateAsset>
 realEstateAssetIndex: RealEstateAssetIndex  // { byHolding, byOwner }
 nextRealEstateAssetId: number
+// v0.54 資源経済 read-model（next*Id 不要）
+marketResourcePrices: Record<string, MarketResourcePriceState>            // key = `${marketKey}:${resource}`
+monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
 ```
 
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス

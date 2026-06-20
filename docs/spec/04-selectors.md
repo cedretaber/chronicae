@@ -110,21 +110,26 @@ function getPopUnrestByClass(state: WorldState, provinceId: ProvinceId, popClass
 function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 ```
 
-### 4.3 POP Economy セレクター
+### 4.3 Resource Economy セレクター（v0.54）
+
+v0.54 で POP 直接 production（`getPopProduction` / `getHoldingProduction` / `getProvinceProduction`）を廃止し、資源経済セレクターに置換した。各 Holding の月次収益は ResourceEconomySystem（§6.3c）の `monthlyHoldingResourceRevenue` snapshot を真実源とし、selector は snapshot が無い場合に potential×basePrice の粗 proxy（純関数・RNG 非消費、§16.6）を返す。
 
 ```ts
-// POP 1件の生産量（employment multiplier、Holding 単位 dev/control）
-// pop.size * productivityByClass[pop.class] * (pop.employed ? employedProductivityMultiplier : unemployedProductivityMultiplier)
-//   * (pop.wealth / 100) * holdingDevelopmentModifier * holdingControlModifier
-function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
+// Holding の月次 revenue（= snapshot.totalNetRevenue = Σ max(0, asset netRevenue)）。旧 getHoldingProduction の置換
+function getHoldingMonthlyResourceRevenue(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// Province の総生産量（全 Holding POP の生産量合計）
-function getProvinceProduction(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+// Province の月次 revenue（holding 合計）。旧 getProvinceProduction の置換
+function getProvinceMonthlyResourceRevenue(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Province の税基盤: getProvinceProduction * (polityControl / 100)
-function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+// asset の月次 owner income（= positiveNet × (1 - realEstateHoldingDueRate)）。旧 estimateWeeklyOwnerIncome の置換（月額）
+function estimateMonthlyOwnerIncome(state: WorldState, config: SimulationConfig, asset: RealEstateAsset): number
 
-// Polity 用の Province 兵力基盤（employment manpower multiplier 含む）
+// 生産計算の下位 selector（resourceProductionSelectors / resourceMarketSelectors）:
+//   computeAllocatedLaborByAsset（employed POP を per-asset capacity 比で按分、労働保存則）/
+//   computeAssetRecipePotentials（recipeLabor 方式の potential 産出・投入）/ computeResourcePrice（supply/demand→price）/
+//   getPopResourceDemand（class 別需要 × 購買力係数）
+
+// Polity 用の Province 兵力基盤（employment manpower multiplier 含む。資源 production とは独立に pop を直接走査）
 // sum(pop.size * manpowerFactorByClass[pop.class] * (pop.employed ? employedManpowerMultiplierByClass[pop.class] : unemployedManpowerMultiplier) * (polityControl / 100))
 function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 

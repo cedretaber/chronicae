@@ -707,6 +707,23 @@
 | developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
 | developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上 |
 | minSlotOveruseModifier | 0.5 | スロット上限超過時の容量乗算下限（slotCap/usedSlots を clamp） |
+| **資源経済（v0.54 §20）** | | 初期値は調整前提。Step 2 観察ゲートで rawRatio≈1 / price≈basePrice に較正（縮退回避のみ、本格 balance は defer） |
+| resourceMarketSupplyEpsilon | 0.01 | 価格計算の supply 下限（0除算回避） |
+| marketResourcePriceHistoryLimit | 120 | StateRegion×資源ごとの価格履歴保持件数（月次 120=10年分） |
+| marketPriceSmoothingPreviousWeight / CurrentWeight | 0.75 / 0.25 | 平滑化価格の前回 / 当月重み |
+| realEstateRecipeSlotCount | 20 | RealEstateAsset の recipe slot 総数（20 slot=100%） |
+| resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
+| realEstateLevelOutputBonus | （未設定） | 設定時 assetLevelModifier=1+(level-1)×bonus。未設定なら level そのまま |
+| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
+| realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
+| popFoodDemandPerSizeByClass | {peasants:1.0, townsmen:1.05, nobles:1.10} | POP size あたり food 需要（class 別、階層差小） |
+| popProcessedGoodsDemandPerSizeByClass | {peasants:0.20, townsmen:0.60, nobles:1.20} | POP size あたり processed_goods 需要（上流ほど大） |
+| food/processedGoodsPurchasingPowerFactorAtWealth0/50/100 | food=0.6/1.0/1.2、processed=0.1/0.7/1.3 | wealth 0/50/100 の購買力係数（2 区間線形補間） |
+| foodShortageWealthPenalty / UnrestGain | 3.0 / 4.0 | food 不足 1 単位あたりの wealth-/unrest+ |
+| foodHighPriceWealthPenalty / UnrestGain | 1.5 / 1.5 | food 価格高騰（basePrice 超過比）あたりの wealth-/unrest+ |
+| foodFulfillmentWealthGain / UnrestReduction | 0.5 / 1.0 | food 充足かつ価格安定時の wealth+/unrest-（§19.2 正のチャネル） |
+| processedGoodsShortageWealthPenalty / UnrestGain | 1.0 / 1.0 | processed_goods 不足あたりの wealth-/unrest+ |
+| processedGoodsFulfillmentWealthGain / UnrestReduction | 0.5 / 0.5 | processed_goods 充足あたりの wealth+/unrest- |
 | **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |
