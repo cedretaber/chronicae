@@ -163,8 +163,10 @@ sidebar:
   houses: '家系'
   persons: '人物'
   factions: '派閥'
+  markets: '市場'
   faction_tier: '{{tier}}次'
   no_active_factions: '活動中の派閥はありません'
+  no_markets: '市場がありません'
   war_status:
     active: '戦争'
   play_kind:
@@ -778,6 +780,18 @@ detail:
     resource_food: '食料'
     resource_raw_materials: '原材料'
     resource_processed_goods: '加工品'
+
+  # v0.54 市場詳細パネル (StateRegion ごとの資源市場)
+  market:
+    window_title: '市場: {{name}}'
+    province_count: '{{count}} 領'
+    prices: '資源価格'
+    base_price: '基本価格'
+    current_price: '現在価格'
+    no_data: '取引データなし'
+    supply: '供給'
+    demand: '需要'
+    sold: '売却'
 
   # v0.53 押領・上納拒否 (RealEstateSeizure / LandContractDefault) の状態表示
   obligation:

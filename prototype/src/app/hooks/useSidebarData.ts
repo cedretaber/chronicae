@@ -20,6 +20,7 @@ import type { Person } from '@/sim/types/person'
 import type { Faction } from '@/sim/types/faction'
 import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
 import type { War } from '@/sim/types/war'
+import type { StateRegion } from '@/sim/types/stateRegion'
 import type { HouseId } from '@sim/types/ids'
 
 export type SectionKey =
@@ -30,6 +31,7 @@ export type SectionKey =
   | 'watchlist'
   | 'plays'
   | 'wars'
+  | 'markets'
 
 export const SECTION_KEYS: SectionKey[] = [
   'watchlist',
@@ -39,6 +41,7 @@ export const SECTION_KEYS: SectionKey[] = [
   'houses',
   'persons',
   'factions',
+  'markets',
 ]
 
 export type SidebarData = {
@@ -53,6 +56,7 @@ export type SidebarData = {
   factionEntries: { faction: Faction; leaderName: string; memberCount: number; tier: number }[]
   activePlays: DiplomaticPlay[]
   activeWars: War[]
+  stateRegions: StateRegion[]
   sectionCount: Record<SectionKey, number>
 }
 
@@ -187,6 +191,16 @@ export function useSidebarData(): SidebarData {
     ? Object.values(session.currentState.wars).filter((w): w is War => !!w && w.status === 'active')
     : []
 
+  // v0.54 市場: StateRegion ごとに資源市場が存在する。state 数は大マップでも多くないため全件表示する。
+  //   province 数の多い (= 市場規模の大きい) 順に並べる。同数は id で安定ソート。
+  const stateRegions: StateRegion[] = session?.currentState
+    ? Object.values(session.currentState.states).sort((a, b) => {
+        if (b.provinceIds.length !== a.provinceIds.length)
+          return b.provinceIds.length - a.provinceIds.length
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+      })
+    : []
+
   const sectionCount: Record<SectionKey, number> = {
     countries: sortedPolities.length,
     houses: houseEntries.length,
@@ -195,6 +209,7 @@ export function useSidebarData(): SidebarData {
     watchlist: watchlist.length,
     plays: activePlays.length,
     wars: activeWars.length,
+    markets: stateRegions.length,
   }
 
   return {
@@ -209,6 +224,7 @@ export function useSidebarData(): SidebarData {
     factionEntries,
     activePlays,
     activeWars,
+    stateRegions,
     sectionCount,
   }
 }

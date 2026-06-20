@@ -28,9 +28,10 @@ import {
   WarDetail,
   ProjectDetail,
   BattleReplayPanel,
+  MarketDetail,
 } from '@/app/components/panels/DetailPanel'
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
-import type { PolityId, HouseId, PersonId, ProvinceId } from '@/sim/types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId, StateRegionId } from '@/sim/types/ids'
 import { DraggableWindow } from './DraggableWindow'
 
 export function WindowManager() {
@@ -352,6 +353,20 @@ export function WindowManager() {
                 watchlist={watchlist}
                 toggleWatchlist={toggleWatchlist}
               />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'market') {
+          const stateRegion = state.states[entityId as StateRegionId]
+          if (!stateRegion) return null
+          const regionName = resolveName('state_region', stateRegion.nameKey, stateRegion.nameKey)
+          return (
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={t('detail.market.window_title', { name: regionName })}
+            >
+              <MarketDetail stateRegion={stateRegion} session={session} />
             </DraggableWindow>
           )
         }
