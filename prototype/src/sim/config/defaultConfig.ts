@@ -2944,7 +2944,10 @@ export const defaultConfig: SimulationConfig = {
   seizureProjectCooldownWeeks: 96,
   landContractDefaultProjectCooldownWeeks: 96,
   enforceObligationProjectCooldownWeeks: 96,
-  revoltOccupationNominalTaxRate: 0.01,
+  // 反乱占拠中に仮発行する nominal occupation contract の名目税率。実効上納は active default で
+  // 0 に落ちる (LandRevenue) ため値自体は徴収に効かないが、UI/契約上「あくまで反乱中の仮の契約」と
+  // 見えるよう中庸の 50% にする (極端に低い/高い名目は不自然)。非 root tax-0 不変条件 (>0) も満たす。
+  revoltOccupationNominalTaxRate: 0.5,
   violenceOpportunityMilitaryAdvantageWeight: 0.1,
   violenceOpportunityAmbitionWeight: 20,
   violenceOpportunityCautionWeight: 20,
