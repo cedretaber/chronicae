@@ -307,9 +307,9 @@ export function PolityLandContracts({
                       {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
                     </span>
                   </div>
-                  {/* v0.53 加害: この Polity がこの契約の上納を拒否している (能動) */}
+                  {/* v0.53 加害: この Polity がこの契約の上納を拒否している (能動) — 橙 */}
                   {c.withholdingDefault && (
-                    <div className="mt-0.5 rounded bg-red-950/50 px-1 text-[10px] text-red-300">
+                    <div className="mt-0.5 rounded bg-amber-950/40 px-1 text-[10px] text-amber-300">
                       ⚠{' '}
                       {c.withholdingDefault.origin === 'revolt_independence'
                         ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
@@ -333,11 +333,11 @@ export function PolityLandContracts({
                       })}
                     </div>
                   )}
-                  {/* v0.53 被害: 下位がこの Polity への上納を拒否している (受動) */}
+                  {/* v0.53 被害: 下位がこの Polity への上納を拒否している (受動) — 赤 */}
                   {c.beingWithheldDefaults.map((d) => (
                     <div
                       key={d.id}
-                      className="mt-0.5 rounded bg-amber-950/40 px-1 text-[10px] text-amber-300"
+                      className="mt-0.5 rounded bg-red-950/50 px-1 text-[10px] text-red-300"
                     >
                       ⚠{' '}
                       {d.origin === 'revolt_independence'
