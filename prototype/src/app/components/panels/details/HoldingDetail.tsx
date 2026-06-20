@@ -707,7 +707,11 @@ export function HoldingDetail({
                           WEEKS_PER_YEAR,
                       )
                     : null
-                const contractDefault = getActiveDefaultForContract(currentState, contract.id)
+                // ↓ の税率は nextContract が contract (grantor) へ支払う率。その契約が
+                //   上納拒否中なら、この税率リンク自体が機能不全 → ここにマーカーを出す。
+                const linkDefault = nextContract
+                  ? getActiveDefaultForContract(currentState, nextContract.id)
+                  : undefined
                 return (
                   <div key={contract.id}>
                     <div className="border-l border-gray-700 pl-2 text-sm">
@@ -721,44 +725,48 @@ export function HoldingDetail({
                       ) : (
                         <span className="text-gray-500">—</span>
                       )}
-                      {contractDefault && (
-                        <span className="ml-1 rounded bg-red-950/50 px-1 text-[11px] text-red-300">
-                          ⚠{' '}
-                          {contractDefault.origin === 'revolt_independence'
-                            ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
-                            : t('detail.obligation.default_active', { defaultValue: '上納拒否中' })}
-                          {' · '}
-                          {t('detail.obligation.default_claimant', {
-                            defaultValue: '請求元',
-                          })}
-                          :{' '}
-                          {getPolityShortName(
-                            currentState,
-                            resolveName,
-                            contractDefault.claimantPolityId,
-                          )}
-                          {' · '}
-                          {t('detail.obligation.prescription_remaining', {
-                            defaultValue: '時効まで残り {{years}} 年',
-                            years: Math.floor(
-                              getDefaultPrescriptionRemainingYears(
-                                currentState,
-                                defaultConfig,
-                                contractDefault,
-                              ),
-                            ),
-                          })}
-                        </span>
-                      )}
                     </div>
                     {nextContract && (
                       <div className="border-l border-gray-700 pl-3 text-xs text-gray-500">
-                        ↓ {(nextContract.terms.taxRateToGrantor * 100).toFixed(0)}%
+                        <span className={linkDefault ? 'text-red-300 line-through' : ''}>
+                          ↓ {(nextContract.terms.taxRateToGrantor * 100).toFixed(0)}%
+                        </span>
                         {protectedRemaining != null && (
                           <span className="ml-1 text-yellow-500">
                             🛡{' '}
                             {t('detail.province.terms_protected_until', {
                               years: protectedRemaining,
+                            })}
+                          </span>
+                        )}
+                        {linkDefault && (
+                          <span className="ml-1 rounded bg-red-950/50 px-1 text-[11px] text-red-300">
+                            ⚠{' '}
+                            {linkDefault.origin === 'revolt_independence'
+                              ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                              : t('detail.obligation.default_active', {
+                                  defaultValue: '上納拒否中',
+                                })}
+                            {' · '}
+                            {t('detail.obligation.default_claimant', {
+                              defaultValue: '請求元',
+                            })}
+                            :{' '}
+                            {getPolityShortName(
+                              currentState,
+                              resolveName,
+                              linkDefault.claimantPolityId,
+                            )}
+                            {' · '}
+                            {t('detail.obligation.prescription_remaining', {
+                              defaultValue: '時効まで残り {{years}} 年',
+                              years: Math.floor(
+                                getDefaultPrescriptionRemainingYears(
+                                  currentState,
+                                  defaultConfig,
+                                  linkDefault,
+                                ),
+                              ),
                             })}
                           </span>
                         )}
