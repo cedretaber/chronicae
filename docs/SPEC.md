@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-20 (v0.52 所領・不動産システム — RealEstateAsset 導入 (field/pasture/workshop)、PopOccupation 廃止→employed boolean、acquire/upgrade_owned_real_estate Project、realEstateOwnerSuccessionSystem、RealEstateAsset integrity check 追加)
+最終更新: 2026-06-20 (v0.53 押領・土地契約不履行・時効 — RealEstateSeizure / LandContractDefault 導入、seize/withhold/enforce Project、Pressure 経由の対応、20年時効による既成事実化 (spliceOutClaimantContract)、revolt_seizure 廃止→nominal occupation contract + revolt_independence default、非 root tax-0 invariant、obligationConsistency/Accrual/prescription/cleanupTerminalObligations system 追加)
 
 ---
 

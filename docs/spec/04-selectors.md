@@ -825,3 +825,64 @@ buildFactionTree(state, factionId): { rootFactionId, rootPersonId, nodes: Factio
 - 入口 factionId が属する木の **root を `parentFactionId` で上方向に辿って特定**し（inactive 親で停止）、root から `byParent` を DFS して人物ノードを preorder で返す。faction / person の cycle guard 付き。
 - `addFactionMembership` が単一 active membership を強制する（§6.19・§4.4）ため、各人物は木内に**一意に出現**する（重複ノード無し）。active faction / active membership のみ対象。
 - ノードは `role`（leader / member）と `depth`（root leader=0）を持つ。レイアウト座標は UI 側の責務（§11・`factionTreeLayout.ts`）。
+
+### 4.17 押領・上納拒否セレクター（v0.53）
+
+権利と実効支配のズレ（RealEstateSeizure / LandContractDefault / PolityThreats）を扱う read-only セレクター群（§6 押領・土地契約不履行）。すべて純 sim（app/i18n 非依存）・RNG 不使用・決定的。
+
+`prototype/src/sim/selectors/realEstateSeizureSelectors.ts` — House-owned RealEstateAsset の owner income 押領。index（`realEstateSeizureIndex`）は active entity のみ保持するため、index 経由 getter は active seizure のみ返す。
+
+```ts
+// asset 単位の active seizure（byAsset は単数値・active 最大 1）
+function getActiveSeizureForAsset(state, assetId): RealEstateSeizure | undefined
+// holding / rightfulOwner House 単位の active seizure 一覧
+function getActiveSeizuresForHolding(state, holdingId): RealEstateSeizure[]
+function getActiveSeizuresForOwnerHouse(state, houseId): RealEstateSeizure[]
+
+// 時効までの残り（lastContestedWeek ?? startedWeek を基点・§13.2）。
+//   weeks は 0 以下で時効到達、years は max(0, weeks / WEEKS_PER_YEAR)
+function getSeizurePrescriptionRemainingWeeks(state, config, seizure): number
+function getSeizurePrescriptionRemainingYears(state, config, seizure): number
+
+// owner House の独立抵抗力（§8.3。seize opportunity / enforce strength gate の両方で共用）
+//   = calcHouseMilitaryPower(ownerHouse)
+//     + owner House が所有する各 polity の overlord 群（getPolityOverlordPolityIds）の
+//       calcPolityMilitaryPower 合計（seizerPolity は除外・overlord は dedupe）。
+//   polity を所有しない House は protector 0（自家戦力のみ）
+function computeOwnerHouseResistance(state, config, ownerHouseId, seizerPolityId): number
+
+// holding 内で最も脆弱な House-owned asset を選ぶ（C1: Aim scoring と Project 作成で同一 selector を共用）。
+//   Phase 1 制約（§4.3）でフィルタ: owner.kind==='house' / owner House active /
+//   owner House != seizer Polity の ownerHouse / 当該 asset に active seizure なし。
+//   resistance 最小を選び、走査は asset id 昇順（tie-break = asset id 昇順で決定的）。
+//   返り値 { asset, resistance }
+function selectMostVulnerableHouseOwnedAsset(state, config, seizerPolityId, holdingId): VulnerableAssetPick | undefined
+```
+
+`prototype/src/sim/selectors/landContractDefaultSelectors.ts` — LandContract chain の上納義務不履行（tax_default / revolt_independence）。index（`landContractDefaultIndex`）は active のみ保持。
+
+```ts
+// contract 単位の active default（byContract は単数値・active 最大 1）
+function getActiveDefaultForContract(state, contractId): LandContractDefault | undefined
+// claimant（被害）/ occupier（加害）Polity 単位の active default 一覧
+function getActiveDefaultsForClaimantPolity(state, polityId): LandContractDefault[]
+function getActiveDefaultsForOccupierPolity(state, polityId): LandContractDefault[]
+
+// 時効までの残り年数（lastContestedWeek ?? startedWeek 基点・§13.2）= max(0, weeks / WEEKS_PER_YEAR)。
+//   seizure 側と異なり remaining weeks 版は private（非 export）
+function getDefaultPrescriptionRemainingYears(state, config, d): number
+```
+
+`prototype/src/sim/selectors/polityThreatSelectors.ts` — Polity が受けている脅威（Pressure / 領内 Crisis）を集約する UI 用セレクター（§17.3 PolityThreats パネル）。
+
+```ts
+// この Polity が target の active Pressure。pressureIndex.byTarget（decisionSubjectKey）を
+//   引いて status==='active' で filter する（index は inactive も載るため filter 必須）
+function getActivePressuresForPolity(state, polityId): Pressure[]
+
+// この Polity が実効支配する holding で進行中の active Crisis（dedup 済み）。
+//   landContractIndex.byGranteePolity の各契約のうち byParent に子契約が無い（= terminal）
+//   holding の crisisIndex.byHolding を走査し、status==='active' を seen Set で重複排除して返す。
+//   crisis は holding 単位（owner は live 解決）のため、terminal 契約の holding で判定する
+function getActiveCrisesForPolity(state, polityId): Crisis[]
+```

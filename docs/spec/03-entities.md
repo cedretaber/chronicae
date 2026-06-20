@@ -228,6 +228,101 @@ nextRealEstateAssetId: number
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス
 - `realEstateAssetIndex.byOwner`: `assetOwnerKey(owner)` → RealEstateAssetId[] のインデックス（owner ありのみ）
 
+### 3.2b RealEstateSeizure / LandContractDefault（権利と実効支配のズレ）（v0.53）
+
+v0.53 で導入。**法的・契約上の権利者**と**実際に土地・収益を握っている主体**がズレた状態を表す。LandContract の異常状態（specialStatus）を廃止し、これら 2 entity に分離した。押領・上納拒否は system が直接 spawn せず、Goal / Aim / Project / Outcome を経由して発生する（履歴に「誰が・なぜ」が残る）。型は `src/sim/types/` に分離。
+
+**RealEstateSeizure**: House-owned RealEstateAsset の owner income を、現地 terminal Polity が支払わず Holding 収益へ取り込む状態。物理破壊ではなく収益権・所有権の侵害。
+
+```ts
+type RealEstateSeizureId = Branded<string, 'RealEstateSeizureId'>  // prefix: "rs-"
+
+type RealEstateSeizureStatus = 'active' | 'resolved' | 'legalized' | 'cancelled'
+
+type RealEstateSeizure = {
+  id: RealEstateSeizureId
+  status: RealEstateSeizureStatus
+  holdingId: HoldingId
+  assetId: RealEstateAssetId
+  seizerPolityId: PolityId
+  rightfulOwner: AssetOwnerRef       // Phase 1 では house のみ
+  startedWeek: number
+  lastContestedWeek?: number
+  nextEnforceAllowedWeek?: number    // enforce 再起案 cooldown 起点
+  activeEnforceProjectId?: ProjectId // 現在進行中の enforce_obligation Project（最大 1）
+  accumulatedUnpaidAmount: number    // 概算の累積請求額・係争規模指標（severity field は持たない）
+  reasonIds: DecisionReasonId[]      // seize_real_estate_income Project の decision reasons を引き継ぐ（空許容）
+  terminalWeek?: number              // terminal 化した absoluteWeek（retention 起点）
+}
+```
+
+- severity フィールドは持たず、`accumulatedUnpaidAmount` を係争規模の代理指標とする
+- active 中も `asset.owner` は record 上保持する。LandRevenue 上だけ `owner === undefined` 相当として扱い owner income を支払わない。20年時効で legalized した場合に実際に `asset.owner = undefined` へ変更する
+- Phase 1 制約: `rightfulOwner.kind === 'house'` / owner House が active / owner House が terminal Polity の ownerHouse でない / seizer は holding terminal Polity / 同一 asset に active seizure は最大 1
+
+**LandContractDefault**: LandContract chain に基づく上納義務が履行されていない状態。通常の上納拒否（tax_default）と反乱独立による占拠（revolt_independence）の 2 origin を同一 entity で扱う。
+
+```ts
+type LandContractDefaultId = Branded<string, 'LandContractDefaultId'>  // prefix: "lcd-"
+
+type LandContractDefaultStatus = 'active' | 'resolved' | 'legalized' | 'cancelled'
+type LandContractDefaultOrigin = 'tax_default' | 'revolt_independence'
+
+type LandContractDefault = {
+  id: LandContractDefaultId
+  status: LandContractDefaultStatus
+  origin: LandContractDefaultOrigin
+  holdingId: HoldingId
+  occupiedByPolityId: PolityId
+  claimantPolityId: PolityId
+  targetLandContractId: LandContractId  // 必須（両 origin）。tax_default=対象 terminal contract / revolt_independence=nominal occupation contract。LandRevenue の実効 0 を byContract で引いて適用する
+  originalGrantorPolityId?: PolityId
+  originalGranteePolityId: PolityId
+  originalTaxRateToGrantor: number
+  startedWeek: number
+  lastContestedWeek?: number
+  nextEnforceAllowedWeek?: number    // enforce 再起案 cooldown 起点
+  activeEnforceProjectId?: ProjectId
+  accumulatedUnpaidAmount: number    // 概算の累積請求額・係争規模指標（severity field は持たない）
+  reasonIds: DecisionReasonId[]      // withhold_land_contract_tax / revolt_independence 作成時の decision reasons を引き継ぐ（空許容）
+  terminalWeek?: number
+}
+```
+
+- `tax_default`: 既存 terminal contract はあるが下位 Polity が上位 grantor へ上納しない。`revolt_independence`: 反乱国家 / commonwealth が Holding を実効支配し、旧権利者が請求権のみ保持する。後者の nominal occupation contract は `taxRateToGrantor > 0` の正税率を持つが active default 中は LandRevenue 上で実効 0 に上書きされる（terminal-holder 意味論維持と非 root tax-0 invariant 回避のための構造値）
+- Phase 2 制約: 初期対象は terminal contract のみ（root は対象外）/ grantor が active Polity の contract のみ / 同一 contract に active default は最大 1 / 同一 holding に active revolt_independence default は最大 1 / `targetLandContractId` は両 origin で必須
+- 20年時効（prescription）で legalized すると chain を正規化する。基本方針は直近 grantor 1 段の splice out（occupation contract を claimant の祖父契約へ旧条件で再親契約。claimant が root なら occupation contract を root 化）
+
+**WorldState 追加**:
+
+```ts
+realEstateSeizures: Record<RealEstateSeizureId, RealEstateSeizure>
+realEstateSeizureIndex: RealEstateSeizureIndex
+nextRealEstateSeizureId: number
+
+landContractDefaults: Record<LandContractDefaultId, LandContractDefault>
+landContractDefaultIndex: LandContractDefaultIndex
+nextLandContractDefaultId: number
+```
+
+```ts
+type RealEstateSeizureIndex = {
+  byHolding: Record<HoldingId, RealEstateSeizureId[]>
+  byAsset: Record<RealEstateAssetId, RealEstateSeizureId>  // 単数（active seizure は asset 単位で最大 1）
+  byRightfulOwnerHouse: Record<HouseId, RealEstateSeizureId[]>
+}
+
+type LandContractDefaultIndex = {
+  byHolding: Record<HoldingId, LandContractDefaultId[]>
+  byContract: Record<LandContractId, LandContractDefaultId>  // 単数（active default は contract 単位で最大 1）
+  byClaimantPolity: Record<PolityId, LandContractDefaultId[]>
+  byOccupierPolity: Record<PolityId, LandContractDefaultId[]>
+}
+```
+
+- **index は active entity のみを保持する**。terminal（resolved / legalized / cancelled）化した時点で全 index から除去する。Record（`realEstateSeizures` / `landContractDefaults`）には `terminalObligationRetentionWeeks`（既定 48）の間 retention し、UI / Event / cleanup のために残してから削除する
+- FK 存在検査（holdingId / assetId / contract / polity / House が存在する）は **active entity のみ**に課す。terminal/retained entity は cancel 原因（asset 消滅・絶家等）により dangling 参照を持ちうるため FK 免除
+
 ### 3.3 Polity（政治主体）
 
 ```ts
@@ -634,13 +729,6 @@ target key は `polity_office_role:{polityId}:{role}:{slotIndex}` / `holding_off
 **LandContract**: ある Holding に対する 1 段の契約。chain は root → terminal の順で積み重なる。
 
 ```ts
-type LandContractSpecialStatus = {
-  kind: 'revolt_seizure'
-  revoltPolityId: PolityId
-  originalTerminalPolityId: PolityId
-  startedWeek: number
-}
-
 type LandContractGrantor =
   | { kind: 'root'; rootAuthorityId: RootAuthorityId }
   | { kind: 'polity'; polityId: PolityId }
@@ -654,7 +742,6 @@ type LandContract = {
   granteePolityId: PolityId          // この契約で土地を受け取る Polity
   terms: { taxRateToGrantor: number }  // grantor への上納率。root contract は 0 固定
   termsProtectedUntilWeek?: number   // 契約保護期間の終了週。この週まで税率改定の再交渉を禁止
-  specialStatus?: LandContractSpecialStatus  // 民衆叛乱による接収など、特殊な契約状態
   lastTaxChangedWeek?: number        // 最後に税率を変更した absoluteWeek
   previousTaxRate?: number           // 直前の税率（変更前の値）
   taxIncreaseCooldownUntilWeek?: number  // この週まで税率引き上げを禁止
@@ -662,8 +749,9 @@ type LandContract = {
 ```
 
 - `provinceId` は `holdingId → Holding.provinceId` から導出可能な冗長フィールド。Holding-Province 対応はゲーム中不変のため壊れず、多数の参照箇所で間接参照を省ける
-- `specialStatus`: `revolt_seizure`（民衆叛乱で接収された契約。叛乱 Polity / 元 terminal Polity / 開始週を保持）
 - `LandContractGrantor`: 契約の grantor を表す union。`root`（rootAuthorityId 由来）/ `polity`（上位 Polity 由来）
+- LandContract は通常状態のみを表す（v0.53）。不履行・占拠・反乱接収・時効待ちなどの異常状態は LandContract のフィールドではなく `RealEstateSeizure` / `LandContractDefault`（§3.2b）で表す。v0.53 で `specialStatus`（`revolt_seizure`: 民衆叛乱で接収された契約を示す特殊状態）を**廃止**した。反乱占拠は `taxRateToGrantor > 0` の nominal occupation contract ＋ `LandContractDefault.origin = 'revolt_independence'` で表現する（§3.2b 参照）
+- non-root contract の `taxRateToGrantor = 0` は通常状態として使わない（v0.53）。上納が止まっている状態は税率 0 の契約ではなく active `LandContractDefault` で表す。Phase 3 完了後は「`parentContractId !== undefined && terms.taxRateToGrantor === 0`」を integrity violation とする（root のみ 0 を維持）
 
 不変条件:
 

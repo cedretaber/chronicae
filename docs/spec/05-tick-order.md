@@ -51,6 +51,10 @@ const WEEKS_PER_SEASON = 12
 | 4 | PopSystem | 4 | |
 | 4b | EmploymentRebalanceSystem | 4 | class capacity 超過→未就業化、未就業→再就業（employed boolean） |
 | 5 | LandRevenueSystem | 4 | |
+| 5a | ObligationConsistencySystem | 4 | v0.53: active な押領 (RealEstateSeizure) / 上納不履行 (LandContractDefault) の dangling 参照・前提崩壊を検査し cancelled 化（+ `*_CANCELLED` emit + 関連 enforce Project を terminal 化）。accrual/prescription より**前**に置き、dangling entity を accrue / legalize する前に解消する（§6 ObligationDefault・spec v0.53 §13.5） |
+| 5b | ObligationAccrualSystem | 4 | v0.53: active な RealEstateSeizure / LandContractDefault の `accumulatedUnpaidAmount`（係争規模指標）を概算加算。厳密会計値ではない（spec v0.53 §12） |
+| 5c | PrescriptionSystem | 4 | v0.53: 20年時効。`lastContestedWeek ?? startedWeek` から prescription 年数経過で legalized。seizure→`asset.owner = undefined` / default→`spliceOutClaimantContract`（直近 grantor 1 段 splice）（spec v0.53 §13） |
+| 5d | CleanupTerminalObligations | 4 | v0.53: terminal（resolved/legalized/cancelled）化した seizure/default を `terminalObligationRetentionWeeks` 経過後に Record から削除（index は terminal 化時点で除去済み。retention は UI/Event 用）（spec v0.53 §6.2 / §6.3） |
 | 6 | PolitySurplusDistributionSystem | 4 | |
 | 6b | HouseSurplusDistributionSystem | 4 | |
 | 7 | HarvestSystem | 48 | v0.48: 旧 DisasterSystem の正イベント（BountifulHarvest）のみ。負イベント（災害）は CrisisSystem へ移設（§6.6a） |

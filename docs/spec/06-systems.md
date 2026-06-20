@@ -205,6 +205,11 @@ for (const contract of chain.slice().reverse()) {
 
 `root contract` の `taxRateToGrantor` は 0 固定なので、world に流出する分は無い。
 
+**6.4.2c 義務不履行による収益の留保（v0.53、read-only）**: chain 上納と owner income 支払いは、active な押領・上納拒否を反映して実効値を変える（詳細は §6.70）。LandRevenueSystem はこれらの entity を作成・変更せず、**読むだけ**である。
+
+- **active RealEstateSeizure**: 対象 RealEstateAsset の owner income を rightfulOwner（House）に支払わず、本来 owner に流れるはずだった income を Holding 収益に残す（bailiff extraction / chain 上納の対象になる）。`asset.owner` record は active 中も保持し、20年時効で legalized したときのみ `undefined` 化する。
+- **active LandContractDefault**: `targetLandContractId` を `byContract` で引き、当該 contract の `taxRateToGrantor` を**実効 0** とみなす（contract record の値は不変）。tax_default / revolt_independence の両 origin に適用する。revolt_independence の nominal occupation contract は `revoltOccupationNominalTaxRate`（=0.5）の正税率を持つが active default 中はこの実効 0 で上書きされる。terminal contract を実効 0 にすると直近 grantor だけでなく**上流 chain 全体**へ流れる revenue が止まる（remaining が上に繰り上がらない）。
+
 **6.4.3 Polity treasurer の taxEfficiency**
 
 taxEfficiency は chain 配分の後、各 grantor polity 単位で集計した収入デルタに対して適用される。多段 chain では各 overlord polity が自分の treasurer の効率を自分の取り分に個別適用する。あわせて `config.taxFlowEfficiency`（既定 1.0）を同時に乗算する。
@@ -1134,7 +1139,7 @@ drive を 0 にして抑止する。primary polity / house leader 不在は driv
 
 土地保有者 Polity が LandContract の税率を引き上げる。provinceRevoltSystem より前に実行し、税率↑ → unrest↑ → 叛乱の循環を形成する。
 
-対象: active Polity の terminal holding（commonwealth・revolt_seizure 契約・cooldown 中・active revolt_negotiation 対象を除外）。
+対象: active Polity の terminal holding（commonwealth・nominal occupation 契約〔v0.53 で revolt_seizure 契約から置換。active revolt_independence default 紐付け〕・cooldown 中・active revolt_negotiation 対象を除外）。
 
 判断: increaseScore（treasury 不足・低 unrest・leader ambition・戦争中）vs avoidScore（高 unrest・recent revolt・高税率・leader caution/insight）で判定。上昇幅 +0.02〜0.05、`taxRevisionSystemMaxRate` でキャップ。`taxIncreaseCooldownUntilWeek` で連続増税を防止。
 
@@ -1193,9 +1198,9 @@ attitude は自然減衰しないため累積し、閾値 -30 到達で次回反
   - secession（`applySecessionSuppression`）: 譲歩を伴わず反乱 class の unrest を下げ holding に `lastRevoltSuppressedWeek` を記録（鎮圧）+ `CRISIS_RESOLVED`。house 悪感情（根本不満）は解消しないため cooldown 明けに再蜂起しうる
 - **expired（期限内に severity を削りきれず武装蜂起）**: `escalateUnrestCrisis` が `createNegotiatingCommonwealth`（landless、rank 5、treasury 0、leader は在野優先→不在時新規生成）+ vestigial `revolt_negotiation` play を生成し、`REVOLT_POLITY_FOUNDED` + `REVOLT_NEGOTIATION_STARTED` の後 **即座に `applyRevoltEscalation`** で既存 War 配管へ直行する（48 週交渉窓の進行部分は廃止、play エンティティは war 化のために残置）。secession は妥結経路を持たないので必ずこの蜂起へ進む。
 - escalation 時の rank 判定基準（v0.47.x 修正、demand 種別に依らず共通）: 分岐は **escalation 時点の「現」terminal holder の rank** で決める。play.target は play 生成時の terminal holder で固定されるため、交渉期間中に当該 holding が land_grant / 契約移管で再分封されると stale になる（例: 交渉中に rank 3 領主が新設の rank 5 land_grant Polity へ holding を分封すると、play.target=rank 3 のままだが現 terminal holder は rank 5）。そこで `applyRevoltEscalation` は `landContractIndex.byHolding` 末尾の terminal contract から現 grantee を取得し、その rank と commonwealth rank（5）を比較する。terminal holder が消失していれば play を fail（stale 縮退）。
-- escalation (現 terminal holder rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
+- escalation (現 terminal holder rank 2-4): **nominal occupation 子契約追加（v0.53）** → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化。**v0.53 で revolt_seizure 子契約を廃止**: 旧実装は `taxRateToGrantor=0` の tax-0 子契約 + `revolt_seizure` specialStatus を作っていたが、これを `taxRateToGrantor=revoltOccupationNominalTaxRate`（=0.5）の **nominal occupation contract** + `LandContractDefault.origin='revolt_independence'`（claimant=旧 terminal holder、occupier=commonwealth、targetLandContractId=nominal contract）へ置換した。nominal tax 0.5 は terminal-holder 意味論維持と非 root tax-0 invariant 回避のための構造値で、active default 中は LandRevenue 上で実効 0（§6.4 / §6.70）。`Polity.revoltState.revoltSeizureContractIds` も default ids へ置換
   - 奪取で holding の terminal Polity は commonwealth に変わるが、owner 付け替えを担う RegimentMaintenanceSystem（§6.49）は warManeuverSystem の**後**に走るため、奪取→即開戦の叛乱には間に合わない（放置すると当該常設連隊が領主=defender 側として動員され、叛乱側は Local Levy 1 個のみで戦う）。そこで escalation 時点で当該 holding の Regiment 群（`regimentIndex.byHomeHolding[holdingId]`）に `syncRegimentOwnerToHomeTerminalMut`（§6.49 と同一ヘルパー＝同一ルール）を eager 適用し、開戦前に叛乱側へ移管する。直前に生成した Local Levy（owner=commonwealth）は no-op、動員済の連隊は owner だけ移り当該 War では `currentWarId` 判定でスキップされる。叛乱敗北で holding が領主へ revert すれば §6.49 が owner を領主へ戻す（active 連隊プールは枯渇しない）。
-- escalation (現 terminal holder rank 5 = commonwealth と同 rank): internal revolt 即時解決（§6.30）。rank 5 terminal holder の下に `revolt_seizure` 子契約（grantee=rank 5 commonwealth）を作ると grantor rank ≥ grantee rank となり LandContract 不変条件 §25 #7 を破るため、子契約を作らず現 terminal holder の regime change に分岐する。
+- escalation (現 terminal holder rank 5 = commonwealth と同 rank): internal revolt 即時解決（§6.30）。rank 5 terminal holder の下に occupation 子契約（grantee=rank 5 commonwealth）を作ると grantor rank ≥ grantee rank となり LandContract 不変条件 §25 #7 を破るため、子契約を作らず現 terminal holder の regime change に分岐する（v0.53 でも同様。子契約 origin は問わない）。
 
 ### 6.29a UnrestCrisisSystem（毎週、CrisisSystem の直後）
 
@@ -1217,6 +1222,13 @@ rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時�
 成功時: 既存 Polity を commonwealth に変換（`origin: regime_changed_by_popular_revolt`、`revoltState: established`）。旧 leader revoke、rebel leader 任命、Share 差替、税率引下、POP attitude ブースト、旧 ownerHouse attitude ペナルティ。`REVOLT_REGIME_CHANGED` event。
 
 失敗時: commonwealth 解散（leader executed/pardoned）、unrest 低下、`lastRevoltSuppressedWeek` 記録。`REVOLT_SUPPRESSED` event。
+
+**v0.53 反乱独立の contract 処理（`suppressRevolt` / `establishCommonwealth`）**: 反乱占拠は nominal occupation contract + `LandContractDefault.origin='revolt_independence'` で表す（§6.29 / §6.70）。鎮圧・確立・時効時の操作は:
+
+- **鎮圧（war 敗北 / suppress）**: nominal occupation contract を `eliminateContractFromChain` で eliminate（子を親に再接続）し、紐づく LandContractDefault を `cancelled` にする。
+- **確立（war 勝利 / establish）または時効（prescription）**: `spliceOutClaimantContract`（§6.70）で直近 grantor 1 段を chain から除去し occupation contract を祖父へ旧条件で昇格（claimant が root なら occupation contract を root 化）し、default を `legalized` にする。
+
+旧実装の「specialStatus を剥がして tax-0 contract を残す」（establishCommonwealth）は v0.53 で廃止した。
 
 **commonwealth 解散の cascade**（`dissolveNegotiatingCommonwealth` — settlement / 鎮圧 / revolt War 敗北の `suppressRevolt` で共通）: polity を inactive 化する際、§6.31 Step 1 の Polity 消滅と同等の cascade を実行する — 全 office revoke + `removeRightsByPolity`（R2）+ anchor Faction の即時解散（F8、`FACTION_DISSOLVED` reason=anchor_polity_dissolved）。Faction cascade は §6.31 と共有の `dissolveFactionsAnchoredToPolity` ヘルパーに集約されており、polity を inactive 化する経路は必ずこれを経由する（FactionLifecycle の anchor_polity_dissolved 判定は年次実行のため安全網にしかならず、cascade 欠落は年末 integrity F8 違反として顕在化する）。
 
@@ -1405,7 +1417,7 @@ adminPower = clamp100(
 
 LandContract / chain 整合性:
 1. chain は root contract を 1 つだけ持つ
-2. root contract の `taxRateToGrantor` は 0
+2. root contract の `taxRateToGrantor` は 0。**非 root contract の `taxRateToGrantor=0` は violation（v0.53）**: 上納の止まった状態は税率 0 の通常契約ではなく `LandContractDefault` で表すため、非 root で税率 0 を禁止する（root のみ 0 を維持）
 3. chain の granteePolityId は active Polity
 4. chain は循環しない
 5. terminal contract のみ Bailiff が紐付く
@@ -1589,6 +1601,14 @@ RealEstateAsset（v0.52）:
 - owner が Polity の場合: 当該 Polity が存在する
 - `realEstateAssetIndex.byHolding` / `byOwner` と実体が双方向整合（rebuild して件数比較）
 
+RealEstateSeizure / LandContractDefault（v0.53、§6.70）:
+
+**FK 存在検査は active entity のみ**: terminal（resolved / legalized / cancelled）entity は cancel 原因（asset 消滅・絶家・契約消滅など）により dangling 参照を持ちうるため、`terminalObligationRetentionWeeks` の retention 中は FK 免除（既存 terminal レコードと同じ扱い）。
+
+- RealEstateSeizure（active のみ FK）: holdingId / assetId / seizerPolityId / rightfulOwner House が存在し `asset.holdingId === holdingId`。index `byAsset`（一意）/ `byHolding` / `byRightfulOwnerHouse`（配列を set 比較）が active のみで同期
+- LandContractDefault（active のみ FK）: holdingId / occupiedByPolityId / claimantPolityId / targetLandContractId が存在。index `byContract`（一意）/ `byHolding` / `byClaimantPolity` / `byOccupierPolity`（配列 set 比較）が active のみで同期
+- 全 entity: RealEstateSeizure の id prefix は `rs-`、LandContractDefault は `lcd-`。同一 asset に active seizure は最大 1、同一 contract に active default は最大 1、同一 holding に active `revolt_independence` default は最大 1。`origin` は `tax_default | revolt_independence`、`targetLandContractId` は両 origin で必須。`startedWeek <= absoluteWeek`、`lastContestedWeek` があれば `startedWeek <= lastContestedWeek <= absoluteWeek`、`accumulatedUnpaidAmount >= 0`、`originalTaxRateToGrantor >= 0`
+
 War（`integritySystem.ts` §14 セクションに実装）:
 
 War 基本:
@@ -1695,6 +1715,7 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
   - **文化系 Project の afford 前提**: `patronize_artist` / `commission_chronicle` / `acquire_political_right` は完了時に `house.wealth >= cost` を要求する。これらの Project は**作成時**に afford 判定する（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時に資金不足で効果を何も適用しない silent no-op を防ぐ。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
+- **義務系 Project（v0.53、§6.70）**: `seize_real_estate_income` completed → `createRealEstateSeizureMut` で RealEstateSeizure（status=active）を作成。`withhold_land_contract_tax` completed → `createLandContractDefaultMut` で `origin='tax_default'` の LandContractDefault を作成。`enforce_obligation` completed → 対象 seizure/default を resolved にし、active enforce 追跡（`entity.activeEnforceProjectId`）を解除。これら 3 kind は self-executed で reputation を付与しない（`PROJECT_REPUTATION_CATEGORY_MAP[kind] = undefined`）。作成に伴い `realEstateSeizures` / `landContractDefaults` collection・index・`next*Id` を mutable draft writeback slice に含める
 - **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（budget 返金は develop_holding と同一一般化）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
 - **成果経験・評判付与（v0.44）**: 非外交 Project は削除直前に supervisor へ即時成長 + PersonReputation を付与する（§6.66）。terminal Project の `terminalReason` が未設定なら throw（terminal サイトのセット漏れを fail-fast で顕在化。年末 integrity は flush 後で検出できないため）
 - Project を state.projects / projectIndex から削除
@@ -1749,7 +1770,7 @@ for each active play:
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
 - `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) を初期要求幅とする。下限 5% / 上限 80% 超で契約破棄。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。`applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
-- `revolt_negotiation`: `popular_tax_relief` demand ベースのタスク駆動ハイブリッドモデル。タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → **現 terminal holder の rank** で分岐（rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.30））。play.target ではなく現 terminal holder を見るのは、交渉中の再分封で play.target が stale 化しても §25 #7 を破らないため。
+- `revolt_negotiation`: `popular_tax_relief` demand ベースのタスク駆動ハイブリッドモデル。タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → **現 terminal holder の rank** で分岐（rank 2-4 は nominal occupation 契約〔v0.53 で revolt_seizure から置換。§6.29 / §6.70〕+Local Levy+War、rank 5 は internal revolt 即時解決（§6.30））。play.target ではなく現 terminal holder を見るのは、交渉中の再分封で play.target が stale 化しても §25 #7 を破らないため。
 
 **契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
@@ -2095,7 +2116,7 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 
 **DiplomaticPlay Task**: delegate に割り当て。side (initiator/target) で Task 種類の base score が異なる。delegate 能力が効果量に倍率（0.5 + ability/100）で影響。
 
-**seek_diplomatic_support（v0.43）**: LIGHT task（HEAVY だと play 完了前に escalation しやすいため）・difficulty 40。**relevantAbility は v0.47.2 で charisma→learning に変更**（task の前進 = 謁見の手続き・段取りの手早さ = 学識。実際に勧誘相手が乗るかどうかの「説得力」は joinScore の persuasion 項で別途表現する、という切り分け）。他の外交 task と違い **outcome 依存**の専用効果（`applySeekDiplomaticSupportMut`）: success のとき `selectBestSupportCandidate`（`diplomaticSupportSelectors.ts`。候補列挙 PolityId 昇順 → joinScore 計算 → score 降順・同点 PolityId 昇順、RNG 不使用）で最良候補を選び、`joinScore >= diplomaticSupportJoinScoreThreshold`（**v0.47.2 で 25→40**。proximity 単独=35 では届かなくし、安易な肩入れを抑える）なら `addDiplomaticPlaySupporterMut` で supporter 追加 + `DIPLOMATIC_SUPPORT_DECLARED` emit。threshold 未満 / 候補なし / partial / failure は無効果（`[DEBUG:SUPPORT_RECRUIT]` のみ）。候補の hard exclude: inactive / primary / 既 supporter（両 side）/ 他 active play の supporter / 他 active War 参加中 / commonwealth（ただし revolt の rebel commonwealth は primary として支援を受けられる。**かつ v0.47.2 で、叛乱の rebel side=initiator が募集する場合に限り、同じ `popular_revolt` 由来の「同志の叛乱国家」commonwealth は候補に許す**）/ 宗主-臣下 LandContract chain（双方向・間接含む）。**v0.47.2（ルートA）— 叛乱鎮圧側の宗主-臣下除外緩和**: `enumerateSupportCandidates` に `side` を渡せるようにし、`revolt_negotiation` の **suppressor=target side に限り宗主-臣下 chain 除外をスキップ**する。叛乱では target（反乱された統治者）の宗主チェーン（独立により税率 0% 契約が挿入され収入を失う上位契約者）と又臣下こそが鎮圧の自然な利害当事者であり、third-party 除外で弾くと鎮圧側が永久に援軍ゼロになる（旧来の非対称）。なお `revolt_seizure` 子契約により initiator=反乱軍 commonwealth の overlord 集合は target チェーンに汚染されるため、vs initiator / vs target の**両方向のチェックをまとめてスキップ**して初めて宗主が候補に乗る。side 省略時は従来どおり両 side 対称に除外を全適用する。joinScore 側に「収入喪失」動機項はまだ無く、宗主は他の近隣国と同じ joinScore で競う（弱い反乱軍に対する militarySparePower が高く出るため鎮圧側に乗りやすい。収入喪失を優先動機として明示的に favor するのは将来課題）。**反対側 primary と支配家が同一の候補は side 依存で除外する（v0.45.2）**: 同家除外は `selectBestSupportCandidate` で行う（自 side の primary と同家は除外しない — 家が自分の polity を支援するのは自然）。`addDiplomaticPlaySupporterMut` にも同チェックの安全網があり `'same_house_as_opponent'` で拒否する。joinScore = Σ(weight × score)、各項 0..100 正規化: proximity（争点 Province 隣接 terminal=100 / 同 State=50）0.35 / militarySparePower（敵 primary 比 ratio、同等=50）0.25 / treasury（1000 で満点）0.10 / threatContainment（敵 primary が強大 × candidate と近接）0.30 / lastWarPenalty（終戦から 96 週線形減衰）-0.20 / politicalOpinion（influence 加重 attitude。`getWeightedOpinionFromInfluenceBreakdown`）は **weight 0 の休眠項**（foreign polity への attitude 書き込みサイトが存在しないため。writer は将来課題）。**v0.47.2 で 2 つの加点項を追加**: (1) **persuasion** — 募集側 delegate（反乱軍なら首謀者）の能力ボーナス `(charisma×0.7 + insight×0.3)/100 × supportPersuasionScale(30)`（0..30）。candidate 非依存なので順位は変えず「最良候補が閾値を越えるか」を有能な交渉担当者ほど後押しする（delegate 不在なら 0）。(2) **rebelBacking** — 叛乱の rebel side=initiator 募集時のみ: 候補が landed polity なら `-supportRebelBackingPenalty(40)`（領地を持つ貴族が農民反乱に肩入れするのは不自然）、`popular_revolt` 由来の同志の叛乱国家なら `+supportFellowRevoltBonus(30)`。これにより反乱軍の支援者は「体制側の領主」から「同志の反乱勢力」へ移る（実測 150 年×4seed: 地主由来の肩入れ ~79%→16% / 同志由来 68% / 反乱軍勝率 ~51%→28%）。suppression=target side には rebelBacking を適用しない。
+**seek_diplomatic_support（v0.43）**: LIGHT task（HEAVY だと play 完了前に escalation しやすいため）・difficulty 40。**relevantAbility は v0.47.2 で charisma→learning に変更**（task の前進 = 謁見の手続き・段取りの手早さ = 学識。実際に勧誘相手が乗るかどうかの「説得力」は joinScore の persuasion 項で別途表現する、という切り分け）。他の外交 task と違い **outcome 依存**の専用効果（`applySeekDiplomaticSupportMut`）: success のとき `selectBestSupportCandidate`（`diplomaticSupportSelectors.ts`。候補列挙 PolityId 昇順 → joinScore 計算 → score 降順・同点 PolityId 昇順、RNG 不使用）で最良候補を選び、`joinScore >= diplomaticSupportJoinScoreThreshold`（**v0.47.2 で 25→40**。proximity 単独=35 では届かなくし、安易な肩入れを抑える）なら `addDiplomaticPlaySupporterMut` で supporter 追加 + `DIPLOMATIC_SUPPORT_DECLARED` emit。threshold 未満 / 候補なし / partial / failure は無効果（`[DEBUG:SUPPORT_RECRUIT]` のみ）。候補の hard exclude: inactive / primary / 既 supporter（両 side）/ 他 active play の supporter / 他 active War 参加中 / commonwealth（ただし revolt の rebel commonwealth は primary として支援を受けられる。**かつ v0.47.2 で、叛乱の rebel side=initiator が募集する場合に限り、同じ `popular_revolt` 由来の「同志の叛乱国家」commonwealth は候補に許す**）/ 宗主-臣下 LandContract chain（双方向・間接含む）。**v0.47.2（ルートA）— 叛乱鎮圧側の宗主-臣下除外緩和**: `enumerateSupportCandidates` に `side` を渡せるようにし、`revolt_negotiation` の **suppressor=target side に限り宗主-臣下 chain 除外をスキップ**する。叛乱では target（反乱された統治者）の宗主チェーン（独立により税率 0% 契約が挿入され収入を失う上位契約者）と又臣下こそが鎮圧の自然な利害当事者であり、third-party 除外で弾くと鎮圧側が永久に援軍ゼロになる（旧来の非対称）。なお nominal occupation 子契約（v0.53 で revolt_seizure 子契約から置換）により initiator=反乱軍 commonwealth の overlord 集合は target チェーンに汚染されるため、vs initiator / vs target の**両方向のチェックをまとめてスキップ**して初めて宗主が候補に乗る。side 省略時は従来どおり両 side 対称に除外を全適用する。joinScore 側に「収入喪失」動機項はまだ無く、宗主は他の近隣国と同じ joinScore で競う（弱い反乱軍に対する militarySparePower が高く出るため鎮圧側に乗りやすい。収入喪失を優先動機として明示的に favor するのは将来課題）。**反対側 primary と支配家が同一の候補は side 依存で除外する（v0.45.2）**: 同家除外は `selectBestSupportCandidate` で行う（自 side の primary と同家は除外しない — 家が自分の polity を支援するのは自然）。`addDiplomaticPlaySupporterMut` にも同チェックの安全網があり `'same_house_as_opponent'` で拒否する。joinScore = Σ(weight × score)、各項 0..100 正規化: proximity（争点 Province 隣接 terminal=100 / 同 State=50）0.35 / militarySparePower（敵 primary 比 ratio、同等=50）0.25 / treasury（1000 で満点）0.10 / threatContainment（敵 primary が強大 × candidate と近接）0.30 / lastWarPenalty（終戦から 96 週線形減衰）-0.20 / politicalOpinion（influence 加重 attitude。`getWeightedOpinionFromInfluenceBreakdown`）は **weight 0 の休眠項**（foreign polity への attitude 書き込みサイトが存在しないため。writer は将来課題）。**v0.47.2 で 2 つの加点項を追加**: (1) **persuasion** — 募集側 delegate（反乱軍なら首謀者）の能力ボーナス `(charisma×0.7 + insight×0.3)/100 × supportPersuasionScale(30)`（0..30）。candidate 非依存なので順位は変えず「最良候補が閾値を越えるか」を有能な交渉担当者ほど後押しする（delegate 不在なら 0）。(2) **rebelBacking** — 叛乱の rebel side=initiator 募集時のみ: 候補が landed polity なら `-supportRebelBackingPenalty(40)`（領地を持つ貴族が農民反乱に肩入れするのは不自然）、`popular_revolt` 由来の同志の叛乱国家なら `+supportFellowRevoltBonus(30)`。これにより反乱軍の支援者は「体制側の領主」から「同志の反乱勢力」へ移る（実測 150 年×4seed: 地主由来の肩入れ ~79%→16% / 同志由来 68% / 反乱軍勝率 ~51%→28%）。suppression=target side には rebelBacking を適用しない。
 
 **offer_compromise**: Task 成功時に新 DiplomaticOffer を作成する。
 1. progress += offerCompromiseProgressDelta (15)（既存 progressGainMedium は使わない）
@@ -2159,9 +2180,16 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
 ### 6.58 PressureSystem（毎週）
 
-active Pressure に対して respond_to_pressure Project を自動生成する。
+active Pressure に対して、**kind 別 routing** で対応 Project を自動生成する（v0.53）。すべての Pressure を一律 respond_to_pressure に流すわけではない。
 
-**処理**: active かつ responseProjectId がない Pressure を走査し、target Polity の leader を取得。leader が alive / normal なら respond_to_pressure Project を作成。supervisor は `selectProjectSupervisor` で能力・workload ベースで選出（v0.45.3: 性別役職適格ゲート §6.19 適用。fallback: leader — 女性 leader でもよい、leader 例外の構造的実現）。
+- **diplomatic_land_claim / diplomatic_contract_revision**: 従来どおり respond_to_pressure 経路（下記処理）
+- **real_estate_seizure / land_contract_default（v0.53、§6.70）**: enforce 系 Project を起案。real_estate_seizure の target は rightfulOwner House、land_contract_default の target は claimant Polity。
+
+**処理（respond_to_pressure 経路）**: active かつ responseProjectId がない Pressure を走査し、target Polity の leader を取得。leader が alive / normal なら respond_to_pressure Project を作成。supervisor は `selectProjectSupervisor` で能力・workload ベースで選出（v0.45.3: 性別役職適格ゲート §6.19 適用。fallback: leader — 女性 leader でもよい、leader 例外の構造的実現）。
+
+**target 解決（v0.53）**: pressure target を polity 決め打ちにしない。`target.kind === 'polity'` は claimant Polity の decision maker、`target.kind === 'house'` は `getHouseDecisionMaker` を使う（House target Pressure は real_estate_seizure で発生する）。
+
+**enforce 生成（v0.53、real_estate_seizure / land_contract_default）**: respond_to_pressure ではなく `enforce_obligation`（seize 用、self-executed）/ `enforce_land_contract_default`（default 用、diplomatic）を起案する。strength gate は**生成段**に置き、勝ち目が無い（rightfulOwner House の resistance / claimant Polity の military・admin・stability が threshold 未満）なら enforce Project を**作らない**（「起案するが成功率を下げる」と失敗 Project が churn するため）。同一 seizure/default に active enforce は最大 1（`entity.activeEnforceProjectId` で追跡）、再起案 cooldown は `entity.nextEnforceAllowedWeek`（enforce 失敗 / cancel / gate 不成立後に `absoluteWeek + enforceObligationProjectCooldownWeeks` をセット）で持つ。supervisor は作成時に `selectProjectSupervisor` で選定（find_supervisor stage は持たない）。
 
 **Project 初期値**: owner = pressure.target、origin = { kind: 'system', reasonKey: 'pressure_response' }、currentStageKey = 'choose_stance'、deadlineWeek = DiplomaticPlay.deadlineWeek or absoluteWeek + pressureResponseDefaultDeadlineWeeks。
 
@@ -2207,7 +2235,7 @@ terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削�
 
 **allowlist の方針**: importance 閾値ではなく curated allowlist で対象を決める（`BATTLE_OCCURRED` は normal だが含めたい／`PERSON_AIM_SUCCEEDED` は major だが noise になりやすい）。各 EventType に `{ category, retainRefKinds?, templateKey? }` を割り当てる。
 
-- **category**（§3.14 の 11 種）— war: `WAR_DECLARED` / `WAR_WON` / `WAR_LOST` / `WAR_ENDED` / `PEACE_SETTLEMENT_APPLIED`。battle: `BATTLE_OCCURRED`。land: `LAND_CONTRACT_TRANSFERRED` / `CONTRACT_TAX_REVISED`。house: `HOUSE_FOUNDED` / `CADET_HOUSE_FOUNDED` / `HOUSE_SPLIT` / `HOUSE_EXTINCT` / `HOUSE_LEADER_CHANGED`。governance: `POLITY_OWNER_CHANGED` / `POLITICAL_RIGHT_GRANTED` / `POLITICAL_RIGHT_REVOKED` / `POLITICAL_RIGHT_TRANSFERRED`（v0.42）。revolt: `REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` / `REVOLT_ESCALATED` / `REVOLT_SUPPRESSED` / `REVOLT_SETTLED` / `REVOLT_POLITY_ESTABLISHED` / `REVOLT_REGIME_CHANGED`。disaster: `FAMINE` / `PLAGUE`。development: `COUNTRY_LAND_DEVELOPED`。office: `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` / `BAILIFF_APPOINTED` / `BAILIFF_VACATED`。faction: `FACTION_FOUNDED` / `PERSON_RECRUITED_TO_FACTION` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_CHANGED` / `FACTION_DISSOLVED`。life: `IMPORTANT_PERSON_DIED` / `PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE` / `PERSON_ABILITY_GREW` / `PERSON_REPUTATION_GAINED` / `PERSON_REPUTATION_DAMAGED` / `PERSON_GENIUS_BORN` / `MARRIAGE_FORMED`（v0.47.4）/ `CHILD_BORN`（v0.47.4）。婚姻・出生は家の構成変化（婿入り・縁組・世継ぎ）を後から辿れるよう履歴書・家の記録の双方に永続化する（`MARRIAGE_FORMED` = groom/bride/家、`CHILD_BORN` = 子/父/母/家。いずれも `retainRefKinds` 無指定＝全 ref 保持）。
+- **category**（§3.14 の 11 種）— war: `WAR_DECLARED` / `WAR_WON` / `WAR_LOST` / `WAR_ENDED` / `PEACE_SETTLEMENT_APPLIED`。battle: `BATTLE_OCCURRED`。land: `LAND_CONTRACT_TRANSFERRED` / `CONTRACT_TAX_REVISED` / **（v0.53、§6.70）`REAL_ESTATE_SEIZURE_STARTED` / `REAL_ESTATE_SEIZURE_RESOLVED` / `REAL_ESTATE_SEIZURE_LEGALIZED` / `REAL_ESTATE_SEIZURE_CANCELLED` / `LAND_CONTRACT_DEFAULT_STARTED` / `LAND_CONTRACT_DEFAULT_RESOLVED` / `LAND_CONTRACT_DEFAULT_LEGALIZED` / `LAND_CONTRACT_DEFAULT_CANCELLED`**（低頻度 terminal イベントのみ chronicle 化。毎週の accumulatedUnpaidAmount accrual は非対象）。house: `HOUSE_FOUNDED` / `CADET_HOUSE_FOUNDED` / `HOUSE_SPLIT` / `HOUSE_EXTINCT` / `HOUSE_LEADER_CHANGED`。governance: `POLITY_OWNER_CHANGED` / `POLITICAL_RIGHT_GRANTED` / `POLITICAL_RIGHT_REVOKED` / `POLITICAL_RIGHT_TRANSFERRED`（v0.42）。revolt: `REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` / `REVOLT_ESCALATED` / `REVOLT_SUPPRESSED` / `REVOLT_SETTLED` / `REVOLT_POLITY_ESTABLISHED` / `REVOLT_REGIME_CHANGED`。disaster: `FAMINE` / `PLAGUE`。development: `COUNTRY_LAND_DEVELOPED`。office: `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` / `BAILIFF_APPOINTED` / `BAILIFF_VACATED`。faction: `FACTION_FOUNDED` / `PERSON_RECRUITED_TO_FACTION` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_CHANGED` / `FACTION_DISSOLVED`。life: `IMPORTANT_PERSON_DIED` / `PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE` / `PERSON_ABILITY_GREW` / `PERSON_REPUTATION_GAINED` / `PERSON_REPUTATION_DAMAGED` / `PERSON_GENIUS_BORN` / `MARRIAGE_FORMED`（v0.47.4）/ `CHILD_BORN`（v0.47.4）。婚姻・出生は家の構成変化（婿入り・縁組・世継ぎ）を後から辿れるよう履歴書・家の記録の双方に永続化する（`MARRIAGE_FORMED` = groom/bride/家、`CHILD_BORN` = 子/父/母/家。いずれも `retainRefKinds` 無指定＝全 ref 保持）。
 - **retainRefKinds**（projection 時に entityRefs をこの kind に絞る）— `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` は `['person']`。役職任命は高頻度なので Person の「経歴」として byPerson だけに載せ、house / polity ref を落として国史・家史が行政ログで埋もれるのを防ぐ（役職名・Polity 名は params にあり、UI は entityRefs から link を描かないので表示は不変）。`BAILIFF_*` は person+province 無制限（人物経歴 + 地方統治史の両方に載せる）。faction 系は entityRefs が person（＋ index 非対象の faction kind）のみのため retainRefKinds 不要で自然に byPerson だけに載る（「誰と組んだか」を人物経歴に残す）。`PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE` は retainRefKinds を指定せず、ref-kind の出し分け（一般人物 = byPerson のみ / 主要人物 = byPerson+byHouse+byPolity）は emit 時に entityRefs を変えて行う（§6.25）。
 - **templateKey**: 通常は `event.messageKey` を流用。`BATTLE_OCCURRED` のみ関数 `selectBattleTemplate(event)` が messageParams の派生フラグから rich template を選ぶ（数的不利勝利 / 大勝 / 辛勝 / 通常、§8 / §11）。
 
@@ -2755,3 +2783,63 @@ default config（150年・seed 1/42/123 実測）では **共和国 House 創設
 **petitioner gate の house leader 除外（v0.47.x）**: `meetsLandGrantPetitionerGate`（分封）が house leader を除外していなかった非対称バグを修正。`meetsCadetBranchPetitionerGate`（分家）は「house leader は分家を興さない」で leader を明示除外していたが、land grant 側は wealth + 実績（reputation/office/bailiff）のみで leader を通していた。house leader が分封で**新 House**を興すと旧 House から `movePersonToHouse` で抜け（memberIds から除去）、旧 House の `house:leader` office は付け替えられず残るため「house leader が memberIds に居ない」整合違反（§25 #4 系）を生む。`meetsLandGrantPetitionerGate` に `person.houseId !== undefined && getHouseLeader(state, person.houseId) === person.id → false` を追加して対称化（houseless は自立路として対象外）。本 gate は aim 生成（`personAimSelectors`）・project 作成（`taskProjectCompletion`）・finalize 再検査（`projectStageSystem` の `applyLandGrantMut` 直前）の 3 点で共有されるため、aim 作成後に leader 化した in-flight petition も finalize で停止する。**known-latent**: `worldStructureSplitHouse` の splitter も同型（leader が splitter だと旧 House leader が dangling 化）だが `houseSplitEnabled=false` で無効化中のため未修正（再有効化時は同様の leader 除外が必要）。
 
 **balance 保留**: 各機能の発火 **rate** の最終調整は機能完成後に行う（プロトタイプ方針 §4）。陞爵は設計上「税制改定の反復 → 上位契約解除（`eliminate_overlord_contract`）→ rank gap → 陞爵」の終点であり、現状 default で発火しないのは正常（契約解除自体が深い前提を要する稀なアクション）。実質発火させたい場合は契約解除に至る外交チェーンの到達頻度（税制改定の成功率・契約解除条件の緩急）を balance pass で調整する。rank 不変条件・陞爵の wiring 自体は変更不要。
+
+### 6.70 押領・土地契約不履行・時効による既成事実化（v0.53）
+
+**法的・契約上の権利者**と**実際に土地・収益を握っている主体**がズレる状態を導入する。House 所有不動産の収益が現地 Polity に押領される／下位 Polity が上位契約者への上納を拒否する／反乱独立後に旧権利者が請求権だけ保持する、といった事態が「放置・係争・時効・強制解決」へ進む。設計詳細は `docs/drafts/spec-v053-update.md`、本節は as-built の要点。RealEstateSeizure / LandContractDefault の 2 entity と 4 system（obligationConsistency / obligationAccrual / prescription / cleanupTerminalObligations、いずれも 4週ごと）からなる。
+
+#### 型・entity
+
+- `RealEstateSeizure`（id prefix `rs-`）: House-owned RealEstateAsset の owner income を現地 terminal Polity が押領する状態。`status: active | resolved | legalized | cancelled`、`holdingId` / `assetId` / `seizerPolityId` / `rightfulOwner`（Phase 1 は house のみ）/ `startedWeek` / `lastContestedWeek?` / `accumulatedUnpaidAmount` / `nextEnforceAllowedWeek?` / `activeEnforceProjectId?` / `terminalWeek?` / `reasonIds`。severity field は持たず、係争規模は `accumulatedUnpaidAmount` で代表する。
+- `LandContractDefault`（id prefix `lcd-`）: LandContract chain の上納義務不履行。`origin: tax_default | revolt_independence`、`occupiedByPolityId` / `claimantPolityId` / `targetLandContractId`（両 origin で必須。tax_default=対象 terminal contract、revolt_independence=nominal occupation contract）/ `original{Grantor,Grantee}PolityId` / `originalTaxRateToGrantor` ほか seizure と同型の係争・cooldown・terminal field。
+- index は **active entity のみ**を保持し、terminal 化時に全 index から除去する。Record（`realEstateSeizures` / `landContractDefaults`）には `terminalObligationRetentionWeeks`（=48）の間 retention してから cleanupTerminalObligations が削除する。`realEstateSeizureIndex`= byHolding / byAsset（一意）/ byRightfulOwnerHouse、`landContractDefaultIndex`= byHolding / byContract（一意）/ byClaimantPolity / byOccupierPolity。
+
+#### Project 経由の発生（Goal / Aim → Project → outcome）
+
+押領・上納拒否は system が直接 spawn せず、`Goal / Aim → Project 起案 → outcome で entity 作成 + Pressure` を経由する（「誰が・なぜ・何を狙ったか」を Project 履歴に残す）。
+
+- 新 PolityAimKind `seize_vulnerable_real_estate_income` / `withhold_overlord_tax`。どちらも Aim target は `holding`、具体的な asset / contract は Project 作成時に selector で解決する（EntityRef を realEstateAsset / land_contract に広げない）。両者とも external_expansion ではなく内部収奪なので `pickPolityAim` の**両 goal 共通ブロック**に置く。
+- 新 ProjectKind `seize_real_estate_income`（outcome で RealEstateSeizure 作成）/ `withhold_land_contract_tax`（outcome で `origin='tax_default'` の LandContractDefault 作成）/ `enforce_obligation`（権利者の強制解決、self-executed）/ `enforce_land_contract_default`（default 用 diplomatic、後述 Phase 4）。
+- stage は seize / withhold / enforce（Phase1-2 簡易版）とも **`prepare_argument → execute_project` の 2 段**。`find_supervisor` は使わず supervisor は作成時に `selectProjectSupervisor` で選定する（budget 不要の self-executed political project に find_supervisor/secure_budget の budget 前提を持ち込まないため）。seize / withhold は `isDiplomaticProjectKind` に含めない。reputation は 3 kind とも undefined（`PROJECT_REPUTATION_CATEGORY_MAP[kind]=undefined`）。
+
+#### opportunity score（候補化）
+
+押領・上納拒否は乱発させない（threshold / cooldown を保守的に）。
+
+- **seize_real_estate_income**: seizer と owner House の単純戦力差は使わない（`calcPolityMilitaryPower` は配下 House 戦力を合算し owner House が seizer の構成 House だと内包されるため）。代わりに owner House の独立抵抗力 `ownerHouseResistance = calcHouseMilitaryPower(ownerHouse) + protectorPolityPower`（owner House が所有する polity の overlord 群の military power 合計。seizer 自身は除外）を見る。`targetWeakness = max(0, seizeResistanceReference − ownerHouseResistance)`（絶対 resistance の減少関数。seizer ownPower との差分は使わない）。`prize` 項は奪える収益の大きさ＝資本化した `estimateRealEstateSalePrice(asset)`（weekly owner income × 48 × salePriceYears）× weight で、零細 asset の乱獲を防ぐ。これに ambition / caution / fiscalPressure / badAttitude を加える。asset 選定は scoring と Project 作成で同一 selector（holding 内で最も脆弱な House-owned asset、tie-break = asset id 昇順）を共用する。
+- **withhold_overlord_tax**: withhold は Polity vs Polity なので `militaryAdvantage = ownPower − grantorPower × withholdMilitaryAdvantageFactor`（=0.6）。候補化 gate は `grantorWouldResist == true`（通常の契約改定交渉では減税が通らない）**かつ** `ownPower > grantorPower × 0.6`。これにより「交渉で通るなら improve/eliminate（既存外交）、通らず力があるなら withhold」と棲み分ける（既存 2 aim は grantorWouldResist なら候補化しないため二重発火しない）。factor が分数なのは vassal が構造的に overlord 全体 power を上回れないため（「地域的に踏み倒せる相対戦力」を表す）。
+
+#### Pressure と enforce（権利者の対応）
+
+- 新 PressureKind `real_estate_seizure`（source=seizer Polity、target=rightfulOwner House）/ `land_contract_default`（source=occupiedBy Polity、target=claimant Polity）。PressureSystem の kind 別 routing と target.kind 解決（House target は `getHouseDecisionMaker`）は §6.58 参照。
+- **enforce strength gate は pressureSystem の生成段に置く**（§6.58）。勝ち目が無いなら enforce Project を作らない（弱い House / claimant は形式的抗議すらできず、seizure/default は無係争で持続し時効へ向かう）。生成された enforce は既存 project 成功 roll をそのまま使う（二重 gate を避ける）。
+- **enforce 成功時**: Phase1-2 簡易版は対象 seizure/default を resolved にする（§6.41）。`lastContestedWeek` は Project 起案だけでは更新せず、enforce 成功 / Phase 4 で実質的な譲歩・係争が起きたときのみ更新する。Phase1-2 では active entity の lastContestedWeek を更新する経路が無いため**時効は実質 `startedWeek + 20年`**（lastContestedWeek が本格機能するのは Phase 4）。
+
+#### LandRevenueSystem 連携（§6.4.2c）
+
+active seizure の asset は owner income を rightfulOwner に払わず holding 収益に残す（asset.owner record は保持、legalized 時のみ undefined 化）。active default は `targetLandContractId` を byContract で引き実効 taxRate=0（両 origin、contract record は不変、上流 chain 全体が干上がる）。LandRevenueSystem は read-only で entity の作成・accrual・時効判定・Pressure/Event 生成は行わない。
+
+#### 4 system（4週ごと、tick 順 LandRevenue → consistency → accrual → prescription → cleanup）
+
+- **obligationConsistencySystem**: active seizure/default の参照先（House 絶家・asset 消滅・seizer/claimant/occupier 非 active・契約消滅・holding 消滅・反乱鎮圧など）を検査し dangling / 前提崩壊を `cancelled` にして `*_CANCELLED` を emit、関連 enforce Project を terminal 化する。**accrual / prescription より前**に走り、dangling entity を accrue / legalize する前に cancelled にする（特に `worldStructureExtinction` が絶家時に asset.owner を undefined に戻す経路と prescription の legalized が同一 asset を二重に触らないよう保証）。
+- **obligationAccrualSystem**: active entity の `accumulatedUnpaidAmount` を概算加算する（本来 owner が得るはずの weekly owner income / 本来の上納額）。厳密会計値ではなく UI / 将来の交渉材料 / 係争規模指標。
+- **prescriptionSystem**: 20年（`realEstateSeizurePrescriptionYears` / `landContractDefaultPrescriptionYears`、`baseWeek = lastContestedWeek ?? startedWeek` から `elapsed >= 20×48`）で `legalized` にする。seizure legalized → `asset.owner = undefined`、default legalized → `spliceOutClaimantContract`（後述）。関連 Pressure / enforce Project / Aim を terminal 化し Event / Chronicle を発生させる。
+- **cleanupTerminalObligations**: terminal（resolved / legalized / cancelled）化後 `terminalObligationRetentionWeeks` 経過した entity を Record から削除する。
+
+#### spliceOutClaimantContract（既成事実化の chain 操作）
+
+legalized 時の chain 正規化は「全 chain root 化」ではなく**直近 grantor 1 段の splice out**（`spliceOutClaimantContract`、`landContractMutations.ts`）。`keep` = 占拠者 / 不履行者の契約（`default.targetLandContractId`）、`claimant` = `keep.parentContractId`（直近 grantor）を chain から除去し、keep を claimant の祖父契約へ **claimant の旧 (live) 条件**で再親契約する（claimant が root なら keep を root 化: parentContractId 削除 / rootAuthorityId=ROOT_WORLD / tax 0）。
+
+理由: 損をするのを直近領主（claimant）だけに揃え、鎮圧参加者（`estimateSuppressionPower` は直近領主のみ参照）と損得を一致させる（全 chain root 化だと上位契約者全員が当該 holding の取り分を恒久的に失い、損得と鎮圧動機がズレる）。rank invariant は推移律（grandparent.rank < claimant.rank < keep.rank）で、tax invariant は旧条件継承（非 root なら旧 terms >0、root なら root tax 0 化）で自動充足。創発的帰結として「20年上納を拒否し続けた者 / 反乱独立を達成した者が直近の領主を排してその地位を継ぐ（旧領主の grantor へ旧条件で臣従し直す。旧領主が主権者だった場合のみ完全独立）」という**望ましい挙動**になる。
+
+#### 反乱独立・revolt_seizure 廃止（§6.29 / §6.30）
+
+tax-0 子契約 + `revolt_seizure` specialStatus を廃止し、`taxRateToGrantor = revoltOccupationNominalTaxRate`（=0.5）の nominal occupation contract + `LandContractDefault.origin='revolt_independence'` に置換した（nominal tax は構造値で active default 中は LandRevenue 上で実効 0。§6.29 / §6.30 参照）。鎮圧 = nominal contract eliminate + default cancelled、確立 / 時効 = spliceOutClaimantContract + default legalized。`eliminate_overlord_contract` の対象から active revolt_independence default に紐づく契約を除外する guard を入れる。
+
+#### Phase 4: enforce の DiplomaticPlay / War 接続
+
+`enforce_obligation` を外交化すると同 kind が seizure / default 両方を担い `isDiplomaticProjectKind` を立てると seize enforce（self-executed）が回帰する（open_diplomatic_play に seizure 分岐が無く全 seize enforce が失敗）ため、**kind を分割**: seize 用 `enforce_obligation` は self-executed のまま据え置き、LandContractDefault 用に diplomatic kind `enforce_land_contract_default` を新設し pressureSystem の default 分岐をこちらに向けた。実装範囲は **RESTORE 経路**: `contract_tax_revision` play を再利用し「現税率維持」を demand に、`resolvesLandContractDefaultId` を issue → demand → WarGoal へ伝播し、和平受諾（applyChangeContractTaxRate）/ 戦争勝利（applyTaxGoal）の両経路で対象 default を resolved にする。RESTORE 以外（revise / terminate）の AI 判断と requiredWarScore 差別化、RealEstateSeizure の War 経路は balance / AI フェーズへ defer。
+
+#### Config（保守的初期値・balance 保留）
+
+`*PrescriptionYears`=20 / `*OpportunityThreshold`=40 / 各 `*ProjectCooldownWeeks`=96 / `revoltOccupationNominalTaxRate`=0.5 / `seizeResistanceReference`=150 / `withholdMilitaryAdvantageFactor`=0.6 / `violenceOpportunityTargetWeaknessWeight`=0.2 / `violenceOpportunityPrizeWeight`=0.04 / `*EnforceResistanceThreshold` 系=40 / `terminalObligationRetentionWeeks`=48。観察メモ: 初期値での seize 起案頻度は seed により 16〜115 件/150年と高め（enforce 経由 resolved / 20年 prescription 経由 legalized は全 seed で観測）。頻度の絞り込みは balance phase へ defer（プロトタイプ方針 §4）。

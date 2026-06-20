@@ -156,6 +156,7 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 
 - **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造の明示化（現状は「複数 Polity の ownerHouse になり得る」のみ実装、明示臣従関係は無し）。
 - **上位者の取り分維持と Attitude penalty**: 押領・強制的な税率変更時に上位者から実行者へ negative Attitude を付与。
+  （v0.53 で押領・上納拒否の機構自体は実装済み（§6.70）。badAttitude は opportunity score の*入力*には使うが、実行の*結果*として上位者→実行者へ Attitude penalty を付与する hook は未実装で、これは将来課題として残る。）
 - **BailiffAppointment の commonwealth 対応**: 現状 ownerHouse なしは skip。Polity Share holder 系の候補者選定を導入。
 
 ### 独立トピック

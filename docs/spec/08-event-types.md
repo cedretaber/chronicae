@@ -72,6 +72,14 @@
 | LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（補償あり土地購入） |
 | LAND_CONTRACT_CEDED | major | 補償なし土地譲渡 |
 | LAND_CONTRACT_CONQUERED | major | 武力による土地奪取 |
+| REAL_ESTATE_SEIZURE_STARTED | major | v0.53: House 所有 RealEstateAsset の owner income を現地 terminal Polity が押領開始（seize_real_estate_income Project 成功で RealEstateSeizure 作成）。Chronicle category=land。entityRefs: holding / province / seizerPolity / rightfulOwnerHouse |
+| REAL_ESTATE_SEIZURE_RESOLVED | normal | v0.53: 押領が enforce_obligation 成功で解消（RealEstateSeizure → resolved）。Chronicle category=land |
+| REAL_ESTATE_SEIZURE_LEGALIZED | major | v0.53: 20年時効で押領が既成事実化（prescriptionSystem。`asset.owner = undefined`、RealEstateSeizure → legalized）。Chronicle category=land |
+| REAL_ESTATE_SEIZURE_CANCELLED | minor | v0.53: 前提崩壊・dangling で押領を取消（obligationConsistencySystem。絶家 / asset 消滅 / seizerPolity 非 active 等。RealEstateSeizure → cancelled）。Chronicle category=land |
+| LAND_CONTRACT_DEFAULT_STARTED | major | v0.53: LandContract chain の上納義務不履行が発生（origin=tax_default は withhold_land_contract_tax Project 成功、revolt_independence は反乱独立。LandContractDefault 作成）。Chronicle category=land。entityRefs: holding / province / occupiedByPolity / claimantPolity |
+| LAND_CONTRACT_DEFAULT_RESOLVED | normal | v0.53: 上納不履行が enforce 成功で解消（LandContractDefault → resolved。self-executed enforce 経路の専用 event。play/war 経由は settlement event で narrate）。Chronicle category=land |
+| LAND_CONTRACT_DEFAULT_LEGALIZED | major | v0.53: 20年時効で不履行が既成事実化（prescriptionSystem。`spliceOutClaimantContract` で直近 grantor 1 段を splice、LandContractDefault → legalized）。Chronicle category=land |
+| LAND_CONTRACT_DEFAULT_CANCELLED | minor | v0.53: 前提崩壊・dangling / 反乱鎮圧で不履行を取消（obligationConsistencySystem / suppressRevolt。occupiedBy・claimant 非 active / 契約消滅 / holding 消滅等。LandContractDefault → cancelled）。Chronicle category=land |
 | PROJECT_STARTED | minor | Project 開始 |
 | PROJECT_COMPLETED | normal | Project 完了 |
 | PROJECT_FAILED | minor | Project 失敗 |

@@ -1037,6 +1037,27 @@
 | republicAcquireRightBaseBonus | 15 | obtain_office / acquire_political_right が共和国を target にするときの加点（Phase C 競争 pull） |
 | republicLeaderIncumbencyBonus | 15 | 任期 election の現職加点（incumbency） |
 | republicLeaderFatiguePerYear | 3 | 現職の在任年数 × この値を incumbency から減算（終身 leader 防止） |
+| **押領・上納拒否・時効（v0.53 §19）** | | 初期値は保守的（乱発抑制）。すべて初期案であり balance phase で再調整（note-and-defer） |
+| realEstateSeizurePrescriptionYears | 20 | RealEstateSeizure の時効年数（lastContestedWeek 起点。経過で legalized → asset.owner=undefined） |
+| landContractDefaultPrescriptionYears | 20 | LandContractDefault の時効年数（経過で legalized → chain 正規化） |
+| realEstateSeizureOpportunityThreshold | 40 | seize_real_estate_income Aim 候補化の opportunity score 閾値 |
+| landContractDefaultOpportunityThreshold | 40 | withhold_land_contract_tax Aim 候補化の opportunity score 閾値 |
+| seizureProjectCooldownWeeks | 96 | seize Project terminal 後の同 holding 再起案待機週数（2 年） |
+| landContractDefaultProjectCooldownWeeks | 96 | withhold Project terminal 後の再起案待機週数（2 年） |
+| enforceObligationProjectCooldownWeeks | 96 | enforce_obligation 再起案 cooldown（entity.nextEnforceAllowedWeek 起点。2 年） |
+| revoltOccupationNominalTaxRate | 0.5 | 反乱占拠の nominal occupation contract の名目税率。active default 中は LandRevenue 上 実効 0 に上書き（実徴収はゼロ）。terminal-holder 意味論維持・非 root tax-0 invariant 回避のための構造値 |
+| violenceOpportunityMilitaryAdvantageWeight | 0.1 | opportunity score: 軍事優勢項の重み（withhold は ownPower − grantorPower×factor） |
+| violenceOpportunityAmbitionWeight | 20 | opportunity score: 意思決定者 ambition の重み |
+| violenceOpportunityCautionWeight | 20 | opportunity score: 意思決定者 caution の重み（減算方向） |
+| violenceOpportunityFiscalPressureWeight | 0.1 | opportunity score: 財政逼迫（treasury 低下）の重み |
+| violenceOpportunityTargetWeaknessWeight | 0.2 | opportunity score: 対象脆弱性の重み（v0.53 実装で 0.1→0.2。絶対 resistance の減少関数を成立させるため） |
+| violenceOpportunityBadAttitudeWeight | 0.2 | opportunity score: 対象 House / grantor Polity への悪態度の重み |
+| violenceOpportunityPrizeWeight | 0.04 | opportunity score: 奪える収益規模（prize）の重み（v0.53 実装で 0.1→0.04。prize を estimateRealEstateSalePrice で資本化したため） |
+| seizeResistanceReference | 150 | seize の targetWeakness = max(0, 本値 − ownerHouseResistance)。owner House が弱いほど seize 起案が高まる基準値 |
+| withholdMilitaryAdvantageFactor | 0.6 | withhold の踏み倒し gate: ownPower > grantorPower × 本値 で候補化。overlord 全体ではなく地域的相対戦力の分数閾値 |
+| realEstateSeizureEnforceResistanceThreshold | 40 | seizure に対する enforce_obligation 生成 gate: ownerHouseResistance が本値以上で enforce 生成（弱い House は生成されず時効へ） |
+| landContractDefaultEnforcePowerThreshold | 40 | default に対する enforce 生成 gate: claimant Polity の military/admin/stability が本値以上で生成 |
+| terminalObligationRetentionWeeks | 48 | terminal（resolved/legalized/cancelled）化した seizure/default を index から外した後 Record に残す週数（UI/Event/cleanup 用。1 年。B7） |
 
 ---
 
