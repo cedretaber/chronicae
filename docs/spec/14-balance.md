@@ -255,3 +255,39 @@ land_claim を自然に発生させるには、「他者の province の holding
 - **WI-0 引力勾配の weight sweep**: 測定上 WI-1（cap meritSeats）が集積の主役で WI-0 の限界寄与は小さい（M2 gap +4.5→+4.9）。供給逼迫・churn 後に効きが増す前提で weight は未較正。
 - **入れ子の割引率・深さ・分岐**（factionNestingNpDiscount/MaxDepth/MaxBranches）と commonwealth アリーナの活性度は通常 config で観察しつつ最終調整する。
 - **commonwealth 高官が別君主国から分封を受ける越境（creative 違和感・保留）**: tiny seed1 で観察。無家の有能人材が反乱領（established commonwealth）の建国式（RepublicPoliticalInitializationSystem）で宰相に着座 → その後 personal aim（立身出世）で別君主国から分封を受け、自領の rank5 領主にもなる。所属（共和国の高官）と主権（自領の領主）が二重化し正当化に困るが、機構としては各システムが正しく噛み合った結果でありバグではない（建国式の候補母集合 getRepublicPoliticalCandidatePersons が houseless/outsider を意図的に広く拾う + 分封は他 polity の既存役職を剥奪しない + 主権領主の他国役職就任を排他にするルールが無い）。将来抑えるなら候補レバー = (a) 自分が leader を務める polity を持つ人物を他 polity の office 候補から除外 (b) polity leader 本人を同 polity の非 leader office 候補から除外（自領 self-chancellor 防止）。現段階では note-and-defer。
+
+---
+
+## 14.9 資源経済（v0.54 投入時の観察）
+
+計測条件: tiny preset 150年 × 3 seed (1, 42, 123)、整合性違反 0・完走。digest の `Economy:` 行（`computeEconomyStats`）から price/clamp/fulfillment、`Unrest:` 行から不満度を集計。300年 × 1 seed (1) も完走を確認済。**CLAUDE.md §4 に従い config は変更せず観察値の記録のみ**（「縮退回避のみ」の方針を堅持）。
+
+### 14.9.1 観察された市場の縮退傾向
+
+3 seed × 150年の最終時点（p=lastPrice/basePrice、clamp=floor/ceiling 張り付き市場比率、ful=sold/effectiveDemand）:
+
+| seed | food | raw_materials | processed_goods | popWealth | unrest avg |
+|---|---|---|---|---|---|
+| 1 | p0.61 clamp75% ful1.00 | p1.14 clamp75% | p1.78 clamp50% **ful0.40** | 70.4 | 43.8 |
+| 42 | p0.60 clamp75% ful1.00 | p0.67 clamp75% | p1.77 clamp50% **ful0.38** | 53.7 | 37.8 |
+| 123 | p0.60 clamp100% ful1.00 | p0.61 clamp75% | p2.09 clamp75% **ful0.25** | 57.0 | 61.2 |
+
+market の 50-100% が price clamp に張り付く。要因は2系統に分かれる:
+
+1. **food の床張り付き（可変だが無害）**: food は全 seed で min（0.6）に床留め・ful=1.00。POP food 需要に対し field の food 産出が過剰で、価格が常に下限に張る。ただし**飢餓は皆無（ful=1.00 を 150年維持）**、POP wealth は健全（53-70）、treasury も健全。安価で潤沢な主食は農本経済として不自然ではなく、機能的な害は無い。`baseOutputPerLabor`(food) または food 需要係数で内部均衡へ寄せられる**唯一の可変レバー**だが、調整しても利得が無く、v0.55 の市場間交易が food 需給を再構成するため**見送り**。
+
+2. **raw 床 + processed_goods 慢性不足（構造的・現状では調整不能）**: workshop を持たない StateRegion は raw を売る相手が域内に無く（raw を消費するのは workshop のみ）→ raw が床に張る。同時に processed_goods を生産できず、域外から調達する手段が無い（市場間交易は未実装）→ ful=0.25-0.40 の慢性不足・価格が天井寄りに張る。**これは per-region 市場かつ交易ゼロのトポロジーに内在する縮退であり、係数調整では解消しない**。v0.55 のインターリージョン交易が根本解（workshopless 域が goods を輸入・raw を輸出できるようになる）。
+
+### 14.9.2 unrest 上昇は v0.54 起因ではない（戦争起因・既存）
+
+seed123 のみ unrest が単調上昇（17.8 → 61.2、high>50 が 11/17）。経済カップリング（§19）の係数算術では food 充足（ful=1.00）による減（`foodFulfillmentUnrestReduction` −1.0/月）が goods 不足による増（`processedGoodsShortageUnrestGain × 0.75` ≈ +0.6/月）を上回り、**経済由来の net は unrest を下げる方向**。
+
+main（v0.54 前）seed123 を 150年走らせた baseline では unrest は **20.9 → 64.2（high 13/17）**で、v0.54（61.2 / 11/17）**より高い**。つまり seed123 の unrest ratchet は**戦争多発 seed の既存の政治力学**（revolt 156件・war 系イベント多数）であり、v0.54 が導入・悪化させたものではない（むしろ経済カップリングがわずかに緩和）。よって `processedGoodsShortageUnrestGain` を下げても政治ドライバには届かず、「縮退回避」の対象にもならない。一般 unrest バランスは §14.3 / §14.4 系の既存課題として将来の総合調整に委ねる。
+
+### 14.9.3 結論: 3項目とも見送り（v0.55 交易へ引き継ぎ）
+
+- food 過剰床: 無害・唯一の可変レバーだが利得なし → 見送り。
+- raw/goods 縮退: 交易ゼロのトポロジーに内在 → v0.55 市場間交易で根本解。
+- seed123 unrest 上昇: 既存の戦争起因（v0.54 はむしろ緩和）→ 一般バランス調整へ。
+
+財政経路は owned 比率が上がっても健全（150年で owned 17-63%、treasury は land-holding polity で 65-3036）。これは holdingDue 機構（§17.4）が私的所有の拡大下でも財政を維持していることの実証で、v0.55 交易の作業はこれら3観察を入力として引き継ぐ。
