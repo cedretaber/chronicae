@@ -761,6 +761,24 @@ detail:
     seized: '押領中'
     prescriptionRemaining: '時効まで残り {{years}} 年'
 
+  # v0.53 押領・上納拒否 (RealEstateSeizure / LandContractDefault) の状態表示
+  obligation:
+    seized: '押領中'
+    seized_by: '押領者'
+    rightful_owner: '正当な権利者'
+    unpaid_accumulated: '未収累計'
+    prescription_remaining: '時効まで残り {{years}} 年'
+    default_active: '上納拒否中'
+    default_claimant: '請求元'
+    default_occupier: '占拠者'
+    default_revolt: '反乱占拠'
+    withholding: '上納拒否中'
+    being_withheld: '上納を拒否されている'
+    seized_assets_section: '押領されている不動産'
+    seizing_section: '押領中の不動産'
+    defaults_as_claimant: '上納を拒否されている契約'
+    defaults_as_occupier: '上納を拒否中の契約'
+
   # 土地詳細 (v0.38 Chronicle)
   holding:
     chronicle: '土地の歴史'

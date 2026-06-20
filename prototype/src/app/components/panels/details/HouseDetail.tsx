@@ -47,7 +47,7 @@ import {
 } from '@sim/selectors/houseFinanceSelectors'
 import { PersonLink } from './shared/links'
 import { PersonCard } from './shared/PersonCard'
-import type { PersonId } from '@/sim/types/ids'
+import type { PersonId, PolityId } from '@/sim/types/ids'
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getHouseClanRole } from '@sim/selectors/clanSelectors'
 import { getChronicleEntriesForHouse } from '@sim/selectors/chronicleSelectors'
@@ -55,6 +55,15 @@ import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goal
 import { assetOwnerKey } from '@sim/types/realEstateAsset'
 import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
 import { estimateWeeklyOwnerIncome } from '@sim/selectors/realEstateSelectors'
+import {
+  getActiveSeizureForAsset,
+  getSeizurePrescriptionRemainingYears,
+} from '@sim/selectors/realEstateSeizureSelectors'
+import {
+  getActiveDefaultsForClaimantPolity,
+  getActiveDefaultsForOccupierPolity,
+  getDefaultPrescriptionRemainingYears,
+} from '@sim/selectors/landContractDefaultSelectors'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 
@@ -440,11 +449,92 @@ export function HouseDetail({
                             {formatAmount(annualIncome)}
                           </span>
                         </div>
+                        {(() => {
+                          // v0.53: この不動産が押領されていれば明示。
+                          const seizure = getActiveSeizureForAsset(worldState, asset.id)
+                          if (!seizure) return null
+                          const years = Math.floor(
+                            getSeizurePrescriptionRemainingYears(
+                              worldState,
+                              defaultConfig,
+                              seizure,
+                            ),
+                          )
+                          return (
+                            <div className="mt-0.5 rounded border border-amber-700/50 bg-amber-950/30 px-1 py-0.5 text-[11px] text-amber-300">
+                              ⚠ {t('detail.obligation.seized', { defaultValue: '押領中' })} (
+                              {t('detail.obligation.seized_by', { defaultValue: '押領者' })}:{' '}
+                              {getPolityShortName(worldState, resolveName, seizure.seizerPolityId)},{' '}
+                              {t('detail.obligation.prescription_remaining', {
+                                defaultValue: '時効まで残り {{years}} 年',
+                                years,
+                              })}
+                              )
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}
                 </div>
               </CollapsibleSection>
+            )
+          })()}
+        {/* v0.53: この家が支配する Polity が関与する上納拒否 (claimant=被害 / occupier=加害) */}
+        {worldState &&
+          (() => {
+            const ownedPolityIds = getHouseOwnedPolityIds(worldState, house.id)
+            const asClaimant = ownedPolityIds.flatMap((pid) =>
+              getActiveDefaultsForClaimantPolity(worldState, pid),
+            )
+            const asOccupier = ownedPolityIds.flatMap((pid) =>
+              getActiveDefaultsForOccupierPolity(worldState, pid),
+            )
+            if (asClaimant.length === 0 && asOccupier.length === 0) return null
+            const renderRow = (d: (typeof asClaimant)[number], counterpartyId: PolityId) => {
+              const years = Math.floor(
+                getDefaultPrescriptionRemainingYears(worldState, defaultConfig, d),
+              )
+              const holdingName = getHoldingQualifiedName(worldState, resolveName, d.holdingId)
+              return (
+                <div key={d.id} className="flex justify-between text-[11px] text-gray-300">
+                  <span className="truncate">{holdingName}</span>
+                  <span className="shrink-0 text-gray-400">
+                    {getPolityShortName(worldState, resolveName, counterpartyId)} ·{' '}
+                    {t('detail.obligation.prescription_remaining', {
+                      defaultValue: '時効まで残り {{years}} 年',
+                      years,
+                    })}
+                  </span>
+                </div>
+              )
+            }
+            return (
+              <div className="mt-1 rounded border border-red-900/40 bg-red-950/20 px-1.5 py-1 text-sm">
+                {asClaimant.length > 0 && (
+                  <>
+                    <div className="text-xs font-semibold text-red-300">
+                      ⚠{' '}
+                      {t('detail.obligation.defaults_as_claimant', {
+                        defaultValue: '上納を拒否されている契約',
+                      })}{' '}
+                      ({asClaimant.length})
+                    </div>
+                    {asClaimant.map((d) => renderRow(d, d.occupiedByPolityId))}
+                  </>
+                )}
+                {asOccupier.length > 0 && (
+                  <>
+                    <div className="mt-0.5 text-xs font-semibold text-amber-300">
+                      {t('detail.obligation.defaults_as_occupier', {
+                        defaultValue: '上納を拒否中の契約',
+                      })}{' '}
+                      ({asOccupier.length})
+                    </div>
+                    {asOccupier.map((d) => renderRow(d, d.claimantPolityId))}
+                  </>
+                )}
+              </div>
             )
           })()}
         <CollapsibleSection

@@ -21,6 +21,11 @@ import type {
 } from '@/sim/types/ids'
 import type { Polity } from '@/sim/types/polity'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
+import {
+  getActiveDefaultForContract,
+  getDefaultPrescriptionRemainingYears,
+} from '@sim/selectors/landContractDefaultSelectors'
+import type { LandContractDefault } from '@sim/types/landContractDefault'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
@@ -162,6 +167,7 @@ export function PolityLandContracts({
     estimatedRevenue: number
     bailiffPersonId: PersonId | undefined
     appointmentRight: PoliticalRight | undefined
+    activeDefault: LandContractDefault | undefined
   }
   type ProvinceGroup = {
     provinceId: ProvinceId
@@ -235,6 +241,8 @@ export function PolityLandContracts({
         isTerminal && holdingId
           ? getHoldingOfficeAppointmentRight(worldState, holdingId)
           : undefined,
+      // v0.53: この契約が上納拒否されている (この Polity が grantee = 占拠側) なら明示。
+      activeDefault: getActiveDefaultForContract(worldState, c.id),
     })
     group.totalRevenue += estimatedRevenue
   }
@@ -283,6 +291,27 @@ export function PolityLandContracts({
                       {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
                     </span>
                   </div>
+                  {c.activeDefault && (
+                    <div className="mt-0.5 rounded bg-red-950/50 px-1 text-[10px] text-red-300">
+                      ⚠{' '}
+                      {c.activeDefault.origin === 'revolt_independence'
+                        ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                        : t('detail.obligation.default_active', {
+                            defaultValue: '上納拒否中',
+                          })}{' '}
+                      ·{' '}
+                      {t('detail.obligation.prescription_remaining', {
+                        defaultValue: '時効まで残り {{years}} 年',
+                        years: Math.floor(
+                          getDefaultPrescriptionRemainingYears(
+                            worldState,
+                            defaultConfig,
+                            c.activeDefault,
+                          ),
+                        ),
+                      })}
+                    </div>
+                  )}
                   {c.bailiffPersonId !== undefined && (
                     <div className="mt-0.5 truncate text-[11px] text-gray-500">
                       {t('holding.bailiff', { ns: 'roles' })}:{' '}

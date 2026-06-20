@@ -29,6 +29,15 @@ import {
 } from '@sim/selectors/bailiffSelectors'
 import { personAttitudeKey } from '@sim/helpers/attitudeHelpers'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
+import {
+  getActiveSeizureForAsset,
+  getSeizurePrescriptionRemainingYears,
+} from '@sim/selectors/realEstateSeizureSelectors'
+import {
+  getActiveDefaultForContract,
+  getDefaultPrescriptionRemainingYears,
+} from '@sim/selectors/landContractDefaultSelectors'
+import { formatAmount } from '@/app/utils/format'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import {
   getHoldingEmployedPopSize,
@@ -201,28 +210,45 @@ export function HoldingDetail({
                         )}
                       </div>
                       {(() => {
-                        // v0.53: active 押領表示。time effort で残り年数も。
-                        const seizureId =
-                          currentState.realEstateSeizureIndex.byAsset[asset.id as string]
-                        const seizure = seizureId
-                          ? currentState.realEstateSeizures[seizureId]
-                          : undefined
+                        // v0.53: active 押領表示。押領者・未収累計・時効残り年。
+                        const seizure = getActiveSeizureForAsset(currentState, asset.id)
                         if (!seizure) return null
-                        const baseWeek = seizure.lastContestedWeek ?? seizure.startedWeek
-                        const remainingWeeks = Math.max(
-                          0,
-                          defaultConfig.realEstateSeizurePrescriptionYears * 48 -
-                            (currentState.absoluteWeek - baseWeek),
+                        const remainingYears = Math.floor(
+                          getSeizurePrescriptionRemainingYears(
+                            currentState,
+                            defaultConfig,
+                            seizure,
+                          ),
                         )
-                        const remainingYears = Math.floor(remainingWeeks / 48)
                         return (
-                          <div className="mt-0.5 text-amber-400">
-                            {t('detail.realEstate.seized', { defaultValue: '押領中' })}
-                            {' — '}
-                            {t('detail.realEstate.prescriptionRemaining', {
-                              defaultValue: '時効まで残り {{years}} 年',
-                              years: remainingYears,
-                            })}
+                          <div className="mt-0.5 rounded border border-amber-700/50 bg-amber-950/30 px-1 py-0.5 text-amber-300">
+                            <div className="font-medium">
+                              ⚠ {t('detail.obligation.seized', { defaultValue: '押領中' })}
+                              {' — '}
+                              {t('detail.obligation.prescription_remaining', {
+                                defaultValue: '時効まで残り {{years}} 年',
+                                years: remainingYears,
+                              })}
+                            </div>
+                            <div className="flex justify-between text-[11px]">
+                              <span className="text-amber-400/70">
+                                {t('detail.obligation.seized_by', { defaultValue: '押領者' })}:
+                              </span>
+                              <PolityLink
+                                polityId={seizure.seizerPolityId}
+                                world={currentState}
+                                onClick={onPolityClick}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[11px]">
+                              <span className="text-amber-400/70">
+                                {t('detail.obligation.unpaid_accumulated', {
+                                  defaultValue: '未収累計',
+                                })}
+                                :
+                              </span>
+                              <span>{formatAmount(seizure.accumulatedUnpaidAmount)}</span>
+                            </div>
                           </div>
                         )
                       })()}
@@ -681,6 +707,7 @@ export function HoldingDetail({
                           WEEKS_PER_YEAR,
                       )
                     : null
+                const contractDefault = getActiveDefaultForContract(currentState, contract.id)
                 return (
                   <div key={contract.id}>
                     <div className="border-l border-gray-700 pl-2 text-sm">
@@ -693,6 +720,35 @@ export function HoldingDetail({
                         </button>
                       ) : (
                         <span className="text-gray-500">—</span>
+                      )}
+                      {contractDefault && (
+                        <span className="ml-1 rounded bg-red-950/50 px-1 text-[11px] text-red-300">
+                          ⚠{' '}
+                          {contractDefault.origin === 'revolt_independence'
+                            ? t('detail.obligation.default_revolt', { defaultValue: '反乱占拠' })
+                            : t('detail.obligation.default_active', { defaultValue: '上納拒否中' })}
+                          {' · '}
+                          {t('detail.obligation.default_claimant', {
+                            defaultValue: '請求元',
+                          })}
+                          :{' '}
+                          {getPolityShortName(
+                            currentState,
+                            resolveName,
+                            contractDefault.claimantPolityId,
+                          )}
+                          {' · '}
+                          {t('detail.obligation.prescription_remaining', {
+                            defaultValue: '時効まで残り {{years}} 年',
+                            years: Math.floor(
+                              getDefaultPrescriptionRemainingYears(
+                                currentState,
+                                defaultConfig,
+                                contractDefault,
+                              ),
+                            ),
+                          })}
+                        </span>
                       )}
                     </div>
                     {nextContract && (
