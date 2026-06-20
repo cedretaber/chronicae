@@ -139,16 +139,6 @@ export function setRealEstateSeizureEnforceMut(
   ws.realEstateSeizures[seizureId] = updated
 }
 
-export function setRealEstateSeizureContestedMut(
-  ws: WorldState,
-  seizureId: RealEstateSeizureId,
-  lastContestedWeek: number,
-): void {
-  const seizure = ws.realEstateSeizures[seizureId]
-  if (!seizure) return
-  ws.realEstateSeizures[seizureId] = { ...seizure, lastContestedWeek }
-}
-
 // retention 経過後に Record から完全削除する (cleanup 用)。
 export function removeRealEstateSeizureMut(ws: WorldState, seizureId: RealEstateSeizureId): void {
   const seizure = ws.realEstateSeizures[seizureId]

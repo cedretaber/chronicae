@@ -147,16 +147,6 @@ export function setLandContractDefaultEnforceMut(
   ws.landContractDefaults[defaultId] = updated
 }
 
-export function setLandContractDefaultContestedMut(
-  ws: WorldState,
-  defaultId: LandContractDefaultId,
-  lastContestedWeek: number,
-): void {
-  const d = ws.landContractDefaults[defaultId]
-  if (!d) return
-  ws.landContractDefaults[defaultId] = { ...d, lastContestedWeek }
-}
-
 export function removeLandContractDefaultMut(
   ws: WorldState,
   defaultId: LandContractDefaultId,

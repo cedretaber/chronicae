@@ -106,8 +106,14 @@ function applyTaxGoalCore(
   if (!contract || contract.holdingId !== goal.holdingId) return { ctx, applied: false }
 
   const newRate = goal.newTaxRateToGrantor
+  // v0.53 Phase 4: enforce_land_contract_default 由来 (resolvesLandContractDefaultId あり) は
+  //   契約の「復元」が目的。境界税率でも eliminate せず税率調整のみ (default 解消は wrapper が行う)。
+  const isEnforceRestore = goal.resolvesLandContractDefaultId !== undefined
   // 通常の税率変更。
-  if (newRate > config.taxRevisionMinRate && newRate < config.taxRevisionMaxRate) {
+  if (
+    isEnforceRestore ||
+    (newRate > config.taxRevisionMinRate && newRate < config.taxRevisionMaxRate)
+  ) {
     return {
       ctx: { ...ctx, state: adjustLandContractTaxRate(state, goal.landContractId, newRate) },
       applied: true,

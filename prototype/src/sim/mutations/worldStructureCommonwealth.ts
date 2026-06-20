@@ -392,6 +392,8 @@ export function establishCommonwealth(
       byOccupierPolity: { ...state.landContractDefaultIndex.byOccupierPolity },
     },
   }
+  // 注: revolt_independence default は applyRevoltEscalation で Pressure を伴わず作成されるため
+  //   (obligation Pressure は project outcome 由来のみ)、ここで removeObligationPressuresMut は不要。
   for (const defaultId of input.revoltDefaultIds) {
     const d = state.landContractDefaults[defaultId]
     if (!d) continue
