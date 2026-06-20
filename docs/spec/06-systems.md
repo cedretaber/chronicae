@@ -166,9 +166,42 @@ EmploymentRebalanceSystem の後・LandRevenueSystem の直前に実行する月
 
 - **資源**: `ResourceKind = food | raw_materials | processed_goods`（v0.54 は 3 種。内部設計は v0.55 の細分化を前提）。
 - **生産**: RealEstateAsset は `recipeSlots`（20 slot = 100%、slot は労働配分比率で生産量乗数ではない）で recipe（`field_food` / `pasture_raw_materials` / `workshop_processed_goods`）を採用する。holding の employed POP を per-asset の class capacity 比で按分（`computeAllocatedLaborByAsset`、Σ allocatedLabor == employed POP size の労働保存則）。`recipeLabor = allocatedLabor × (slot/totalSlots)`、`potentialOutput = recipeLabor × baseOutputPerLabor × recipeScaleMultiplier × assetLevelModifier × productionFacilityModifier × polityControlModifier`。development modifier は production path から撤去（development は表示・AI 評価指標として残す）。生産施設 modifier は capacity 用 `realEstateInfrastructureModifiers` とは別の `realEstateProductionFacilityModifiers`（加算・linear condition・staffing 減衰）。
-- **市場**: 市場単位は StateRegion（`marketKey = stateRegionId`）。在庫なし（その月の生産はその月に売買・消費、繰越なし）。`raw_materials` を先に解決し、workshop は raw 充足率に比例して processed を生産。`food` / `processed_goods` は POP 需要（wealth 由来の購買力係数 × class 別需要）と供給で clearing。価格 = `basePrice × clamp((effectiveDemand/max(supply,ε))^elasticity, min, max)`。価格は平滑化して履歴保存（`marketResourcePriceHistoryLimit`=120 = 10年分）。
-- **snapshot**: asset / holding 単位の月次 `RealEstateProductionResult` / `HoldingResourceRevenueSnapshot`（per-month。owner 会計は持たず生の per-asset netRevenue のみ）。`totalNetRevenue = Σ max(0, asset netRevenue)`。
-- **POP wealth/unrest（§19）**: market の food/processed 充足率・価格高騰を同 market 内 POP に反映（food: 不足・高騰で wealth-/unrest+、充足かつ価格安定で wealth+/unrest-。processed: 不足 penalty + 充足 gain）。clamp 0..100。LandRevenueSystem が直後に走るため、同月の POP wealth/unrest は ResourceEconomy → LandRevenue の順で更新される。
+- **市場**: 市場単位は StateRegion（`marketKey = stateRegionId`）。在庫なし（その月の生産はその月に売買・消費、繰越なし）。**Victoria 3 型の抽象市場清算（v0.54 market-clearing rewrite、§6.3c.1）**: 旧来の `sold = min(supply, demand)` / 超過分廃棄をやめ、**sell orders は全量 revenue 化・buy orders は全量 cost 評価**する。供給過多は「売れ残り廃棄」ではなく **安値で全量売れる**、供給不足は「買えない」ではなく **高価格で購入可能だが shortage penalty** で表現する。`raw_materials` を先に解決し、workshop は raw の `fulfillmentRatio` に比例して processed を生産する。価格は平滑化して履歴保存（`marketResourcePriceHistoryLimit`=120 = 10年分）。
+- **snapshot**: asset / holding 単位の月次 `RealEstateProductionResult` / `HoldingResourceRevenueSnapshot`（per-month。owner 会計は持たず生の per-asset netRevenue のみ）。asset の `grossRevenue = Σ sellOrders × marketPrice`、`inputCost = Σ buyOrders × marketPrice`（workshop の raw は不足でも buyOrders 全量 cost。output だけ `inputFulfillmentRatio` で縮小）、`netRevenue = grossRevenue − inputCost`。**netRevenue は負になり得る**（raw 不足の workshop は raw 代を満額払いつつ `fulfillmentRatio×potential` しか産出できない）。`totalNetRevenue = Σ max(0, asset netRevenue)`（赤字資産は 0 床留め）。
+- **POP wealth/unrest（§19）**: market の food/processed の `shortage` / `shortageSeverity`（負のチャネル）と充足・価格安定（正のチャネル）を同 market 内 POP に反映する。**負のチャネル**: food/processed が shortage のとき wealth−/unrest+（影響量は `shortageSeverity` に比例。`config.foodShortageWealthPenalty × severity` 等）。**高価格チャネル**: `priceMultiplier` の高さに応じた生活費負担（shortage とは別概念。両方適用可）。**正のチャネル（§19.2、維持）**: `fulfillmentRatio=1` かつ価格安定のとき wealth+/unrest−（`foodFulfillmentWealthGain` / `UnrestReduction` 等）。この正のチャネルは load-bearing（食料の net カップリングを負方向≈−1.0/月に保ち unrest 均衡を作る。150/300年観察で確認）なので shortage penalty 追加後も残す。clamp 0..100。LandRevenueSystem が直後に走るため、同月の POP wealth/unrest は ResourceEconomy → LandRevenue の順で更新される。
+
+#### 6.3c.1 市場清算モデル（Victoria 3 型、v0.54 market-clearing rewrite）
+
+各 StateRegion × ResourceKind 市場を、buy/sell order の不均衡で清算する。`MarketResourceSnapshot` の基本語彙は `sellOrders`（生産者が売りに出した量、原則全量 revenue 化）/ `buyOrders`（POP・workshop が求めた量、原則全量 cost 評価）。旧 `supply` / `effectiveDemand` / `sold` / `unsold` は内部互換名として残してよいが、仕様の基本語彙は sell/buy orders とする。
+
+- **清算**: `producerRevenue = sellOrders × price`、`consumerCost = buyOrders × price`。buy/sell は一致しなくてよい。
+- **価格式（imbalance ベース、旧 `ratio^elasticity` 廃止）**:
+
+  ```text
+  imbalance = (buyOrders − sellOrders) / max(min(buyOrders, sellOrders), ε)
+  priceMultiplier = 1.0 + marketPriceSwing × clamp(imbalance, −1.0, 1.0)
+  price = basePrice × priceMultiplier
+  ```
+
+  `marketPriceSwing = 0.75`（全資源共通）→ 価格幅は `basePrice × [0.25, 1.75]`。資源ごとの個別 min/max/elasticity は廃止（`basePrice` のみ資源別に維持）。
+- **エッジケース（formula ではなく明示分岐）**: imbalance 式は `min(buy,sell)` で割るため、`buy=0` / `sell=0` は式ではなく分岐で扱う。
+  - `buy=0, sell=0`: `price=basePrice` / revenue=cost=0 / shortage=false / severity=0（debug は inactive）。
+  - `buy=0, sell>0`: `price=basePrice×(1−swing)`（下限）/ producerRevenue=sell×price / consumerCost=0 / shortage=false（需要ゼロでも下限価格で全量売れた扱い＝市場抽象化の副作用、debug/digest で観察）。
+  - `buy>0, sell=0`: `price=basePrice×(1+swing)`（上限）/ producerRevenue=0 / consumerCost=buy×price / fulfillmentRatio=0 / shortage=true / severity=1。
+- **fulfillmentRatio / shortage**:
+
+  ```text
+  fulfillmentRatio = buyOrders ≤ 0 ? 1.0 : clamp(sellOrders / buyOrders, 0, 1)
+  shortage = buyOrders > 0 && fulfillmentRatio < resourceShortageFulfillmentThreshold   (=0.5)
+  shortageSeverity = shortage ? clamp((threshold − fulfillmentRatio) / threshold, 0, 1) : 0
+  ```
+
+  buyOrders が全量購入扱いでも、`fulfillmentRatio` は welfare / input throughput の penalty に使う。v0.54 は日次蓄積型 modifier を持たず、月次で当月 severity を即時適用（将来は蓄積・回復へ拡張）。
+- **shortage penalty**: (a) **workshop input** — `actualProcessedGoodsOutput = potentialOutput × rawMaterials.fulfillmentRatio`（旧 rawFulfillmentRatio をこの共通仕様に統合）。(b) **POP** — food/processed shortage を wealth−/unrest+ に反映（§19、`shortageSeverity` 比例。food が processed より強い）。
+- **marketValueDelta = producerRevenue − consumerCost**: v0.54 は会計保存しない（市場抽象化による価値の生成/消滅）。`sell > buy` → 正（生成）、`buy > sell` → 負（破棄）。
+- **2 つの「保存」を混同しない**: (1) 上記 `marketValueDelta` は**市場レイヤで非保存**（抽象化）。(2) LandRevenue 分配レイヤの保存則 `Σ ownerPaid + Σ holdingTaxable == Σ positiveNet`（§6.4.2 / §21.4）は **不変**。`positiveNet = max(0, netRevenue)` が負を床留めするため、netRevenue が深く負になっても分配は保存される。この market-clearing rewrite は「money 保存を壊す」ものではない。
+- **consumerCost の二層性（実装上の最重要分岐）**: workshop の **raw_materials buyOrders は実コスト**で asset の `inputCost` → `netRevenue` に効く。一方 POP の **food/processed buyOrders は観察値のみ**（PopGroup.cash 不在のため cash から引かない。POP welfare は shortage / high-price penalty 経由でのみ動く）。この二層を取り違えると POP cost の二重計上 or workshop inputCost の脱落を招く。
+- **integrity 不変条件（更新）**: 各市場の `price ∈ basePrice × [1−swing, 1+swing]`（旧「資源別 min/max」から全資源共通レンジへ変更）、`fulfillmentRatio ∈ [0,1]`、`shortageSeverity ∈ [0,1]`。`marketResourcePrices` の key / 非負・履歴上限、`monthlyHoldingResourceRevenue` の week 整合は従来どおり。
 
 ### 6.4 LandRevenueSystem（4週ごと）
 

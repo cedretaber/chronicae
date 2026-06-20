@@ -50,7 +50,7 @@ const WEEKS_PER_SEASON = 12
 | 3 | ControlSystem | 4 | |
 | 4 | PopSystem | 4 | |
 | 4b | EmploymentRebalanceSystem | 4 | class capacity 超過→未就業化、未就業→再就業（employed boolean） |
-| 4c | ResourceEconomySystem | 4 | 資源生産→StateRegion 市場→売却益 snapshot（§6.3c, v0.54）。食料/加工品の充足率・価格を POP wealth/unrest に反映。LandRevenueSystem 直前 |
+| 4c | ResourceEconomySystem | 4 | 資源生産→StateRegion 市場（Victoria 3 型清算: sell/buy orders・imbalance 価格・shortage、§6.3c.1）→売却益 snapshot（§6.3c, v0.54）。食料/加工品の shortage/severity・価格・充足を POP wealth/unrest に反映。LandRevenueSystem 直前 |
 | 5 | LandRevenueSystem | 4 | 資源 snapshot を source に owner income/holding due/bailiff/chain 分配（v0.54） |
 | 5a | ObligationConsistencySystem | 4 | v0.53: active な押領 (RealEstateSeizure) / 上納不履行 (LandContractDefault) の dangling 参照・前提崩壊を検査し cancelled 化（+ `*_CANCELLED` emit + 関連 enforce Project を terminal 化）。accrual/prescription より**前**に置き、dangling entity を accrue / legalize する前に解消する（§6 ObligationDefault・spec v0.53 §13.5） |
 | 5b | ObligationAccrualSystem | 4 | v0.53: active な RealEstateSeizure / LandContractDefault の `accumulatedUnpaidAmount`（係争規模指標）を概算加算。厳密会計値ではない（spec v0.53 §12） |

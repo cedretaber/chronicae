@@ -260,6 +260,8 @@ land_claim を自然に発生させるには、「他者の province の holding
 
 ## 14.9 資源経済（v0.54 投入時の観察）
 
+> **注（supersession）**: 本節は v0.54 の **旧市場清算モデル**（`sold = min(supply, demand)` / 超過分廃棄 / 資源別 min/max/elasticity）下の観察である。その後 **Victoria 3 型 market-clearing rewrite**（§6.3c.1: sell orders 全量 revenue 化・imbalance 価格・shortage penalty）を導入したため、ここで述べる挙動（food 過剰床での廃棄・clamp 張り付き）は現行モデルでは変化する（超過は安値で全量売れる）。**rewrite 実装後に再観察して本節を更新すること**。
+
 計測条件: tiny preset 150年 × 3 seed (1, 42, 123)、整合性違反 0・完走。digest の `Economy:` 行（`computeEconomyStats`）から price/clamp/fulfillment、`Unrest:` 行から不満度を集計。300年 × 1 seed (1) も完走を確認済。**CLAUDE.md §4 に従い config は変更せず観察値の記録のみ**（「縮退回避のみ」の方針を堅持）。
 
 ### 14.9.1 観察された市場の縮退傾向

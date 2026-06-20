@@ -126,8 +126,12 @@ function estimateMonthlyOwnerIncome(state: WorldState, config: SimulationConfig,
 
 // 生産計算の下位 selector（resourceProductionSelectors / resourceMarketSelectors）:
 //   computeAllocatedLaborByAsset（employed POP を per-asset capacity 比で按分、労働保存則）/
-//   computeAssetRecipePotentials（recipeLabor 方式の potential 産出・投入）/ computeResourcePrice（supply/demand→price）/
-//   getPopResourceDemand（class 別需要 × 購買力係数）
+//   computeAssetRecipePotentials（recipeLabor 方式の potential 産出・投入）/
+//   computeResourcePrice（v0.54 market-clearing rewrite: imbalance ベース。
+//     imbalance=(buy−sell)/max(min(buy,sell),ε)、price=basePrice×(1+marketPriceSwing×clamp(imbalance,−1,1))。
+//     buy=0/sell=0 は明示分岐〔§6.3c.1〕。旧 ratio^elasticity は廃止）/
+//   computeMarketFulfillment（fulfillmentRatio / shortage / shortageSeverity を算出）/
+//   getPopResourceDemand（class 別需要 × 購買力係数。buyOrders を構成）
 
 // Polity 用の Province 兵力基盤（employment manpower multiplier 含む。資源 production とは独立に pop を直接走査）
 // sum(pop.size * manpowerFactorByClass[pop.class] * (pop.employed ? employedManpowerMultiplierByClass[pop.class] : unemployedManpowerMultiplier) * (polityControl / 100))
