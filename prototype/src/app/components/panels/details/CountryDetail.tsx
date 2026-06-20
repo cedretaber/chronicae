@@ -21,6 +21,7 @@ import {
   WatchButton,
   PolityLandContracts,
   PolityRegiments,
+  PolityThreats,
   RightHolderLine,
   EntityChronicleSection,
   CollapsibleSection,
@@ -412,6 +413,8 @@ export function CountryDetail({
           {inHouseNames.length > 0 ? inHouseNames : <li className="text-gray-500">\u2014</li>}
         </ul>
       </CollapsibleSection>
+
+      <PolityThreats polity={polity} worldState={worldState} />
 
       <PolityLandContracts
         polity={polity}

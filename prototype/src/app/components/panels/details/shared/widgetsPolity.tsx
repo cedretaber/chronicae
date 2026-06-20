@@ -27,7 +27,14 @@ import {
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
 import type { LandContractDefault } from '@sim/types/landContractDefault'
+import {
+  getActivePressuresForPolity,
+  getActiveCrisesForPolity,
+} from '@sim/selectors/polityThreatSelectors'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
+import { EntityRefLink } from './ProjectCard'
+import { useSimulationStore } from '@/app/stores/simulationStore'
+import { formatAbsoluteWeek } from '@/app/utils/format'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
@@ -379,6 +386,97 @@ export function PolityLandContracts({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// v0.53: この Polity が直面している外圧 (Pressure, target=polity) と領内 (実効支配 holding) の危機 (Crisis)。
+//   観賞用スナップショット。active のみ表示。どちらも無ければ何も描画しない。
+export function PolityThreats({
+  polity,
+  worldState,
+}: {
+  polity: Polity
+  worldState: WorldState | null
+}) {
+  const { t } = useTranslation()
+  const onNavigate = useSimulationStore((s) => s.openDetailWindow)
+  if (!worldState) return null
+  const pressures = getActivePressuresForPolity(worldState, polity.id)
+  const crises = getActiveCrisesForPolity(worldState, polity.id)
+  if (pressures.length === 0 && crises.length === 0) return null
+  return (
+    <div className="mt-1">
+      {pressures.length > 0 && (
+        <>
+          <div className="text-sm font-semibold text-amber-300">
+            {t('detail.pressure.section_title')} ({pressures.length})
+          </div>
+          <div className="flex flex-col gap-0.5 text-xs">
+            {pressures.map((p) => (
+              <div key={p.id} className="rounded bg-amber-950/30 px-1.5 py-1">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="font-medium text-amber-200">
+                    {t(`detail.project.pressure_kind.${p.kind}`, { defaultValue: p.kind })}
+                  </span>
+                  <span
+                    className={p.responseProjectId !== undefined ? 'text-gray-400' : 'text-red-300'}
+                  >
+                    {p.responseProjectId !== undefined
+                      ? t('detail.pressure.responding')
+                      : t('detail.pressure.unanswered')}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-1 text-gray-400">
+                  <span className="shrink-0">{t('detail.pressure.source')}:</span>
+                  <EntityRefLink
+                    entityRef={p.source}
+                    worldState={worldState}
+                    onNavigate={onNavigate}
+                  />
+                </div>
+                {p.deadlineWeek !== undefined && (
+                  <div className="flex justify-between text-gray-400">
+                    <span>{t('detail.pressure.deadline')}:</span>
+                    <span>{formatAbsoluteWeek(p.deadlineWeek)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {crises.length > 0 && (
+        <>
+          <div className="mt-1 text-sm font-semibold text-red-300">
+            {t('detail.crisis.section_title')} ({crises.length})
+          </div>
+          <div className="flex flex-col gap-0.5 text-xs">
+            {crises.map((c) => (
+              <div key={c.id} className="rounded bg-red-950/30 px-1.5 py-1">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="font-medium text-red-200">
+                    {t(`detail.crisis.kind.${c.kind}`, { defaultValue: c.kind })}
+                  </span>
+                  <span className="text-gray-400">
+                    {t('detail.crisis.severity')}: {c.severity.toFixed(0)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-1 text-gray-400">
+                  <EntityRefLink
+                    entityRef={{ kind: 'holding', id: c.holdingId }}
+                    worldState={worldState}
+                    onNavigate={onNavigate}
+                  />
+                  {c.kind !== 'disrepair' && (
+                    <span className="shrink-0">{formatAbsoluteWeek(c.deadlineWeek)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

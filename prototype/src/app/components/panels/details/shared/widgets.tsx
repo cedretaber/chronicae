@@ -14,5 +14,6 @@ export {
   AttitudeList,
   PolityLandContracts,
   PolityRegiments,
+  PolityThreats,
   RepublicPowerProfileSection,
 } from './widgetsPolity'

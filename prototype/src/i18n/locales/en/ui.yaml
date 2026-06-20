@@ -161,6 +161,13 @@ detail:
       war_damage: 'War Devastation'
       unrest: 'Unrest'
       disrepair: 'Disrepair'
+  # v0.53 external pressure facing a polity
+  pressure:
+    section_title: 'Pressures Faced'
+    source: 'Source'
+    deadline: 'Deadline'
+    responding: 'Responding'
+    unanswered: 'Unanswered'
   # v0.48.1 facility maintenance (condition bar / disrepair badge / repair project)
   facility:
     condition: 'Condition'
@@ -493,6 +500,8 @@ detail:
     pressure_kind:
       diplomatic_land_claim: 'Land Claim'
       diplomatic_contract_revision: 'Contract Revision Demand'
+      real_estate_seizure: 'Real Estate Seizure'
+      land_contract_default: 'Tribute Withholding'
     right_target:
       polity_office_role: 'Office Appointment Right'
       holding_office_role: 'Bailiff Appointment Right'

@@ -264,6 +264,13 @@ detail:
       war_damage: '戦災'
       unrest: '騒乱'
       disrepair: '設備不全'
+  # v0.53 Polity が直面している外圧
+  pressure:
+    section_title: '直面している外圧'
+    source: '圧力源'
+    deadline: '期限'
+    responding: '対応中'
+    unanswered: '未対応'
   # v0.48.1 設備維持管理 (condition バー・機能不全バッジ・修理 Project)
   facility:
     condition: '状態'
@@ -596,6 +603,8 @@ detail:
     pressure_kind:
       diplomatic_land_claim: '領地の請求'
       diplomatic_contract_revision: '契約条件の改定要求'
+      real_estate_seizure: '不動産の押領'
+      land_contract_default: '上納拒否'
     right_target:
       polity_office_role: '役職の任命権'
       holding_office_role: '代官の任命権'
