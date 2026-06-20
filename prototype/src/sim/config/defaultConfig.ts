@@ -1430,6 +1430,9 @@ export type SimulationConfig = {
   foodShortageUnrestGain: number
   foodHighPriceWealthPenalty: number
   foodHighPriceUnrestGain: number
+  // §19.2: food が充足し価格が安定している地域への正の効果 (wealth+/unrest-)。
+  foodFulfillmentWealthGain: number
+  foodFulfillmentUnrestReduction: number
   processedGoodsShortageWealthPenalty: number
   processedGoodsShortageUnrestGain: number
   processedGoodsFulfillmentWealthGain: number
@@ -2995,6 +2998,8 @@ export const defaultConfig: SimulationConfig = {
   foodShortageUnrestGain: 4.0,
   foodHighPriceWealthPenalty: 1.5,
   foodHighPriceUnrestGain: 1.5,
+  foodFulfillmentWealthGain: 0.5,
+  foodFulfillmentUnrestReduction: 1.0,
   processedGoodsShortageWealthPenalty: 1.0,
   processedGoodsShortageUnrestGain: 1.0,
   processedGoodsFulfillmentWealthGain: 0.5,

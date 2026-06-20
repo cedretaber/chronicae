@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
-import type { StateRegionId, HoldingId, ProductionRecipeId } from '../types/ids'
+import type { StateRegionId, HoldingId, ProductionRecipeId, PopGroupId } from '../types/ids'
+import type { PopGroup } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
 import type {
@@ -11,20 +12,20 @@ import type {
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
 } from '../selectors/resourceProductionSelectors'
 import { computeResourcePrice, getPopResourceDemand } from '../selectors/resourceMarketSelectors'
+import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
-//   marketResourcePrices / monthlyHoldingResourceRevenue の 2 slice にだけ書き込む。
-//   POP / treasury / owner は変更しない (side-effect-free, §16 / Step 2)。RNG を消費しない。
-//   determinism: 全 Record 反復を sorted key 順 (§13.1)。array (provinceIds/holdingIds/assetIds) は
-//   既に固定順なのでそのまま使う。
-//
-//   POP wealth/unrest への反映 (§13 step 13 / §19) は Phase 4 で追加する。本 system は step 1-12 まで。
+//   marketResourcePrices / monthlyHoldingResourceRevenue を書き、food/processed の充足率・価格を
+//   POP wealth/unrest に反映する (§13 step 1-13 / §19)。treasury / owner は変更しない (分配は landRevenue)。
+//   RNG を消費しない。determinism: 全 Record 反復を sorted key 順 (§13.1)。array (provinceIds/
+//   holdingIds/assetIds/popGroupIds) は既に固定順なのでそのまま使う。
 
 type RecipeRecord = {
   holdingId: HoldingId
@@ -41,6 +42,8 @@ type MarketAccum = {
   recipes: RecipeRecord[]
   supply: Record<ResourceKind, number>
   demand: Record<ResourceKind, number>
+  // §19: market 内の POP に food/processed の充足率・価格を反映するため popId を集める。
+  popGroupIds: PopGroupId[]
 }
 
 function emptyResourceRecord(): Record<ResourceKind, number> {
@@ -66,6 +69,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       recipes: [],
       supply: emptyResourceRecord(),
       demand: emptyResourceRecord(),
+      popGroupIds: [],
     }
     markets.push(accum)
 
@@ -124,6 +128,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           if (!pop) continue
           accum.demand.food += getPopResourceDemand(pop, 'food', config)
           accum.demand.processed_goods += getPopResourceDemand(pop, 'processed_goods', config)
+          accum.popGroupIds.push(popId)
         }
       }
     }
@@ -133,6 +138,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   // raw_materials を先に解決 → rawFulfillmentRatio → processed_goods supply を確定。
   const newPrices: Record<string, MarketResourcePriceState> = {}
   const snapshots: Record<HoldingId, HoldingResourceRevenueSnapshot> = {}
+  // §19: food/processed の充足率・価格を POP wealth/unrest に反映する (Phase 4)。
+  const newPopGroups: Record<PopGroupId, PopGroup> = { ...state.popGroups }
 
   for (const market of markets) {
     // raw market
@@ -328,12 +335,55 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         })
       }
     }
+
+    // ─── §13 step 13 / §19: food/processed 充足率・価格を POP wealth/unrest に反映 ───
+    // food: 不足・高騰で wealth-/unrest+、充足かつ価格安定で wealth+/unrest- (§19.2)。
+    // processed: 不足 penalty + 充足 gain (§19.3)。
+    //   market の fulfillment ratio を同 market 内 POP に一律適用 (§19.4)。clamp 0..100 (§19.5)。
+    const eps = config.resourceMarketSupplyEpsilon
+    const foodFulfill = clamp(sold.food / Math.max(effectiveDemand.food, eps), 0, 1)
+    const foodShortfall = 1 - foodFulfill
+    const foodPriceExcess = Math.max(0, price.food / RESOURCE_PRICE_DEFINITIONS.food.basePrice - 1)
+    // §19.2 正の効果は「充足 かつ 価格安定」が条件。価格高騰時は減衰させる。
+    const foodWellbeing = foodFulfill * Math.max(0, 1 - foodPriceExcess)
+    const processedFulfill = clamp(
+      sold.processed_goods / Math.max(effectiveDemand.processed_goods, eps),
+      0,
+      1,
+    )
+    const processedShortfall = 1 - processedFulfill
+
+    const wealthDelta =
+      -config.foodShortageWealthPenalty * foodShortfall -
+      config.foodHighPriceWealthPenalty * foodPriceExcess +
+      config.foodFulfillmentWealthGain * foodWellbeing -
+      config.processedGoodsShortageWealthPenalty * processedShortfall +
+      config.processedGoodsFulfillmentWealthGain * processedFulfill
+    const unrestDelta =
+      config.foodShortageUnrestGain * foodShortfall +
+      config.foodHighPriceUnrestGain * foodPriceExcess -
+      config.foodFulfillmentUnrestReduction * foodWellbeing +
+      config.processedGoodsShortageUnrestGain * processedShortfall -
+      config.processedGoodsFulfillmentUnrestReduction * processedFulfill
+
+    if (wealthDelta !== 0 || unrestDelta !== 0) {
+      for (const popId of market.popGroupIds) {
+        const pop = newPopGroups[popId]
+        if (!pop) continue
+        const newWealth = clamp(pop.wealth + wealthDelta, 0, 100)
+        const newUnrest = clamp(pop.unrest + unrestDelta, 0, 100)
+        if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
+          newPopGroups[popId] = { ...pop, wealth: newWealth, unrest: newUnrest }
+        }
+      }
+    }
   }
 
   return {
     ...ctx,
     state: {
       ...state,
+      popGroups: newPopGroups,
       marketResourcePrices: newPrices,
       monthlyHoldingResourceRevenue: snapshots,
     },
