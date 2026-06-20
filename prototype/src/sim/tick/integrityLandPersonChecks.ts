@@ -43,6 +43,14 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
           message: `LandContract ${contractId} provinceId ${contract.provinceId} differs from parent ${parent.id} provinceId ${parent.provinceId} (§25 #6)`,
         })
       }
+      // v0.53 §14.5/§18.3: 非 root contract の taxRateToGrantor は 0 であってはならない
+      //   (revolt_seizure tax-0 子契約を廃止したため。占拠は nominal 正税率 + LandContractDefault で表現)。
+      if (contract.terms.taxRateToGrantor === 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Non-root LandContract ${contractId} taxRateToGrantor=0 is not allowed (v0.53 §18.3)`,
+        })
+      }
     } else {
       if (contract.terms.taxRateToGrantor !== 0) {
         errors.push({

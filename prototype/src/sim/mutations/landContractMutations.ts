@@ -1,11 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, LandContractId, HoldingId } from '../types/ids'
-import type {
-  LandContract,
-  LandContractIndex,
-  RootAuthorityId,
-  LandContractSpecialStatus,
-} from '../types/landContract'
+import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
@@ -28,7 +23,6 @@ type CreateChildContractParams = {
   granteePolityId: PolityId
   taxRateToGrantor: number
   holdingId?: HoldingId
-  specialStatus?: LandContractSpecialStatus
 }
 
 type CreateResult = {
@@ -123,7 +117,6 @@ export function createChildLandContract(
     // 欠落させると removeContract の byHolding cleanup (下記) や war/peace の
     // contract.holdingId === goal.holdingId 照合・UI の holding 名解決がすり抜ける。
     ...(params.holdingId ? { holdingId: params.holdingId } : {}),
-    ...(params.specialStatus ? { specialStatus: params.specialStatus } : {}),
   }
   const granteeSlot = emptyGranteeSlot(state.landContractIndex, params.granteePolityId)
   const nextState: WorldState = {

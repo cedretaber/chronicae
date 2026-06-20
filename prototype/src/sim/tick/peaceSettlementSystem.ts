@@ -60,7 +60,7 @@ function settleDefenderWon(ctx: TickContext, warId: WarId): TickContext {
   if (revoltGoal && revoltGoal.kind === 'popular_revolt_independence') {
     const result = suppressRevolt(ctx, {
       commonwealthPolityId: revoltGoal.commonwealthPolityId,
-      revoltSeizureContractIds: revoltGoal.revoltSeizureContractIds,
+      revoltDefaultIds: revoltGoal.revoltDefaultIds,
       holdingIds: revoltGoal.holdingIds,
     })
     let next = result.ok ? result.value.ctx : ctx
@@ -165,7 +165,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
   if (goal.kind === 'popular_revolt_independence') {
     const result = establishCommonwealth(ctx, {
       commonwealthPolityId: goal.commonwealthPolityId,
-      revoltSeizureContractIds: goal.revoltSeizureContractIds,
+      revoltDefaultIds: goal.revoltDefaultIds,
       leaderPersonId: goal.leaderPersonId,
     })
     if (!result.ok) return settleWhitePeace(ctx, warId)

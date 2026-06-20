@@ -163,7 +163,10 @@ function buildPlay(holdingId: HoldingId, targetContractId: LandContractId): Dipl
 }
 
 function hasRevoltSeizureContract(state: WorldState): boolean {
-  return Object.values(state.landContracts).some((c) => c?.specialStatus?.kind === 'revolt_seizure')
+  // v0.53: revolt_seizure specialStatus を廃止し revolt_independence LandContractDefault で表現する。
+  return Object.values(state.landContractDefaults).some(
+    (d) => d?.origin === 'revolt_independence' && d.status === 'active',
+  )
 }
 
 describe('progressRevoltNegotiation escalation: rank judged on current terminal holder', () => {

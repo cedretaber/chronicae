@@ -228,7 +228,7 @@ function createWarGoalFromRevoltPlay(
     commonwealthPolityId: play.initiator.id,
     originalHolderPolityId: play.target.id,
     holdingIds: origin.holdingIds,
-    revoltSeizureContractIds: commonwealth.revoltState.revoltSeizureContractIds,
+    revoltDefaultIds: commonwealth.revoltState.revoltDefaultIds,
     leaderPersonId: origin.leaderPersonId,
     requiredWarScore,
   }

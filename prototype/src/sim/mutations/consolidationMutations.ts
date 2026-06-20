@@ -69,7 +69,7 @@ function consolidateHolding(
       if (!c) return state
       const granteePolity = state.polities[c.granteePolityId]
       if (!granteePolity || granteePolity.ownerHouseId !== houseId) return state // 他家挟在 → skip。
-      if (c.specialStatus !== undefined) return state // special → skip。
+      if (state.landContractDefaultIndex.byContract[c.id as string]) return state // active default → skip。
     }
   }
 
@@ -91,7 +91,7 @@ function consolidateHolding(
     // 所有者 guard: 直下 contract の grantee が同家・specialStatus なし (§12.7 step3)。
     const childPolity = state.polities[child.granteePolityId]
     if (!childPolity || childPolity.ownerHouseId !== houseId) return state // 他家挟在 → 停止。
-    if (child.specialStatus !== undefined) return state
+    if (state.landContractDefaultIndex.byContract[child.id as string]) return state // active default → 停止。
 
     // sink→child contract を畳む。child の子は sink に繋ぎ替わり chain が 1 段浅くなる。
     state = eliminateContractFromChain(state, childId)

@@ -315,9 +315,9 @@ function selectLandGrantTargetHolding(
       if (getHoldingTerminalPolityId(state, holdingId) !== donorPolityId) continue
       const holding = state.holdings[holdingId]
       if (!holding) continue
-      // terminal chain に specialStatus (revolt_seizure 等) がある holding は除外 (§8.6)。
+      // v0.53: chain に active LandContractDefault (revolt_independence 等) がある holding は除外 (§8.6)。
       const chain = state.landContractIndex.byHolding[holdingId] ?? []
-      if (chain.some((cid) => state.landContracts[cid]?.specialStatus !== undefined)) continue
+      if (chain.some((cid) => state.landContractDefaultIndex.byContract[cid as string])) continue
       cands.push({ holdingId, offCapital, development: dev })
     }
   }

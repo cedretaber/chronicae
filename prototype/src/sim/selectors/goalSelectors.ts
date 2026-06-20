@@ -443,6 +443,9 @@ function pickPolityAim(
     const parentId = contract.parentContractId
     const parentContract = parentId !== undefined ? state.landContracts[parentId] : undefined
     if (!parentContract || parentContract.rootAuthorityId) continue
+    // v0.53 §14.6: active LandContractDefault (revolt_independence の nominal occupation contract 含む) は
+    //   通常の契約除去対象から外す (反乱占拠の取り消しを防ぐ)。
+    if (state.landContractDefaultIndex.byContract[contract.id as string]) continue
     if (grantorIsSameHouse(contract.id)) continue
     if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {

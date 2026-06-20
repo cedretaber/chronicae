@@ -39,7 +39,8 @@ export function runTaxRevisionSystem(ctx: TickContext): TickContext {
     for (const contractId of granteeContracts) {
       const contract = nextState.landContracts[contractId]
       if (!contract) continue
-      if (contract.specialStatus?.kind === 'revolt_seizure') continue
+      // v0.53: active LandContractDefault (revolt_independence 含む) がある契約は税改定対象外
+      if (nextState.landContractDefaultIndex.byContract[contractId as string]) continue
 
       const holdingId = contract.holdingId
       if (!holdingId) continue
