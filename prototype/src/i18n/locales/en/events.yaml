@@ -257,6 +257,13 @@ pressure:
 clan:
   founded: 'The descendants of {{rootHouseName}} are now recognized as the {{rootHouseName}} Clan.'
 
+# v0.53 押領 (RealEstateSeizure)
+real_estate_seizure:
+  started: '{{polity}} seized the estate income of house {{house}} in {{province}}.'
+  resolved: 'House {{house}} reclaimed its seized estate income in {{province}}.'
+  legalized: "House {{house}}'s seized estate in {{province}} passed into the holding by prescription."
+  cancelled: 'The seizure against house {{house}} in {{province}} lapsed.'
+
 # v0.35: display labels for battle event enums (battlefieldKind / result / avoidingSide).
 #   sim-layer params stay raw enum strings; eventRenderer resolves these at render time.
 #   battlefieldKind labels are battle-type names so the template "A {kind} broke out" reads
@@ -398,3 +405,6 @@ enum:
     request_cadet_branch_title_transfer: 'the founding of a cadet branch'
     republic_house_foundation: 'the founding of a house in the republic'
     consolidate_internal_contracts: 'the consolidation of domains'
+    seize_real_estate_income: 'seizing estate income'
+    withhold_land_contract_tax: 'withholding tribute'
+    enforce_obligation: 'enforcing an obligation'

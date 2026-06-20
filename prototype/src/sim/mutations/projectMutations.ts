@@ -176,6 +176,11 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'acquire_real_estate'
     case 'improve_house_real_estate':
       return 'upgrade_owned_real_estate'
+    // v0.53 押領・上納拒否 (enforce は pressure 駆動なので aim mapping を持たない)
+    case 'seize_vulnerable_real_estate_income':
+      return 'seize_real_estate_income'
+    case 'withhold_overlord_tax':
+      return 'withhold_land_contract_tax'
     default:
       return undefined
   }

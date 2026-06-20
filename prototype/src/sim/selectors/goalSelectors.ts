@@ -33,6 +33,9 @@ import {
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { hasCapacityPressure } from './popSelectors'
 import { estimateRealEstateSalePrice } from './realEstateSelectors'
+import { selectMostVulnerableHouseOwnedAsset } from './realEstateSeizureSelectors'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { getPolityLeader } from './officeSelectors'
 import { assetOwnerKey } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { calcPolityMilitaryPower } from './militarySelectors'
@@ -482,6 +485,58 @@ function pickPolityAim(
           : { kind: 'province', id: child.provinceId },
         score: 15 + (config.taxRevisionMaxRateForIncrease - child.terms.taxRateToGrantor) * 50,
       })
+    }
+  }
+
+  // v0.53 押領 (seize_vulnerable_real_estate_income): 自国 terminal Holding 内の脆弱な
+  //   House-owned 不動産収益を狙う。external_expansion ではなく内部収奪 (B3) なので両 goal 共通ブロック。
+  //   asset 選定は scoring と Project 作成で同一 selector (C1)。force-gate は ownerHouseResistance、
+  //   prize は owner income (D2)。乱発防止に opportunity threshold + cooldown。
+  {
+    const leaderId = getPolityLeader(state, polityId)
+    const leader = leaderId ? state.persons[leaderId] : undefined
+    if (leader && isLivingPerson(leader)) {
+      const ambition = leader.traits.ambition
+      const caution = leader.traits.caution
+      const fiscalPressure = polity.treasury < 0 ? Math.min(100, -polity.treasury) : 0
+      const terminalProvinceIds = getPolityTerminalProvinceIds(state, polityId)
+      const checkedHoldings = new Set<string>()
+      for (const pid of terminalProvinceIds) {
+        for (const h of getProvinceHoldings(state, pid)) {
+          const tp = state.holdingTerminalPolityCache[h.id]
+          if (!tp || (tp as string) !== (polityId as string)) continue
+          if (checkedHoldings.has(h.id)) continue
+          checkedHoldings.add(h.id)
+          const pick = selectMostVulnerableHouseOwnedAsset(state, config, polityId, h.id)
+          if (!pick) continue
+          // §8.3: seizer-vs-owner の単純戦力差は使わない。owner House の「絶対」抵抗力 (resistance) が
+          //   低いほど opportunity が高い (targetWeakness)。prize は資本化した asset 価値 (salePrice, D2)。
+          const salePrice = estimateRealEstateSalePrice(state, config, pick.asset)
+          if (salePrice <= 0) continue
+          const ownerHouseId = pick.asset.owner?.kind === 'house' ? pick.asset.owner.id : undefined
+          const badAttitude = ownerHouseId
+            ? Math.max(
+                0,
+                -getAttitudeOrDefault(state, leader, { kind: 'house', id: ownerHouseId }).affection,
+              )
+            : 0
+          const targetWeakness = Math.max(0, config.seizeResistanceReference - pick.resistance)
+          const score =
+            config.violenceOpportunityTargetWeaknessWeight * targetWeakness +
+            config.violenceOpportunityPrizeWeight * salePrice * (1 + fiscalPressure / 100) +
+            config.violenceOpportunityAmbitionWeight * ambition -
+            config.violenceOpportunityCautionWeight * caution +
+            config.violenceOpportunityFiscalPressureWeight * fiscalPressure +
+            config.violenceOpportunityBadAttitudeWeight * badAttitude
+          if (score >= config.realEstateSeizureOpportunityThreshold) {
+            candidates.push({
+              kind: 'seize_vulnerable_real_estate_income',
+              target: { kind: 'holding', id: h.id },
+              score,
+            })
+          }
+        }
+      }
     }
   }
 

@@ -20,7 +20,7 @@ import type { PoliticalRightTargetRef } from './politicalRight'
 import type { InfluenceModifierTargetRef } from './influenceModifier'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { RealEstateKind } from './realEstateAsset'
-import type { PressureResponseStance } from './pressure'
+import type { PressureResponseStance, ObligationRef } from './pressure'
 
 type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
@@ -85,6 +85,12 @@ export type ProjectKind =
   | 'acquire_real_estate'
   // v0.52 所有不動産増築 Project。owner=asset owner (Phase 1: House のみ)、自分の asset を level up。
   | 'upgrade_owned_real_estate'
+  // v0.53 押領 Project。owner=Polity。outcome で RealEstateSeizure を作成 (self-executed, 非外交)。
+  | 'seize_real_estate_income'
+  // v0.53 上納拒否 Project。owner=Polity。outcome で LandContractDefault.origin='tax_default' を作成。
+  | 'withhold_land_contract_tax'
+  // v0.53 義務強制 Project。owner=House/Polity。Phase 1-2 は簡易解決 (対象 seizure/default を resolved)。
+  | 'enforce_obligation'
 
 export type BaseProject = {
   id: ProjectId
@@ -340,6 +346,35 @@ export type MovementCampaignProject = BaseProject & {
   spentBudget: number
 }
 
+// v0.53 押領 Project。owner=Polity。targetRealEstateAssetId は holding 内で最も脆弱な
+// House-owned asset (作成時に共通 selector で確定、C1)。outcome で RealEstateSeizure を作成。
+export type SeizeRealEstateIncomeProject = BaseProject & {
+  kind: 'seize_real_estate_income'
+  owner: { kind: 'polity'; id: PolityId }
+  holdingId: HoldingId
+  targetRealEstateAssetId: RealEstateAssetId
+}
+
+// v0.53 上納拒否 Project。owner=Polity。targetLandContractId は自身が grantee の terminal contract。
+// outcome で LandContractDefault.origin='tax_default' を作成。
+export type WithholdLandContractTaxProject = BaseProject & {
+  kind: 'withhold_land_contract_tax'
+  owner: { kind: 'polity'; id: PolityId }
+  holdingId: HoldingId
+  targetLandContractId: LandContractId
+}
+
+// v0.53 義務強制 Project の対象 (Pressure.relatedObligation と共用)。
+export type EnforceObligationTarget = ObligationRef
+
+// v0.53 義務強制 Project。owner=House (seizure 権利者) or Polity (default claimant)。
+// Phase 1-2 は self-executed 簡易解決。Phase 4 で DiplomaticPlay/War に接続する。
+export type EnforceObligationProject = BaseProject & {
+  kind: 'enforce_obligation'
+  target: EnforceObligationTarget
+  diplomaticPlayId?: DiplomaticPlayId
+}
+
 export type Project =
   | DevelopHoldingProject
   | DevelopRealEstateProject
@@ -363,6 +398,9 @@ export type Project =
   | HandleCrisisProject
   | AcquireRealEstateProject
   | UpgradeOwnedRealEstateProject
+  | SeizeRealEstateIncomeProject
+  | WithholdLandContractTaxProject
+  | EnforceObligationProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

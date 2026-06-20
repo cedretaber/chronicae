@@ -7,6 +7,10 @@ import {
 } from './context'
 import { advanceTime } from './advanceTime'
 import { runLandRevenueSystem } from './landRevenueSystem'
+import { runObligationConsistencySystem } from './obligationConsistencySystem'
+import { runObligationAccrualSystem } from './obligationAccrualSystem'
+import { runPrescriptionSystem } from './prescriptionSystem'
+import { runCleanupTerminalObligations } from './cleanupTerminalObligations'
 import { runPolitySurplusDistributionSystem } from './politySurplusDistributionSystem'
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runHarvestSystem } from './harvestSystem'
@@ -137,6 +141,27 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runEmploymentRebalanceSystem,
   },
   { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
+  // v0.53 義務不履行 (押領・上納拒否・時効)。spec §22: LandRevenue → consistency → accrual → prescription → cleanup。
+  //   consistency を accrual/prescription より前に置き dangling を先に cancelled にする。
+  {
+    name: 'obligationConsistencySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runObligationConsistencySystem,
+  },
+  {
+    name: 'obligationAccrualSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runObligationAccrualSystem,
+  },
+  { name: 'prescriptionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPrescriptionSystem },
+  {
+    name: 'cleanupTerminalObligations',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runCleanupTerminalObligations,
+  },
   {
     name: 'politySurplusDistributionSystem',
     intervalWeeks: 4,

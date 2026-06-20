@@ -58,7 +58,12 @@ export function computeHoldingOwnerIncomes(
     if (!asset) continue
     const w = estimateRealEstateAssetWeight(asset, config)
     totalWeight += w
-    if (asset.owner) owned.push({ owner: asset.owner, weight: w })
+    // v0.53 §11.1: active RealEstateSeizure がある asset は owner income を払わない。
+    //   totalWeight には残すため (他 owner の取り分は不変) push のみスキップ → 本来の owner income は
+    //   subtract されず Holding revenue に残る (= 実効支配側が取り込む)。
+    if (asset.owner && !state.realEstateSeizureIndex.byAsset[asset.id as string]) {
+      owned.push({ owner: asset.owner, weight: w })
+    }
   }
   if (totalWeight <= 0 || owned.length === 0) return []
   const result: OwnerIncomeEntry[] = []

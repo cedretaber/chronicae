@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { Pressure, PressureKind, PressureStatus } from '../types/pressure'
+import type { Pressure, PressureKind, PressureStatus, ObligationRef } from '../types/pressure'
 import type { DecisionSubjectRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import type { PressureId, DiplomaticPlayId, ProjectId, DecisionReasonId } from '../types/ids'
@@ -11,6 +11,7 @@ export type CreatePressureInput = {
   target: DecisionSubjectRef
   relatedDiplomaticPlayId?: DiplomaticPlayId
   relatedProjectId?: ProjectId
+  relatedObligation?: ObligationRef
   priority: number
   createdWeek: number
   deadlineWeek?: number
@@ -111,6 +112,7 @@ export function createPressureMut(ws: WorldState, input: CreatePressureInput): P
       relatedDiplomaticPlayId: input.relatedDiplomaticPlayId,
     }),
     ...(input.relatedProjectId !== undefined && { relatedProjectId: input.relatedProjectId }),
+    ...(input.relatedObligation !== undefined && { relatedObligation: input.relatedObligation }),
     priority: input.priority,
     createdWeek: input.createdWeek,
     ...(input.deadlineWeek !== undefined && { deadlineWeek: input.deadlineWeek }),
@@ -136,4 +138,21 @@ export function setPressureResponseProjectMut(
 
   const projKey = projectId
   ws.pressureIndex.byProject[projKey] = [...(ws.pressureIndex.byProject[projKey] ?? []), pressureId]
+}
+
+// v0.53: 義務 entity (seizure/default) に紐づく Pressure を Record + index から完全削除する。
+//   obligation が resolved/legalized/cancelled になった時に呼ぶ。obligation Pressure は
+//   DiplomaticPlay に紐づかず cleanupTerminalDiplomacy の purge 対象外なので、terminal status を
+//   残すと integrity 違反 (P1) になる。よって status を残さず削除する。
+//   caller の draft は pressures + pressureIndex を含めること。
+export function removeObligationPressuresMut(ws: WorldState, obligation: ObligationRef): void {
+  for (const [, pressure] of Object.entries(ws.pressures)) {
+    if (!pressure) continue
+    const ref = pressure.relatedObligation
+    if (!ref) continue
+    if (ref.kind === obligation.kind && (ref.id as string) === (obligation.id as string)) {
+      removePressureFromIndexMut(ws, pressure)
+      delete ws.pressures[pressure.id]
+    }
+  }
 }

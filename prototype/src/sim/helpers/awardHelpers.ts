@@ -97,6 +97,11 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
 
     // v0.52 所有不動産増築: 統治実務
     upgrade_owned_real_estate: 'administration',
+
+    // v0.53 押領・上納拒否は reputation を付与しない (spec §20)。enforce も同様に最小 (undefined)。
+    seize_real_estate_income: undefined,
+    withhold_land_contract_tax: undefined,
+    enforce_obligation: undefined,
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

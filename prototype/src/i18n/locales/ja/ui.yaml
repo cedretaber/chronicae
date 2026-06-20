@@ -58,6 +58,10 @@ event_type:
   DISASTER_RELIEF_FUNDED: '災害救済'
   DISASTER_RELIEF_FAILED: '救済失敗'
   COUNTRY_LAND_DEVELOPED: '国家開発'
+  REAL_ESTATE_SEIZURE_STARTED: '押領'
+  REAL_ESTATE_SEIZURE_RESOLVED: '押領解消'
+  REAL_ESTATE_SEIZURE_LEGALIZED: '押領時効'
+  REAL_ESTATE_SEIZURE_CANCELLED: '押領消滅'
   HOUSE_LAND_DEVELOPED: '家門開発'
   POP_LAND_DEVELOPED: '住民開発'
   POP_HARDSHIP: '住民困窮'
@@ -750,6 +754,8 @@ detail:
     empty_slot: '空きスロット'
     pop_fill: '充足率'
     slots: 'スロット'
+    seized: '押領中'
+    prescriptionRemaining: '時効まで残り {{years}} 年'
 
   # 土地詳細 (v0.38 Chronicle)
   holding:

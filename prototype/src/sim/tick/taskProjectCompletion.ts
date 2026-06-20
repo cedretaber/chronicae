@@ -23,6 +23,7 @@ import {
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
 import { hasCapacityPressure } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
+import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
@@ -668,6 +669,19 @@ function buildProjectFieldsForAim(
         } satisfies ProjectBudget,
         targetProgress:
           config.developRealEstateProjectBaseProgress[bestAsset.realEstateKind] ?? 100,
+      }
+    }
+    // v0.53 押領: 対象 asset は scoring と同一 selector で確定 (C1)。budget なし。
+    case 'seize_real_estate_income': {
+      if (aim.owner.kind !== 'polity') return undefined
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      if (!holdingId) return undefined
+      const pick = selectMostVulnerableHouseOwnedAsset(ws, config, aim.owner.id, holdingId)
+      if (!pick) return undefined
+      return {
+        holdingId,
+        targetRealEstateAssetId: pick.asset.id,
+        currentStageKey: getInitialProjectStageKey('seize_real_estate_income'),
       }
     }
     default:

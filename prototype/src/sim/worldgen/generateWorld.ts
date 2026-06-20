@@ -711,6 +711,10 @@ export function generateWorld(
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
     nextRealEstateAssetId: 0,
+    // v0.53 RealEstateSeizure
+    realEstateSeizures: {},
+    realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
+    nextRealEstateSeizureId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -1831,6 +1835,10 @@ export function generateWorld(
     realEstateAssets,
     realEstateAssetIndex: { byHolding: realEstateAssetIndexByHolding, byOwner: {} },
     nextRealEstateAssetId,
+    // v0.53 RealEstateSeizure
+    realEstateSeizures: {},
+    realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },
+    nextRealEstateSeizureId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {

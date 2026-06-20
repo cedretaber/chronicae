@@ -15,6 +15,11 @@ import {
   changeRealEstateAssetOwnerMut,
 } from '../mutations/realEstateAssetMutations'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import {
+  createRealEstateSeizureMut,
+  changeRealEstateSeizureStatusMut,
+} from '../mutations/realEstateSeizureMutations'
+import { createPressureMut, removeObligationPressuresMut } from '../mutations/pressureMutations'
 import { removeCrisisMut, setCrisisStatusMut } from '../mutations/crisisMutations'
 import { cancelActiveResponseProjectMut } from './crisisSystem'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
@@ -77,6 +82,21 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     pressures: { ...ctx.state.pressures },
+    // v0.53: seize/enforce outcome が createPressureMut → addPressureToIndexMut を呼ぶため
+    //   pressureIndex を draft に含める (共有 state in-place 破壊防止, [[project_mutable_draft_writeback_slices]])。
+    pressureIndex: {
+      byTarget: { ...ctx.state.pressureIndex.byTarget },
+      bySource: { ...ctx.state.pressureIndex.bySource },
+      byDiplomaticPlay: { ...ctx.state.pressureIndex.byDiplomaticPlay },
+      byProject: { ...ctx.state.pressureIndex.byProject },
+    },
+    // v0.53: seize outcome が RealEstateSeizure を作成するため slice を含める。
+    realEstateSeizures: { ...ctx.state.realEstateSeizures },
+    realEstateSeizureIndex: {
+      byHolding: { ...ctx.state.realEstateSeizureIndex.byHolding },
+      byAsset: { ...ctx.state.realEstateSeizureIndex.byAsset },
+      byRightfulOwnerHouse: { ...ctx.state.realEstateSeizureIndex.byRightfulOwnerHouse },
+    },
     // v0.48 Crisis: handle_crisis 完了時に Crisis を resolved 化・purge するため slice を draft に含める
     //   (含めないと removeCrisisMut が共有 state を破壊する)。popGroups は spread しないので
     //   この system では Crisis のデバフ適用は行わない (= crisisSystem の責務)。
@@ -454,7 +474,116 @@ function applyNonDiplomaticEffectMut(
     case 'upgrade_owned_real_estate':
       applyUpgradeOwnedRealEstateMut(ws, project, emitEvent)
       break
+    // v0.53 押領: RealEstateSeizure 作成 + 権利者 House へ Pressure
+    case 'seize_real_estate_income':
+      applySeizeRealEstateIncomeMut(ws, project, emitEvent)
+      break
+    // v0.53 義務強制 (Phase 1-2 簡易版): 対象 seizure/default を resolved 化
+    case 'enforce_obligation':
+      applyEnforceObligationMut(ws, project, emitEvent)
+      break
   }
+}
+
+// v0.53 押領 outcome (§7.2/§11.1)。owner Polity が holding 内の脆弱 House-owned asset を押領。
+//   RealEstateSeizure を作成し、rightfulOwner House へ real_estate_seizure Pressure を立てる。
+//   asset.owner は保持したまま (LandRevenue 上だけ owner income を止める, §25)。
+function applySeizeRealEstateIncomeMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'seize_real_estate_income') return
+  const asset = ws.realEstateAssets[project.targetRealEstateAssetId]
+  if (!asset) return
+  if (asset.owner?.kind !== 'house') return
+  // 二重押領防止 (同一 asset に active seizure は最大 1)
+  if (ws.realEstateSeizureIndex.byAsset[asset.id as string]) return
+  const rightfulOwner = asset.owner
+  const ownerHouse = ws.houses[rightfulOwner.id]
+  if (!ownerHouse || !ownerHouse.active) return
+  const seizerPolityId = project.owner.id
+
+  const seizure = createRealEstateSeizureMut(ws, {
+    holdingId: project.holdingId,
+    assetId: asset.id,
+    seizerPolityId,
+    rightfulOwner,
+    startedWeek: ws.absoluteWeek,
+    reasonIds: [...project.reasonIds],
+  })
+
+  // 権利者 House へ Pressure (B1: pressureSystem が enforce を起案する)
+  createPressureMut(ws, {
+    kind: 'real_estate_seizure',
+    source: { kind: 'polity', id: seizerPolityId },
+    target: { kind: 'house', id: rightfulOwner.id },
+    relatedObligation: { kind: 'real_estate_seizure', id: seizure.id },
+    priority: 1,
+    createdWeek: ws.absoluteWeek,
+    status: 'active',
+    reasonIds: [],
+  })
+
+  const holding = ws.holdings[project.holdingId]
+  const polityRef = getPolityNameRefForEmit(ws, seizerPolityId)
+  const houseNameKey = ownerHouse.nameKey
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'REAL_ESTATE_SEIZURE_STARTED',
+    importance: 'minor',
+    messageKey: 'real_estate_seizure.started',
+    messageParams: {
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+      house: nameParam('house', houseNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      entityRef('polity', seizerPolityId, 'polity', polityRef.nameKey),
+      entityRef('house', rightfulOwner.id, 'owner', houseNameKey),
+      entityRef('holding', project.holdingId, 'holding'),
+      ...(holding ? [entityRef('province', holding.provinceId, 'province', provinceNameKey)] : []),
+    ],
+  })
+}
+
+// v0.53 義務強制 outcome (Phase 1-2 簡易版, §10.1)。成功した enforce は対象 seizure を resolved にし、
+//   関連 Pressure を terminal 化する。default 対応は Phase 2 で拡張。
+function applyEnforceObligationMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'enforce_obligation') return
+  if (project.target.kind !== 'real_estate_seizure') return
+  const seizure = ws.realEstateSeizures[project.target.id]
+  if (!seizure || seizure.status !== 'active') return
+
+  changeRealEstateSeizureStatusMut(ws, seizure.id, 'resolved')
+
+  // この seizure に紐づく Pressure (relatedObligation 一致) を削除する
+  removeObligationPressuresMut(ws, { kind: 'real_estate_seizure', id: seizure.id })
+
+  const holding = ws.holdings[seizure.holdingId]
+  const ownerHouse =
+    seizure.rightfulOwner.kind === 'house' ? ws.houses[seizure.rightfulOwner.id] : undefined
+  const houseNameKey = ownerHouse?.nameKey ?? ''
+  const provinceNameKey = holding ? (ws.provinces[holding.provinceId]?.nameKey ?? '') : ''
+  emitEvent({
+    type: 'REAL_ESTATE_SEIZURE_RESOLVED',
+    importance: 'minor',
+    messageKey: 'real_estate_seizure.resolved',
+    messageParams: {
+      house: nameParam('house', houseNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
+    entityRefs: [
+      ...(seizure.rightfulOwner.kind === 'house'
+        ? [entityRef('house', seizure.rightfulOwner.id, 'owner', houseNameKey)]
+        : []),
+      entityRef('holding', seizure.holdingId, 'holding'),
+    ],
+  })
 }
 
 // v0.48 Crisis: handle_crisis 完了の効果。対処 Project が targetProgress に到達 = Crisis 解消。

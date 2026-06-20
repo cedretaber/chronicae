@@ -191,6 +191,10 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   acquire_real_estate: 'charisma',
   // v0.52 所有不動産増築
   upgrade_owned_real_estate: 'numeracy',
+  // v0.53 押領・上納拒否・義務強制: 力による収奪・強制は指揮 (command)
+  seize_real_estate_income: 'command',
+  withhold_land_contract_tax: 'command',
+  enforce_obligation: 'command',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。

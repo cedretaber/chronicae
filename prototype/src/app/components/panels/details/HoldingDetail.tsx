@@ -200,6 +200,32 @@ export function HoldingDetail({
                           <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
                         )}
                       </div>
+                      {(() => {
+                        // v0.53: active 押領表示。time effort で残り年数も。
+                        const seizureId =
+                          currentState.realEstateSeizureIndex.byAsset[asset.id as string]
+                        const seizure = seizureId
+                          ? currentState.realEstateSeizures[seizureId]
+                          : undefined
+                        if (!seizure) return null
+                        const baseWeek = seizure.lastContestedWeek ?? seizure.startedWeek
+                        const remainingWeeks = Math.max(
+                          0,
+                          defaultConfig.realEstateSeizurePrescriptionYears * 48 -
+                            (currentState.absoluteWeek - baseWeek),
+                        )
+                        const remainingYears = Math.floor(remainingWeeks / 48)
+                        return (
+                          <div className="mt-0.5 text-amber-400">
+                            {t('detail.realEstate.seized', { defaultValue: '押領中' })}
+                            {' — '}
+                            {t('detail.realEstate.prescriptionRemaining', {
+                              defaultValue: '時効まで残り {{years}} 年',
+                              years: remainingYears,
+                            })}
+                          </div>
+                        )
+                      })()}
                       {def.employmentSlots.map((slot) => {
                         const fill = getFill(slot.popClass)
                         const pct =
