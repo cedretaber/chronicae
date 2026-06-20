@@ -443,6 +443,39 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
     expect(result.state.persons[personId]!.wealth).toBeCloseTo(10 + NET * (1 - DUE_RATE), 3)
   })
 
+  it('inactive owner: ownerIncome is NOT dropped — it falls back to holding taxable (conservation §21.4)', () => {
+    // 所有なし asset と inactive-house 所有 asset の treasury が一致する
+    // (どちらも全 positiveNet が taxable に入り保存則が閉じる) ことを確認する。
+    const unownedBase = setupBaseWorld()
+    const unowned = withHoldingResourceRevenue(unownedBase.state, unownedBase.holdingId, NET)
+    const unownedTreasury = runLandRevenueSystem(makeCtx(unowned)).state.polities[
+      unownedBase.polityId
+    ]!.treasury
+
+    const ownedBase = setupBaseWorld()
+    const { state: ownedState } = withOwnedAssetSnapshot(
+      ownedBase.state,
+      ownedBase.holdingId,
+      { kind: 'house', id: ownedBase.houseId },
+      NET,
+    )
+    // owner house を inactive にする → ownerIncome は支払えない。
+    const inactiveState: WorldState = {
+      ...ownedState,
+      houses: {
+        ...ownedState.houses,
+        [ownedBase.houseId]: { ...ownedState.houses[ownedBase.houseId]!, active: false },
+      },
+    }
+    const result = runLandRevenueSystem(makeCtx(inactiveState))
+    // owner は受け取らない
+    expect(result.state.houses[ownedBase.houseId]!.wealth).toBe(
+      ownedState.houses[ownedBase.houseId]!.wealth,
+    )
+    // treasury は所有なしケースと一致 (ownerIncome が holding taxable に戻り保存則が閉じる)
+    expect(result.state.polities[ownedBase.polityId]!.treasury).toBeCloseTo(unownedTreasury, 6)
+  })
+
   it('active seizure: owner is NOT paid; full positiveNet becomes holding taxable', () => {
     const base = setupBaseWorld()
     const { state } = withOwnedAssetSnapshot(

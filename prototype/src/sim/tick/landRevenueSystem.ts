@@ -48,24 +48,31 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
   }
 
   // v0.54 §17.4: RealEstateAsset owner へ ownerIncome を支払う。owner.kind で支払い先が変わる。
-  const payOwnerIncome = (owner: AssetOwnerRef, income: number): void => {
-    if (income <= 0) return
+  //   支払えた額を返す (owner が不在/inactive/死亡なら 0)。支払えなかった分は呼び出し側で
+  //   holding taxable に戻し、保存則 (§21.4: Σ ownerPaid + Σ taxable == Σ positiveNet) を保つ
+  //   (旧 computeHoldingOwnerIncomes も inactive house の income は holding 側に残していた)。
+  const payOwnerIncome = (owner: AssetOwnerRef, income: number): number => {
+    if (income <= 0) return 0
     if (owner.kind === 'house') {
       const house = draft.houses[owner.id]
       if (house && house.active) {
         draft.houses[owner.id] = { ...house, wealth: house.wealth + income }
+        return income
       }
     } else if (owner.kind === 'person') {
       const person = draft.persons[owner.id]
       if (person && person.alive) {
         draft.persons[owner.id] = { ...person, wealth: Math.max(0, person.wealth + income) }
+        return income
       }
     } else {
       const polity = draft.polities[owner.id]
       if (polity && polity.active) {
         ownerTreasuryDeltas.set(owner.id, (ownerTreasuryDeltas.get(owner.id) ?? 0) + income)
+        return income
       }
     }
+    return 0
   }
 
   for (const provinceId of Object.keys(ctx.state.provinces).sort() as ProvinceId[]) {
@@ -102,7 +109,9 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
             continue
           }
           holdingTaxable += holdingDue
-          payOwnerIncome(asset.owner, ownerIncome)
+          // 支払えなかった ownerIncome (owner 不在/inactive/死亡) は holding 側に残す (保存則維持)。
+          const paid = payOwnerIncome(asset.owner, ownerIncome)
+          holdingTaxable += ownerIncome - paid
         }
       }
       provinceTaxable += holdingTaxable

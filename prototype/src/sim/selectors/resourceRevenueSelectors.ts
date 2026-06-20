@@ -3,29 +3,35 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, ProvinceId } from '../types/ids'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import { RESOURCE_KINDS } from '../types/resource'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
 } from './resourceProductionSelectors'
 
-// v0.54 §16.6 fallback: snapshot 未生成時に asset の potential 産出 × basePrice の粗 proxy を返す。
-//   市場 clearing は再現せず、0 revenue 窓を避けるための純関数 (RNG 非消費)。
-//   実運用では ResourceEconomySystem が landRevenue/accrual と同 cadence で直前に走るため
-//   snapshot は常に最新だが、生成直後の holding や UI 表示のために fallback を用意する。
-function estimateAssetPotentialGrossRevenue(
+// v0.54 §16.6 fallback: snapshot 未生成時に asset の potential net (産出 − 投入、basePrice 評価) の
+//   粗 proxy を返す。市場 clearing は再現せず、0 revenue 窓を避けるための純関数 (RNG 非消費)。
+//   workshop の原料投入も basePrice で控除するため、snapshot 路 (max(0, netRevenue)) と整合する
+//   (gross だけ返すと workshop owner income を inputCost 分過大評価する)。
+//   実運用では ResourceEconomySystem が landRevenue/accrual と同 cadence で直前に走るため snapshot は
+//   常に最新だが、生成直後の holding や UI 表示のために fallback を用意する。
+function estimateAssetPotentialNetRevenue(
   state: WorldState,
   config: SimulationConfig,
   asset: RealEstateAsset,
   allocatedLabor: number,
 ): number {
-  let revenue = 0
+  let net = 0
   for (const rp of computeAssetRecipePotentials(state, config, asset, allocatedLabor)) {
-    for (const r of Object.keys(rp.potentialOutputs) as (keyof typeof rp.potentialOutputs)[]) {
-      const amount = rp.potentialOutputs[r]
-      if (amount !== undefined) revenue += amount * RESOURCE_PRICE_DEFINITIONS[r].basePrice
+    // determinism (§13.1): float 集計順を固定するため RESOURCE_KINDS (sorted) で反復する。
+    for (const r of RESOURCE_KINDS) {
+      const out = rp.potentialOutputs[r]
+      if (out !== undefined) net += out * RESOURCE_PRICE_DEFINITIONS[r].basePrice
+      const inp = rp.potentialInputs[r]
+      if (inp !== undefined) net -= inp * RESOURCE_PRICE_DEFINITIONS[r].basePrice
     }
   }
-  return revenue
+  return net
 }
 
 function estimateHoldingFallbackRevenue(
@@ -41,9 +47,13 @@ function estimateHoldingFallbackRevenue(
   }
   if (assets.length === 0) return 0
   const allocated = computeAllocatedLaborByAsset(state, config, holdingId, assets)
+  // snapshot.totalNetRevenue = Σ max(0, asset netRevenue) と整合させ、per-asset で床留めする。
   let total = 0
   for (const asset of assets) {
-    total += estimateAssetPotentialGrossRevenue(state, config, asset, allocated.get(asset.id) ?? 0)
+    total += Math.max(
+      0,
+      estimateAssetPotentialNetRevenue(state, config, asset, allocated.get(asset.id) ?? 0),
+    )
   }
   return total
 }
@@ -95,7 +105,7 @@ export function estimateMonthlyOwnerIncome(
     }
     return positiveNet * dueShare
   }
-  // fallback: asset potential gross × basePrice × dueShare (input cost は無視した粗 proxy)。
+  // fallback: asset potential net (産出 − 投入を basePrice 評価) × dueShare の粗 proxy。
   const assetIds = state.realEstateAssetIndex.byHolding[asset.holdingId as string] ?? []
   const assets: RealEstateAsset[] = []
   for (const aId of assetIds) {
@@ -103,11 +113,9 @@ export function estimateMonthlyOwnerIncome(
     if (a) assets.push(a)
   }
   const allocated = computeAllocatedLaborByAsset(state, config, asset.holdingId, assets)
-  const gross = estimateAssetPotentialGrossRevenue(
-    state,
-    config,
-    asset,
-    allocated.get(asset.id) ?? 0,
+  const net = Math.max(
+    0,
+    estimateAssetPotentialNetRevenue(state, config, asset, allocated.get(asset.id) ?? 0),
   )
-  return gross * dueShare
+  return net * dueShare
 }
