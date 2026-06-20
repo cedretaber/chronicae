@@ -28,6 +28,8 @@ import {
   HouseRightsSection,
   EntityChronicleSection,
   CollapsibleSection,
+  DetailSection,
+  DetailSubSection,
 } from './shared/widgets'
 import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { ProjectCard } from './shared/ProjectCard'
@@ -334,7 +336,7 @@ export function HouseDetail({
             <span className="text-gray-500">\u2014</span>
           )}
         </div>
-        <div className="mt-1 text-sm font-semibold text-gray-300">{t('detail.house.offices')}</div>
+        <DetailSubSection title={t('detail.house.offices')} />
         <div className="text-sm">
           {(['administrator', 'treasurer', 'military', 'advisor'] as const).map((role) => {
             const houseRef = { kind: 'house' as const, id: house.id }
@@ -361,9 +363,7 @@ export function HouseDetail({
             )
           })}
         </div>
-        <div className="mt-1 text-sm font-semibold text-gray-300">
-          {t('detail.house.top_shareholders')}
-        </div>
+        <DetailSubSection title={t('detail.house.top_shareholders')} />
         {worldState ? (
           <ShareholderSection
             shareholders={getTopShareholders(worldState, house.id, 5)}
@@ -647,15 +647,7 @@ export function HouseDetail({
         </CollapsibleSection>
       )}
 
-      {/* v0.38 §8: 家の記録 (永続 Chronicle) */}
-      <EntityChronicleSection
-        title={t('detail.house.chronicle')}
-        entries={getChronicleEntriesForHouse(currentState, house.id)}
-        entityType="house"
-        entityId={house.id}
-      />
-
-      {/* v0.22 Goal/Aim */}
+      {/* v0.22 Goal/Aim — 現在の活動 (chronicle の前。spine: identity→domain→current activity→年代記) */}
       {currentState &&
         (() => {
           const owner = { kind: 'house' as const, id: house.id }
@@ -663,9 +655,9 @@ export function HouseDetail({
           if (!goal) return null
           const activeAims = getActiveAimsForGoal(currentState, goal.id)
           return (
-            <div style={{ marginTop: 8 }}>
-              <strong>{t('detail.house.current_goal')}</strong>
-              <div style={{ marginLeft: 8 }}>
+            <>
+              <DetailSection title={t('detail.house.current_goal')} />
+              <div className="ml-2 text-sm">
                 <div>{t(`goals:house.${goal.kind}`)}</div>
                 {goal.reasonIds.length > 0 && currentState && (
                   <ul style={{ margin: '2px 0', paddingLeft: 20 }}>
@@ -686,18 +678,15 @@ export function HouseDetail({
               </div>
               {activeAims.map((activeAim) => (
                 <div key={activeAim.id}>
-                  <div style={{ marginLeft: 8, marginTop: 4 }}>
-                    <strong>{t('detail.house.active_aim')}</strong>
-                    <div style={{ marginLeft: 8 }}>
-                      <div>{t(`aims:house.${activeAim.kind}`)}</div>
-                      <div>
-                        {t('detail.house.aim_progress')}: {activeAim.progress} /{' '}
-                        {activeAim.targetProgress}
-                      </div>
-                      <div>
-                        {t('detail.house.aim_deadline')}:{' '}
-                        {formatAbsoluteWeek(activeAim.deadlineWeek)}
-                      </div>
+                  <DetailSubSection title={t('detail.house.active_aim')} />
+                  <div className="ml-2 text-sm">
+                    <div>{t(`aims:house.${activeAim.kind}`)}</div>
+                    <div>
+                      {t('detail.house.aim_progress')}: {activeAim.progress} /{' '}
+                      {activeAim.targetProgress}
+                    </div>
+                    <div>
+                      {t('detail.house.aim_deadline')}: {formatAbsoluteWeek(activeAim.deadlineWeek)}
                     </div>
                   </div>
                   {(() => {
@@ -721,9 +710,9 @@ export function HouseDetail({
                       if (!play || (play.status !== 'active' && play.status !== 'escalated'))
                         return null
                       return (
-                        <div style={{ marginLeft: 8, marginTop: 4 }}>
-                          <strong>{t('detail.house.active_play')}</strong>
-                          <div style={{ marginLeft: 8 }}>
+                        <>
+                          <DetailSubSection title={t('detail.house.active_play')} />
+                          <div className="ml-2 text-sm">
                             {onDiplomaticPlayClick ? (
                               <button
                                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
@@ -739,12 +728,12 @@ export function HouseDetail({
                               {t('sidebar.play_tension')}: {Math.round(play.tension)}
                             </div>
                           </div>
-                        </div>
+                        </>
                       )
                     })()}
                 </div>
               ))}
-            </div>
+            </>
           )
         })()}
 
@@ -758,18 +747,27 @@ export function HouseDetail({
             .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
           if (activeProjects.length === 0) return null
           return (
-            <div className="mt-2">
-              <div className="text-sm font-semibold text-gray-300">
-                {t('detail.house.projects_section')} ({activeProjects.length})
-              </div>
-              <div className="flex flex-col gap-1">
+            <>
+              <DetailSection
+                title={t('detail.house.projects_section')}
+                count={activeProjects.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
                 {activeProjects.map((project) => (
                   <ProjectCard key={project.id} project={project} worldState={currentState} />
                 ))}
               </div>
-            </div>
+            </>
           )
         })()}
+
+      {/* v0.38 §8: 家の記録 (永続 Chronicle) — spine 末尾 */}
+      <EntityChronicleSection
+        title={t('detail.house.chronicle')}
+        entries={getChronicleEntriesForHouse(currentState, house.id)}
+        entityType="house"
+        entityId={house.id}
+      />
     </div>
   )
 }

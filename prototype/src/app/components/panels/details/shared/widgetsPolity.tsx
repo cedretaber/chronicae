@@ -48,6 +48,7 @@ import type { PoliticalRight, PoliticalRightHolderRef } from '@sim/types/politic
 import type { PolityInfluenceHolderRef } from '@sim/types/influence'
 import type { RepublicPowerProfile } from '@sim/selectors/republicSelectors'
 import { RightHolderLine } from './widgetsRights'
+import { DetailSection } from './widgetsLayout'
 
 export function AttitudeList({
   attitudes,
@@ -274,12 +275,10 @@ export function PolityLandContracts({
   const totalContracts = groups.reduce((sum, g) => sum + g.holdings.length, 0)
 
   return (
-    <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.land_contracts')} ({totalContracts}):
-      </div>
-      <div className="text-xs text-gray-500">{t('detail.polity.land_contracts_note')}</div>
-      <div className="max-h-64 overflow-y-auto text-sm">
+    <div>
+      <DetailSection title={t('detail.polity.land_contracts')} count={totalContracts} />
+      <div className="pl-2 text-xs text-gray-500">{t('detail.polity.land_contracts_note')}</div>
+      <div className="mt-1 max-h-64 overflow-y-auto text-sm">
         {groups.map((g) => (
           <div key={g.provinceId} className="mb-1">
             <div className="flex items-baseline gap-1">
@@ -406,13 +405,11 @@ export function PolityThreats({
   const crises = getActiveCrisesForPolity(worldState, polity.id)
   if (pressures.length === 0 && crises.length === 0) return null
   return (
-    <div className="mt-1">
+    <div>
       {pressures.length > 0 && (
         <>
-          <div className="text-sm font-semibold text-amber-300">
-            {t('detail.pressure.section_title')} ({pressures.length})
-          </div>
-          <div className="flex flex-col gap-0.5 text-xs">
+          <DetailSection title={t('detail.pressure.section_title')} count={pressures.length} />
+          <div className="mt-1 flex flex-col gap-0.5 text-xs">
             {pressures.map((p) => (
               <div key={p.id} className="rounded bg-amber-950/30 px-1.5 py-1">
                 <div className="flex items-baseline justify-between gap-1">
@@ -448,10 +445,12 @@ export function PolityThreats({
       )}
       {crises.length > 0 && (
         <>
-          <div className="mt-1 text-sm font-semibold text-red-300">
-            {t('detail.crisis.section_title')} ({crises.length})
-          </div>
-          <div className="flex flex-col gap-0.5 text-xs">
+          <DetailSection
+            title={t('detail.crisis.section_title')}
+            count={crises.length}
+            tone="alert"
+          />
+          <div className="mt-1 flex flex-col gap-0.5 text-xs">
             {crises.map((c) => (
               <div key={c.id} className="rounded bg-red-950/30 px-1.5 py-1">
                 <div className="flex items-baseline justify-between gap-1">
@@ -532,14 +531,10 @@ export function PolityRegiments({
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.regiments')} ({rows.length}):
-        <span className="ml-2 text-xs font-normal text-gray-500">
-          {t('detail.polity.reg_baseline_hint')}
-        </span>
-      </div>
-      <div className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto text-xs">
+    <div>
+      <DetailSection title={t('detail.polity.regiments')} count={rows.length} />
+      <div className="pl-2 text-xs text-gray-500">{t('detail.polity.reg_baseline_hint')}</div>
+      <div className="mt-1 grid max-h-64 grid-cols-2 gap-1 overflow-y-auto text-xs">
         {rows.map((r) => (
           <div key={r.id} className="rounded bg-gray-700/60 p-1.5">
             <div className="truncate font-medium text-gray-300">{r.name}</div>

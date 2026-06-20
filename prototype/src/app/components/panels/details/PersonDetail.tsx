@@ -17,6 +17,8 @@ import {
   EntityChronicleSection,
   PersonRightsSection,
   CollapsibleSection,
+  DetailSection,
+  DetailSubSection,
 } from './shared/widgets'
 import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { HouseLink } from './shared/links'
@@ -465,10 +467,8 @@ export function PersonDetail({
 
           return (
             <>
-              <div className="text-sm font-semibold text-gray-300">
-                {t('detail.person.current_goal')}:
-              </div>
-              <div className="text-sm" style={{ marginLeft: 8 }}>
+              <DetailSection title={t('detail.person.current_goal')} />
+              <div className="ml-2 text-sm">
                 <div>{t(`goals:person.${goal.kind}`)}</div>
                 <div>
                   {t('detail.person.goal_fulfillment')}: {Math.round(fulfillment)}%
@@ -477,10 +477,8 @@ export function PersonDetail({
 
               {activeAim && (
                 <>
-                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-                    {t('detail.person.active_aim')}:
-                  </div>
-                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                  <DetailSubSection title={t('detail.person.active_aim')} />
+                  <div className="ml-2 text-sm">
                     <div>{t(`aims:person.${activeAim.kind}`)}</div>
                     <div>
                       {t('detail.person.aim_progress')}: {activeAim.progress} /{' '}
@@ -530,10 +528,11 @@ export function PersonDetail({
             <>
               {activeTasks.length > 0 && (
                 <>
-                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-                    {t('detail.person.assigned_tasks')} ({activeTasks.length}):
-                  </div>
-                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                  <DetailSection
+                    title={t('detail.person.assigned_tasks')}
+                    count={activeTasks.length}
+                  />
+                  <div className="ml-2 text-sm">
                     {activeTasks.map((task) => {
                       const ep = computeEffectivePriority(worldState, defaultConfig, task)
                       return (
@@ -637,10 +636,8 @@ export function PersonDetail({
 
               {recentLogs.length > 0 && (
                 <>
-                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-                    {t('detail.person.recent_activities')}:
-                  </div>
-                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                  <DetailSection title={t('detail.person.recent_activities')} />
+                  <div className="ml-2 text-sm">
                     {recentLogs.map((log) => (
                       <div
                         key={log.id}
@@ -693,13 +690,14 @@ export function PersonDetail({
           )
         if (supervisedProjects.length === 0 && createdProjects.length === 0) return null
         return (
-          <div className="mt-2">
+          <>
             {supervisedProjects.length > 0 && (
               <>
-                <div className="text-sm font-semibold text-gray-300">
-                  {t('detail.person.supervised_projects')} ({supervisedProjects.length})
-                </div>
-                <div className="flex flex-col gap-1">
+                <DetailSection
+                  title={t('detail.person.supervised_projects')}
+                  count={supervisedProjects.length}
+                />
+                <div className="mt-1 flex flex-col gap-1">
                   {supervisedProjects.map((project) => (
                     <ProjectCard key={project.id} project={project} worldState={worldState} />
                   ))}
@@ -708,17 +706,18 @@ export function PersonDetail({
             )}
             {createdProjects.length > 0 && (
               <>
-                <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-                  {t('detail.person.created_projects')} ({createdProjects.length})
-                </div>
-                <div className="flex flex-col gap-1">
+                <DetailSection
+                  title={t('detail.person.created_projects')}
+                  count={createdProjects.length}
+                />
+                <div className="mt-1 flex flex-col gap-1">
                   {createdProjects.map((project) => (
                     <ProjectCard key={project.id} project={project} worldState={worldState} />
                   ))}
                 </div>
               </>
             )}
-          </div>
+          </>
         )
       })()}
 

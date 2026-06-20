@@ -25,6 +25,8 @@ import {
   RightHolderLine,
   EntityChronicleSection,
   CollapsibleSection,
+  DetailSection,
+  DetailSubSection,
 } from './shared/widgets'
 import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { ProjectCard } from './shared/ProjectCard'
@@ -443,9 +445,9 @@ export function CountryDetail({
           if (!goal) return null
           const activeAims = getActiveAimsForGoal(worldState, goal.id)
           return (
-            <div style={{ marginTop: 8 }}>
-              <strong>{t('detail.polity.current_goal')}</strong>
-              <div style={{ marginLeft: 8 }}>
+            <>
+              <DetailSection title={t('detail.polity.current_goal')} />
+              <div className="ml-2 text-sm">
                 <div>{t(`goals:polity.${goal.kind}`)}</div>
                 {goal.reasonIds.length > 0 && (
                   <ul style={{ margin: '2px 0', paddingLeft: 20 }}>
@@ -466,18 +468,16 @@ export function CountryDetail({
               </div>
               {activeAims.map((activeAim) => (
                 <div key={activeAim.id}>
-                  <div style={{ marginLeft: 8, marginTop: 4 }}>
-                    <strong>{t('detail.polity.active_aim')}</strong>
-                    <div style={{ marginLeft: 8 }}>
-                      <div>{t(`aims:polity.${activeAim.kind}`)}</div>
-                      <div>
-                        {t('detail.polity.aim_progress')}: {activeAim.progress} /{' '}
-                        {activeAim.targetProgress}
-                      </div>
-                      <div>
-                        {t('detail.polity.aim_deadline')}:{' '}
-                        {formatAbsoluteWeek(activeAim.deadlineWeek)}
-                      </div>
+                  <DetailSubSection title={t('detail.polity.active_aim')} />
+                  <div className="ml-2 text-sm">
+                    <div>{t(`aims:polity.${activeAim.kind}`)}</div>
+                    <div>
+                      {t('detail.polity.aim_progress')}: {activeAim.progress} /{' '}
+                      {activeAim.targetProgress}
+                    </div>
+                    <div>
+                      {t('detail.polity.aim_deadline')}:{' '}
+                      {formatAbsoluteWeek(activeAim.deadlineWeek)}
                     </div>
                   </div>
                   {worldState &&
@@ -503,9 +503,9 @@ export function CountryDetail({
                       if (!play || (play.status !== 'active' && play.status !== 'escalated'))
                         return null
                       return (
-                        <div style={{ marginLeft: 8, marginTop: 4 }}>
-                          <strong>{t('detail.polity.active_play')}</strong>
-                          <div style={{ marginLeft: 8 }}>
+                        <>
+                          <DetailSubSection title={t('detail.polity.active_play')} />
+                          <div className="ml-2 text-sm">
                             {onDiplomaticPlayClick ? (
                               <button
                                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
@@ -521,12 +521,12 @@ export function CountryDetail({
                               {t('sidebar.play_tension')}: {Math.round(play.tension)}
                             </div>
                           </div>
-                        </div>
+                        </>
                       )
                     })()}
                 </div>
               ))}
-            </div>
+            </>
           )
         })()}
 
@@ -540,16 +540,17 @@ export function CountryDetail({
             .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
           if (activeProjects.length === 0) return null
           return (
-            <div className="mt-2">
-              <div className="text-sm font-semibold text-gray-300">
-                {t('detail.polity.projects_section')} ({activeProjects.length})
-              </div>
-              <div className="flex flex-col gap-1">
+            <>
+              <DetailSection
+                title={t('detail.polity.projects_section')}
+                count={activeProjects.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
                 {activeProjects.map((project) => (
                   <ProjectCard key={project.id} project={project} worldState={worldState} />
                 ))}
               </div>
-            </div>
+            </>
           )
         })()}
 

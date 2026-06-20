@@ -3,6 +3,7 @@
 export {
   PanelHeader,
   DetailSection,
+  DetailSubSection,
   CollapsibleSection,
   EntityChronicleSection,
   WatchButton,
