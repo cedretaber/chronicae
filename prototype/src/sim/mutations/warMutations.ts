@@ -273,6 +273,10 @@ export function createWarGoalFromDiplomaticPlay(
     landContractId: issue.landContractId,
     baseTaxRateToGrantor: liveRate ?? issue.baseTaxRateToGrantor,
     newTaxRateToGrantor: issue.desiredTaxRateToGrantor,
+    // v0.53 Phase 4: enforce_land_contract_default 由来なら勝利適用時に default を resolved にする。
+    ...(issue.resolvesLandContractDefaultId !== undefined && {
+      resolvesLandContractDefaultId: issue.resolvesLandContractDefaultId,
+    }),
     requiredWarScore,
   }
 }

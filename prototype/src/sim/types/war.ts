@@ -119,6 +119,8 @@ export type ChangeContractTaxRateWarGoal = {
   //   integrity は 0..1 の range のみ検査し、live rate との一致は検査しない (§14.5)。
   baseTaxRateToGrantor: number
   newTaxRateToGrantor: number
+  // v0.53 Phase 4: enforce_land_contract_default 由来なら、勝利適用時にこの default を resolved にする。
+  resolvesLandContractDefaultId?: LandContractDefaultId
   requiredWarScore: number
 }
 

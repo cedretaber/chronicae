@@ -13,6 +13,7 @@ import type {
   LandContractDefaultOrigin,
 } from '../types/landContractDefault'
 import { createLandContractDefaultId } from '../types/ids'
+import { removeObligationPressuresMut } from './pressureMutations'
 
 // index は active entity のみ保持 (B7)。terminal 化したら全 index から除去する。
 
@@ -164,4 +165,35 @@ export function removeLandContractDefaultMut(
   if (!d) return
   if (d.status === 'active') removeFromIndex(ws, d)
   delete ws.landContractDefaults[defaultId]
+}
+
+// v0.53 Phase 4: 義務強制 (peaceful settle / war 勝利) の共通後処理。対象 default を resolved にし
+//   関連 Pressure を削除した新 state を返す (immutable helper、ctx ベースの caller から呼ぶ)。
+export function resolveLandContractDefaultState(
+  state: WorldState,
+  defaultId: LandContractDefaultId | undefined,
+): WorldState {
+  if (!defaultId) return state
+  const d = state.landContractDefaults[defaultId]
+  if (!d || d.status !== 'active') return state
+  const ws: WorldState = {
+    ...state,
+    landContractDefaults: { ...state.landContractDefaults },
+    landContractDefaultIndex: {
+      byHolding: { ...state.landContractDefaultIndex.byHolding },
+      byContract: { ...state.landContractDefaultIndex.byContract },
+      byClaimantPolity: { ...state.landContractDefaultIndex.byClaimantPolity },
+      byOccupierPolity: { ...state.landContractDefaultIndex.byOccupierPolity },
+    },
+    pressures: { ...state.pressures },
+    pressureIndex: {
+      byTarget: { ...state.pressureIndex.byTarget },
+      bySource: { ...state.pressureIndex.bySource },
+      byDiplomaticPlay: { ...state.pressureIndex.byDiplomaticPlay },
+      byProject: { ...state.pressureIndex.byProject },
+    },
+  }
+  changeLandContractDefaultStatusMut(ws, defaultId, 'resolved')
+  removeObligationPressuresMut(ws, { kind: 'land_contract_default', id: defaultId })
+  return ws
 }

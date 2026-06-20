@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
   CrisisId,
   RealEstateAssetId,
+  LandContractDefaultId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
@@ -89,8 +90,11 @@ export type ProjectKind =
   | 'seize_real_estate_income'
   // v0.53 上納拒否 Project。owner=Polity。outcome で LandContractDefault.origin='tax_default' を作成。
   | 'withhold_land_contract_tax'
-  // v0.53 義務強制 Project。owner=House/Polity。Phase 1-2 は簡易解決 (対象 seizure/default を resolved)。
+  // v0.53 義務強制 Project (seizure 用、self-executed)。owner=House/Polity。簡易解決 (対象 seizure を resolved)。
   | 'enforce_obligation'
+  // v0.53 Phase 4: LandContractDefault 強制 Project (diplomatic)。owner=claimant Polity。
+  //   contract_tax_revision play → war 経由で default を resolved にする。
+  | 'enforce_land_contract_default'
 
 export type BaseProject = {
   id: ProjectId
@@ -188,6 +192,23 @@ export type ContractRevisionProject = BaseProject & {
   landContractId?: LandContractId
   counterpartyPolityId?: PolityId
   desiredTaxRateToGrantor?: number
+  diplomaticPlayId?: DiplomaticPlayId
+  preparation: number
+  leverage: number
+  commitment: number
+}
+
+// v0.53 Phase 4: LandContractDefault 強制 Project (diplomatic)。owner=claimant Polity。
+//   contract_tax_revision play を再利用し、demand に resolvesLandContractDefaultId を載せて
+//   和平/受諾/勝利時に対象 default を resolved にする。ContractRevisionProject と同じ play 経路。
+export type EnforceLandContractDefaultProject = BaseProject & {
+  kind: 'enforce_land_contract_default'
+  owner: { kind: 'polity'; id: PolityId }
+  targetLandContractDefaultId: LandContractDefaultId
+  holdingId: HoldingId
+  landContractId: LandContractId
+  counterpartyPolityId: PolityId
+  desiredTaxRateToGrantor: number
   diplomaticPlayId?: DiplomaticPlayId
   preparation: number
   leverage: number
@@ -401,6 +422,7 @@ export type Project =
   | SeizeRealEstateIncomeProject
   | WithholdLandContractTaxProject
   | EnforceObligationProject
+  | EnforceLandContractDefaultProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

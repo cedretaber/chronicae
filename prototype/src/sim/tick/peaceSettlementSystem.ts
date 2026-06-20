@@ -11,6 +11,7 @@ import {
   eliminateContractFromChain,
 } from '../mutations/landContractMutations'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
+import { resolveLandContractDefaultState } from '../mutations/landContractDefaultMutations'
 import { emitWarOutcome, emitWarEnded, emitPeaceSettlementApplied } from './warEvents'
 import { spawnWarDamageCrisis } from './crisisSystem'
 import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
@@ -78,6 +79,23 @@ function settleDefenderWon(ctx: TickContext, warId: WarId): TickContext {
 // §8.6: tax goal を適用する。底層 mutation は event を発行しない。
 //   contract が stale (消失 / holdingId 不一致) なら applied:false を返し、呼び出し側が white_peace に倒す。
 function applyTaxGoal(
+  ctx: TickContext,
+  goal: ChangeContractTaxRateWarGoal,
+  defenderPolityId: PolityId | undefined,
+): { ctx: TickContext; applied: boolean } {
+  const result = applyTaxGoalCore(ctx, goal, defenderPolityId)
+  // v0.53 Phase 4: enforce_land_contract_default 由来の勝利は、税率適用後に対象 default を resolved にする。
+  if (result.applied && goal.resolvesLandContractDefaultId !== undefined) {
+    const nextState = resolveLandContractDefaultState(
+      result.ctx.state,
+      goal.resolvesLandContractDefaultId,
+    )
+    return { ctx: { ...result.ctx, state: nextState }, applied: true }
+  }
+  return result
+}
+
+function applyTaxGoalCore(
   ctx: TickContext,
   goal: ChangeContractTaxRateWarGoal,
   defenderPolityId: PolityId | undefined,

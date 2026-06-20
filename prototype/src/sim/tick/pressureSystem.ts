@@ -6,6 +6,7 @@ import type {
   RespondToPressureProject,
   EnforceObligationProject,
   EnforceObligationTarget,
+  EnforceLandContractDefaultProject,
 } from '../types/project'
 import type { Pressure } from '../types/pressure'
 import type { EventId, ProjectId, PersonId } from '../types/ids'
@@ -250,6 +251,10 @@ function maybeCreateEnforceProjectMut(
     if (claimantPower < config.landContractDefaultEnforcePowerThreshold) return
     if (claimantPower <= occupierPower * 1.1) return
 
+    // 対象契約 (default の targetLandContractId) が消えていれば起案しない
+    const contract = ws.landContracts[d.targetLandContractId]
+    if (!contract) return
+
     const leaderId = getPolityLeader(ws, d.claimantPolityId)
     if (!leaderId) return
     const leader = ws.persons[leaderId]
@@ -257,18 +262,38 @@ function maybeCreateEnforceProjectMut(
 
     const owner = { kind: 'polity', id: d.claimantPolityId } as const
     const supervisorId =
-      selectProjectSupervisor(ws, config, owner, 'enforce_obligation', leaderId) ?? leaderId
-    const target: EnforceObligationTarget = { kind: 'land_contract_default', id: d.id }
+      selectProjectSupervisor(ws, config, owner, 'enforce_land_contract_default', leaderId) ??
+      leaderId
 
-    const projectId = createEnforceProjectMut(
-      ws,
-      config,
+    // v0.53 Phase 4: 外交 enforce_land_contract_default Project を起案する。
+    //   desiredTaxRate = 契約の現税率 (restore: 税率は変えず default を解消するのが核)。
+    const projectId: ProjectId = createProjectId(ws.nextProjectId)
+    ws.nextProjectId++
+    const project: EnforceLandContractDefaultProject = {
+      id: projectId,
       owner,
-      leaderId,
-      supervisorId,
-      target,
-      absoluteWeek,
-    )
+      origin: { kind: 'system', reasonKey: 'enforce_land_contract_default' },
+      kind: 'enforce_land_contract_default',
+      creatorPersonId: leaderId,
+      supervisorPersonId: supervisorId,
+      targetLandContractDefaultId: d.id,
+      holdingId: d.holdingId,
+      landContractId: d.targetLandContractId,
+      counterpartyPolityId: d.occupiedByPolityId,
+      desiredTaxRateToGrantor: contract.terms.taxRateToGrantor,
+      preparation: 0,
+      leverage: 0,
+      commitment: 0,
+      status: 'active',
+      progress: 0,
+      targetProgress: config.projectDefaultTargetProgress,
+      currentStageKey: getInitialProjectStageKey('enforce_land_contract_default'),
+      createdWeek: absoluteWeek,
+      deadlineWeek: absoluteWeek + config.projectDeadlineWeeksDiplomatic,
+      reasonIds: [],
+    }
+    ws.projects[projectId] = project
+    addProjectToIndexMut(ws, project)
     setLandContractDefaultEnforceMut(ws, d.id, { activeEnforceProjectId: projectId })
 
     log.log('PRESSURE', {

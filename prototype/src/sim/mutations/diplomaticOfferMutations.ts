@@ -4,6 +4,7 @@ import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types
 import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
 import { createDiplomaticOfferId } from '../types/ids'
+import { resolveLandContractDefaultState } from './landContractDefaultMutations'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   applyLandContractTransferGoal,
@@ -239,6 +240,8 @@ function applyChangeContractTaxRate(
       },
     }
   }
+  // v0.53 Phase 4: enforce 由来の和平/受諾なら対象 default を resolved にする (peaceful restore)。
+  newState = resolveLandContractDefaultState(newState, demand.resolvesLandContractDefaultId)
   return { ...ctx, state: newState }
 }
 

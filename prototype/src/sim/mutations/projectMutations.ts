@@ -192,7 +192,9 @@ export function isDiplomaticProjectKind(kind: ProjectKind): boolean {
     kind === 'sell_land' ||
     kind === 'improve_contract_terms' ||
     kind === 'demand_tax_increase' ||
-    kind === 'respond_to_pressure'
+    kind === 'respond_to_pressure' ||
+    // v0.53 Phase 4: LandContractDefault 強制は外交経路。seize 用 enforce_obligation は self-executed のまま。
+    kind === 'enforce_land_contract_default'
   )
 }
 

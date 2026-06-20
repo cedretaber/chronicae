@@ -156,6 +156,13 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     case 'withhold_land_contract_tax':
       return [{ kind: 'holding', id: project.holdingId }]
 
+    // v0.53 Phase 4: LandContractDefault 強制 (diplomatic)。対象 holding + 相手 polity を related に。
+    case 'enforce_land_contract_default':
+      return [
+        { kind: 'holding', id: project.holdingId },
+        { kind: 'polity', id: project.counterpartyPolityId },
+      ]
+
     // v0.53 義務強制: target は seizure/default (EntityRef 非対応)。索引は entity 側
     //   activeEnforceProjectId で引くため related は持たない。
     case 'enforce_obligation':
@@ -560,6 +567,15 @@ export function describeProject(project: Project): ProjectDescriptor {
       return descriptor(fields)
     }
 
+    // v0.53 Phase 4: LandContractDefault 強制 (diplomatic)。対象 holding + 相手を主対象に。
+    case 'enforce_land_contract_default': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+        ent('targetPolity', { kind: 'polity', id: project.counterpartyPolityId }),
+      ]
+      return descriptor(fields)
+    }
+
     default: {
       const _exhaustive: never = project
       return _exhaustive
@@ -605,6 +621,7 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   seize_real_estate_income: 'warCommand',
   withhold_land_contract_tax: 'warCommand',
   enforce_obligation: 'warCommand',
+  enforce_land_contract_default: 'diplomacy',
 }
 
 export function getPersonProjectWorkload(

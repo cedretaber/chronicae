@@ -195,6 +195,7 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   seize_real_estate_income: 'command',
   withhold_land_contract_tax: 'command',
   enforce_obligation: 'command',
+  enforce_land_contract_default: 'charisma',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。

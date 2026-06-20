@@ -102,6 +102,8 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     seize_real_estate_income: undefined,
     withhold_land_contract_tax: undefined,
     enforce_obligation: undefined,
+    // 外交系: Play 側で delegate に評価が付くため map は undefined (isDiplomaticProjectKind 経路)
+    enforce_land_contract_default: undefined,
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

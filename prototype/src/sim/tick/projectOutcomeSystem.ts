@@ -18,10 +18,12 @@ import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/a
 import {
   createRealEstateSeizureMut,
   changeRealEstateSeizureStatusMut,
+  setRealEstateSeizureEnforceMut,
 } from '../mutations/realEstateSeizureMutations'
 import {
   createLandContractDefaultMut,
   changeLandContractDefaultStatusMut,
+  setLandContractDefaultEnforceMut,
 } from '../mutations/landContractDefaultMutations'
 import { getLandContractGrantor } from '../selectors/landContractSelectors'
 import { createPressureMut, removeObligationPressuresMut } from '../mutations/pressureMutations'
@@ -272,6 +274,10 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     // v0.51 陰謀リファイン: 陰謀 Project が terminal 化したら owner 家に cooldown を記録する
     //   (completed/failed どちらも)。旧 Klaus ループ (完了直後の即再立案) を防ぐ (§4.3)。
     recordConspiracyCooldownMut(ws, project)
+
+    // v0.53 (B6): 義務強制 Project が解消せず terminal 化した場合、対象 obligation の
+    //   activeEnforceProjectId を解除し cooldown を設定する (cooldown 後に再起案可能にする)。
+    reconcileEnforceTerminalMut(ws, config, project)
 
     removeProjectFromIndexMut(ws, project)
     delete ws.projects[project.id]
@@ -563,6 +569,35 @@ function applyWithholdLandContractTaxMut(
       entityRef('holding', project.holdingId, 'holding'),
     ],
   })
+}
+
+// v0.53 (B6): 義務強制 Project の terminal 時に、対象 obligation がまだ active なら
+//   activeEnforceProjectId を解除し nextEnforceAllowedWeek (cooldown) を設定する。
+//   diplomatic enforce は play_terminal で cancelled になるため、解消できなかった default の
+//   再起案を cooldown 後に許す。seize 用 enforce_obligation の失敗も同様に retry を許可する。
+function reconcileEnforceTerminalMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+): void {
+  const cooldownWeek = ws.absoluteWeek + config.enforceObligationProjectCooldownWeeks
+  if (project.kind === 'enforce_obligation' && project.target.kind === 'real_estate_seizure') {
+    const seizure = ws.realEstateSeizures[project.target.id]
+    if (seizure && seizure.status === 'active' && seizure.activeEnforceProjectId === project.id) {
+      setRealEstateSeizureEnforceMut(ws, seizure.id, {
+        activeEnforceProjectId: null,
+        nextEnforceAllowedWeek: cooldownWeek,
+      })
+    }
+  } else if (project.kind === 'enforce_land_contract_default') {
+    const d = ws.landContractDefaults[project.targetLandContractDefaultId]
+    if (d && d.status === 'active' && d.activeEnforceProjectId === project.id) {
+      setLandContractDefaultEnforceMut(ws, d.id, {
+        activeEnforceProjectId: null,
+        nextEnforceAllowedWeek: cooldownWeek,
+      })
+    }
+  }
 }
 
 // v0.53 押領 outcome (§7.2/§11.1)。owner Polity が holding 内の脆弱 House-owned asset を押領。

@@ -43,6 +43,8 @@ const PREPARATORY_TASK_KIND_MAP: Record<string, TaskKind> = {
   'seize_real_estate_income:prepare_argument': 'prepare_argument',
   'withhold_land_contract_tax:prepare_argument': 'prepare_argument',
   'enforce_obligation:prepare_argument': 'prepare_argument',
+  // v0.53 Phase 4: LandContractDefault 強制 (diplomatic)
+  'enforce_land_contract_default:prepare_argument': 'prepare_argument',
   // v0.47 §3.6: petition 系 Project の preparatory stage は汎用 prepare_project / advance_project に
   //   落とす (未登録だと projectTaskGenerationSystem が task を生成せず stall するため明示登録が必須)。
   //   stage 前進は task kind ではなく stage type で駆動される (taskSystem の project 完了 routing)。

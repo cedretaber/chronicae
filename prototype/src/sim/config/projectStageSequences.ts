@@ -134,6 +134,12 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'prepare_argument', type: 'preparatory' },
     { key: 'execute_project', type: 'final' },
   ],
+  // v0.53 Phase 4: LandContractDefault 強制は外交 (improve_contract_terms と同型)。
+  enforce_land_contract_default: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
 }
 
 export function getInitialProjectStageKey(kind: ProjectKind): ProjectStageKey {
