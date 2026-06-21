@@ -61,7 +61,9 @@ sidebar:
   houses: 'Houses'
   persons: 'Persons'
   factions: 'Factions'
+  markets: 'Markets'
   faction_tier: 'Tier {{tier}}'
+  no_markets: 'No markets'
   war_status:
     active: 'War'
   play_kind:
@@ -666,6 +668,31 @@ detail:
     slots: 'Slots'
     seized: 'Seized'
     prescriptionRemaining: '{{years}} yr until prescription'
+    # v0.54 resource economy
+    monthly_net: 'Monthly net'
+    output: 'Output'
+    gross_revenue: 'Revenue'
+    input_cost: 'Input cost'
+    net_revenue: 'Net'
+    resource_food: 'Food'
+    resource_raw_materials: 'Raw materials'
+    resource_processed_goods: 'Goods'
+
+  # v0.54 market detail panel (per-StateRegion resource market)
+  market:
+    window_title: 'Market: {{name}}'
+    province_count: '{{count}} provinces'
+    prices: 'Resource prices'
+    base_price: 'Base price'
+    current_price: 'Current price'
+    no_data: 'No trade data'
+    supply: 'Supply'
+    demand: 'Demand'
+    sold: 'Sold'
+    sell_orders: 'Sell'
+    buy_orders: 'Buy'
+    fulfillment: 'Fulfillment'
+    shortage: 'Shortage'
 
   # v0.53 RealEstateSeizure / LandContractDefault state display
   obligation:

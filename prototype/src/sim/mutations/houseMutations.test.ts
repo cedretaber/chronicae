@@ -180,6 +180,8 @@ function makeFixture(): {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
   return { state, polity1Id, house1Id, provinceId }
 }

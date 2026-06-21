@@ -480,7 +480,7 @@
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、employed=true の POP） |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
-| productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
+| ~~productivityByClass~~ | — | v0.54 廃止（旧 getPopProduction の per-class 生産性。生産は ResourceEconomySystem の recipe×labor に置換、§6.3c） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
 | baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別） |
 | populationPressureThreshold | 0.90 | pressure がこれを超えると wealth/unrest に影響 |
@@ -499,8 +499,7 @@
 | overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
 | **Employment capacity（v0.52: occupation 廃止・employed boolean 化）** | | |
 | ~~occupationCapacityBaseByHoldingKind~~ | — | v0.52 廃止。基礎容量は RealEstateAsset の employmentSlots + HoldingImprovement の classCapacityPerLevel から導出（`getHoldingClassCapacity`） |
-| employedProductivityMultiplier | 1.0 | employed=true の POP の生産性倍率 |
-| unemployedProductivityMultiplier | 0.1 | employed=false の POP の生産性倍率 |
+| ~~employedProductivityMultiplier / unemployedProductivityMultiplier~~ | — | v0.54 廃止（旧 getPopProduction の生産性倍率。生産は employed POP への labor 按分に置換、未受け皿の労働は遊休、§6.3c / §10.2） |
 | employedManpowerMultiplierByClass | {peasants:1.0, townsmen:0.8, nobles:1.2} | employed=true の class 別兵力倍率 |
 | unemployedManpowerMultiplier | 0.5 | employed=false の POP の兵力倍率 |
 | unemployedWealthDecayByClass | {peasants:0.20,townsmen:0.30,nobles:0.15} | 未就業（employed=false）POP の 4 週あたり wealth 減衰量 |
@@ -699,14 +698,31 @@
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
 | **RealEstateAsset（v0.52）** | | |
 | realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
-| realEstateOwnerIncomeRate | 0.05 | RealEstateAsset owner の収入率（Holding 粗収入に対する比率） |
-| realEstateKindIncomeWeight | {field:1.0, pasture:1.0, workshop:1.0} | RealEstateKind ごとの収入重み（同一 Holding 内の asset 間で重み按分） |
+| ~~realEstateOwnerIncomeRate / realEstateKindIncomeWeight~~ | — | v0.54 廃止（旧 owner income path。owner 収入は per-asset netRevenue から realEstateHoldingDueRate で分配、§6.4.2） |
 | realEstateTerrainCapacityMultiplier | kind × terrain の乗数。例: field={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, pasture={plains:1.0,hills:1.3,mountains:0.8,forest:0.65,wetlands:0.4} | RealEstateAsset の容量に対する terrain 補正 |
 | realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
 | realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
 | developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
 | developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上 |
 | minSlotOveruseModifier | 0.5 | スロット上限超過時の容量乗算下限（slotCap/usedSlots を clamp） |
+| **資源経済（v0.54 §20、market-clearing rewrite）** | | 初期値は調整前提。150年 run で価格の floor/ceiling 常時張り付き・shortage 常態化・marketValueDelta の極端な生成破棄が無いか観察（縮退回避のみ、本格 balance は defer。§6.3c.1 / §14.9） |
+| marketPriceSwing | 0.75 | 価格振れ幅（全資源共通）。`price = basePrice × (1 + swing × clamp(imbalance, −1, 1))` → 価格幅 basePrice×[0.25, 1.75]。資源別 min/max/elasticity を置換 |
+| resourceShortageFulfillmentThreshold | 0.5 | shortage 判定の fulfillmentRatio 閾値（sellOrders/buyOrders < これで shortage） |
+| resourceMarketSupplyEpsilon | 0.01 | imbalance 分母の下限 `max(min(buy,sell), ε)`（0除算回避） |
+| marketResourcePriceHistoryLimit | 120 | StateRegion×資源ごとの価格履歴保持件数（月次 120=10年分） |
+| marketPriceSmoothingPreviousWeight / CurrentWeight | 0.75 / 0.25 | 平滑化価格の前回 / 当月重み |
+| realEstateRecipeSlotCount | 20 | RealEstateAsset の recipe slot 総数（20 slot=100%） |
+| resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
+| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
+| realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
+| popFoodDemandPerSizeByClass | {peasants:1.0, townsmen:1.05, nobles:1.10} | POP size あたり food 需要（class 別、階層差小） |
+| popProcessedGoodsDemandPerSizeByClass | {peasants:0.20, townsmen:0.60, nobles:1.20} | POP size あたり processed_goods 需要（上流ほど大） |
+| food/processedGoodsPurchasingPowerFactorAtWealth0/50/100 | food=0.6/1.0/1.2、processed=0.1/0.7/1.3 | wealth 0/50/100 の購買力係数（2 区間線形補間） |
+| foodShortageWealthPenalty / UnrestGain | 3.0 / 4.0 | food shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。負のチャネル §8.2） |
+| foodHighPriceWealthPenalty / UnrestGain | 1.5 / 1.5 | food 価格高騰（priceMultiplier の basePrice 超過比）あたりの wealth-/unrest+（high price チャネル。shortage とは別概念 §8.3） |
+| foodFulfillmentWealthGain / UnrestReduction | 0.5 / 1.0 | food 充足（fulfillmentRatio=1）かつ価格安定時の wealth+/unrest-（§19.2 正のチャネル。load-bearing につき維持） |
+| processedGoodsShortageWealthPenalty / UnrestGain | 1.0 / 1.0 | processed_goods shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。food より弱い） |
+| processedGoodsFulfillmentWealthGain / UnrestReduction | 0.5 / 0.5 | processed_goods 充足時の wealth+/unrest- |
 | **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |

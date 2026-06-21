@@ -160,29 +160,79 @@ for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
 
 再就業時の wealth / unrest / attitudes は移動元と移動先の人口加重平均で統合される。
 
+### 6.3c ResourceEconomySystem（4週ごと、v0.54）
+
+EmploymentRebalanceSystem の後・LandRevenueSystem の直前に実行する月次の資源経済。旧来の「POP / development が直接 money revenue を生む」モデル（getPopProduction）を廃止し、**資源生産 → StateRegion 市場で売却 → money revenue** に置換する。RNG を消費せず、全 Record 反復を sorted key 順に固定する（dump-world bit-identical 維持。`Object.keys(state.states).sort()` 等）。出力は `marketResourcePrices` / `monthlyHoldingResourceRevenue` の 2 read-model slice と POP wealth/unrest への反映のみで、treasury / owner / chain は変更しない（分配は LandRevenueSystem の責務）。
+
+- **資源**: `ResourceKind = food | raw_materials | processed_goods`（v0.54 は 3 種。内部設計は v0.55 の細分化を前提）。
+- **生産**: RealEstateAsset は `recipeSlots`（20 slot = 100%、slot は労働配分比率で生産量乗数ではない）で recipe（`field_food` / `pasture_raw_materials` / `workshop_processed_goods`）を採用する。holding の employed POP を per-asset の class capacity 比で按分（`computeAllocatedLaborByAsset`、Σ allocatedLabor == employed POP size の労働保存則）。`recipeLabor = allocatedLabor × (slot/totalSlots)`、`potentialOutput = recipeLabor × baseOutputPerLabor × recipeScaleMultiplier × productionFacilityModifier × polityControlModifier`。**asset.level は雇用枠（`capacityPerLevel × level` = 施設サイズ）にのみ効き、労働あたり生産性には掛けない**（level→生産性の結合 `assetLevelModifier` は v0.54 で撤去。level を上げると雇用枠が増えて投入労働が増えるぶん総産出は伸びるが、労働あたり効率は一定。労働あたり生産性の向上は将来の技術/制度システムに委ねる）。development modifier は production path から撤去（development は表示・AI 評価指標として残す）。生産施設 modifier は capacity 用 `realEstateInfrastructureModifiers` とは別の `realEstateProductionFacilityModifiers`（加算・linear condition・staffing 減衰）。
+- **市場**: 市場単位は StateRegion（`marketKey = stateRegionId`）。在庫なし（その月の生産はその月に売買・消費、繰越なし）。**Victoria 3 型の抽象市場清算（v0.54 market-clearing rewrite、§6.3c.1）**: 旧来の `sold = min(supply, demand)` / 超過分廃棄をやめ、**sell orders は全量 revenue 化・buy orders は全量 cost 評価**する。供給過多は「売れ残り廃棄」ではなく **安値で全量売れる**、供給不足は「買えない」ではなく **高価格で購入可能だが shortage penalty** で表現する。`raw_materials` を先に解決し、workshop は raw の `fulfillmentRatio` に比例して processed を生産する。価格は平滑化して履歴保存（`marketResourcePriceHistoryLimit`=120 = 10年分）。
+- **snapshot**: asset / holding 単位の月次 `RealEstateProductionResult` / `HoldingResourceRevenueSnapshot`（per-month。owner 会計は持たず生の per-asset netRevenue のみ）。asset の `grossRevenue = Σ sellOrders × marketPrice`、`inputCost = Σ buyOrders × marketPrice`（workshop の raw は不足でも buyOrders 全量 cost。output だけ `inputFulfillmentRatio` で縮小）、`netRevenue = grossRevenue − inputCost`。**netRevenue は負になり得る**（raw 不足の workshop は raw 代を満額払いつつ `fulfillmentRatio×potential` しか産出できない）。`totalNetRevenue = Σ max(0, asset netRevenue)`（赤字資産は 0 床留め）。
+- **POP wealth/unrest（§19）**: market の food/processed の `shortage` / `shortageSeverity`（負のチャネル）と充足・価格安定（正のチャネル）を同 market 内 POP に反映する。**負のチャネル**: food/processed が shortage のとき wealth−/unrest+（影響量は `shortageSeverity` に比例。`config.foodShortageWealthPenalty × severity` 等）。**高価格チャネル**: `priceMultiplier` の高さに応じた生活費負担（shortage とは別概念。両方適用可）。**正のチャネル（§19.2、維持）**: `fulfillmentRatio=1` かつ価格安定のとき wealth+/unrest−（`foodFulfillmentWealthGain` / `UnrestReduction` 等）。この正のチャネルは load-bearing（食料の net カップリングを負方向≈−1.0/月に保ち unrest 均衡を作る。150/300年観察で確認）なので shortage penalty 追加後も残す。clamp 0..100。LandRevenueSystem が直後に走るため、同月の POP wealth/unrest は ResourceEconomy → LandRevenue の順で更新される。
+
+#### 6.3c.1 市場清算モデル（Victoria 3 型、v0.54 market-clearing rewrite）
+
+各 StateRegion × ResourceKind 市場を、buy/sell order の不均衡で清算する。`MarketResourceSnapshot` の基本語彙は `sellOrders`（生産者が売りに出した量、原則全量 revenue 化）/ `buyOrders`（POP・workshop が求めた量、原則全量 cost 評価）。旧 `supply` / `effectiveDemand` / `sold` / `unsold` は内部互換名として残してよいが、仕様の基本語彙は sell/buy orders とする。
+
+- **清算**: `producerRevenue = sellOrders × price`、`consumerCost = buyOrders × price`。buy/sell は一致しなくてよい。
+- **価格式（imbalance ベース、旧 `ratio^elasticity` 廃止）**:
+
+  ```text
+  imbalance = (buyOrders − sellOrders) / max(min(buyOrders, sellOrders), ε)
+  priceMultiplier = 1.0 + marketPriceSwing × clamp(imbalance, −1.0, 1.0)
+  price = basePrice × priceMultiplier
+  ```
+
+  `marketPriceSwing = 0.75`（全資源共通）→ 価格幅は `basePrice × [0.25, 1.75]`。資源ごとの個別 min/max/elasticity は廃止（`basePrice` のみ資源別に維持）。
+- **エッジケース（formula ではなく明示分岐）**: imbalance 式は `min(buy,sell)` で割るため、`buy=0` / `sell=0` は式ではなく分岐で扱う。
+  - `buy=0, sell=0`: `price=basePrice` / revenue=cost=0 / shortage=false / severity=0（debug は inactive）。
+  - `buy=0, sell>0`: `price=basePrice×(1−swing)`（下限）/ producerRevenue=sell×price / consumerCost=0 / shortage=false（需要ゼロでも下限価格で全量売れた扱い＝市場抽象化の副作用、debug/digest で観察）。
+  - `buy>0, sell=0`: `price=basePrice×(1+swing)`（上限）/ producerRevenue=0 / consumerCost=buy×price / fulfillmentRatio=0 / shortage=true / severity=1。
+- **fulfillmentRatio / shortage**:
+
+  ```text
+  fulfillmentRatio = buyOrders ≤ 0 ? 1.0 : clamp(sellOrders / buyOrders, 0, 1)
+  shortage = buyOrders > 0 && fulfillmentRatio < resourceShortageFulfillmentThreshold   (=0.5)
+  shortageSeverity = shortage ? clamp((threshold − fulfillmentRatio) / threshold, 0, 1) : 0
+  ```
+
+  buyOrders が全量購入扱いでも、`fulfillmentRatio` は welfare / input throughput の penalty に使う。v0.54 は日次蓄積型 modifier を持たず、月次で当月 severity を即時適用（将来は蓄積・回復へ拡張）。
+- **shortage penalty**: (a) **workshop input** — `actualProcessedGoodsOutput = potentialOutput × rawMaterials.fulfillmentRatio`（旧 rawFulfillmentRatio をこの共通仕様に統合）。(b) **POP** — food/processed shortage を wealth−/unrest+ に反映（§19、`shortageSeverity` 比例。food が processed より強い）。
+- **marketValueDelta = producerRevenue − consumerCost**: v0.54 は会計保存しない（市場抽象化による価値の生成/消滅）。`sell > buy` → 正（生成）、`buy > sell` → 負（破棄）。
+- **2 つの「保存」を混同しない**: (1) 上記 `marketValueDelta` は**市場レイヤで非保存**（抽象化）。(2) LandRevenue 分配レイヤの保存則 `Σ ownerPaid + Σ holdingTaxable == Σ positiveNet`（§6.4.2 / §21.4）は **不変**。`positiveNet = max(0, netRevenue)` が負を床留めするため、netRevenue が深く負になっても分配は保存される。この market-clearing rewrite は「money 保存を壊す」ものではない。
+- **consumerCost の二層性（実装上の最重要分岐）**: workshop の **raw_materials buyOrders は実コスト**で asset の `inputCost` → `netRevenue` に効く。一方 POP の **food/processed buyOrders は観察値のみ**（PopGroup.cash 不在のため cash から引かない。POP welfare は shortage / high-price penalty 経由でのみ動く）。この二層を取り違えると POP cost の二重計上 or workshop inputCost の脱落を招く。
+- **integrity 不変条件（更新）**: 各市場の `price ∈ basePrice × [1−swing, 1+swing]`（旧「資源別 min/max」から全資源共通レンジへ変更）、`fulfillmentRatio ∈ [0,1]`、`shortageSeverity ∈ [0,1]`。`marketResourcePrices` の key / 非負・履歴上限、`monthlyHoldingResourceRevenue` の week 整合は従来どおり。
+
 ### 6.4 LandRevenueSystem（4週ごと）
 
-Province の生産を **Holding 単位で分配**し、代官による現地徴収を挟んだ上で、各 Holding の LandContract chain に沿って上納する。
+各 Holding の資源売却益（ResourceEconomySystem の月次 snapshot）を source に、RealEstate owner income / holding due の分割と代官による現地徴収を挟んだ上で、各 Holding の LandContract chain に沿って上納する。distribution（owner / bailiff / chain / treasury）は v0.53 までの構造を温存し、source だけを資源経済へ差し替えた（v0.54）。
 
-**6.4.1 生産量算出**
+**6.4.1 source（月次 resource snapshot）**
 
-各 POP の生産量は `pop.size * productivityByClass * productivityMultiplier * (wealth/100) * holdingDevMod * holdingControlMod` で算出する（productivity multiplier と holding.polityControl/100 がともに per-pop 式に含まれる）。就業（`employed: true`）POP は `employedProductivityMultiplier`（default 1.0）、未就業（`employed: false`）POP は `unemployedProductivityMultiplier`（default 0.1、最低限の日雇い・自給を表す）を乗じる。
+旧来の per-pop 生産合計（getPopProduction / getHoldingProduction）は廃止。各 Holding の収益は ResourceEconomySystem が出力した `monthlyHoldingResourceRevenue[holdingId]` の per-asset netRevenue を source とする。snapshot は同月の ResourceEconomySystem（tick 順で直前）が出力済み。
 
-**6.4.2 per-Holding 収入と代官徴収（extraction model）**
+**6.4.2 holding taxable / owner income / holding due（per-asset、v0.54 §17）**
 
-各 Holding の `grossHoldingRevenue` は、当該 Holding 内 POP の生産（getPopProduction）を単純合計した `getHoldingProduction` である。Province 生産を Holding の weight / landQuality / kindMultiplier で按分する処理は存在しない（per-pop bottom-up モデルそのもの）。polityControl は per-pop 式に既に含まれている。
+snapshot の `assetResults` を **資産ごとに反復**し、bailiff / chain の課税基盤となる `holdingTaxableRevenueBeforeBailiff` を組み立てる。`positiveNet = max(0, asset.netRevenue)`（赤字資産は 0 寄与で床留め）。
 
-```ts
-grossHoldingRevenue = getHoldingProduction(state, config, holding.id)
-// = sum(getPopProduction(pop) for each POP in holding)
+```text
+所有なし asset:        holdingTaxable += positiveNet              （全額）
+所有あり・非押領:      holdingDue = positiveNet × realEstateHoldingDueRate(0.10)
+                       holdingTaxable += holdingDue
+                       ownerIncome = positiveNet − holdingDue → owner へ支払い
+所有あり・押領中:      holdingTaxable += positiveNet              （due + 押領分を holding 側へ吸収、§6.4.2c）
 ```
+
+owner 支払いは owner.kind 別: `house` → House.wealth / `person` → Person.wealth / `polity` → Polity.treasury（税フロー効率の対象外で直接加算）。**owner が不在/inactive/死亡で支払えなかった ownerIncome は holdingTaxable に戻す**（保存則 Σ ownerPaid + Σ holdingTaxable == Σ positiveNet を維持。旧 owner income も inactive house 分は holding 側に残していた）。`realEstateHoldingDueRate` は v0.54 暫定の地代・市場税・法人税の抽象化で、将来 POP cash / wage / tax を導入したら縮小・廃止する。
+
+この `holdingTaxable` が旧 `revenueAfterOwnerIncome` を置き換える。以降の bailiff extraction / chain 上納 / treasury 反映ロジックは入力値だけ差し替えて温存する。
 
 各 Holding の代官による現地徴収を挟む。
 
 ```ts
 const localExtractionRate = getBailiffLocalExtractionRate(state, config, assignment.id)
 const collectionEfficiency = getBailiffCollectionEfficiency(state, config, assignment.id, recentTaskStatus)
-const collected = grossHoldingRevenue * localExtractionRate * collectionEfficiency
+const collected = holdingTaxable * localExtractionRate * collectionEfficiency
 const bailiffFeeRate = getBailiffFeeRate(state, config, assignment.id)
 const bailiffFee = collected * bailiffFeeRate
 const remittanceToTerminal = collected - bailiffFee
@@ -207,7 +257,7 @@ for (const contract of chain.slice().reverse()) {
 
 **6.4.2c 義務不履行による収益の留保（v0.53、read-only）**: chain 上納と owner income 支払いは、active な押領・上納拒否を反映して実効値を変える（詳細は §6.70）。LandRevenueSystem はこれらの entity を作成・変更せず、**読むだけ**である。
 
-- **active RealEstateSeizure**: 対象 RealEstateAsset の owner income を rightfulOwner（House）に支払わず、本来 owner に流れるはずだった income を Holding 収益に残す（bailiff extraction / chain 上納の対象になる）。`asset.owner` record は active 中も保持し、20年時効で legalized したときのみ `undefined` 化する。
+- **active RealEstateSeizure**: 対象 RealEstateAsset の `holdingDue` は通常通り holding taxable に入れ、`ownerIncome` を rightfulOwner（House）に支払わず holding 側へ吸収する（= 押領中は positiveNet 全額が holding taxable になり、bailiff extraction / chain 上納の対象）。`asset.owner` record は active 中も保持し、20年時効で legalized したときのみ `undefined` 化する。
 - **active LandContractDefault**: `targetLandContractId` を `byContract` で引き、当該 contract の `taxRateToGrantor` を**実効 0** とみなす（contract record の値は不変）。tax_default / revolt_independence の両 origin に適用する。revolt_independence の nominal occupation contract は `revoltOccupationNominalTaxRate`（=0.5）の正税率を持つが active default 中はこの実効 0 で上書きされる。terminal contract を実効 0 にすると直近 grantor だけでなく**上流 chain 全体**へ流れる revenue が止まる（remaining が上に繰り上がらない）。
 
 **6.4.3 Polity treasurer の taxEfficiency**
@@ -256,14 +306,14 @@ respect は **尊敬・軽蔑が蓄積される土台**として用意した段�
 
 **6.4.5 retained wealth の POP 反映**
 
-`retainedToPop` を `provinceCollected`（各 Holding で実際に徴収された額の合計）ベースで計算する。
+`retainedToPop` を `provinceCollected`（各 Holding で実際に徴収された額の合計）ベースで計算する。分母・分子とも**同一月の resource snapshot 由来**にし（v0.54 §17.3）、分母は province 内 holding の `holdingTaxable` 合計（`provinceTaxable`）を使う（旧 `getProvinceProduction` の live 再計算は混ぜない）。owner に支払った owner income は POP の手元に残った富ではないので分子・分母とも taxable から除外済み（押領で holding 側に吸収された分は taxable に含まれ、bailiff に徴収されなかった分だけ POP retained に残る）。
 
 ```ts
 const provinceCollected = sum(collected for each Holding)
-const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
+const retainedToPop = Math.max(0, provinceTaxable - provinceCollected)
 ```
 
-POP は生産の過半（標準で約 65%）を保持する。`retainedWealthGainByClass` による class 別 POP wealth 回復は維持。
+`retainedWealthGainByClass` による class 別 POP wealth 回復は維持。
 
 **6.4.6 debug log**
 
@@ -2806,7 +2856,7 @@ default config（150年・seed 1/42/123 実測）では **共和国 House 創設
 
 押領・上納拒否は乱発させない（threshold / cooldown を保守的に）。
 
-- **seize_real_estate_income**: seizer と owner House の単純戦力差は使わない（`calcPolityMilitaryPower` は配下 House 戦力を合算し owner House が seizer の構成 House だと内包されるため）。代わりに owner House の独立抵抗力 `ownerHouseResistance = calcHouseMilitaryPower(ownerHouse) + protectorPolityPower`（owner House が所有する polity の overlord 群の military power 合計。seizer 自身は除外）を見る。`targetWeakness = max(0, seizeResistanceReference − ownerHouseResistance)`（絶対 resistance の減少関数。seizer ownPower との差分は使わない）。`prize` 項は奪える収益の大きさ＝資本化した `estimateRealEstateSalePrice(asset)`（weekly owner income × 48 × salePriceYears）× weight で、零細 asset の乱獲を防ぐ。これに ambition / caution / fiscalPressure / badAttitude を加える。asset 選定は scoring と Project 作成で同一 selector（holding 内で最も脆弱な House-owned asset、tie-break = asset id 昇順）を共用する。
+- **seize_real_estate_income**: seizer と owner House の単純戦力差は使わない（`calcPolityMilitaryPower` は配下 House 戦力を合算し owner House が seizer の構成 House だと内包されるため）。代わりに owner House の独立抵抗力 `ownerHouseResistance = calcHouseMilitaryPower(ownerHouse) + protectorPolityPower`（owner House が所有する polity の overlord 群の military power 合計。seizer 自身は除外）を見る。`targetWeakness = max(0, seizeResistanceReference − ownerHouseResistance)`（絶対 resistance の減少関数。seizer ownPower との差分は使わない）。`prize` 項は奪える収益の大きさ＝資本化した `estimateRealEstateSalePrice(asset)`（v0.54: monthly owner income × 12 × salePriceYears）× weight で、零細 asset の乱獲を防ぐ。これに ambition / caution / fiscalPressure / badAttitude を加える。asset 選定は scoring と Project 作成で同一 selector（holding 内で最も脆弱な House-owned asset、tie-break = asset id 昇順）を共用する。
 - **withhold_overlord_tax**: withhold は Polity vs Polity なので `militaryAdvantage = ownPower − grantorPower × withholdMilitaryAdvantageFactor`（=0.6）。候補化 gate は `grantorWouldResist == true`（通常の契約改定交渉では減税が通らない）**かつ** `ownPower > grantorPower × 0.6`。これにより「交渉で通るなら improve/eliminate（既存外交）、通らず力があるなら withhold」と棲み分ける（既存 2 aim は grantorWouldResist なら候補化しないため二重発火しない）。factor が分数なのは vassal が構造的に overlord 全体 power を上回れないため（「地域的に踏み倒せる相対戦力」を表す）。
 
 #### Pressure と enforce（権利者の対応）
@@ -2817,12 +2867,12 @@ default config（150年・seed 1/42/123 実測）では **共和国 House 創設
 
 #### LandRevenueSystem 連携（§6.4.2c）
 
-active seizure の asset は owner income を rightfulOwner に払わず holding 収益に残す（asset.owner record は保持、legalized 時のみ undefined 化）。active default は `targetLandContractId` を byContract で引き実効 taxRate=0（両 origin、contract record は不変、上流 chain 全体が干上がる）。LandRevenueSystem は read-only で entity の作成・accrual・時効判定・Pressure/Event 生成は行わない。
+active seizure の asset は ownerIncome を rightfulOwner に払わず holding taxable に吸収する（holdingDue は通常通り。v0.54 §6.4.2。asset.owner record は保持、legalized 時のみ undefined 化）。active default は `targetLandContractId` を byContract で引き実効 taxRate=0（両 origin、contract record は不変、上流 chain 全体が干上がる）。LandRevenueSystem は read-only で entity の作成・accrual・時効判定・Pressure/Event 生成は行わない。
 
 #### 4 system（4週ごと、tick 順 LandRevenue → consistency → accrual → prescription → cleanup）
 
 - **obligationConsistencySystem**: active seizure/default の参照先（House 絶家・asset 消滅・seizer/claimant/occupier 非 active・契約消滅・holding 消滅・反乱鎮圧など）を検査し dangling / 前提崩壊を `cancelled` にして `*_CANCELLED` を emit、関連 enforce Project を terminal 化する。**accrual / prescription より前**に走り、dangling entity を accrue / legalize する前に cancelled にする（特に `worldStructureExtinction` が絶家時に asset.owner を undefined に戻す経路と prescription の legalized が同一 asset を二重に触らないよう保証）。
-- **obligationAccrualSystem**: active entity の `accumulatedUnpaidAmount` を概算加算する（本来 owner が得るはずの weekly owner income / 本来の上納額）。厳密会計値ではなく UI / 将来の交渉材料 / 係争規模指標。
+- **obligationAccrualSystem**: active entity の `accumulatedUnpaidAmount` を概算加算する（本来 owner が得るはずの owner income / 本来の上納額）。v0.54: resource snapshot は月額なので月次 system で **× 1**（月額をそのまま）加算する（旧 weekly × ACCRUAL_INTERVAL_WEEKS=4 を撤廃）。厳密会計値ではなく UI / 将来の交渉材料 / 係争規模指標。
 - **prescriptionSystem**: 20年（`realEstateSeizurePrescriptionYears` / `landContractDefaultPrescriptionYears`、`baseWeek = lastContestedWeek ?? startedWeek` から `elapsed >= 20×48`）で `legalized` にする。seizure legalized → `asset.owner = undefined`、default legalized → `spliceOutClaimantContract`（後述）。関連 Pressure / enforce Project / Aim を terminal 化し Event / Chronicle を発生させる。
 - **cleanupTerminalObligations**: terminal（resolved / legalized / cancelled）化後 `terminalObligationRetentionWeeks` 経過した entity を Record から削除する。
 

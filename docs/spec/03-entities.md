@@ -210,12 +210,60 @@ type RealEstateAsset = {
   level: number
   owner?: AssetOwnerRef
   createdWeek: number
+  recipeSlots: Partial<Record<ProductionRecipeId, number>>  // v0.54: 生産レシピの slot 配分（合計=realEstateRecipeSlotCount=20）
 }
 ```
 
 - `owner === undefined` は正規状態（Holding 所属の一般不動産。terminal Polity が実質管理）
 - owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
 - `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
+- v0.54: `recipeSlots` は生産内容を RealEstateKind ではなく `ProductionRecipe`（§3.2c）に持たせる仕組み。20 slot=100%、slot は労働配分比率（生産量乗数ではない）。IntegrityCheck で合計=20 / 整数 / recipe 実在 / allowedRealEstateKinds 整合を検査
+
+### 3.2c 資源経済の型（v0.54）
+
+```ts
+type ResourceKind = 'food' | 'raw_materials' | 'processed_goods'   // v0.54 は 3 種。v0.55 で細分化
+type ProductionRecipeId = Branded<string, 'ProductionRecipeId'>     // 'field_food' / 'pasture_raw_materials' / 'workshop_processed_goods'
+
+// 価格履歴（StateRegion × ResourceKind ごと、read-model）
+type MarketResourcePriceState = {
+  marketKey: string; resource: ResourceKind
+  lastPrice: number; smoothedPrice: number
+  history: MarketResourcePricePoint[]   // marketResourcePriceHistoryLimit=120 件まで
+}
+
+// 価格履歴 1 点（v0.54 market-clearing rewrite。基本語彙は sellOrders/buyOrders）
+type MarketResourcePricePoint = {
+  week: number; price: number
+  sellOrders: number; buyOrders: number      // 生産者が売りに出した量 / POP・workshop が求めた量
+  producerRevenue: number; consumerCost: number   // sellOrders×price / buyOrders×price
+  fulfillmentRatio: number                   // buyOrders≤0 ? 1 : clamp(sellOrders/buyOrders, 0, 1)
+  shortage: boolean; shortageSeverity: number  // shortageSeverity ∈ [0,1]
+  // 旧 supply/effectiveDemand/sold/unmetDemand は互換名として残してよいが基本語彙は上記
+}
+
+// 1 市場（StateRegion × ResourceKind）の月次清算結果（§6.3c.1）
+type MarketResourceSnapshot = {
+  marketKey: string; resource: ResourceKind
+  sellOrders: number; buyOrders: number
+  price: number
+  producerRevenue: number; consumerCost: number
+  surplusSellOrders: number                  // max(0, sellOrders − buyOrders)
+  shortageBuyOrders: number                  // max(0, buyOrders − sellOrders)
+  fulfillmentRatio: number
+  shortage: boolean; shortageSeverity: number
+}
+
+// 月次 holding snapshot（per-month。owner 会計は持たず生の per-asset 結果のみ）
+type HoldingResourceRevenueSnapshot = {
+  holdingId: HoldingId; week: number
+  totalNetRevenue: number               // = Σ max(0, asset netRevenue)（観察用集計。分配の課税基盤は per-asset で算出）
+  byResource: Partial<Record<ResourceKind, number>>
+  assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/grossRevenue/inputCost/netRevenue
+}
+```
+
+ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。旧 `minMultiplier`/`maxMultiplier`/`elasticity` フィールドは型から削除済み）。
 
 **WorldState 追加**:
 
@@ -223,6 +271,9 @@ type RealEstateAsset = {
 realEstateAssets: Record<RealEstateAssetId, RealEstateAsset>
 realEstateAssetIndex: RealEstateAssetIndex  // { byHolding, byOwner }
 nextRealEstateAssetId: number
+// v0.54 資源経済 read-model（next*Id 不要）
+marketResourcePrices: Record<string, MarketResourcePriceState>            // key = `${marketKey}:${resource}`
+monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
 ```
 
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス

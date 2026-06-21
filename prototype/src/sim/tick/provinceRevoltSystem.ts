@@ -10,7 +10,7 @@ import type { WorldState } from '../types/world'
 import type { DiplomaticPlay, DiplomaticDemand } from '../types/diplomaticPlay'
 import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
-import { getProvinceProduction } from '../selectors/popEconomySelectors'
+import { getProvinceMonthlyResourceRevenue } from '../selectors/resourceRevenueSelectors'
 import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
 import { worsenPopAttitudeTowardOwnerHouse } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
@@ -125,7 +125,7 @@ function calcHoldingRevoltTendency(
     if (townsmenWealth < config.overExtractionWealthSafeThreshold) {
       tendency += config.townsmenRevoltExtractionFactor
       tendency +=
-        Math.log1p(getProvinceProduction(state, config, provinceId)) *
+        Math.log1p(getProvinceMonthlyResourceRevenue(state, config, provinceId)) *
         config.townsmenRevoltProductionFactor
     }
   } else if (rebelClass === 'nobles') {

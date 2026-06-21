@@ -156,6 +156,8 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
 }
 

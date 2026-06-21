@@ -7,12 +7,14 @@ import type {
   HoldingImprovementId,
   RealEstateAssetId,
   RealEstateSeizureId,
+  ProductionRecipeId,
 } from '../types/ids'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 import { assertArrayIndexMatches } from './integrityIndexHelpers'
 import { getHoldingClassCapacity } from '../selectors/popSelectors'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
@@ -623,6 +625,39 @@ export function checkGeographyAndHoldings(
               message: `RealEstateAsset ${assetIdStr}: kind=${asset.realEstateKind} not allowed in ${holding.kind}`,
             })
           }
+        }
+      }
+
+      // v0.54 §21.1: recipeSlots invariant
+      {
+        let slotTotal = 0
+        for (const [recipeIdStr, slotCount] of Object.entries(asset.recipeSlots)) {
+          if (slotCount === undefined) continue
+          if (!Number.isInteger(slotCount) || slotCount < 0) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: recipeSlots[${recipeIdStr}]=${slotCount} must be a non-negative integer`,
+            })
+          }
+          slotTotal += slotCount
+          const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeIdStr as ProductionRecipeId]
+          if (!recipe) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: recipeSlots references unknown recipe ${recipeIdStr}`,
+            })
+          } else if (!recipe.allowedRealEstateKinds.includes(asset.realEstateKind)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `RealEstateAsset ${assetIdStr}: recipe ${recipeIdStr} not allowed for kind=${asset.realEstateKind}`,
+            })
+          }
+        }
+        if (config && slotTotal !== config.realEstateRecipeSlotCount) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `RealEstateAsset ${assetIdStr}: recipeSlots total=${slotTotal} must equal realEstateRecipeSlotCount=${config.realEstateRecipeSlotCount}`,
+          })
         }
       }
 

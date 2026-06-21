@@ -52,6 +52,10 @@ function tierColorClass(tier: number): string {
 import { defaultConfig } from '@/sim/config/defaultConfig'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { useSidebarData, SECTION_KEYS, type SectionKey } from '@/app/hooks/useSidebarData'
+import type { StateRegion } from '@/sim/types/stateRegion'
+import { RESOURCE_KINDS } from '@sim/types/resource'
+import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
+import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
 
 function getRecentEventCount(
   watchId: string,
@@ -395,6 +399,68 @@ function WatchlistRow({
   )
 }
 
+// v0.54 市場一覧の row。地域名 + province 数 + 3 資源の価格乖離チップ (一覧性のため)。
+//   乖離 = 現在価格 / 基本価格 - 1。正 (高い) は琥珀、負 (安い) は青、ほぼ基本価格は灰。
+const MARKET_RESOURCE_GLYPH: Record<string, string> = {
+  food: '\u{1F33E}', // 🌾
+  raw_materials: '\u{26CF}', // ⛏
+  processed_goods: '\u{1F528}', // 🔨
+}
+
+function MarketRow({
+  stateRegion,
+  worldState,
+  isSelected,
+  onClick,
+}: {
+  stateRegion: StateRegion
+  worldState: WorldState | null
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const resolveName = useEntityName()
+  const regionName = resolveName('state_region', stateRegion.nameKey, stateRegion.nameKey)
+  return (
+    <div
+      className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
+        isSelected ? 'bg-blue-700' : ''
+      }`}
+      onClick={onClick}
+    >
+      <div className="font-bold">{regionName}</div>
+      <div className="mt-0.5 flex flex-wrap gap-2 text-xs">
+        {RESOURCE_KINDS.map((resource) => {
+          const def = RESOURCE_PRICE_DEFINITIONS[resource]
+          const ps =
+            worldState?.marketResourcePrices[marketResourcePriceKey(stateRegion.id, resource)]
+          const glyph = MARKET_RESOURCE_GLYPH[resource] ?? '?'
+          if (!ps) {
+            return (
+              <span key={resource} className="text-gray-600">
+                {glyph} —
+              </span>
+            )
+          }
+          const deviationPct = (ps.lastPrice / def.basePrice - 1) * 100
+          const color =
+            Math.abs(deviationPct) < 0.5
+              ? 'text-gray-400'
+              : deviationPct > 0
+                ? 'text-amber-400'
+                : 'text-sky-400'
+          const shortage = ps.history[ps.history.length - 1]?.shortage ?? false
+          return (
+            <span key={resource} className={color}>
+              {glyph} {deviationPct >= 0 ? '+' : ''}
+              {deviationPct.toFixed(0)}%{shortage && <span className="text-rose-400">⚠</span>}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     countries: true,
@@ -404,6 +470,7 @@ export function Sidebar() {
     watchlist: false,
     plays: false,
     wars: false,
+    markets: false,
   })
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -438,6 +505,7 @@ export function Sidebar() {
     factionEntries,
     activePlays,
     activeWars,
+    stateRegions,
     sectionCount,
   } = useSidebarData()
 
@@ -558,6 +626,21 @@ export function Sidebar() {
           world={session?.currentState}
           houses={housesMap}
           onClick={() => openDetailWindow('war', war.id)}
+        />
+      ))
+    }
+    if (key === 'markets') {
+      const worldState: WorldState | null = session?.currentState ?? null
+      if (stateRegions.length === 0) {
+        return <div className="px-3 py-2 text-xs text-gray-500">{t('sidebar.no_markets')}</div>
+      }
+      return stateRegions.map((stateRegion) => (
+        <MarketRow
+          key={stateRegion.id}
+          stateRegion={stateRegion}
+          worldState={worldState}
+          isSelected={focusedId === stateRegion.id && focusedType === 'market'}
+          onClick={() => openDetailWindow('market', stateRegion.id)}
         />
       ))
     }

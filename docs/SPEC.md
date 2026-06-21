@@ -1,6 +1,8 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-06-20 (v0.53 押領・土地契約不履行・時効 — RealEstateSeizure / LandContractDefault 導入、seize/withhold/enforce Project、Pressure 経由の対応、20年時効による既成事実化 (spliceOutClaimantContract)、revolt_seizure 廃止→nominal occupation contract + revolt_independence default、非 root tax-0 invariant、obligationConsistency/Accrual/prescription/cleanupTerminalObligations system 追加)
+最終更新: 2026-06-21 (v0.54 資源経済導入 — POP 直接 production を廃止し ResourceEconomySystem (§6.3c) を追加。RealEstateAsset+POP 労働→資源 (food/raw_materials/processed_goods) 生産→StateRegion 市場で売却→money revenue。recipeSlots / ProductionRecipe / MarketResourcePriceState / 月次 HoldingResourceRevenueSnapshot。LandRevenueSystem は資源 snapshot を source に owner income/holding due 分割 (realEstateHoldingDueRate)・bailiff・chain 分配へ再構成。食料/加工品の充足率・価格を POP wealth/unrest に反映。obligation accrual を月額化。**market-clearing rewrite (§6.3c.1): Victoria 3 型の抽象市場へ — sell orders 全量 revenue 化・buy orders 全量 cost 評価・imbalance ベース価格 (marketPriceSwing、資源別 min/max/elasticity 廃止)・fulfillmentRatio / shortage / shortageSeverity による penalty。供給過多は安値で全量売却、供給不足は高価格+shortage penalty。marketValueDelta は市場抽象化で非保存だが LandRevenue 分配の保存則は不変**)
+
+v0.53 (押領・土地契約不履行・時効 — RealEstateSeizure / LandContractDefault 導入、seize/withhold/enforce Project、Pressure 経由の対応、20年時効による既成事実化 (spliceOutClaimantContract)、revolt_seizure 廃止→nominal occupation contract + revolt_independence default、非 root tax-0 invariant、obligationConsistency/Accrual/prescription/cleanupTerminalObligations system 追加)
 
 ---
 

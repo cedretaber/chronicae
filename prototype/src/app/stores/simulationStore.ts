@@ -23,6 +23,7 @@ export type EntityType =
   | 'war'
   | 'battleLog'
   | 'project'
+  | 'market'
 export type MapView = 'terminal' | 'root' | 'house' | 'influence' | 'unrest'
 
 // view='detail' は通常の詳細パネル、view='chronicle' は対象の全履歴 (年代記) パネル。

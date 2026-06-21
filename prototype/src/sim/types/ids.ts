@@ -209,6 +209,10 @@ export function createInfluenceModifierId(n: number): InfluenceModifierId {
   return ('im-' + n) as InfluenceModifierId
 }
 
+// v0.54 ProductionRecipe: 不動産が採用する生産レシピの識別子 (例: 'field_food')。
+//   worldgen で連番生成せず、definitions 側の literal を cast する固定 id。
+export type ProductionRecipeId = Branded<string, 'ProductionRecipeId'>
+
 // v0.52 RealEstateAsset: Holding 内部の具体的不動産。prefix `re-`。
 export type RealEstateAssetId = Branded<string, 'RealEstateAssetId'>
 

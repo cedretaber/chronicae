@@ -6,8 +6,8 @@ import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { getActorInfluenceInPolity } from './influenceSelectors'
 import { getPolityDistributablePerCycle } from './landContractSelectors'
 import { assetOwnerKey } from '../types/realEstateAsset'
-import { estimateWeeklyOwnerIncome } from './realEstateSelectors'
-import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import { estimateMonthlyOwnerIncome } from './resourceRevenueSelectors'
+import { MONTHS_PER_YEAR } from '../utils/timeUtils'
 
 // politySurplusDistributionSystem は 4 週ごと (= 年 12 回) に分配する。
 // COMPENSATION_CALLS_PER_YEAR (officeCompensationSystem) と同値で、給与年額と直接比較できる。
@@ -44,7 +44,7 @@ export function getHouseProjectedAnnualIncome(
   for (const assetId of assetIds) {
     const asset = state.realEstateAssets[assetId]
     if (!asset) continue
-    annual += estimateWeeklyOwnerIncome(state, config, asset) * WEEKS_PER_YEAR
+    annual += estimateMonthlyOwnerIncome(state, config, asset) * MONTHS_PER_YEAR
   }
 
   return annual

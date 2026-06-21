@@ -28,11 +28,11 @@ import {
 } from '@sim/selectors/popSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import {
-  getProvinceProduction,
   getProvinceManpowerBase,
   getProvinceCountryManpowerBase,
   getProvinceHouseManpowerBase,
 } from '@sim/selectors/popEconomySelectors'
+import { getProvinceMonthlyResourceRevenue } from '@sim/selectors/resourceRevenueSelectors'
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
@@ -95,7 +95,7 @@ export function ProvinceDetail({
   const avgWealth = currentState ? getProvinceAveragePopWealth(currentState, province.id) : 0
   const derivedUnrest = currentState ? getProvinceUnrest(currentState, province.id) : 0
   const derivedProduction = currentState
-    ? getProvinceProduction(currentState, defaultConfig, province.id)
+    ? getProvinceMonthlyResourceRevenue(currentState, defaultConfig, province.id)
     : 0
   const derivedManpower = currentState
     ? getProvinceManpowerBase(currentState, defaultConfig, province.id)
@@ -156,7 +156,7 @@ export function ProvinceDetail({
       if (townsmenWealth < defaultConfig.overExtractionWealthSafeThreshold) {
         tendency += defaultConfig.townsmenRevoltExtractionFactor
         tendency +=
-          Math.log1p(getProvinceProduction(ws, defaultConfig, province.id)) *
+          Math.log1p(getProvinceMonthlyResourceRevenue(ws, defaultConfig, province.id)) *
           defaultConfig.townsmenRevoltProductionFactor
       }
     } else if (popClass === 'nobles') {

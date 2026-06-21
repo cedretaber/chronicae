@@ -11,6 +11,7 @@ import { checkGoalsAimsProjects } from './integrityGoalProjectChecks'
 import { checkPoliticalRights } from './integrityRightChecks'
 import { checkInfluenceModifiers } from './integrityInfluenceModifierChecks'
 import { checkPersonReputations } from './integrityReputationChecks'
+import { checkResourceEconomy } from './integrityResourceEconomyChecks'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -73,6 +74,7 @@ export function collectIntegrityErrors(
   checkPoliticalRights(state, errors)
   checkInfluenceModifiers(state, errors)
   checkPersonReputations(state, errors)
+  checkResourceEconomy(state, errors, config)
 
   return errors
 }

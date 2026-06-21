@@ -3,6 +3,8 @@ import type { RealEstateAssetId, HoldingId } from '../types/ids'
 import type { RealEstateKind, AssetOwnerRef, RealEstateAsset } from '../types/realEstateAsset'
 import { assetOwnerKey } from '../types/realEstateAsset'
 import { createRealEstateAssetId } from '../types/ids'
+import type { ProductionRecipeId } from '../types/ids'
+import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 
 export function createRealEstateAssetMut(
   ws: WorldState,
@@ -12,10 +14,17 @@ export function createRealEstateAssetMut(
     level: number
     owner?: AssetOwnerRef
     createdWeek: number
+    // v0.54: 未指定なら realEstateKind の既定 recipeSlots を割り当てる (§8.3)。
+    recipeSlots?: Partial<Record<ProductionRecipeId, number>>
   },
 ): RealEstateAsset {
   const id = createRealEstateAssetId(ws.nextRealEstateAssetId++)
-  const asset: RealEstateAsset = { id, ...fields }
+  const { recipeSlots, ...rest } = fields
+  const asset: RealEstateAsset = {
+    id,
+    ...rest,
+    recipeSlots: recipeSlots ?? getDefaultRecipeSlotsForRealEstateKind(fields.realEstateKind),
+  }
 
   ws.realEstateAssets[id] = asset
 
@@ -73,35 +82,4 @@ export function changeRealEstateAssetOwnerMut(
     delete updated.owner
     ws.realEstateAssets[assetId] = updated
   }
-}
-
-export function removeRealEstateAssetMut(ws: WorldState, assetId: RealEstateAssetId): void {
-  const asset = ws.realEstateAssets[assetId]
-  if (!asset) return
-
-  const holdingKey = asset.holdingId as string
-  const holdingSlot = ws.realEstateAssetIndex.byHolding[holdingKey]
-  if (holdingSlot) {
-    const filtered = holdingSlot.filter((id) => (id as string) !== (assetId as string))
-    if (filtered.length > 0) {
-      ws.realEstateAssetIndex.byHolding[holdingKey] = filtered
-    } else {
-      delete ws.realEstateAssetIndex.byHolding[holdingKey]
-    }
-  }
-
-  if (asset.owner) {
-    const ownerK = assetOwnerKey(asset.owner)
-    const ownerSlot = ws.realEstateAssetIndex.byOwner[ownerK]
-    if (ownerSlot) {
-      const filtered = ownerSlot.filter((id) => (id as string) !== (assetId as string))
-      if (filtered.length > 0) {
-        ws.realEstateAssetIndex.byOwner[ownerK] = filtered
-      } else {
-        delete ws.realEstateAssetIndex.byOwner[ownerK]
-      }
-    }
-  }
-
-  delete ws.realEstateAssets[assetId]
 }

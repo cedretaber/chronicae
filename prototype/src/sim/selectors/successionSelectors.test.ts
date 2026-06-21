@@ -184,6 +184,8 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
 }
 

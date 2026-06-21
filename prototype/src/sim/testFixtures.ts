@@ -146,6 +146,9 @@ export function makeEmptyV016State(): WorldState {
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
     nextRealEstateAssetId: 0,
+    // v0.54 資源経済 read-model
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
     // v0.53 RealEstateSeizure
     realEstateSeizures: {},
     realEstateSeizureIndex: { byHolding: {}, byAsset: {}, byRightfulOwnerHouse: {} },

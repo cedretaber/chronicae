@@ -14,6 +14,9 @@ import {
   getProvincePolityControlFromHoldings,
 } from '@sim/selectors/landContractSelectors'
 import { getProvinceUnrest, getPopUnrestByClass } from '@sim/selectors/popSelectors'
+import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
+import { RESOURCE_KINDS } from '@sim/types/resource'
+import type { ResourceKind } from '@sim/types/resource'
 import { buildActivityReport } from '@sim/report/activityReport'
 import { takeSnapshot } from '@sim/report/snapshot'
 import type { ActivitySnapshot } from '@sim/report/types'
@@ -369,6 +372,114 @@ function computeUnrestStats(state: WorldState): {
     avgNobleUnrest: Math.round((totalNoble / count) * 10) / 10,
     highUnrestCount,
     totalProvinces: count,
+  }
+}
+
+// v0.54 §22.2: 資源経済の観察統計。価格縮退・POP wealth 床張り付き・財政経路 (owned vs holding due) を見る。
+function computeEconomyStats(
+  state: WorldState,
+  config: typeof defaultConfig,
+): {
+  avgPopWealth: number
+  resource: Record<
+    ResourceKind,
+    {
+      avgPriceRatio: number
+      clampedPct: number
+      avgFulfillment: number
+      shortagePct: number
+      maxSeverity: number
+    }
+  >
+  marketValueDelta: number
+  ownedRevenueRatio: number
+  totalHoldingDue: number
+  totalOwnerIncome: number
+} {
+  // POP wealth (size 加重平均)
+  let wealthSum = 0
+  let sizeSum = 0
+  for (const pop of Object.values(state.popGroups)) {
+    if (!pop) continue
+    wealthSum += pop.wealth * pop.size
+    sizeSum += pop.size
+  }
+  const avgPopWealth = sizeSum > 0 ? wealthSum / sizeSum : 0
+
+  // 資源価格・充足率・shortage (market ごとの lastPrice / 直近 history)
+  const resource = {} as Record<
+    ResourceKind,
+    {
+      avgPriceRatio: number
+      clampedPct: number
+      avgFulfillment: number
+      shortagePct: number
+      maxSeverity: number
+    }
+  >
+  // 市場抽象化による価値の生成/消滅 (非保存・観察用): Σ producerRevenue − consumerCost (直近 history)。
+  let marketValueDelta = 0
+  for (const r of RESOURCE_KINDS) {
+    const def = RESOURCE_PRICE_DEFINITIONS[r]
+    let priceRatioSum = 0
+    let clamped = 0
+    let fulfillSum = 0
+    let shortageCount = 0
+    let maxSeverity = 0
+    let n = 0
+    for (const ps of Object.values(state.marketResourcePrices)) {
+      if (!ps || ps.resource !== r) continue
+      n++
+      priceRatioSum += ps.lastPrice / def.basePrice
+      const swing = config.marketPriceSwing
+      const atFloor = Math.abs(ps.lastPrice - def.basePrice * (1 - swing)) < 1e-3
+      const atCeil = Math.abs(ps.lastPrice - def.basePrice * (1 + swing)) < 1e-3
+      if (atFloor || atCeil) clamped++
+      const last = ps.history[ps.history.length - 1]
+      if (last) {
+        fulfillSum += last.fulfillmentRatio
+        if (last.shortage) shortageCount++
+        if (last.shortageSeverity > maxSeverity) maxSeverity = last.shortageSeverity
+        marketValueDelta += last.producerRevenue - last.consumerCost
+      }
+    }
+    resource[r] = {
+      avgPriceRatio: n > 0 ? priceRatioSum / n : 0,
+      clampedPct: n > 0 ? (100 * clamped) / n : 0,
+      avgFulfillment: n > 0 ? fulfillSum / n : 0,
+      shortagePct: n > 0 ? (100 * shortageCount) / n : 0,
+      maxSeverity,
+    }
+  }
+
+  // 財政経路: owned vs 全 asset の positiveNet、holding due / owner income (月額)
+  let allNet = 0
+  let ownedNet = 0
+  let totalHoldingDue = 0
+  let totalOwnerIncome = 0
+  for (const snap of Object.values(state.monthlyHoldingResourceRevenue)) {
+    if (!snap) continue
+    for (const ar of snap.assetResults) {
+      const positiveNet = Math.max(0, ar.netRevenue)
+      if (positiveNet <= 0) continue
+      allNet += positiveNet
+      const asset = state.realEstateAssets[ar.assetId]
+      if (asset?.owner) {
+        ownedNet += positiveNet
+        const due = positiveNet * config.realEstateHoldingDueRate
+        totalHoldingDue += due
+        totalOwnerIncome += positiveNet - due
+      }
+    }
+  }
+
+  return {
+    avgPopWealth,
+    resource,
+    marketValueDelta,
+    ownedRevenueRatio: allNet > 0 ? ownedNet / allNet : 0,
+    totalHoldingDue,
+    totalOwnerIncome,
   }
 }
 
@@ -751,6 +862,47 @@ async function main(): Promise<void> {
             unrestStats.highUnrestCount +
             '/' +
             unrestStats.totalProvinces,
+        )
+        const econ = computeEconomyStats(result.state, config)
+        console.log(
+          '  Economy: popWealth=' +
+            econ.avgPopWealth.toFixed(1) +
+            ' | food p/base=' +
+            econ.resource.food.avgPriceRatio.toFixed(2) +
+            ' clamp=' +
+            econ.resource.food.clampedPct.toFixed(0) +
+            '% ful=' +
+            econ.resource.food.avgFulfillment.toFixed(2) +
+            ' | raw p/base=' +
+            econ.resource.raw_materials.avgPriceRatio.toFixed(2) +
+            ' clamp=' +
+            econ.resource.raw_materials.clampedPct.toFixed(0) +
+            '% | goods p/base=' +
+            econ.resource.processed_goods.avgPriceRatio.toFixed(2) +
+            ' clamp=' +
+            econ.resource.processed_goods.clampedPct.toFixed(0) +
+            '% ful=' +
+            econ.resource.processed_goods.avgFulfillment.toFixed(2) +
+            ' | shortage f/r/g=' +
+            econ.resource.food.shortagePct.toFixed(0) +
+            '/' +
+            econ.resource.raw_materials.shortagePct.toFixed(0) +
+            '/' +
+            econ.resource.processed_goods.shortagePct.toFixed(0) +
+            '% maxSev=' +
+            Math.max(
+              econ.resource.food.maxSeverity,
+              econ.resource.raw_materials.maxSeverity,
+              econ.resource.processed_goods.maxSeverity,
+            ).toFixed(2) +
+            ' Δval=' +
+            econ.marketValueDelta.toFixed(0) +
+            ' | owned=' +
+            (econ.ownedRevenueRatio * 100).toFixed(0) +
+            '% due=' +
+            econ.totalHoldingDue.toFixed(0) +
+            ' ownerInc=' +
+            econ.totalOwnerIncome.toFixed(0),
         )
         const decisions = countDecisionEntities(result.state)
         console.log(

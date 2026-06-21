@@ -255,3 +255,43 @@ land_claim を自然に発生させるには、「他者の province の holding
 - **WI-0 引力勾配の weight sweep**: 測定上 WI-1（cap meritSeats）が集積の主役で WI-0 の限界寄与は小さい（M2 gap +4.5→+4.9）。供給逼迫・churn 後に効きが増す前提で weight は未較正。
 - **入れ子の割引率・深さ・分岐**（factionNestingNpDiscount/MaxDepth/MaxBranches）と commonwealth アリーナの活性度は通常 config で観察しつつ最終調整する。
 - **commonwealth 高官が別君主国から分封を受ける越境（creative 違和感・保留）**: tiny seed1 で観察。無家の有能人材が反乱領（established commonwealth）の建国式（RepublicPoliticalInitializationSystem）で宰相に着座 → その後 personal aim（立身出世）で別君主国から分封を受け、自領の rank5 領主にもなる。所属（共和国の高官）と主権（自領の領主）が二重化し正当化に困るが、機構としては各システムが正しく噛み合った結果でありバグではない（建国式の候補母集合 getRepublicPoliticalCandidatePersons が houseless/outsider を意図的に広く拾う + 分封は他 polity の既存役職を剥奪しない + 主権領主の他国役職就任を排他にするルールが無い）。将来抑えるなら候補レバー = (a) 自分が leader を務める polity を持つ人物を他 polity の office 候補から除外 (b) polity leader 本人を同 polity の非 leader office 候補から除外（自領 self-chancellor 防止）。現段階では note-and-defer。
+
+---
+
+## 14.9 資源経済（v0.54 market-clearing rewrite 後の観察）
+
+> **更新履歴**: 本節は当初 v0.54 の**旧市場清算モデル**（`sold = min(supply, demand)` / 超過廃棄 / 資源別 min/max/elasticity）下で記録されたが、**Victoria 3 型 market-clearing rewrite**（§6.3c.1: sell orders 全量 revenue 化・imbalance 価格・shortage penalty）の導入後に**再観察して全面更新した**（旧観察は supersede 済み）。
+
+計測条件: tiny preset 150年 × 3 seed (1, 42, 123)、整合性違反 0・完走。300年 × 1 seed (1) も完走確認。digest の `Economy:` 行（`computeEconomyStats`）から price/clamp/fulfillment/shortage/severity/marketValueDelta、`Unrest:` 行から不満度を集計。**CLAUDE.md §4 に従い config は変更せず観察値の記録のみ**（「縮退回避のみ」の方針を堅持）。
+
+### 14.9.1 観察された市場の傾向（rewrite 後）
+
+3 seed × 150年の最終時点（p=lastPrice/basePrice、clamp=floor/ceiling 張り付き市場比率 [新レンジ base×0.25〜1.75 基準]、ful=fulfillmentRatio、sh=shortage 市場比率、Δval=marketValueDelta）:
+
+| seed | food | raw_materials | processed_goods | popWealth | unrest avg | Δval |
+|---|---|---|---|---|---|---|
+| 1 | p0.25 clamp100% ful1.00 | p1.00 clamp100% sh50% | p1.64 clamp50% **ful0.30 sh50%** | 60.8 | 44.0 | −17.5k |
+| 42 | p0.33 clamp75% ful1.00 | p0.45 clamp75% sh0% | p1.02 clamp75% **ful0.50 sh50%** | 62.8 | 37.9 | +14.0k |
+| 123 | p0.25 clamp100% ful1.00 | p0.63 clamp100% sh25% | p1.53 clamp75% **ful0.25 sh75%** | 67.1 | 60.8 | +0.8k |
+
+rewrite で価格メカニズムは変わった（超過廃棄ゼロ・全量売却・shortage penalty 明示化）が、**根底のトポロジー由来の傾向は旧モデルと同型で残存**する。要因は2系統:
+
+1. **food の床張り付き（可変だが無害・継続）**: food は全 seed で下限（base×0.25）に床留め・ful=1.00・shortage 0%。POP food 需要に対し field 産出が過剰で価格が常に下限に張る。rewrite 後は「安値で全量売れる」ため**生産者の廃棄損は消えた**（旧モデルの「数量頭打ち＋価格下落」二重苦が解消）。**飢餓は皆無（ful=1.00 を 150/300年維持）**、POP wealth 健全（60-67）、treasury 健全。安価で潤沢な主食は農本経済として不自然でなく機能的害は無い。唯一の可変レバー（food の `baseOutputPerLabor` / 需要係数）は調整利得がなく、v0.55 交易が food 需給を再構成するため**見送り**。
+
+2. **raw 床 + processed_goods 慢性不足（構造的・調整不能・継続）**: workshop を持たない StateRegion は raw の域内買い手が無く（raw を消費するのは workshop のみ）raw が床に張る。同時に goods を域外調達できず（市場間交易は未実装）processed が ful=0.25-0.50・shortage 50-75% の慢性不足、価格は天井寄り。**per-region 市場・交易ゼロのトポロジーに内在する縮退であり係数調整では解消しない**。v0.55 のインターリージョン交易が根本解。rewrite はこの不足を **shortage / shortageSeverity（maxSev=1.0）として可視化**しただけで、悪化も改善もさせていない。
+
+3. **marketValueDelta（非保存・新指標）**: −17.5k〜+14.0k と seed により符号が変わる。shortage 過多 seed（s1: goods 不足で buy>sell の高価格購入が producerRevenue を上回る）は負（価値の破棄）、供給過多 seed（s42: 床価格で sell>buy）は正（価値の生成）。これは**市場抽象化による意図的な非保存**（§6.3c.1）であり、LandRevenue 分配の保存則（§21.4）とは別レイヤ。Δval が極端化する縮退（例: 毎月 −100k 級の慢性破棄）は観察されず、規模は健全。
+
+### 14.9.2 unrest 均衡は rewrite 後も安定（負チャネル弱化の影響は軽微）
+
+rewrite で POP 負カップリングは「`1−fulfillmentRatio` 比例」から「`shortageSeverity` 比例」へ変更され、**fulfillment が threshold（0.5）以上の帯では penalty が 0 になる＝負チャネルが構造的に弱まった**。§19.2 の「food net coupling ≈ −1.0/月（load-bearing）」均衡がドリフトしないか要注視だったが、再観察の結果 unrest avg は **seed1: 43.8→44.0 / seed42: 37.8→37.9 / seed123: 61.2→60.8** と**実質不変**（旧モデル比 ±0.4 以内）。food は全 seed で ful=1.00（shortage 0%）のため負チャネルの弱化は food では発火せず、正チャネル（充足ゲイン）が従来どおり均衡を支えている。**均衡の drift は起きていない**。
+
+seed123 の高 unrest（60.8、high>50 が 11/17）は旧 §14.9 同様**戦争多発 seed の既存政治力学**（revolt 多数）であり経済起因ではない（main baseline 64.2 > rewrite 60.8 でむしろ低い）。一般 unrest バランスは §14.3 / §14.4 の既存課題として将来の総合調整へ。
+
+### 14.9.3 結論: 3項目とも見送り継続（v0.55 交易へ引き継ぎ）
+
+- food 過剰床: rewrite で廃棄損は解消・無害 → 見送り。
+- raw/goods 縮退: 交易ゼロのトポロジーに内在（rewrite は shortage として可視化しただけ）→ v0.55 市場間交易で根本解。
+- unrest: 負チャネル弱化後も均衡は安定（drift なし）。seed123 の高 unrest は既存の戦争起因 → 一般バランス調整へ。
+
+財政経路は owned 比率が上がっても健全（150年で owned 30-55%、due/ownerInc とも正常）。holdingDue 機構（§17.4）が私的所有の拡大下でも財政を維持しており、netRevenue が負になり得る rewrite 後も positiveNet 床留め（§6.3c.1）で保存則は不変。v0.55 交易の作業はこれら観察を入力として引き継ぐ。

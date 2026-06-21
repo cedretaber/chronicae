@@ -144,6 +144,8 @@ function makeBaseState(): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    marketResourcePrices: {},
+    monthlyHoldingResourceRevenue: {},
   }
 }
 
