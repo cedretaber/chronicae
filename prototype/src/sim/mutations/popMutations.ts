@@ -2,8 +2,14 @@ import { clamp } from '../utils/math'
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PopGroupId, HoldingId } from '../types/ids'
 import type { PopClass, PopGroup, PopType } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
+import type { PopTargetKey } from '../types/popMobility'
 import type { AttitudeMap } from '../types/attitude'
 import { createPopGroupId } from '../types/ids'
+
+// v0.56: mobility helper の source 下限 default。config.popSizeEpsilon と一致させる
+//   (popMutations は config 非依存のため literal。systems は options.minSourceSize で明示渡し)。
+const POP_MOBILITY_SOURCE_FLOOR_DEFAULT = 0.01
 
 // Adjust wealth of pops of a specific class in a province by delta (clamped 0..100)
 export function adjustProvincePopWealthByClass(
@@ -266,6 +272,89 @@ export function movePopEmploymentMut(
     removePopGroupMut(ws, input.sourcePopId)
   } else {
     ws.popGroups[input.sourcePopId] = { ...updatedSource, size: remainingSize }
+  }
+
+  return targetPopId
+}
+
+// v0.56 §5: 転職・移住の汎用 size 移送。source POP から amount を別の merge key (target) へ移す。
+//   target が同一 holding + 別 popType/employed なら転職、別 holding なら移住。
+//   既存 target POP があれば人口加重平均で merge、無ければ新規作成 (addToOrCreatePopGroupMut 再利用)。
+//   source 下限 (minSourceSize) を割らない。返り値は target POP id (no-op 時 undefined)。
+//   incomingWealth/UnrestOverride は合成 inheritFrom で create/merge 両パスに一貫反映 (§5.4, G2)。
+export function movePopSizeToKeyMut(
+  ws: WorldState,
+  sourcePopId: PopGroupId,
+  target: PopTargetKey,
+  amount: number,
+  options?: {
+    minSourceSize?: number
+    incomingWealthOverride?: number
+    incomingUnrestOverride?: number
+  },
+): PopGroupId | undefined {
+  const source = ws.popGroups[sourcePopId]
+  if (!source) return undefined
+
+  // §5.2(2): target key の stratum 整合を検査 (integrity #7)。
+  if (target.class !== getPopStratum(target.popType)) {
+    throw new Error(
+      `movePopSizeToKeyMut: target stratum mismatch (popType=${target.popType} class=${target.class})`,
+    )
+  }
+
+  // §5.2(3): amount<=0 は no-op。
+  if (amount <= 0) return undefined
+
+  // §5.2(4): source key と target key が完全一致なら no-op。
+  if (
+    source.holdingId === target.holdingId &&
+    source.class === target.class &&
+    source.popType === target.popType &&
+    source.employed === target.employed
+  ) {
+    return undefined
+  }
+
+  // §5.2(5): source 下限を割らない movable を算出。
+  const minSourceSize = options?.minSourceSize ?? POP_MOBILITY_SOURCE_FLOOR_DEFAULT
+  const movable = Math.max(0, source.size - minSourceSize)
+  let actualAmount = Math.min(amount, movable)
+  if (actualAmount <= 0) return undefined
+
+  // 人口保存: 残りが除去対象の sliver (<= epsilon) になる場合は source を丸ごと移す。
+  //   こうしないと minSourceSize 分が source 削除で失われる (population leak)。1e-6 は float 境界の slack。
+  //   minSourceSize が epsilon より大きい実 floor のときは remaining>=minSourceSize>>epsilon となり、
+  //   この bump は発火しない (source は floor で保持される)。
+  if (source.size - actualAmount <= POP_MOBILITY_SOURCE_FLOOR_DEFAULT + 1e-6) {
+    actualAmount = source.size
+  }
+
+  // §5.2(7): incoming cohort の wealth/unrest (override 優先)。
+  const incomingWealth = options?.incomingWealthOverride ?? source.wealth
+  const incomingUnrest = options?.incomingUnrestOverride ?? source.unrest
+
+  // §5.2(8-9): target へ merge-or-create。合成 inheritFrom で override を両パスに反映。
+  const targetPopId = addToOrCreatePopGroupMut(ws, {
+    holdingId: target.holdingId,
+    class: target.class,
+    popType: target.popType,
+    employed: target.employed,
+    size: actualAmount,
+    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest },
+  })
+
+  // §5.2(10-12): source から actualAmount を減らす。byHolding も整合。
+  //   movable=size-minSourceSize なので remaining>=minSourceSize が保証される (source は drain 下限を割らない)。
+  //   削除は drain 下限ではなく epsilon noise 判定で行う: minSourceSize が epsilon(default) のときのみ
+  //   微小 sliver を除去し、minSourceSize がそれより大きい floor のときは source を保持する。
+  const updatedSource = ws.popGroups[sourcePopId]
+  if (!updatedSource) return targetPopId
+  const remainingSize = updatedSource.size - actualAmount
+  if (remainingSize <= POP_MOBILITY_SOURCE_FLOOR_DEFAULT) {
+    removePopGroupMut(ws, sourcePopId)
+  } else {
+    ws.popGroups[sourcePopId] = { ...updatedSource, size: remainingSize }
   }
 
   return targetPopId
