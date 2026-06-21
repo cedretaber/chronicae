@@ -814,6 +814,36 @@ detail:
     resource_jewelry: '装飾品'
     resource_smoked_fish: '燻製魚'
     resource_processed_meat: '加工肉'
+    # v0.55 不動産詳細パネル
+    detail_window_title: '不動産: {{name}}'
+    recipe_composition: 'レシピ構成'
+    employment_capacity: '雇用枠'
+    no_recipe: 'レシピ未設定'
+    # v0.55 生産レシピ名 (23 種)
+    recipe:
+      grain_field: '穀物畑'
+      flax_field: '亜麻畑'
+      sheep_pasture: '羊牧場'
+      cattle_pasture: '牛牧場'
+      orchard: '果樹園'
+      vineyard: '葡萄園'
+      dye_garden: '染料畑'
+      fishing_hut: '漁場'
+      farm_brewery: '農村醸造'
+      farm_weaving_shed: '農村織物'
+      iron_mine: '鉄鉱山'
+      gem_mine: '宝石鉱山'
+      quarry: '採石場'
+      logging_hut: '伐採場'
+      hunting_lodge: '狩猟場'
+      urban_brewery: '都市醸造所'
+      textile_workshop: '織物工房'
+      tailor: '仕立屋'
+      luxury_tailor: '高級仕立屋'
+      tool_workshop: '道具工房'
+      jeweler_workshop: '宝飾工房'
+      smokehouse: '燻製所'
+      butcher_workshop: '食肉加工場'
 
   # v0.54 市場詳細パネル (StateRegion ごとの資源市場)
   market:

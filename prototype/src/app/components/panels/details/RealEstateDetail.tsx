@@ -1,0 +1,211 @@
+import type { RealEstateAsset } from '@/sim/types/realEstateAsset'
+import type { SimulationSession } from '@/sim/types/world'
+import type { ProductionRecipeId } from '@/sim/types/ids'
+import { useTranslation } from 'react-i18next'
+import { PanelHeader, DetailSection } from './shared/widgets'
+import { PersonLink, HouseLink, PolityLink } from './shared/links'
+import type { ClickHandler } from './shared/helpers'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
+import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
+import { useEntityName } from '@/app/hooks/useEntityName'
+import { defaultConfig } from '@sim/config/defaultConfig'
+import {
+  getActiveSeizureForAsset,
+  getSeizurePrescriptionRemainingYears,
+} from '@sim/selectors/realEstateSeizureSelectors'
+import { formatAmount } from '@/app/utils/format'
+
+// v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
+//   詳細はこちらに集約する (カードクリックで開く)。
+export function RealEstateDetail({
+  asset,
+  session,
+  onHouseClick,
+  onPersonClick,
+  onPolityClick,
+  onHoldingClick,
+}: {
+  asset: RealEstateAsset
+  session: SimulationSession | null
+  onHouseClick: ClickHandler
+  onPersonClick: (id: string) => void
+  onPolityClick: ClickHandler
+  onHoldingClick: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const currentState = session?.currentState ?? null
+  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+
+  const kindName = t(`detail.realEstate.kind_${asset.realEstateKind}`, {
+    defaultValue: asset.realEstateKind,
+  })
+
+  // レシピ構成: recipeSlots の値合計を分母に割合化。count 降順・同点は recipeId 昇順で決定論的。
+  const recipeEntries = (
+    Object.entries(asset.recipeSlots) as [ProductionRecipeId, number | undefined][]
+  )
+    .filter((e): e is [ProductionRecipeId, number] => (e[1] ?? 0) > 0)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+  const totalSlots = recipeEntries.reduce((sum, [, n]) => sum + n, 0)
+
+  // per-asset の雇用枠 (capacityPerLevel × level)。employedSize は holding 単位でしか取れないため、
+  //   単一 asset では誤読を避けて capacity (枠) のみを表示する。
+  const capacitySlots = def.employmentSlots.map((slot) => ({
+    stratum: slot.stratum,
+    capacity: slot.capacityPerLevel * asset.level,
+  }))
+
+  // per-asset の月次産出・収支 (snapshot がある場合)。
+  const revenueSnapshot = currentState?.monthlyHoldingResourceRevenue[asset.holdingId]
+  const assetResult = revenueSnapshot?.assetResults.find((ar) => ar.assetId === asset.id)
+  const outputs = assetResult
+    ? Object.entries(assetResult.outputs).filter(
+        (e): e is [string, number] => e[1] !== undefined && e[1] > 0,
+      )
+    : []
+
+  const seizure = currentState ? getActiveSeizureForAsset(currentState, asset.id) : null
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      <PanelHeader title={`${kindName} Lv.${asset.level}`} />
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.realEstate.owner')}:</span>
+          {asset.owner ? (
+            asset.owner.kind === 'house' && currentState ? (
+              <HouseLink
+                houseId={asset.owner.id}
+                houses={currentState.houses}
+                onClick={onHouseClick}
+              />
+            ) : asset.owner.kind === 'person' && currentState ? (
+              <PersonLink
+                personId={asset.owner.id}
+                persons={currentState.persons}
+                onClick={onPersonClick}
+              />
+            ) : asset.owner.kind === 'polity' && currentState ? (
+              <PolityLink polityId={asset.owner.id} world={currentState} onClick={onPolityClick} />
+            ) : (
+              <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
+            )
+          ) : (
+            <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
+          )}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.realEstate.real_estate_location')}:</span>
+          <button
+            className="cursor-pointer text-blue-400 hover:text-blue-300"
+            onClick={() => onHoldingClick(asset.holdingId)}
+          >
+            {currentState ? getHoldingShortName(currentState, resolveName, asset.holdingId) : '—'}
+          </button>
+        </div>
+      </div>
+
+      {seizure && currentState && (
+        <div className="mt-0.5 rounded border border-amber-700/50 bg-amber-950/30 px-1.5 py-1 text-xs text-amber-300">
+          <div className="font-medium">
+            ⚠ {t('detail.realEstate.seized')}
+            {' — '}
+            {t('detail.realEstate.prescriptionRemaining', {
+              years: Math.floor(
+                getSeizurePrescriptionRemainingYears(currentState, defaultConfig, seizure),
+              ),
+            })}
+          </div>
+          <div className="mt-0.5 flex justify-between">
+            <span className="text-amber-400/70">
+              {t('detail.obligation.seized_by', { defaultValue: '押領者' })}:
+            </span>
+            <PolityLink
+              polityId={seizure.seizerPolityId}
+              world={currentState}
+              onClick={onPolityClick}
+            />
+          </div>
+        </div>
+      )}
+
+      <DetailSection
+        title={t('detail.realEstate.recipe_composition')}
+        count={recipeEntries.length}
+      />
+      {recipeEntries.length === 0 ? (
+        <div className="text-xs text-gray-500 italic">{t('detail.realEstate.no_recipe')}</div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {recipeEntries.map(([recipeId, slots]) => {
+            const pct = totalSlots > 0 ? (slots / totalSlots) * 100 : 0
+            return (
+              <div key={recipeId} className="flex items-center gap-1.5 text-xs">
+                <span className="w-24 shrink-0 text-gray-300">
+                  {t(`detail.realEstate.recipe.${recipeId}`, { defaultValue: recipeId })}
+                </span>
+                <div className="h-2 flex-1 overflow-hidden rounded bg-gray-600">
+                  <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="w-20 shrink-0 text-right text-gray-400">
+                  {slots} ({pct.toFixed(0)}%)
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <DetailSection
+        title={t('detail.realEstate.employment_capacity')}
+        count={capacitySlots.length}
+      />
+      <div className="flex flex-col gap-0.5 text-xs">
+        {capacitySlots.map((slot) => (
+          <div key={slot.stratum} className="flex justify-between">
+            <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
+            <span className="text-gray-300">{slot.capacity.toFixed(0)}</span>
+          </div>
+        ))}
+      </div>
+
+      {assetResult && (
+        <>
+          <DetailSection title={t('detail.realEstate.output')} count={outputs.length} />
+          {outputs.length > 0 && (
+            <div className="flex flex-col gap-0.5 text-xs">
+              {outputs.map(([res, amount]) => (
+                <div key={res} className="flex justify-between">
+                  <span className="text-gray-400">
+                    {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}:
+                  </span>
+                  <span className="text-gray-300">{amount.toFixed(0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-500">{t('detail.realEstate.gross_revenue')}:</span>
+              <span className="text-gray-300">{formatAmount(assetResult.grossRevenue)}</span>
+            </div>
+            {assetResult.inputCost > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">{t('detail.realEstate.input_cost')}:</span>
+                <span className="text-rose-400">-{formatAmount(assetResult.inputCost)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">{t('detail.realEstate.net_revenue')}:</span>
+              <span className={assetResult.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                {formatAmount(assetResult.netRevenue)}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

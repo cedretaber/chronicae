@@ -711,6 +711,36 @@ detail:
     resource_jewelry: 'Jewelry'
     resource_smoked_fish: 'Smoked fish'
     resource_processed_meat: 'Processed meat'
+    # v0.55 real estate detail panel
+    detail_window_title: 'Real Estate: {{name}}'
+    recipe_composition: 'Recipe composition'
+    employment_capacity: 'Employment capacity'
+    no_recipe: 'No recipe assigned'
+    # v0.55 production recipe names (23 kinds)
+    recipe:
+      grain_field: 'Grain field'
+      flax_field: 'Flax field'
+      sheep_pasture: 'Sheep pasture'
+      cattle_pasture: 'Cattle pasture'
+      orchard: 'Orchard'
+      vineyard: 'Vineyard'
+      dye_garden: 'Dye garden'
+      fishing_hut: 'Fishing hut'
+      farm_brewery: 'Farm brewery'
+      farm_weaving_shed: 'Farm weaving shed'
+      iron_mine: 'Iron mine'
+      gem_mine: 'Gem mine'
+      quarry: 'Quarry'
+      logging_hut: 'Logging hut'
+      hunting_lodge: 'Hunting lodge'
+      urban_brewery: 'Urban brewery'
+      textile_workshop: 'Textile workshop'
+      tailor: 'Tailor'
+      luxury_tailor: 'Luxury tailor'
+      tool_workshop: 'Tool workshop'
+      jeweler_workshop: 'Jeweler workshop'
+      smokehouse: 'Smokehouse'
+      butcher_workshop: 'Butcher workshop'
 
   # v0.54 market detail panel (per-StateRegion resource market)
   market:
