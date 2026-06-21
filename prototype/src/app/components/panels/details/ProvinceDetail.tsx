@@ -495,9 +495,9 @@ export function ProvinceDetail({
       <div className="text-sm">
         {(
           [
-            [t('detail.province.peasants'), peasantRevoltTendency],
-            [t('detail.province.townsmen'), townsmenRevoltTendency],
-            [t('detail.province.nobles'), noblesRevoltTendency],
+            [t('detail.province.lower'), peasantRevoltTendency],
+            [t('detail.province.middle'), townsmenRevoltTendency],
+            [t('detail.province.upper'), noblesRevoltTendency],
           ] as const
         ).map(([label, tendency]) => (
           <div key={label} className="flex justify-between">

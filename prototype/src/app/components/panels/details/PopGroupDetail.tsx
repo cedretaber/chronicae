@@ -31,14 +31,9 @@ export function PopGroupDetail({
 
   const worldState: WorldState | null = currentState ?? null
 
-  const classLabel =
-    popGroup.class === 'lower'
-      ? t('detail.province.peasants')
-      : popGroup.class === 'middle'
-        ? t('detail.province.townsmen')
-        : popGroup.class === 'upper'
-          ? t('detail.province.nobles')
-          : popGroup.class
+  const classLabel = `${t(`detail.province.pop_type.${popGroup.popType}`, {
+    defaultValue: popGroup.popType,
+  })} (${t(`detail.province.${popGroup.class}`, { defaultValue: popGroup.class })})`
 
   return (
     <div className="flex flex-col gap-1 p-3">
