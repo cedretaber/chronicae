@@ -1659,7 +1659,7 @@ export const defaultConfig: SimulationConfig = {
   povertyUnrestGain: 0.02,
   prosperityWealthThreshold: 70,
   prosperityUnrestReduction: 0.01,
-  unrestNaturalDecayRate: 0.005,
+  unrestNaturalDecayRate: 0.05,
   retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,

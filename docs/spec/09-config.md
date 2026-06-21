@@ -490,7 +490,7 @@
 | povertyUnrestGain | 0.02 | 貧困による unrest 上昇係数 |
 | prosperityWealthThreshold | 70 | 繁栄閾値（これ超過で unrest 低下） |
 | prosperityUnrestReduction | 0.01 | 繁栄による unrest 低下係数 |
-| unrestNaturalDecayRate | 0.005 | unrest 月次自然減衰率 |
+| unrestNaturalDecayRate | 0.05 | unrest 月次自然減衰率（v0.55: 0.005→0.05。平衡不穏度 ≈ 月次不足ペナルティ / 減衰率 のため、0.005 では essential の慢性不足で不穏度が全員 100 に飽和していた。慢性的な必需品不足自体は前近代として妥当なので供給は据え置き、回復側の減衰を上げて不穏度が勾配を持つようにした。実測 seed1×50年: pinned100 98%→0%、平均 99.4→44.5） |
 | retainedWealthGainByClass | {peasants:0.30, townsmen:0.45, nobles:0.25} | 残留富 1 に対する wealth 増加量（class 別） |
 | overExtractionThreshold | 0.95 | 過剰徴収判定の回収率閾値 |
 | overExtractionWealthSafeThreshold | 55 | この wealth 以上ならペナルティ回避 |
