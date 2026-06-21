@@ -7,6 +7,7 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+import type { NeedTier } from '../types/needCategory'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
 import type { RealEstateInfrastructureModifier } from './realEstateDefinitions'
@@ -1405,6 +1406,15 @@ export type SimulationConfig = {
   marketPriceSmoothingCurrentWeight: number
   // v0.55 §6.3: InputCategory → ResourceKind 比率配分の鋭さ (share ∝ utility^beta)。
   inputResourceChoiceBeta: number
+  // v0.55 §5.4: NeedCategory → ResourceKind 比率配分の鋭さ。
+  needResourceChoiceBeta: number
+  // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
+  //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
+  needTierFloor: Record<NeedTier, number>
+  needTierWealthHalf: Record<NeedTier, number>
+  // v0.55 §16.2: NeedTier ごとの shortage penalty (weekly wealth/unrest delta 係数)。
+  needShortageWealthPenaltyByTier: Record<NeedTier, number>
+  needShortageUnrestPenaltyByTier: Record<NeedTier, number>
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -2988,6 +2998,11 @@ export const defaultConfig: SimulationConfig = {
   marketPriceSmoothingPreviousWeight: 0.75,
   marketPriceSmoothingCurrentWeight: 0.25,
   inputResourceChoiceBeta: 2,
+  needResourceChoiceBeta: 2,
+  needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
+  needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
+  needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },
+  needShortageUnrestPenaltyByTier: { essential: 0.4, ordinary: 0.1, luxury: 0.02 },
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,

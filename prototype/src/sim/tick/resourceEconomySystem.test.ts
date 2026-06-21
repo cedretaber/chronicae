@@ -25,6 +25,7 @@ import type {
 import { makeEmptyV016State, withProvince, withHolding, withHouse } from '../testFixtures'
 import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { computeAllocatedLaborByAsset } from '../selectors/resourceProductionSelectors'
+import { computePopNeedDemand } from '../selectors/resourceMarketSelectors'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 
 // grain 専業の recipeSlots 上書き (供給/需要を単一 resource に絞るテスト用)。
@@ -241,36 +242,38 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(ar.netRevenue).toBeGreaterThan(0)
   })
 
-  it('正の充足チャネルは需要ゼロの資源で発火しない (buyOrders=0 ゲート)', () => {
-    // peasants のみ (processed 需要 0) の市場。processed 正チャネルを巨大にしても wealth は跳ねない。
+  it('essential need 全面 shortage は wealth を下げ unrest を上げる (§16.2)', () => {
+    // 生産 asset の無い市場 → POP の essential need (staple/protein/drink/clothing) が全て未充足。
+    //   §16 shortage penalty で wealth-/unrest+。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
-    state = withAsset(state, hd, 'farm').state
     state = withEmployedPop(state, hd, 'lower', 100, 50)
-    // food 系チャネルを 0 にし、processed 正チャネルだけ巨大にして単離する。
-    const cfg: SimulationConfig = {
-      ...defaultConfig,
-      foodShortageWealthPenalty: 0,
-      foodHighPriceWealthPenalty: 0,
-      foodFulfillmentWealthGain: 0,
-      foodShortageUnrestGain: 0,
-      foodHighPriceUnrestGain: 0,
-      foodFulfillmentUnrestReduction: 0,
-      processedGoodsShortageWealthPenalty: 0,
-      processedGoodsShortageUnrestGain: 0,
-      processedGoodsFulfillmentWealthGain: 50, // 巨大: ゲートが無ければ wealth が跳ねる
-      processedGoodsFulfillmentUnrestReduction: 0,
-      // lower (旧 peasants) が processed を需要しないことを保証
-      popProcessedGoodsDemandPerSizeByClass: {
-        ...defaultConfig.popProcessedGoodsDemandPerSizeByClass,
-        lower: 0,
-      },
-    }
-    const result = runEcon(state, cfg)
+    const result = runEcon(state)
     const popId = state.popIndex.byHolding[hd]![0]!
-    // processed 需要ゼロ → 正チャネル発火せず wealth 不変 (50 のまま)
-    expect(result.popGroups[popId]!.wealth).toBe(50)
+    const pop = result.popGroups[popId]!
+    expect(pop.wealth).toBeLessThan(50)
+    expect(pop.unrest).toBeGreaterThan(0)
+  })
+
+  it('需要 0 の NeedCategory は wellbeing 集計に含めない (§16.1)', () => {
+    // 貧困 lower pop (wealth 0) は luxury tier の purchasingPowerFactor が floor 0 → 需要 0。
+    //   luxury 供給がゼロでも luxury shortage では penalty を受けない (essential のみ対象)。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    // grain 専業 farm を十分に置き staple は満たす。
+    state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
+    state = withEmployedPop(state, hd, 'lower', 100, 0)
+    const needs = computePopNeedDemand(
+      state.popGroups[state.popIndex.byHolding[hd]![0]!]!,
+      defaultConfig,
+      (r) => RESOURCE_PRICE_DEFINITIONS[r].basePrice,
+    )
+    // wealth 0 の lower pop は luxury カテゴリを需要しない。
+    expect(needs.some((n) => n.tier === 'luxury')).toBe(false)
+    // essential は需要する。
+    expect(needs.some((n) => n.tier === 'essential')).toBe(true)
   })
 
   it('does not consume RNG and does not mutate treasury (Phase 2-3 side-effect boundary)', () => {

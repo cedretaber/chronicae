@@ -11,10 +11,7 @@ import type {
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import {
-  RESOURCE_PRICE_DEFINITIONS,
-  getSmoothedPriceOrBase,
-} from '../config/resourceEconomyDefinitions'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
@@ -24,9 +21,10 @@ import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGr
 import {
   computeResourcePrice,
   computeMarketFulfillment,
-  getPopResourceDemand,
+  computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
-import { clamp100 } from '../utils/math'
+import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
+import { clamp, clamp100 } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
@@ -51,8 +49,8 @@ type MarketAccum = {
   recipes: RecipeRecord[]
   // §12: 全 resource の buyOrders (POP 消費需要 + recipe input 需要)。supply は清算ループで level 昇順に算出。
   demand: Record<ResourceKind, number>
-  // §16: market 内の POP に staple/ordinary の充足率・価格を反映するため popId を集める。
-  popGroupIds: PopGroupId[]
+  // §16: 各 POP の NeedCategory 解決を保持し、清算後の per-pop wellbeing 計算に使う。
+  popDemands: { popId: PopGroupId; needs: ResolvedNeedCategory[] }[]
 }
 
 function emptyResourceRecord(): Record<ResourceKind, number> {
@@ -79,7 +77,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       marketKey,
       recipes: [],
       demand: emptyResourceRecord(),
-      popGroupIds: [],
+      popDemands: [],
     }
     markets.push(accum)
 
@@ -135,16 +133,18 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           }
         }
 
-        // POP の消費需要 (§12.3 step 3)。
-        //   v0.55 Phase 1 stopgap: grain=staple / beer=ordinary。NeedCategory 化前の暫定で、
-        //   Phase 4 で getPopResourceDemand を NeedCategory ベースへ全面置換する (TODO §5)。
+        // POP の消費需要 (§5.4 / §12.3 step 3): NeedCategory 別需要を ResourceKind buyOrders へ展開。
         const popIds = state.popIndex.byHolding[holdingId] ?? []
         for (const popId of popIds) {
           const pop = state.popGroups[popId]
           if (!pop) continue
-          accum.demand.grain += getPopResourceDemand(pop, 'grain', config)
-          accum.demand.beer += getPopResourceDemand(pop, 'beer', config)
-          accum.popGroupIds.push(popId)
+          const needs = computePopNeedDemand(pop, config, marketPriceLookup)
+          for (const cat of needs) {
+            for (const res of cat.resources) {
+              accum.demand[res.resource] += res.buyOrders
+            }
+          }
+          accum.popDemands.push({ popId, needs })
         }
       }
     }
@@ -212,10 +212,6 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         sellOrders[resource] = sell
       }
     }
-
-    // v0.55 Phase 1 stopgap: staple=grain / ordinary=beer (Phase 4 で NeedCategory 集約へ置換)。
-    const foodFulfill = fulfillment.grain
-    const processedFulfill = fulfillment.beer
 
     // ─── Pass 2: per-asset 売却益 (§12.5 課金ポリシー) ───
     // produced は全量 price で売れる (sellRatio 廃止)。複数 input shortage 時は律速 input に合わせて
@@ -346,46 +342,29 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       }
     }
 
-    // ─── §13 step 13 / §19: food/processed 充足率・価格を POP wealth/unrest に反映 ───
-    // 負のチャネル: shortage 時 wealth-/unrest+ (shortageSeverity 比例)。
-    // 高価格チャネル: priceMultiplier 超過に応じた生活費負担 (shortage とは別概念)。
-    // 正のチャネル (§19.2, load-bearing): 充足かつ価格安定で wealth+/unrest- (fulfillmentRatio ベース)。
-    //   market の値を同 market 内 POP に一律適用。clamp 0..100。
-    // 重要: 正のチャネルは「その財を実際に需要している」ときのみ発火させる。buyOrders=0 の市場では
-    //   fulfillmentRatio が sentinel の 1 を返すため、ゲートしないと需要ゼロの財で満額の満足ボーナスが
-    //   付いてしまう (例: 加工品を需要しない貧困 peasant のみの市場)。需要ゼロは contentment 0 が正。
-    const foodHasDemand = buyOrders.grain > 0
-    const processedHasDemand = buyOrders.beer > 0
-    const foodFulfillmentRatio = foodFulfill.fulfillmentRatio
-    const foodShortageSeverity = foodFulfill.shortageSeverity
-    const foodPriceExcess = Math.max(
-      0,
-      price.grain / RESOURCE_PRICE_DEFINITIONS.grain.basePrice - 1,
-    )
-    // §19.2 正の効果は「充足 かつ 価格安定」が条件。価格高騰時は減衰させる。需要ゼロなら 0。
-    const foodWellbeing = foodHasDemand
-      ? foodFulfillmentRatio * Math.max(0, 1 - foodPriceExcess)
-      : 0
-    const processedShortageSeverity = processedFulfill.shortageSeverity
-    const processedWellbeing = processedHasDemand ? processedFulfill.fulfillmentRatio : 0
-
-    const wealthDelta =
-      -config.foodShortageWealthPenalty * foodShortageSeverity -
-      config.foodHighPriceWealthPenalty * foodPriceExcess +
-      config.foodFulfillmentWealthGain * foodWellbeing -
-      config.processedGoodsShortageWealthPenalty * processedShortageSeverity +
-      config.processedGoodsFulfillmentWealthGain * processedWellbeing
-    const unrestDelta =
-      config.foodShortageUnrestGain * foodShortageSeverity +
-      config.foodHighPriceUnrestGain * foodPriceExcess -
-      config.foodFulfillmentUnrestReduction * foodWellbeing +
-      config.processedGoodsShortageUnrestGain * processedShortageSeverity -
-      config.processedGoodsFulfillmentUnrestReduction * processedWellbeing
-
-    if (wealthDelta !== 0 || unrestDelta !== 0) {
-      for (const popId of market.popGroupIds) {
-        const pop = newPopGroups[popId]
-        if (!pop) continue
+    // ─── §16: NeedCategory 別 fulfillment を per-pop で集計し wealth/unrest へ反映 ───
+    //   各 pop の need 解決 (pass1 で smoothedPrice ベースに確定済み) を使い、各 category の
+    //   categoryFulfillment = Σ share_i × marketFulfillmentRatio_i (need value 加重, §16.1) を求める。
+    //   shortage = 1 - fulfillment。tier 別 penalty を weekly delta に積む (§16.2)。
+    //   需要 0 の category は pass1 で除外済み (resources 空は popDemands に入らない)。
+    //   NOTE: pop.wealth は 0..100 の指数なので spec §16.2 の ×pop.size は適用しない (index delta)。
+    for (const { popId, needs } of market.popDemands) {
+      if (needs.length === 0) continue
+      const pop = newPopGroups[popId]
+      if (!pop) continue
+      let wealthDelta = 0
+      let unrestDelta = 0
+      for (const cat of needs) {
+        let fulfillmentC = 0
+        for (const res of cat.resources) {
+          fulfillmentC += res.share * fulfillment[res.resource].fulfillmentRatio
+        }
+        const shortage = 1 - clamp(fulfillmentC, 0, 1)
+        if (shortage <= 0) continue
+        wealthDelta -= config.needShortageWealthPenaltyByTier[cat.tier] * shortage
+        unrestDelta += config.needShortageUnrestPenaltyByTier[cat.tier] * shortage
+      }
+      if (wealthDelta !== 0 || unrestDelta !== 0) {
         const newWealth = clamp100(pop.wealth + wealthDelta)
         const newUnrest = clamp100(pop.unrest + unrestDelta)
         if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
