@@ -9,7 +9,7 @@ import { RESOURCE_KINDS } from '../types/resource'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 import {
-  computeInfrastructureModifier,
+  computeAssetSlotCapacityTerm,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelectors'
@@ -55,27 +55,21 @@ function getRealEstateAssetClassCapacityContribution(
   const province = state.provinces[holding.provinceId]
   if (!province) return 0
 
-  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-  let assetTerm = 0
-  for (const slot of def.employmentSlots) {
-    if (slot.popClass !== popClass) continue
-    const terrainMult =
-      config.realEstateTerrainCapacityMultiplier[asset.realEstateKind][province.terrain] ?? 1.0
-    let featureProduct = 1.0
-    for (const f of province.features) {
-      featureProduct *= config.realEstateFeatureCapacityMultiplier[asset.realEstateKind][f] ?? 1.0
-    }
-    const featureMult = clamp(featureProduct, 0.75, 1.5)
-
-    const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
-    const improvementIds = state.holdingImprovementIndex.byHolding[asset.holdingId as string] ?? []
-    for (const impId of improvementIds) {
-      const imp = state.holdingImprovements[impId]
-      if (imp) improvements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
-    }
-    const infraMod = computeInfrastructureModifier(asset.realEstateKind, improvements, config)
-    assetTerm += slot.capacityPerLevel * asset.level * terrainMult * featureMult * infraMod
+  const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
+  const improvementIds = state.holdingImprovementIndex.byHolding[asset.holdingId as string] ?? []
+  for (const impId of improvementIds) {
+    const imp = state.holdingImprovements[impId]
+    if (imp) improvements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
   }
+  const assetTerm = computeAssetSlotCapacityTerm(
+    asset.realEstateKind,
+    asset.level,
+    popClass,
+    province.terrain,
+    province.features,
+    improvements,
+    config,
+  )
 
   // overuseMod / landQuality / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
   const usedSlots = (state.realEstateAssetIndex.byHolding[asset.holdingId as string] ?? []).length

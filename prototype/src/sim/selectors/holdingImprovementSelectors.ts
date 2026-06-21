@@ -144,6 +144,35 @@ export function computeSlotOveruseModifier(
 // v0.52: capacity = (asset_term + infra_term) × weight
 // asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod × landQuality
 // infra_term = Σ(slot.capacityPerLevel × imp.level × conditionEffectiveness)
+// v0.54: 単一 asset・単一 class の slot 容量項 (capacityPerLevel × level × terrainMult ×
+//   featureMult × infraMod の slot 合計)。computeHoldingClassCapacity と
+//   getRealEstateAssetClassCapacityContribution が共有する (式の二重持ちを排除)。
+//   overuseMod / landQuality / weight など holding 共通項は呼び出し側で掛ける。
+export function computeAssetSlotCapacityTerm(
+  realEstateKind: RealEstateKind,
+  level: number,
+  popClass: PopClass,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+): number {
+  const def = REAL_ESTATE_DEFINITIONS[realEstateKind]
+  let term = 0
+  for (const slot of def.employmentSlots) {
+    if (slot.popClass !== popClass) continue
+    const terrainMult = config.realEstateTerrainCapacityMultiplier[realEstateKind][terrain] ?? 1.0
+    let featureProduct = 1.0
+    for (const f of features) {
+      featureProduct *= config.realEstateFeatureCapacityMultiplier[realEstateKind][f] ?? 1.0
+    }
+    const featureMult = clamp(featureProduct, 0.75, 1.5)
+    const infraMod = computeInfrastructureModifier(realEstateKind, improvements, config)
+    term += slot.capacityPerLevel * level * terrainMult * featureMult * infraMod
+  }
+  return term
+}
+
 export function computeHoldingClassCapacity(
   _holdingKind: HoldingKind,
   weight: number,
@@ -159,21 +188,15 @@ export function computeHoldingClassCapacity(
   let assetTerm = 0
   if (assets && assets.length > 0) {
     for (const asset of assets) {
-      const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-      for (const slot of def.employmentSlots) {
-        if (slot.popClass !== popClass) continue
-
-        const terrainMult =
-          config.realEstateTerrainCapacityMultiplier[asset.realEstateKind][terrain] ?? 1.0
-        let featureProduct = 1.0
-        for (const f of features) {
-          featureProduct *=
-            config.realEstateFeatureCapacityMultiplier[asset.realEstateKind][f] ?? 1.0
-        }
-        const featureMult = clamp(featureProduct, 0.75, 1.5)
-        const infraMod = computeInfrastructureModifier(asset.realEstateKind, improvements, config)
-        assetTerm += slot.capacityPerLevel * asset.level * terrainMult * featureMult * infraMod
-      }
+      assetTerm += computeAssetSlotCapacityTerm(
+        asset.realEstateKind,
+        asset.level,
+        popClass,
+        terrain,
+        features,
+        improvements,
+        config,
+      )
     }
   }
   const overuseMod = slotOveruseModifier ?? 1.0
