@@ -1403,6 +1403,8 @@ export type SimulationConfig = {
   marketResourcePriceHistoryLimit: number
   marketPriceSmoothingPreviousWeight: number
   marketPriceSmoothingCurrentWeight: number
+  // v0.55 §6.3: InputCategory → ResourceKind 比率配分の鋭さ (share ∝ utility^beta)。
+  inputResourceChoiceBeta: number
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -2985,6 +2987,7 @@ export const defaultConfig: SimulationConfig = {
   marketResourcePriceHistoryLimit: 120,
   marketPriceSmoothingPreviousWeight: 0.75,
   marketPriceSmoothingCurrentWeight: 0.25,
+  inputResourceChoiceBeta: 2,
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,

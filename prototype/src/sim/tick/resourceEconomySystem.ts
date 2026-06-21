@@ -11,11 +11,15 @@ import type {
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import {
+  RESOURCE_PRICE_DEFINITIONS,
+  getSmoothedPriceOrBase,
+} from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
 } from '../selectors/resourceProductionSelectors'
+import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
 import {
   computeResourcePrice,
@@ -39,6 +43,7 @@ type RecipeRecord = {
   recipeLabor: number
   potentialOutputs: Partial<Record<ResourceKind, number>>
   potentialInputs: Partial<Record<ResourceKind, number>>
+  inputCategories: ResolvedInputCategory[]
 }
 
 type MarketAccum = {
@@ -78,6 +83,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     }
     markets.push(accum)
 
+    // §6.3 share 解決用の前月 smoothedPrice (cold-start は basePrice fallback §4.3a)。
+    const marketPriceLookup = (resource: ResourceKind): number => {
+      const ps = state.marketResourcePrices[marketResourcePriceKey(marketKey, resource)]
+      return getSmoothedPriceOrBase(ps?.smoothedPrice, resource)
+    }
+
     for (const provinceId of region.provinceIds) {
       const province = state.provinces[provinceId]
       if (!province) continue
@@ -101,6 +112,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             config,
             asset,
             allocatedLabor,
+            marketPriceLookup,
           )
 
           for (const rp of recipePotentials) {
@@ -112,6 +124,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               recipeLabor: rp.recipeLabor,
               potentialOutputs: rp.potentialOutputs,
               potentialInputs: rp.potentialInputs,
+              inputCategories: rp.inputCategories,
             })
 
             // recipe input の潜在需要 (§12.3 step 2)。supply は清算ループで level 昇順に算出する。
@@ -167,17 +180,20 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     }
 
     // recipe の input fulfillment scale (Liebig 最小律 §12.4)。input が無ければ 1。
+    //   category 単位で評価する: categoryFulfillment = Σ share_i × fulfillmentRatio_i (§6.3)、
+    //   その最小を取る (substitutable な同 category 内 resource は share 加重平均、category 間は最小律)。
     //   下位 level が clearing 済みであることに依存する (level 昇順反復で保証)。
     const recipeInputScale = (rec: RecipeRecord): number => {
+      if (rec.inputCategories.length === 0) return 1
       let scale = 1
-      let hasInput = false
-      for (const r of RESOURCE_KINDS) {
-        if (rec.potentialInputs[r] === undefined) continue
-        hasInput = true
-        const f = fulfillment[r].fulfillmentRatio
-        if (f < scale) scale = f
+      for (const cat of rec.inputCategories) {
+        let catFulfillment = 0
+        for (const res of cat.resources) {
+          catFulfillment += res.share * fulfillment[res.resource].fulfillmentRatio
+        }
+        if (catFulfillment < scale) scale = catFulfillment
       }
-      return hasInput ? scale : 1
+      return scale
     }
 
     // resource level 昇順に supply を確定し clearing する (§12.3)。
@@ -222,12 +238,14 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           recipeOutputs[r] = produced
           recipeGross += produced * price[r]
         }
-        const potIn = rec.potentialInputs[r]
-        if (potIn !== undefined) {
-          // §12.5 pro-rate: 律速 input (inputFulfillmentScale) に合わせて実消費・実コストを縮小する。
-          const consumed = potIn * outputScale
-          recipeInputs[r] = consumed
-          recipeInputCost += consumed * price[r]
+      }
+      // §12.5 pro-rate: 律速 input (inputFulfillmentScale) に合わせて実消費・実コストを縮小する。
+      //   category 解決済みの resource 別 buyOrders を outputScale で按分課金する。
+      for (const cat of rec.inputCategories) {
+        for (const res of cat.resources) {
+          const consumed = res.buyOrders * outputScale
+          recipeInputs[res.resource] = (recipeInputs[res.resource] ?? 0) + consumed
+          recipeInputCost += consumed * price[res.resource]
         }
       }
       const recipeNet = recipeGross - recipeInputCost

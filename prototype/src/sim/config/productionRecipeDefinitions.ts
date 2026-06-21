@@ -1,103 +1,311 @@
 import type { ProductionRecipeId } from '../types/ids'
 import type { ResourceKind } from '../types/resource'
 import type { RealEstateKind } from '../types/realEstateAsset'
+import type { InputCategory } from '../types/inputCategory'
+import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 
-// §7.3 ProductionRecipe: 不動産が採用する生産レシピ。
+// §8.1 ProductionRecipe: 不動産が採用する生産レシピ。
 //   生産内容は RealEstateKind ではなく recipe に持たせる (RealEstateKind は粗い分類 §7)。
-//   v0.55 Phase 1 では DAG 清算を実際に通すための最小 recipe セット。
-//   InputCategory / RecipeLaborDemand / 全 recipe カタログは Phase 2 以降で導入する。
+//   inputs は InputCategory 参照 (§6)、outputs/inputs は配列形。
+//   laborDemand (§14) は Phase 5 で型ごと追加する。
+//   係数は §8.7 の暫定値 (バランス確定値ではなく加工品が原理的に成立するかの検算用)。
+export type RecipeInputRequirement = {
+  category: InputCategory
+  amountPerOutput: number
+}
+
+export type RecipeOutputDefinition = {
+  resource: ResourceKind
+  amount: number
+}
+
 export type ProductionRecipe = {
   id: ProductionRecipeId
   allowedRealEstateKinds: RealEstateKind[]
-  outputs: Partial<Record<ResourceKind, number>>
-  inputs?: Partial<Record<ResourceKind, number>>
+  inputs?: RecipeInputRequirement[]
+  outputs: RecipeOutputDefinition[]
   // 労働あたり産出 (§11.1 recipeLabor 方式)。slot は配分比率であり生産量乗数ではない。
   baseOutputPerLabor: number
-  // 規模の経済 (§10): 同 asset 内で同 recipe を多く採用するほど slot あたり生産性が上がる。
+  // 規模の経済 (§10): config フィールドは maxMultiplierAtFullSlots を維持 (M12)。
   scaleEconomy?: {
     maxMultiplierAtFullSlots: number
   }
+  // §8.1 将来用 (v0.55 では型のみ・enforce しない / M11)。
+  allowedTerrains?: ProvinceTerrain[]
+  allowedFeatures?: ProvinceFeature[]
+  terrainOutputModifier?: Partial<Record<ProvinceTerrain, number>>
 }
 
-// v0.55 Phase 1 固定 recipe id。
+// §8 固定 recipe id。
 const GRAIN_FIELD = 'grain_field' as ProductionRecipeId
-const LOGGING_HUT = 'logging_hut' as ProductionRecipeId
-const QUARRY = 'quarry' as ProductionRecipeId
+const FLAX_FIELD = 'flax_field' as ProductionRecipeId
+const SHEEP_PASTURE = 'sheep_pasture' as ProductionRecipeId
+const CATTLE_PASTURE = 'cattle_pasture' as ProductionRecipeId
+const ORCHARD = 'orchard' as ProductionRecipeId
+const VINEYARD = 'vineyard' as ProductionRecipeId
+const DYE_GARDEN = 'dye_garden' as ProductionRecipeId
+const FISHING_HUT = 'fishing_hut' as ProductionRecipeId
+const FARM_BREWERY = 'farm_brewery' as ProductionRecipeId
+const FARM_WEAVING_SHED = 'farm_weaving_shed' as ProductionRecipeId
+
 const IRON_MINE = 'iron_mine' as ProductionRecipeId
-const WORKSHOP_BREWERY = 'workshop_brewery' as ProductionRecipeId
+const GEM_MINE = 'gem_mine' as ProductionRecipeId
+const QUARRY = 'quarry' as ProductionRecipeId
+
+const LOGGING_HUT = 'logging_hut' as ProductionRecipeId
+const HUNTING_LODGE = 'hunting_lodge' as ProductionRecipeId
+
+const URBAN_BREWERY = 'urban_brewery' as ProductionRecipeId
+const TEXTILE_WORKSHOP = 'textile_workshop' as ProductionRecipeId
+const TAILOR = 'tailor' as ProductionRecipeId
+const LUXURY_TAILOR = 'luxury_tailor' as ProductionRecipeId
 const TOOL_WORKSHOP = 'tool_workshop' as ProductionRecipeId
+const JEWELER_WORKSHOP = 'jeweler_workshop' as ProductionRecipeId
+const SMOKEHOUSE = 'smokehouse' as ProductionRecipeId
+const BUTCHER_WORKSHOP = 'butcher_workshop' as ProductionRecipeId
+
+const SCALE_2X = { maxMultiplierAtFullSlots: 2.0 }
 
 export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, ProductionRecipe> = {
-  // ── level 0 (raw) ──
+  // ── farm ──
   [GRAIN_FIELD]: {
     id: GRAIN_FIELD,
     allowedRealEstateKinds: ['farm'],
-    outputs: { grain: 1.0 },
+    outputs: [{ resource: 'grain', amount: 1.0 }],
     baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+    scaleEconomy: SCALE_2X,
   },
-  [LOGGING_HUT]: {
-    id: LOGGING_HUT,
-    allowedRealEstateKinds: ['woodland'],
-    outputs: { timber: 1.0 },
-    baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+  [FLAX_FIELD]: {
+    id: FLAX_FIELD,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'flax', amount: 1.0 }],
+    baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
+  },
+  [SHEEP_PASTURE]: {
+    id: SHEEP_PASTURE,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [
+      { resource: 'wool', amount: 0.8 },
+      { resource: 'meat', amount: 0.25 },
+    ],
+    baseOutputPerLabor: 0.55,
+    scaleEconomy: SCALE_2X,
+  },
+  [CATTLE_PASTURE]: {
+    id: CATTLE_PASTURE,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'meat', amount: 1.0 }],
+    baseOutputPerLabor: 0.6,
+    scaleEconomy: SCALE_2X,
+  },
+  [ORCHARD]: {
+    id: ORCHARD,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'fruit', amount: 1.0 }],
+    baseOutputPerLabor: 0.45,
+    scaleEconomy: SCALE_2X,
+  },
+  [VINEYARD]: {
+    id: VINEYARD,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'wine', amount: 1.0 }],
+    baseOutputPerLabor: 0.35,
+    scaleEconomy: SCALE_2X,
+  },
+  [DYE_GARDEN]: {
+    id: DYE_GARDEN,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'dye', amount: 1.0 }],
+    baseOutputPerLabor: 0.4,
+    scaleEconomy: SCALE_2X,
+  },
+  [FISHING_HUT]: {
+    id: FISHING_HUT,
+    allowedRealEstateKinds: ['farm'],
+    outputs: [{ resource: 'fish', amount: 1.0 }],
+    baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
+  },
+  // 農村自家醸造。低効率 (都市 urban_brewery 比)。
+  [FARM_BREWERY]: {
+    id: FARM_BREWERY,
+    allowedRealEstateKinds: ['farm'],
+    inputs: [{ category: 'brewing_grain', amountPerOutput: 0.8 }],
+    outputs: [{ resource: 'beer', amount: 1.0 }],
+    baseOutputPerLabor: 0.5,
+    scaleEconomy: SCALE_2X,
+  },
+  // 農村家内制織物。低効率・高 input。
+  [FARM_WEAVING_SHED]: {
+    id: FARM_WEAVING_SHED,
+    allowedRealEstateKinds: ['farm'],
+    inputs: [{ category: 'textile_fiber', amountPerOutput: 1.15 }],
+    outputs: [{ resource: 'fabric', amount: 1.0 }],
+    baseOutputPerLabor: 0.45,
+    scaleEconomy: SCALE_2X,
+  },
+  // ── mountain ──
+  [IRON_MINE]: {
+    id: IRON_MINE,
+    allowedRealEstateKinds: ['mountain'],
+    outputs: [{ resource: 'iron_ore', amount: 1.0 }],
+    baseOutputPerLabor: 0.55,
+    scaleEconomy: SCALE_2X,
+  },
+  [GEM_MINE]: {
+    id: GEM_MINE,
+    allowedRealEstateKinds: ['mountain'],
+    outputs: [{ resource: 'gems', amount: 1.0 }],
+    baseOutputPerLabor: 0.15,
+    scaleEconomy: SCALE_2X,
   },
   [QUARRY]: {
     id: QUARRY,
     allowedRealEstateKinds: ['mountain'],
-    outputs: { stone: 1.0 },
-    baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+    outputs: [{ resource: 'stone', amount: 1.0 }],
+    baseOutputPerLabor: 0.8,
+    scaleEconomy: SCALE_2X,
   },
-  [IRON_MINE]: {
-    id: IRON_MINE,
-    allowedRealEstateKinds: ['mountain'],
-    outputs: { iron_ore: 1.0 },
-    baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+  // ── woodland ──
+  [LOGGING_HUT]: {
+    id: LOGGING_HUT,
+    allowedRealEstateKinds: ['woodland'],
+    outputs: [{ resource: 'timber', amount: 1.0 }],
+    baseOutputPerLabor: 0.8,
+    scaleEconomy: SCALE_2X,
   },
-  // ── level 1 (加工) ──
-  // dual-use grain 検証: grain は POP staple 需要 + brewery input 需要を持つ。
-  [WORKSHOP_BREWERY]: {
-    id: WORKSHOP_BREWERY,
+  // 毛皮を主産物、肉を副産物とする。
+  [HUNTING_LODGE]: {
+    id: HUNTING_LODGE,
+    allowedRealEstateKinds: ['woodland'],
+    outputs: [
+      { resource: 'fur', amount: 0.4 },
+      { resource: 'meat', amount: 0.3 },
+    ],
+    baseOutputPerLabor: 0.5,
+    scaleEconomy: SCALE_2X,
+  },
+  // ── workshop (level 1: 一次加工 / level 2: clothes・luxury_clothes) ──
+  [URBAN_BREWERY]: {
+    id: URBAN_BREWERY,
     allowedRealEstateKinds: ['workshop'],
-    inputs: { grain: 1.0 },
-    outputs: { beer: 1.0 },
-    baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+    inputs: [{ category: 'brewing_grain', amountPerOutput: 0.65 }],
+    outputs: [{ resource: 'beer', amount: 1.0 }],
+    baseOutputPerLabor: 1.1,
+    scaleEconomy: SCALE_2X,
   },
-  // 複数 input 検証 (Liebig 最小律 §12.4): iron_ore + timber -> tools。
+  [TEXTILE_WORKSHOP]: {
+    id: TEXTILE_WORKSHOP,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [{ category: 'textile_fiber', amountPerOutput: 0.9 }],
+    outputs: [{ resource: 'fabric', amount: 1.0 }],
+    baseOutputPerLabor: 1.05,
+    scaleEconomy: SCALE_2X,
+  },
+  [TAILOR]: {
+    id: TAILOR,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [{ category: 'fabric', amountPerOutput: 0.65 }],
+    outputs: [{ resource: 'clothes', amount: 1.0 }],
+    baseOutputPerLabor: 0.85,
+    scaleEconomy: SCALE_2X,
+  },
+  [LUXURY_TAILOR]: {
+    id: LUXURY_TAILOR,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [
+      { category: 'fabric', amountPerOutput: 0.7 },
+      { category: 'dye_material', amountPerOutput: 0.4 },
+      { category: 'luxury_trim', amountPerOutput: 0.4 },
+    ],
+    outputs: [{ resource: 'luxury_clothes', amount: 1.0 }],
+    baseOutputPerLabor: 0.35,
+    scaleEconomy: SCALE_2X,
+  },
+  // v0.55 では metal=iron_ore / construction_wood=timber。
   [TOOL_WORKSHOP]: {
     id: TOOL_WORKSHOP,
     allowedRealEstateKinds: ['workshop'],
-    inputs: { iron_ore: 1.0, timber: 1.0 },
-    outputs: { tools: 1.0 },
-    baseOutputPerLabor: 1.0,
-    scaleEconomy: { maxMultiplierAtFullSlots: 2.0 },
+    inputs: [
+      { category: 'metal', amountPerOutput: 0.5 },
+      { category: 'construction_wood', amountPerOutput: 0.5 },
+    ],
+    outputs: [{ resource: 'tools', amount: 1.0 }],
+    baseOutputPerLabor: 0.6,
+    scaleEconomy: SCALE_2X,
+  },
+  [JEWELER_WORKSHOP]: {
+    id: JEWELER_WORKSHOP,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [{ category: 'gems', amountPerOutput: 0.5 }],
+    outputs: [{ resource: 'jewelry', amount: 1.0 }],
+    baseOutputPerLabor: 0.25,
+    scaleEconomy: SCALE_2X,
+  },
+  // 燻製燃料・加工材として construction_wood を要求する。
+  [SMOKEHOUSE]: {
+    id: SMOKEHOUSE,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [
+      { category: 'raw_fish', amountPerOutput: 0.7 },
+      { category: 'construction_wood', amountPerOutput: 0.2 },
+    ],
+    outputs: [{ resource: 'smoked_fish', amount: 1.0 }],
+    baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
+  },
+  [BUTCHER_WORKSHOP]: {
+    id: BUTCHER_WORKSHOP,
+    allowedRealEstateKinds: ['workshop'],
+    inputs: [{ category: 'raw_meat', amountPerOutput: 0.75 }],
+    outputs: [{ resource: 'processed_meat', amount: 1.0 }],
+    baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
   },
 }
 
-// v0.55 Phase 1: RealEstateKind ごとの既定 recipeSlots。各 asset は 20 slot を主 recipe へ配分する。
-//   slotCount は config.realEstateRecipeSlotCount と一致させる (integrity §21.1 で検査)。
-//   Phase 2 で DefaultRecipeSlotProfile (比率 + largest-remainder) へ置換する。
+// §9 DefaultRecipeSlotProfile: RealEstateKind ごとの初期 recipe weight (比率)。
+//   実際の整数 slot は config.realEstateRecipeSlotCount から largest-remainder で決定論的に計算する。
 const DEFAULT_RECIPE_WEIGHTS_BY_KIND: Record<
   RealEstateKind,
   { recipeId: ProductionRecipeId; weight: number }[]
 > = {
-  farm: [{ recipeId: GRAIN_FIELD, weight: 1 }],
-  mountain: [
-    { recipeId: QUARRY, weight: 1 },
-    { recipeId: IRON_MINE, weight: 1 },
+  farm: [
+    { recipeId: GRAIN_FIELD, weight: 6 },
+    { recipeId: FLAX_FIELD, weight: 2 },
+    { recipeId: SHEEP_PASTURE, weight: 3 },
+    { recipeId: CATTLE_PASTURE, weight: 3 },
+    { recipeId: ORCHARD, weight: 1 },
+    { recipeId: VINEYARD, weight: 1 },
+    { recipeId: DYE_GARDEN, weight: 1 },
+    { recipeId: FISHING_HUT, weight: 1 },
+    { recipeId: FARM_BREWERY, weight: 2 },
+    { recipeId: FARM_WEAVING_SHED, weight: 2 },
   ],
-  woodland: [{ recipeId: LOGGING_HUT, weight: 1 }],
+  mountain: [
+    { recipeId: IRON_MINE, weight: 4 },
+    { recipeId: GEM_MINE, weight: 1 },
+    { recipeId: QUARRY, weight: 5 },
+  ],
+  woodland: [
+    { recipeId: LOGGING_HUT, weight: 6 },
+    { recipeId: HUNTING_LODGE, weight: 4 },
+  ],
   workshop: [
-    { recipeId: TOOL_WORKSHOP, weight: 1 },
-    { recipeId: WORKSHOP_BREWERY, weight: 1 },
+    { recipeId: URBAN_BREWERY, weight: 2 },
+    { recipeId: TEXTILE_WORKSHOP, weight: 3 },
+    { recipeId: TAILOR, weight: 3 },
+    { recipeId: LUXURY_TAILOR, weight: 1 },
+    { recipeId: TOOL_WORKSHOP, weight: 3 },
+    { recipeId: JEWELER_WORKSHOP, weight: 1 },
+    { recipeId: SMOKEHOUSE, weight: 2 },
+    { recipeId: BUTCHER_WORKSHOP, weight: 2 },
   ],
 }
 
 // weight に比例して slotCount を整数配分する (largest-remainder, determinism)。
+//   合計が必ず slotCount と一致する (§9.1)。
 function distributeSlots(
   weights: { recipeId: ProductionRecipeId; weight: number }[],
   slotCount: number,

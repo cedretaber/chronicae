@@ -7,11 +7,23 @@ import { createTickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PopGroup, PopClass } from '../types/popGroup'
 import type { RealEstateAsset, RealEstateKind, AssetOwnerRef } from '../types/realEstateAsset'
-import type { ProvinceId, HoldingId, PopGroupId, RealEstateAssetId, HouseId } from '../types/ids'
+import type {
+  ProvinceId,
+  HoldingId,
+  PopGroupId,
+  RealEstateAssetId,
+  HouseId,
+  ProductionRecipeId,
+} from '../types/ids'
 import { makeEmptyV016State, withProvince, withHolding, withHouse } from '../testFixtures'
 import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { computeAllocatedLaborByAsset } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+
+// grain 専業の recipeSlots 上書き (供給/需要を単一 resource に絞るテスト用)。
+const GRAIN_ONLY: Partial<Record<ProductionRecipeId, number>> = {
+  ['grain_field' as ProductionRecipeId]: 20,
+}
 
 let assetCounter = 0
 function withAsset(
@@ -20,6 +32,7 @@ function withAsset(
   kind: RealEstateKind,
   level = 1,
   owner?: AssetOwnerRef,
+  recipeSlots?: Partial<Record<ProductionRecipeId, number>>,
 ): { state: WorldState; assetId: RealEstateAssetId } {
   const assetId = ('re-' + assetCounter++) as RealEstateAssetId
   const asset: RealEstateAsset = {
@@ -28,7 +41,7 @@ function withAsset(
     realEstateKind: kind,
     level,
     createdWeek: 0,
-    recipeSlots: getDefaultRecipeSlotsForRealEstateKind(kind),
+    recipeSlots: recipeSlots ?? getDefaultRecipeSlotsForRealEstateKind(kind),
     ...(owner ? { owner } : {}),
   }
   const existing = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
@@ -133,7 +146,7 @@ describe('runResourceEconomySystem — production & market', () => {
       let state = makeEmptyV016State()
       state = withProvince(state, 'pr-0' as ProvinceId, {})
       const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
-      state = withAsset(state, hd, 'farm').state
+      state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
       state = withEmployedPop(state, hd, 'peasants', 50) // 一定の供給
       state = withEmployedPop(state, hd, 'townsmen', popSize) // 需要のみ増やす (workshop 無)
       const result = runEcon(state)
@@ -161,7 +174,7 @@ describe('runResourceEconomySystem — production & market', () => {
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
-    state = withAsset(state, hd, 'farm').state
+    state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
     state = withEmployedPop(state, hd, 'peasants', 500) // 大供給
     state = withEmployedPop(state, hd, 'townsmen', 1) // 極小の food 需要
     const result = runEcon(state)
@@ -203,7 +216,7 @@ describe('runResourceEconomySystem — production & market', () => {
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
-    const a = withAsset(state, hd, 'farm')
+    const a = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY)
     state = a.state
     state = withEmployedPop(state, hd, 'peasants', 50) // 供給
     state = withEmployedPop(state, hd, 'townsmen', 400) // food 需要のみ

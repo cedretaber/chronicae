@@ -5,14 +5,17 @@ import type { PopClass } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ResourceKind } from '../types/resource'
-import { RESOURCE_KINDS } from '../types/resource'
+import type { InputCategory } from '../types/inputCategory'
+import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
+import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import {
   computeAssetSlotCapacityTerm,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelectors'
+import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
 // v0.54 §9 規模の経済: 同 asset 内で同 recipe を多く採用するほど slot あたり生産性が上がる。
@@ -148,19 +151,33 @@ export function computeAllocatedLaborByAsset(
 // v0.54 §12.1: asset の recipe ごとの potential 産出/投入を計算する (市場 clearing 前の潜在値)。
 //   recipeLabor = allocatedLabor * (slotCount / totalSlots)。recipeSlots は sorted key 順 (determinism)。
 //   ResourceEconomySystem (市場 clearing) と fallback selector (potential×basePrice) の双方が使う。
+// §6.3: input category を ResourceKind buyOrders へ解決した結果 (category-Liebig / pro-rate 用)。
+export type ResolvedInputCategory = {
+  category: InputCategory
+  desiredAmount: number // amountPerOutput × potential (category value 単位)
+  resources: { resource: ResourceKind; buyOrders: number; share: number }[]
+}
+
 export type AssetRecipePotential = {
   recipeId: ProductionRecipeId
   slotCount: number
   recipeLabor: number
   potentialOutputs: Partial<Record<ResourceKind, number>>
+  // category 解決後の resource 別 buyOrders 合算 (demand 集計 / fallback 評価用)。
   potentialInputs: Partial<Record<ResourceKind, number>>
+  // category 単位の解決内訳 (§12.4 Liebig / §12.5 pro-rate 用)。
+  inputCategories: ResolvedInputCategory[]
 }
+
+const basePriceLookup = (r: ResourceKind): number => RESOURCE_PRICE_DEFINITIONS[r].basePrice
 
 export function computeAssetRecipePotentials(
   state: WorldState,
   config: SimulationConfig,
   asset: RealEstateAsset,
   allocatedLabor: number,
+  // §6.3 share 解決に使う価格。市場 clearing は smoothedPrice-or-base、fallback は basePrice。
+  priceLookup: (resource: ResourceKind) => number = basePriceLookup,
 ): AssetRecipePotential[] {
   const holding = state.holdings[asset.holdingId]
   if (!holding) return []
@@ -169,6 +186,7 @@ export function computeAssetRecipePotentials(
   // v0.54: asset.level は雇用枠 (capacityPerLevel × level、施設サイズ) にのみ効く。
   //   level→労働あたり生産性の結合は撤去 (生産性向上は将来の技術/制度システムに委ねる)。
   const facilityMod = computeProductionFacilityModifier(state, config, asset)
+  const beta = config.inputResourceChoiceBeta
 
   const results: AssetRecipePotential[] = []
   const recipeIds = (Object.keys(asset.recipeSlots) as ProductionRecipeId[]).sort()
@@ -187,18 +205,36 @@ export function computeAssetRecipePotentials(
     const potential = recipeLabor * recipe.baseOutputPerLabor * scaleMult * facilityMod * controlMod
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
-    for (const r of RESOURCE_KINDS) {
-      const coeff = recipe.outputs[r]
-      if (coeff !== undefined) potentialOutputs[r] = potential * coeff
+    for (const o of recipe.outputs) {
+      potentialOutputs[o.resource] = (potentialOutputs[o.resource] ?? 0) + potential * o.amount
     }
+
+    // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
     const potentialInputs: Partial<Record<ResourceKind, number>> = {}
+    const inputCategories: ResolvedInputCategory[] = []
     if (recipe.inputs) {
-      for (const r of RESOURCE_KINDS) {
-        const coeff = recipe.inputs[r]
-        if (coeff !== undefined) potentialInputs[r] = potential * coeff
+      for (const req of recipe.inputs) {
+        const desiredAmount = req.amountPerOutput * potential
+        const contributions = INPUT_CATEGORY_CONTRIBUTIONS[req.category]
+        const shares = resolveCategoryShares(contributions, priceLookup, beta)
+        const resources: { resource: ResourceKind; buyOrders: number; share: number }[] = []
+        for (const s of shares) {
+          // buyOrders (資源単位) = share × desiredCategoryAmount / contributionValue (§6.3)。
+          const buyOrders = (s.share * desiredAmount) / s.contributionValue
+          potentialInputs[s.resource] = (potentialInputs[s.resource] ?? 0) + buyOrders
+          resources.push({ resource: s.resource, buyOrders, share: s.share })
+        }
+        inputCategories.push({ category: req.category, desiredAmount, resources })
       }
     }
-    results.push({ recipeId, slotCount, recipeLabor, potentialOutputs, potentialInputs })
+    results.push({
+      recipeId,
+      slotCount,
+      recipeLabor,
+      potentialOutputs,
+      potentialInputs,
+      inputCategories,
+    })
   }
   return results
 }

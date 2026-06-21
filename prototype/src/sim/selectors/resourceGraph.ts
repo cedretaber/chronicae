@@ -3,6 +3,7 @@ import type { ResourceKind } from '../types/resource'
 import { RESOURCE_KINDS } from '../types/resource'
 import type { ProductionRecipe } from '../config/productionRecipeDefinitions'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
+import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
 
 // v0.55 §12.2 資源依存グラフ: recipe の input/output から resource dependency level を導出する。
 //   raw resource (どの recipe の output でもない、または input を持たない recipe の output): level 0
@@ -18,20 +19,22 @@ export type ResourceLevelResult = {
 }
 
 function recipeOutputResources(recipe: ProductionRecipe): ResourceKind[] {
-  const result: ResourceKind[] = []
-  for (const r of RESOURCE_KINDS) {
-    if (recipe.outputs[r] !== undefined) result.push(r)
-  }
-  return result
+  const seen = new Set<ResourceKind>()
+  for (const o of recipe.outputs) seen.add(o.resource)
+  return RESOURCE_KINDS.filter((r) => seen.has(r))
 }
 
+// recipe の input category を満たしうる全 ResourceKind (§6.2 の contribution resource 群)。
 function recipeInputResources(recipe: ProductionRecipe): ResourceKind[] {
   if (!recipe.inputs) return []
-  const result: ResourceKind[] = []
-  for (const r of RESOURCE_KINDS) {
-    if (recipe.inputs[r] !== undefined) result.push(r)
+  const seen = new Set<ResourceKind>()
+  for (const req of recipe.inputs) {
+    const contributions = INPUT_CATEGORY_CONTRIBUTIONS[req.category]
+    for (const r of RESOURCE_KINDS) {
+      if (contributions[r] !== undefined) seen.add(r)
+    }
   }
-  return result
+  return RESOURCE_KINDS.filter((r) => seen.has(r))
 }
 
 // recipe の input/output から resource level を計算する。純関数・RNG 非消費。

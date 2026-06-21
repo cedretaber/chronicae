@@ -48,7 +48,7 @@ import { runRightConsistencySystem } from './rightConsistencySystem'
 import { runInfluenceModifierConsistencySystem } from './influenceModifierConsistencySystem'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
-import { runPeaceSettlementSystem } from './peaceSettlementSystem'
+import { runPeaceSettlementSystem, runStaleWarGoalSweepSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
 import { runCleanupBattleLogSystem } from './cleanupBattleLogSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
@@ -549,6 +549,16 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCancelOrphanedWarsSystem,
+  },
+  {
+    // §8.8: active War の WarGoal 参照先 (landContract/holding/polity) が consistency 系の
+    //   contract consolidation 等で同 tick に消えた stale ケースを weekly に白紙和平で解消する。
+    //   peaceSettlementSystem (interval 4) が年末 integrity tick (week 47) を取りこぼすため、
+    //   cancelOrphanedWarsSystem と同型に consistency 系の後・weekly で走らせ年末 tick をカバーする。
+    name: 'staleWarGoalSweepSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runStaleWarGoalSweepSystem,
   },
   {
     // v0.36 §14: consistency 系の後・cleanupWar の前。stale war demobilize /
