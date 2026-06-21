@@ -1394,6 +1394,14 @@ export type SimulationConfig = {
   >
   realEstateInfrastructureModifiers: Record<RealEstateKind, RealEstateInfrastructureModifier[]>
   developRealEstateCapacityPressureThreshold: number
+  // v0.55 §B: holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」と判定。
+  //   既存施設が満員でなくても (capacity pressure が立たなくても) 新規開発/レベルアップで idle labor を
+  //   雇用できるため、develop_real_estate トリガ・ルーティング・house レベルアップ aim の追加シグナルにする。
+  developRealEstateEmploymentSlackThreshold: number
+  // 雇用スラック駆動の develop_owned_holding 候補の基準スコア (capacity pressure 駆動の 15 に揃える)。
+  developRealEstateEmploymentSlackScore: number
+  // 雇用スラックのある holding の improve_house_real_estate (house レベルアップ) aim に加点するボーナス。
+  improveRealEstateEmploymentSlackBonus: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
@@ -2971,6 +2979,9 @@ export const defaultConfig: SimulationConfig = {
     ],
   },
   developRealEstateCapacityPressureThreshold: 0.8,
+  developRealEstateEmploymentSlackThreshold: 5,
+  developRealEstateEmploymentSlackScore: 15,
+  improveRealEstateEmploymentSlackBonus: 8,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
   developRealEstateProjectBaseCost: {

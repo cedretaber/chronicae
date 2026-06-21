@@ -67,7 +67,12 @@ export function computeProjectMaterialBaseUnits(
     1,
     Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),
   )
-  const perAdvanceCost = required / expectedTasks
+  // required は margin (projectBudgetMarginMultiplier) 込み。旧抽象経路 (taskProjectCompletion の
+  //   acquire/crisis: required / (expectedTasks × margin)) と対称に margin で割って真の per-advance
+  //   コストを得る。margin 分はタスク回数の余裕 (失敗バッファ) に回る。割らないと per-task で margin 倍
+  //   払い、均衡価格でも予算が丁度 expectedTasks 回分=失敗許容ゼロ、かつ同じ baseUnits を使う市場需要
+  //   注入 (resourceEconomySystem) も margin 倍に過剰となり建設資材価格を吊り上げる (v0.55 regression)。
+  const perAdvanceCost = required / (expectedTasks * config.projectBudgetMarginMultiplier)
   const totalWeight = reqs.reduce((a, r) => a + r.weight, 0)
   if (totalWeight <= 0) return []
 

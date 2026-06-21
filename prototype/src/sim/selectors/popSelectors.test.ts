@@ -1,16 +1,47 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State, withProvince } from '../testFixtures'
+import { makeEmptyV016State, withProvince, withHolding } from '../testFixtures'
 import {
   getStateFoodSupply,
   getStateCarryingCapacity,
   getProvinceCarryingCapacity,
+  hasEmploymentSlack,
 } from './popSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import type { MarketResourcePriceState } from '../types/resourceEconomy'
+import type { PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
-import type { StateRegionId, ProvinceId } from '../types/ids'
+import type { StateRegionId, ProvinceId, HoldingId, PopGroupId } from '../types/ids'
 import type { ResourceKind } from '../types/resource'
+import type { PopClass } from '../types/popGroup'
+
+let popCounter = 0
+function withPop(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  size: number,
+  employed: boolean,
+): WorldState {
+  const id = ('pg-slack-' + popCounter++) as PopGroupId
+  const pop: PopGroup = {
+    id,
+    holdingId,
+    class: popClass,
+    popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
+    employed,
+    size,
+    wealth: 50,
+    unrest: 0,
+    attitudes: {},
+  }
+  const existing = state.popIndex.byHolding[holdingId] ?? []
+  return {
+    ...state,
+    popGroups: { ...state.popGroups, [id]: pop },
+    popIndex: { byHolding: { ...state.popIndex.byHolding, [holdingId]: [...existing, id] } },
+  }
+}
 
 function withFoodSupply(
   state: WorldState,
@@ -71,5 +102,45 @@ describe('food-based carrying capacity', () => {
     s = withProvince(s, 'pr-0' as ProvinceId, {})
     s = withFoodSupply(s, 'sr-0', { grain: 250 })
     expect(getProvinceCarryingCapacity(s, defaultConfig, 'pr-0' as ProvinceId)).toBeCloseTo(250, 0)
+  })
+})
+
+describe('hasEmploymentSlack (v0.55 §B)', () => {
+  function setup(): { state: WorldState; hd: HoldingId } {
+    let s = makeEmptyV016State()
+    s = withProvince(s, 'pr-0' as ProvinceId, {})
+    const hd = 'h-slack' as HoldingId
+    s = withHolding(s, hd, 'pr-0' as ProvinceId, {})
+    return { state: s, hd }
+  }
+
+  it('閾値以上の失業 POP がいれば true', () => {
+    const { state, hd } = setup()
+    const s = withPop(
+      state,
+      hd,
+      'lower',
+      defaultConfig.developRealEstateEmploymentSlackThreshold,
+      false,
+    )
+    expect(hasEmploymentSlack(s, defaultConfig, hd)).toBe(true)
+  })
+
+  it('閾値未満の失業 POP では false', () => {
+    const { state, hd } = setup()
+    const s = withPop(
+      state,
+      hd,
+      'lower',
+      defaultConfig.developRealEstateEmploymentSlackThreshold - 1,
+      false,
+    )
+    expect(hasEmploymentSlack(s, defaultConfig, hd)).toBe(false)
+  })
+
+  it('就業済み POP は失業スラックに数えない', () => {
+    const { state, hd } = setup()
+    const s = withPop(state, hd, 'lower', 100, true)
+    expect(hasEmploymentSlack(s, defaultConfig, hd)).toBe(false)
   })
 })

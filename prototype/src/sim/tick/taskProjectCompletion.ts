@@ -21,7 +21,7 @@ import {
   canBuildRealEstateAsset,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
-import { hasCapacityPressure } from '../selectors/popSelectors'
+import { hasCapacityPressure, hasEmploymentSlack } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
@@ -260,8 +260,10 @@ function buildProjectFieldsForAim(
 
       const holdingDev = getHoldingDevelopment(ws, config, holdingId)
       const hasCapPressure = hasCapacityPressure(ws, config, holdingId)
+      // v0.55 §B: 失業スラックがあれば、満員でなくても雇用を生む不動産開発ルートへ (インフラより優先)。
+      const hasSlack = hasEmploymentSlack(ws, config, holdingId)
 
-      if (hasCapPressure) {
+      if (hasCapPressure || hasSlack) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
         if (!realEstateKind) {
           // fallback: no buildable kind → try infrastructure instead
@@ -271,9 +273,11 @@ function buildProjectFieldsForAim(
             REAL_ESTATE_DEFINITIONS[realEstateKind].maxLevelByHoldingKind[
               holding?.kind ?? 'manor'
             ] ?? 3
+          const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+          const slotCap = config.realEstateSlotCapacityBase[holding?.kind ?? 'manor'] ?? 3
+          const hasSlotRoom = assetIds.length < slotCap
           // upgrade: find existing asset of this kind with level < maxLevel
           const upgradeTarget = (() => {
-            const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
             for (const aId of assetIds) {
               const a = ws.realEstateAssets[aId]
               if (a && a.realEstateKind === realEstateKind && a.level < maxLevel && !a.owner)
@@ -281,7 +285,12 @@ function buildProjectFieldsForAim(
             }
             return undefined
           })()
-          const targetLevel = upgradeTarget ? upgradeTarget.level + 1 : 1
+          // v0.55 §B: 失業スラック駆動かつ空きスロットがあれば新規建設 (level 1) を優先し、空き枠を
+          //   idle labor で埋める。空きが無ければ既存 asset の upgrade にフォールバック。純粋な
+          //   capacity pressure 時 (スラック無し) は従来どおり upgrade 優先。
+          const preferNewBuild = hasSlack && hasSlotRoom
+          const effectiveUpgradeTarget = preferNewBuild ? undefined : upgradeTarget
+          const targetLevel = effectiveUpgradeTarget ? effectiveUpgradeTarget.level + 1 : 1
           const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
           const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
           const required = baseCost * costMult * config.projectBudgetMarginMultiplier
@@ -291,7 +300,7 @@ function buildProjectFieldsForAim(
             kind: 'develop_real_estate',
             holdingId,
             realEstateKind,
-            targetRealEstateAssetId: upgradeTarget?.id,
+            targetRealEstateAssetId: effectiveUpgradeTarget?.id,
             targetRealEstateLevel: targetLevel,
             currentStageKey: getInitialProjectStageKey('develop_real_estate'),
             budget: {

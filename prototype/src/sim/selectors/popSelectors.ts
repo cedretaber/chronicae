@@ -327,3 +327,22 @@ export function hasCapacityPressure(
   }
   return false
 }
+
+// v0.55 §B: holding 内のいずれかのクラスで失業 POP が閾値以上いるか。
+//   capacity pressure (既存施設の満員度) と独立した拡張トリガで、idle labor を新規開発/レベルアップで
+//   雇用に変えられる状況を捉える。失業者がいると employed/cap はむしろ低く、capacity pressure では
+//   検出できない (意図と逆) ためのシグナル。pure read・RNG 不使用。
+export function hasEmploymentSlack(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): boolean {
+  for (const pc of POP_CLASSES) {
+    if (
+      getHoldingUnemployedPopSize(state, holdingId, pc) >=
+      config.developRealEstateEmploymentSlackThreshold
+    )
+      return true
+  }
+  return false
+}

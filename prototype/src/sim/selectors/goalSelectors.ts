@@ -31,7 +31,7 @@ import {
   getLandContractGrantor,
 } from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
-import { hasCapacityPressure } from './popSelectors'
+import { hasCapacityPressure, hasEmploymentSlack } from './popSelectors'
 import { estimateRealEstateSalePrice } from './realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from './realEstateSeizureSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -610,12 +610,16 @@ function pickPolityAim(
         const holdingDev = getHoldingDevelopment(state, config, h.id)
         const devDeficit = holdingDev < config.developHoldingTargetDevelopmentThreshold
         const capacityPressure = hasCapacityPressure(state, config, h.id)
-        if (devDeficit || capacityPressure) {
+        // v0.55 §B: 失業スラックも拡張トリガにする (失業 POP を新規開発/レベルアップで雇用)。
+        const employmentSlack = hasEmploymentSlack(state, config, h.id)
+        if (devDeficit || capacityPressure || employmentSlack) {
           const score = devDeficit
             ? 20 +
               (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5 +
               h.landQuality * 0.3
-            : 15 + h.landQuality * 0.3
+            : capacityPressure
+              ? 15 + h.landQuality * 0.3
+              : config.developRealEstateEmploymentSlackScore + h.landQuality * 0.3
           candidates.push({
             kind: 'develop_owned_holding',
             target: { kind: 'holding', id: h.id },
@@ -1009,7 +1013,10 @@ function pickHouseAim(
   {
     const ownerKey = assetOwnerKey({ kind: 'house', id: houseId })
     const ownedAssetIds = state.realEstateAssetIndex.byOwner[ownerKey] ?? []
-    let bestTarget: { holdingId: import('../types/ids').HoldingId; cost: number } | undefined
+    let bestTarget:
+      | { holdingId: import('../types/ids').HoldingId; cost: number; slack: boolean }
+      | undefined
+    let bestSlack = false
     let bestLevel = Infinity
     for (const aId of ownedAssetIds) {
       const asset = state.realEstateAssets[aId]
@@ -1022,16 +1029,21 @@ function pickHouseAim(
       const upgradeCost =
         (config.developRealEstateProjectBaseCost[asset.realEstateKind] ?? 30) * (asset.level + 1)
       if (house.wealth < upgradeCost * 1.2) continue
-      if (asset.level < bestLevel) {
+      // v0.55 §B: 失業スラックのある holding の asset を優先 (拡張分を idle labor で即雇用できる)。
+      //   同条件なら低レベル優先。
+      const slack = hasEmploymentSlack(state, config, asset.holdingId)
+      const better = (slack && !bestSlack) || (slack === bestSlack && asset.level < bestLevel)
+      if (better) {
+        bestSlack = slack
         bestLevel = asset.level
-        bestTarget = { holdingId: asset.holdingId, cost: upgradeCost }
+        bestTarget = { holdingId: asset.holdingId, cost: upgradeCost, slack }
       }
     }
     if (bestTarget) {
       candidates.push({
         kind: 'improve_house_real_estate',
         target: { kind: 'holding', id: bestTarget.holdingId },
-        score: 15,
+        score: 15 + (bestTarget.slack ? config.improveRealEstateEmploymentSlackBonus : 0),
       })
     }
   }

@@ -703,7 +703,10 @@
 | realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
 | realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
 | developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
-| developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上 |
+| developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上（既存施設の満員度トリガ） |
+| developRealEstateEmploymentSlackThreshold | 5 | holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」（v0.55 §B）。満員でなくても新規開発/レベルアップで idle labor を雇用できるための追加トリガ。capacity pressure は employed/cap が高いほど立つので失業時は逆に立たず検出できない、その穴を埋める。develop_owned_holding 候補生成・develop_real_estate vs インフラのルーティング・house レベルアップ aim の3箇所に効く。スラック駆動かつ空きスロットありなら新規建設（level 1）を優先し空き枠を埋める |
+| developRealEstateEmploymentSlackScore | 15 | 雇用スラック駆動の develop_owned_holding 候補の基準スコア（capacity pressure 駆動の 15 に揃える） |
+| improveRealEstateEmploymentSlackBonus | 8 | 失業スラックのある holding の improve_house_real_estate（house レベルアップ）aim への加点（拡張分を即雇用できる holding を優先） |
 | minSlotOveruseModifier | 0.5 | スロット上限超過時の容量乗算下限（slotCap/usedSlots を clamp） |
 | **資源経済（v0.54 §20、market-clearing rewrite）** | | 初期値は調整前提。150年 run で価格の floor/ceiling 常時張り付き・shortage 常態化・marketValueDelta の極端な生成破棄が無いか観察（縮退回避のみ、本格 balance は defer。§6.3c.1 / §14.9） |
 | marketPriceSwing | 0.75 | 価格振れ幅（全資源共通）。`price = basePrice × (1 + swing × clamp(imbalance, −1, 1))` → 価格幅 basePrice×[0.25, 1.75]。資源別 min/max/elasticity を置換 |
