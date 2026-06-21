@@ -713,16 +713,18 @@
 | recipeSwitchMinGainRate | 0.02 | recipeSwitchSystem の最小利益改善率（これを超える 1-slot 移動のみ適用） |
 | recipeSwitchIntervalWeeks | 12 | recipeSwitchSystem の実行間隔（週）。1評価=最大1slot(5%)のため間隔=転換速度。v0.55: 月次4→四半期12。作付け・工房設備はそう頻繁に入れ替えられない理屈。月次は herding 振動（皆が儲かる recipe へ殺到→供給過多→暴落→再転換）を生み、間隔を延ばすと市場が安定。年次48は全面転換に約20年かかり硬直しすぎるため四半期を採用 |
 | resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
-| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
+| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。v0.55: farm=[{irrigation:0.15},{transport:0.10}], mountain=[{transport:0.10}], woodland=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
 | realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
-| popFoodDemandPerSizeByClass | {peasants:1.0, townsmen:1.05, nobles:1.10} | POP size あたり food 需要（class 別、階層差小） |
-| popProcessedGoodsDemandPerSizeByClass | {peasants:0.20, townsmen:0.60, nobles:1.20} | POP size あたり processed_goods 需要（上流ほど大） |
-| food/processedGoodsPurchasingPowerFactorAtWealth0/50/100 | food=0.6/1.0/1.2、processed=0.1/0.7/1.3 | wealth 0/50/100 の購買力係数（2 区間線形補間） |
-| foodShortageWealthPenalty / UnrestGain | 3.0 / 4.0 | food shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。負のチャネル §8.2） |
-| foodHighPriceWealthPenalty / UnrestGain | 1.5 / 1.5 | food 価格高騰（priceMultiplier の basePrice 超過比）あたりの wealth-/unrest+（high price チャネル。shortage とは別概念 §8.3） |
-| foodFulfillmentWealthGain / UnrestReduction | 0.5 / 1.0 | food 充足（fulfillmentRatio=1）かつ価格安定時の wealth+/unrest-（§19.2 正のチャネル。load-bearing につき維持） |
-| processedGoodsShortageWealthPenalty / UnrestGain | 1.0 / 1.0 | processed_goods shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。food より弱い） |
-| processedGoodsFulfillmentWealthGain / UnrestReduction | 0.5 / 0.5 | processed_goods 充足時の wealth+/unrest- |
+| **資源経済 v0.55（21 ResourceKind・NeedCategory・InputCategory・PopType、§6.3c.2 / draft §4–§17）** | | 初期値は調整前提。balance は機能完成後にまとめて defer（縮退回避のみ） |
+| needResourceChoiceBeta | 2 | NeedCategory 内の resource 選択の比率配分指数（`share = utility^β / Σ`。β大ほど安い資源に集中、greedy 回避、§5.4） |
+| inputResourceChoiceBeta | 2 | InputCategory 内の resource 選択の比率配分指数（need と同形、§6.3） |
+| inputShortageOutputFloor | 0.25 | input 不足時の output 下げ止まり（`modifier = floor + (1−floor)×inputFulfillmentScale`。strict Liebig を置換、§12.5） |
+| laborTypeFulfillmentFloor | 0.70 | PopType 構成ミスマッチ時の生産効率の下限（soft modifier。`floor + (1−floor)×weightedCoverage`、§14.3） |
+| needTierFloor | {essential:0.85, ordinary:0.10, luxury:0.00} | NeedTier 別購買力の下限（wealth 0 でも essential は 0.85 購入、§15.3） |
+| needTierWealthHalf | {essential:20, ordinary:60, luxury:150} | NeedTier 別購買力飽和曲線の half 点（係数が中間まで伸びる wealthIndex、§15.3） |
+| needShortageWealthPenaltyByTier | {essential:0.30, ordinary:0.12, luxury:0.06} | NeedCategory shortage の weekly wealth delta 係数（tier 別、§16.2） |
+| needShortageUnrestPenaltyByTier | {essential:0.40, ordinary:0.10, luxury:0.02} | NeedCategory shortage の weekly unrest delta 係数（tier 別、§16.2） |
+| ~~popFoodDemandPerSizeByClass~~ ほか v0.54 食料/加工 demand・購買力・shortage penalty 群 | — | v0.55 廃止（NeedCategory モデルへ統合。`needTierFloor` / `needShortage*ByTier` / `PopNeedProfile`（popNeedDefinitions.ts）が置換） |
 | **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |

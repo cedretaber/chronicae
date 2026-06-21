@@ -184,16 +184,17 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 - **詳細外交**: 同盟・条約・婚姻。現在 LandContract.termsProtectedUntilWeek で実装している契約保護期間は、条約システム導入時に汎用的な「二国間条約」エンティティに置き換える想定。
 - **継承権・請求権**: 血縁関係に基づく他家への継承権主張。
 
-### 資源経済の拡張（v0.55+、market-clearing rewrite §6.3c.1 の延長）
+### 資源経済の拡張（v0.56+、market-clearing rewrite §6.3c.1 の延長）
 
-v0.54 で Victoria 3 型の抽象市場（sell/buy orders・imbalance 価格・shortage penalty）を導入した。仕組みを先に入れ、資源細分化後の各 goods が共通市場モデルに乗るようにしてある。以下は v0.55 以降の拡張候補（ユーザー提示 §15 + これまでの設計議論）:
+v0.54 で Victoria 3 型の抽象市場、**v0.55 で 21 ResourceKind の商品経済（NeedCategory / InputCategory / DAG 1-pass 清算 / PopType / recipeSlots 自動入れ替え / 建設 Project 資材需要、§6.3c.2 / §6.3d）を導入済み**。以下は v0.56 以降の残存拡張候補:
 
-- **市場間交易による surplus / shortage 緩和**（最優先）: 現状は per-region 市場で在庫も交易も無く、域内需要を超えた sellOrders は安値で全量 revenue 化されるだけ・workshop の無い域は raw を売る相手も processed を作る手段も無い（§14.9 の構造的 floor/ceiling 張り付きの根本原因）。域間で surplus を輸出・shortage を輸入できるようにする。
-- **供給側の生産再配分（recipe slot 自動入れ替え）**: 現状 recipeSlots は固定で、価格が安くても生産者は同じ recipe を作り続ける（価格シグナルが供給側に跳ね返らない）。儲からない recipe から儲かる recipe へ slot を移す均衡化機構。**需要弾力性より影響が大きい**（経済の自己是正の本体）。
-- **価格に応じた需要弾力性**: 現状 buyOrders は price 非依存（POP size × wealth 由来の購買力のみ）。安値→数量増の弾力性を導入。食料は現実でも非弾力（エンゲルの法則）なので processed_goods 優先。
-- **資源細分化後の shortage penalty 共通化 / NeedCategory・InputCategory 接続**。
+- **市場間交易による surplus / shortage 緩和**（最優先）: 現状は per-region 市場で在庫も交易も無く、域内需要を超えた sellOrders は安値で全量 revenue 化されるだけ・workshop の無い域は raw を売る相手も processed を作る手段も無い（§14.9 の構造的 floor/ceiling 張り付きの根本原因）。域間で surplus を輸出・shortage を輸入できるようにする。**「市場アクセス」指標**（どれだけ市場に届いているか）を導入し、干魃→飢饉のような holding 単位の供給ショックを state 単位の流通へ接続する構想もここに含む（draft §C）。
+- **価格に応じた需要弾力性**: 現状 buyOrders は price 非依存（POP size × wealth 由来の購買力 + NeedTier 飽和曲線のみ）。安値→数量増の弾力性を導入。食料は現実でも非弾力（エンゲルの法則）なので luxury / processed 優先。
 - **shortage の蓄積・回復**: 現状は月次で当月 severity を即時適用。Victoria 3 のように継続で penalty 蓄積・解消後に徐々回復。
 - **PopGroup.cash / wage / consumer spending**: 現状 consumerCost は POP 側では観察値のみ（cash から引かない）。cash 導入で consumerCost を実コスト化し marketValueDelta の解釈を整理。
+- **POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。v0.55 の RecipeLaborDemand は soft modifier に留め、これらを v0.56 以降で hard 化する前提。
+- **Project 追加予算要求 / 動的 deadline 延長 / ProjectMaterialPurchaseSnapshot**（draft §20–§22）: v0.55 ドラフト spec には設計があるが**未実装**。資材価格高騰時の安全網（budget top-up）と debug 用 read-model を将来追加。
+- **steel / lumber などの中間財**: InputCategory（metal / construction_wood）に高効率代替材として追加（§6.4）。
 
 ### LifeStage 拡張
 
