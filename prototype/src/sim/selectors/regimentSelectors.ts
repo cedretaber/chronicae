@@ -74,13 +74,13 @@ export function getRegimentPowerForWarSide(
 function recruitmentPopClassForSource(sourceKind: RegimentSourceKind): PopClass {
   switch (sourceKind) {
     case 'urban_militia':
-      return 'townsmen'
+      return 'middle'
     case 'noble_retinue':
-      return 'nobles'
+      return 'upper'
     case 'levy':
     case 'local_levy':
     case 'mercenary':
-      return 'peasants'
+      return 'lower'
   }
 }
 

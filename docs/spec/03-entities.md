@@ -118,17 +118,18 @@ type HoldingImprovement = {
 
 kind ごとの構造メタデータ（建設可能 HoldingKind / terrain / 必須 feature / capacityRole / employmentSlots）は `sim/config/improvementDefinitions.ts` の `IMPROVEMENT_DEFINITIONS` const に一元化し、数値バランスは `SimulationConfig` に分離する（§9）。
 
-| Kind | 主な意味 | capacityRole | employmentSlots (PopClass) | allowed kind / terrain / feature |
+| Kind | 主な意味 | capacityRole | employmentSlots (PopStratum、v0.55) | allowed kind / terrain / feature |
 |---|---|---|---|---|
-| `manor_house` | 荘園邸宅（v0.52 導入） | capacity | nobles 3/lv | manor |
-| `town_hall` | 都市庁舎（v0.52 導入） | capacity | townsmen 10/lv + nobles 3/lv | city |
+| `manor_house` | 荘園邸宅（v0.52 導入） | capacity | upper 3/lv | manor |
+| `town_hall` | 都市庁舎（v0.52 導入） | capacity | middle 10/lv + upper 3/lv | city |
 | `irrigation_infrastructure` | 灌漑・排水・水利 | production_quality | — | manor / plains・wetlands・hills ＋ `major_river` か `lake` 必須 |
 | `market_infrastructure` | 市場・取引施設 | production_quality | — | city |
 | `workshop_infrastructure` | 工房・加工設備 | production_quality | — | city |
-| `storage_infrastructure` | 倉庫・穀倉・貯蔵 | capacity | townsmen 20/lv | manor / city |
+| `storage_infrastructure` | 倉庫・穀倉・貯蔵 | capacity | middle 20/lv | manor / city |
 | `transport_infrastructure` | 道路・橋・水運 | production_quality | — | manor / city |
 
-- `capacityRole === 'capacity'` の設備は employmentSlots により PopClass ごとの雇用枠を生む（§4.2）。`production_quality`（irrigation / market / workshop / transport）は雇用枠を生まず、development → production modifier 側で効く
+- `capacityRole === 'capacity'` の設備は employmentSlots により PopStratum ごとの雇用枠を生む（§4.2）。`production_quality`（irrigation / market / workshop / transport）は雇用枠を生まず、development → production modifier 側で効く
+- **v0.55**: `employmentSlots` の class 軸は `PopClass`（peasants/townsmen/nobles）から `PopStratum`（lower/middle/upper）へ値移行（§3.2）。manor_house/town_hall の nobles→upper、town_hall/storage の townsmen→middle
 - v0.52 で `field_system` / `pastoral_infrastructure` を廃止し `manor_house` / `town_hall` に置換。農地・牧草地は RealEstateAsset（§3.2a）として Holding 内に個別管理する
 - 後回し（未導入）: forestry / mining / quarrying / harbor / fortification / orchard / vineyard / mill。資源・商品・交易・戦争システム導入時に再検討する
 
@@ -156,16 +157,26 @@ holdingImprovementIndex: {
 nextHoldingImprovementId: number
 ```
 
-### 3.2 PopClass / PopGroup（民衆集団）
+### 3.2 PopStratum / PopType / PopGroup（民衆集団）（v0.55 で再編）
+
+v0.55 で旧 `PopClass`（peasants/townsmen/nobles）を **PopStratum**（3 階層）へ値移行し、さらに **PopType**（12 職能）を追加した。`PopGroup.class` の **field 名は維持**し、取りうる値のみ PopStratum へ移行（breaking change, §23.4/M5）。
 
 ```ts
-type PopClass = 'peasants' | 'townsmen' | 'nobles'
+type PopStratum = 'lower' | 'middle' | 'upper'
+
+type PopType =
+  | 'laborers' | 'peasants' | 'artisans' | 'scribes' | 'soldiers'   // lower
+  | 'freeholders' | 'masters' | 'merchants' | 'bureaucrats' | 'ministeriales'  // middle
+  | 'nobles' | 'patricians'   // upper
+
+type PopClass = PopStratum   // 後方互換 alias（移行期。新規コードは PopStratum を使う）
 
 type PopGroup = {
   id: PopGroupId
   holdingId: HoldingId       // 所属 Holding
-  class: PopClass
-  employed: boolean          // v0.52 で PopOccupation を廃止。employed: boolean に置換
+  class: PopStratum          // field 名は維持・値は PopStratum
+  popType: PopType           // v0.55 追加
+  employed: boolean          // v0.52 で PopOccupation を廃止
   size: number       // 抽象人口規模（実人数ではない）
   wealth: number     // 0..100（豊かさ指数。金額ではない）
   unrest: number     // 0..100
@@ -173,19 +184,21 @@ type PopGroup = {
 }
 ```
 
-| class | 意味 | 主な役割 |
-|-------|------|----------|
-| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 |
-| townsmen | 都市民・商工民 | 税収・富・都市的発展 |
-| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 |
+不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。
 
-v0.52 で `PopOccupation` を廃止。`employed: boolean` に置換した。雇用枠は HoldingImprovement の `employmentSlots`（§3.1d）および RealEstateAsset（§3.2a）から PopClass 単位で供給される。
+| PopStratum | PopType | 意味 |
+|---|---|---|
+| lower | laborers / peasants / artisans / scribes / soldiers | 労働者・小作農・職人・書記・兵士 |
+| middle | freeholders / masters / merchants / bureaucrats / ministeriales | 自作農・親方・商人・官僚・家士 |
+| upper | nobles / patricians | 貴族・都市貴族 |
+
+雇用枠は HoldingImprovement の `employmentSlots`（§3.1d）および RealEstateAsset（§3.2a）から **PopStratum 単位**で供給される（v0.55: RealEstateAsset は複数 stratum を同時雇用可、§13.4）。RecipeLaborDemand（理想 PopType 構成）は soft modifier であり雇用 hard gate ではない（§14）。
 
 PopGroup の構造:
 - PopGroup は Province ではなく **Holding** に所属する
 - `employed` により就業状態を表現する。`employed === false` は雇用枠からあぶれた POP（失業者・土地なし・扶持なし）
 - `employed === true` の POP は `minPopSizeByClass` で下限保証。`employed === false` の POP は size が `popSizeEpsilon` 以下で削除される
-- 同一 merge key (`holdingId + class + employed`) の POP は原則 1 つに統合される
+- 同一 merge key (`holdingId + class + popType + employed`) の POP は原則 1 つに統合される（v0.55: merge key に **popType** を追加。含めないと異なる PopType が融合し粒度が消失する, §13.3）
 - Province 単位の POP は Holding POP から selector で集計する（§4.2 参照）
 - Province は popGroupIds を持たない。POP の参照は `popIndex.byHolding` 経由
 
@@ -196,7 +209,7 @@ Province の unrest は POP unrest の人口加重平均として selector で�
 Holding 内に存在する具体的な不動産・生産単位。v0.52 で導入。従来 HoldingImprovement（`field_system` / `pastoral_infrastructure`）が担っていた農地・牧草地の機能を、Holding 内の個別アセットとして管理する。
 
 ```ts
-type RealEstateKind = 'field' | 'pasture' | 'workshop'
+type RealEstateKind = 'farm' | 'mountain' | 'woodland' | 'workshop'   // v0.55 で再編（旧 field/pasture/workshop）
 
 type AssetOwnerRef =
   | { kind: 'house'; id: HouseId }
@@ -218,12 +231,47 @@ type RealEstateAsset = {
 - owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
 - `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
 - v0.54: `recipeSlots` は生産内容を RealEstateKind ではなく `ProductionRecipe`（§3.2c）に持たせる仕組み。20 slot=100%、slot は労働配分比率（生産量乗数ではない）。IntegrityCheck で合計=20 / 整数 / recipe 実在 / allowedRealEstateKinds 整合を検査
+- **v0.55 RealEstateKind 再編**（`farm / mountain / woodland / workshop`、`config/realEstateDefinitions.ts` の `REAL_ESTATE_DEFINITIONS`）。RealEstateKind は粗分類で、生産内容は ProductionRecipe が持つ。一次産業（farm/mountain/woodland）は荘園（manor）のみ、工房（workshop）は都市（city）のみに建設可（commit 15c8394）。`allowedTerrains`（farm=plains/wetlands/hills/forest, mountain=mountains/hills, woodland=forest/hills, workshop=制限なし）/ `employmentSlots`（PopStratum weight: farm lower0.80/middle0.20, mountain 0.90/0.10, woodland 0.85/0.15, workshop 0.75/0.25。upper は雇用しない）/ `capacityPerLevel`（farm 50 / mountain 35 / woodland 40 / workshop 80）/ `maxLevelByHoldingKind`（各 3）を定義
 
-### 3.2c 資源経済の型（v0.54）
+### 3.2c 資源経済の型（v0.55 で 21 資源・需要/投入カテゴリへ拡張）
 
 ```ts
-type ResourceKind = 'food' | 'raw_materials' | 'processed_goods'   // v0.54 は 3 種。v0.55 で細分化
-type ProductionRecipeId = Branded<string, 'ProductionRecipeId'>     // 'field_food' / 'pasture_raw_materials' / 'workshop_processed_goods'
+// v0.55: ResourceKind 21 種（旧 v0.54 は food / raw_materials / processed_goods の 3 種）
+type ResourceKind =
+  | 'grain' | 'fish' | 'meat' | 'fruit' | 'beer' | 'wine'                          // 食料・飲料
+  | 'flax' | 'wool' | 'timber' | 'stone' | 'iron_ore' | 'fur' | 'gems' | 'dye'     // 原料
+  | 'tools' | 'fabric' | 'clothes' | 'luxury_clothes' | 'jewelry'                  // 加工品
+  | 'smoked_fish' | 'processed_meat'
+// RESOURCE_KINDS は sorted order（determinism）。RESOURCE_PRICE_DEFINITIONS（resourceEconomyDefinitions.ts）に資源別 basePrice
+
+// v0.55: POP 需要のカテゴリ（NeedCategory）と recipe 投入のカテゴリ（InputCategory）
+type NeedTier = 'essential' | 'ordinary' | 'luxury'
+type NeedCategory =
+  | 'staple_food' | 'protein' | 'basic_drink' | 'basic_clothing'   // essential
+  | 'fine_food'                                                    // ordinary
+  | 'luxury_drink' | 'luxury_clothing' | 'luxury_goods'            // luxury
+type InputCategory =
+  | 'brewing_grain' | 'textile_fiber' | 'fabric' | 'dye_material' | 'luxury_trim'
+  | 'metal' | 'construction_wood' | 'construction_stone' | 'construction_tools'
+  | 'gems' | 'raw_fish' | 'raw_meat'
+// NeedCategory→ResourceKind / InputCategory→ResourceKind の contribution は config 定義。
+// カテゴリ内の resource 選択は utilityPerMoney 比率配分（share = utility^beta / Σ, beta=2）で複数資源へ分散（greedy ではない）。
+
+// v0.55 ProductionRecipe（23 種、productionRecipeDefinitions.ts）
+type ProductionRecipe = {
+  id: ProductionRecipeId
+  allowedRealEstateKinds: RealEstateKind[]
+  inputs?: { category: InputCategory; amountPerOutput: number }[]   // 投入は InputCategory 参照
+  outputs: { resource: ResourceKind; amount: number }[]            // 複数 output 可（sheep→wool+meat 等）
+  baseOutputPerLabor: number
+  scaleEconomy?: { maxMultiplierAtFullSlots: number }              // 規模の経済（§10、初期 2.0）
+}
+// laborDemand（RecipeLaborDemand[]）は型ではなく別 map RECIPE_LABOR_PROFILES に外出し（§14）
+type ProductionRecipeId = Branded<string, 'ProductionRecipeId'>
+// recipe id 例: grain_field / flax_field / sheep_pasture / cattle_pasture / orchard / vineyard / dye_garden /
+//   fishing_hut / farm_brewery / farm_weaving_shed（farm）, iron_mine / gem_mine / quarry（mountain）,
+//   logging_hut / hunting_lodge（woodland）, urban_brewery / textile_workshop / tailor / luxury_tailor /
+//   tool_workshop / jeweler_workshop / smokehouse / butcher_workshop（workshop）
 
 // 価格履歴（StateRegion × ResourceKind ごと、read-model）
 type MarketResourcePriceState = {

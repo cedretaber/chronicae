@@ -8,6 +8,7 @@ import {
 import { advanceTime } from './advanceTime'
 import { runLandRevenueSystem } from './landRevenueSystem'
 import { runResourceEconomySystem } from './resourceEconomySystem'
+import { runRecipeSwitchSystem } from './recipeSwitchSystem'
 import { runObligationConsistencySystem } from './obligationConsistencySystem'
 import { runObligationAccrualSystem } from './obligationAccrualSystem'
 import { runPrescriptionSystem } from './prescriptionSystem'
@@ -48,7 +49,8 @@ import { runRightConsistencySystem } from './rightConsistencySystem'
 import { runInfluenceModifierConsistencySystem } from './influenceModifierConsistencySystem'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
-import { runPeaceSettlementSystem } from './peaceSettlementSystem'
+import { runPeaceSettlementSystem, runStaleWarGoalSweepSystem } from './peaceSettlementSystem'
+import { cancelOrphanedLandContractDefaults } from './cancelOrphanedLandContractDefaults'
 import { runCleanupWarSystem } from './cleanupWarSystem'
 import { runCleanupBattleLogSystem } from './cleanupBattleLogSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
@@ -147,6 +149,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runResourceEconomySystem,
+  },
+  // v0.55 §17: ResourceEconomySystem 直後 (最新 smoothedPrice / 当月 snapshot を壊さない)。
+  {
+    name: 'recipeSwitchSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRecipeSwitchSystem,
   },
   { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
   // v0.53 義務不履行 (押領・上納拒否・時効)。spec §22: LandRevenue → consistency → accrual → prescription → cleanup。
@@ -551,6 +560,25 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runCancelOrphanedWarsSystem,
   },
   {
+    // §8.8: active War の WarGoal 参照先 (landContract/holding/polity) が consistency 系の
+    //   contract consolidation 等で同 tick に消えた stale ケースを weekly に白紙和平で解消する。
+    //   peaceSettlementSystem (interval 4) が年末 integrity tick (week 47) を取りこぼすため、
+    //   cancelOrphanedWarsSystem と同型に consistency 系の後・weekly で走らせ年末 tick をカバーする。
+    name: 'staleWarGoalSweepSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runStaleWarGoalSweepSystem,
+  },
+  {
+    // v0.55: active LandContractDefault のアンカー契約が consolidation / peace settlement /
+    //   polityOwnerConsistency 等で同 tick に消えた dangling を年末 integrity 前に resolved 化する。
+    //   staleWarGoalSweepSystem (WarGoal 版) と同型・同位置 (consistency 系の後・weekly で年末 tick をカバー)。
+    name: 'cancelOrphanedLandContractDefaults',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: cancelOrphanedLandContractDefaults,
+  },
+  {
     // v0.36 §14: consistency 系の後・cleanupWar の前。stale war demobilize /
     //   owner 失効 disband / homeHolding 消失 disband / terminal 変化で owner 付け替え。
     name: 'regimentMaintenanceSystem',
@@ -692,6 +720,7 @@ export function tick(input: TickInput): TickResult {
     houseFoundingSystem: ctx.config.houseFoundingIntervalWeeks,
     houseSplitEvaluationSystem: ctx.config.houseSplitEvaluationIntervalWeeks,
     clanFormationSystem: ctx.config.clanFormationIntervalWeeks,
+    recipeSwitchSystem: ctx.config.recipeSwitchIntervalWeeks,
   }
 
   for (const system of scheduledSystems) {

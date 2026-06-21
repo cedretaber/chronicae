@@ -3,6 +3,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import { RESOURCE_DEPENDENCY_CYCLE } from '../selectors/resourceGraph'
 
 // 価格レンジ・充足率の float 許容誤差。
 const PRICE_RANGE_EPSILON = 1e-6
@@ -14,6 +15,14 @@ export function checkResourceEconomy(
   errors: SimError[],
   config: SimulationConfig | undefined,
 ): void {
+  // §12.2: recipe 依存グラフは非循環でなければならない (static config 検査)。
+  if (RESOURCE_DEPENDENCY_CYCLE) {
+    errors.push({
+      code: 'INTEGRITY_VIOLATION',
+      message: `resource dependency graph has a cycle: ${RESOURCE_DEPENDENCY_CYCLE.join(' -> ')}`,
+    })
+  }
+
   // §21.2 marketResourcePrices
   for (const [key, record] of Object.entries(state.marketResourcePrices)) {
     if (!record) continue

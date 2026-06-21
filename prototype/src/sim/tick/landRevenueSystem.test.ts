@@ -47,6 +47,7 @@ function withPopGroup(
     id,
     holdingId,
     class: popClass,
+    popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
     wealth,
@@ -79,7 +80,7 @@ function withHoldingResourceRevenue(
   const asset: RealEstateAsset = {
     id: assetId,
     holdingId,
-    realEstateKind: 'field',
+    realEstateKind: 'farm',
     level: 1,
     createdWeek: 0,
     recipeSlots: {},
@@ -111,6 +112,8 @@ function withHoldingResourceRevenue(
             grossRevenue: totalNet,
             inputCost: 0,
             netRevenue: totalNet,
+            inputFulfillment: 1,
+            laborTypeFulfillment: 1,
           },
         ],
       },
@@ -145,7 +148,7 @@ function setupBaseWorld(): {
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   const holdingId = state.provinces[provinceId]!.holdingIds[0]!
-  state = withPopGroup(state, popId, holdingId, 'peasants', 100, 100)
+  state = withPopGroup(state, popId, holdingId, 'lower', 100, 100)
   state = withHoldingResourceRevenue(state, holdingId, GROSS)
   return { state, polityId, houseId, provinceId, holdingId, popId }
 }
@@ -352,7 +355,7 @@ function withOwnedAssetSnapshot(
   const asset: RealEstateAsset = {
     id: assetId,
     holdingId,
-    realEstateKind: 'field',
+    realEstateKind: 'farm',
     level: 1,
     createdWeek: 0,
     recipeSlots: {},
@@ -384,6 +387,8 @@ function withOwnedAssetSnapshot(
             grossRevenue: net,
             inputCost: 0,
             netRevenue: net,
+            inputFulfillment: 1,
+            laborTypeFulfillment: 1,
           },
         ],
       },

@@ -9,7 +9,7 @@ import {
 } from '../selectors/popSelectors'
 import { movePopEmploymentMut } from '../mutations/popMutations'
 
-const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
+const POP_CLASSES: PopClass[] = ['lower', 'middle', 'upper']
 
 export function runEmploymentRebalanceSystem(ctx: TickContext): TickContext {
   const ws: WorldState = {

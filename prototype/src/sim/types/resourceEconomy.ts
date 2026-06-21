@@ -43,6 +43,13 @@ export type RealEstateProductionResult = {
   grossRevenue: number
   inputCost: number
   netRevenue: number
+  // v0.55 観察用充足率 (asset の recipe を slotCount 加重平均)。分配・生産計算には使わず UI/digest 専用。
+  //   inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。入力がどれだけ市場供給で満たされたか。
+  //     これ自体が低いほど産出ペナルティ大 (floor 付き modifier 経由)。input 無し raw recipe は 1。
+  //   laborTypeFulfillment: §14.3 laborTypeFulfillmentModifier (outputModifier, floor..1)。PopType 構成と
+  //     理想労働構成の一致度を産出効率係数として表したもの。
+  inputFulfillment: number
+  laborTypeFulfillment: number
 }
 
 // §16.3 HoldingResourceRevenueSnapshot: holding 単位の月次 snapshot。

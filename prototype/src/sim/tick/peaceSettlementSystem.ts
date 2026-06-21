@@ -314,3 +314,33 @@ export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
   }
   return next
 }
+
+// §8.8 stale WarGoal sweep【必須・weekly】
+//   runPeaceSettlementSystem は intervalWeeks:4 のため年末 integrity tick (absoluteWeek ≡ 47 mod 48)
+//   には走らない。week 45〜47 に consistency 系 (polityOwnerConsistencySystem 等, weekly) が
+//   landContract を consolidation で消すと、active War の WarGoal が stale 化したまま次の
+//   peaceSettlement (翌年 week 0) を待たず年末 integrity §14.5 を踏む。
+//   cancelOrphanedWarsSystem (extinct polity ref) と同型に、stale goal ref を weekly に白紙和平で
+//   解消し年末 tick をカバーする。配置は consistency 系の後 (削除後の状態を見る)。
+export function runStaleWarGoalSweepSystem(ctx: TickContext): TickContext {
+  const activeWarIds = Object.keys(ctx.state.wars)
+    .sort()
+    .filter((id) => ctx.state.wars[id as WarId]?.status === 'active')
+  if (activeWarIds.length === 0) return ctx
+
+  let next = ctx
+  for (const idStr of activeWarIds) {
+    const wid = idStr as WarId
+    const war = next.state.wars[wid]
+    if (!war || war.status !== 'active') continue
+    // primary inactive な War は cancelOrphanedWarsSystem が cancelled 化済み (本 system の前段)。
+    const atk = getWarPrimaryAttacker(war)?.actor
+    const def = getWarPrimaryDefender(war)?.actor
+    if (!atk || !def) continue
+    if (!isActorActive(next.state, atk) || !isActorActive(next.state, def)) continue
+    if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
+      next = settleWhitePeace(next, wid)
+    }
+  }
+  return next
+}

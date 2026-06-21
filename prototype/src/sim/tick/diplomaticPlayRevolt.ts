@@ -837,9 +837,9 @@ export function applyRevoltEscalation(
   })
 
   // 2. Create Local Levy
-  const peasants = getHoldingPopSizeByClass(state, demand.holdingId, 'peasants')
-  const townsmen = getHoldingPopSizeByClass(state, demand.holdingId, 'townsmen')
-  const nobles = getHoldingPopSizeByClass(state, demand.holdingId, 'nobles')
+  const peasants = getHoldingPopSizeByClass(state, demand.holdingId, 'lower')
+  const townsmen = getHoldingPopSizeByClass(state, demand.holdingId, 'middle')
+  const nobles = getHoldingPopSizeByClass(state, demand.holdingId, 'upper')
   const levyStrength = Math.max(
     config.localLevyMinStrength,
     Math.min(

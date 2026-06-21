@@ -78,7 +78,8 @@ function withPopGroup(
   const pop: PopGroup = {
     id,
     holdingId,
-    class: 'peasants',
+    class: 'lower',
+    popType: 'peasants',
     employed: true,
     wealth: 50,
     attitudes: {},

@@ -111,7 +111,7 @@ export function ProvinceDetail({
   // Calculate revolt tendency per class
   const calcRevoltTendencyForClass = (
     ws: WorldState,
-    popClass: 'peasants' | 'townsmen' | 'nobles',
+    popClass: 'lower' | 'middle' | 'upper',
   ): number => {
     const polityId = getProvinceTerminalPolityId(ws, province.id)
     if (!polityId) return 0
@@ -143,7 +143,7 @@ export function ProvinceDetail({
       getPolityStability(ws, defaultConfig, polityId) *
         defaultConfig.provinceRevoltStabilitySuppressionFactor
 
-    if (popClass === 'peasants') {
+    if (popClass === 'lower') {
       if (pop.wealth < defaultConfig.povertyWealthThreshold) {
         tendency +=
           (defaultConfig.povertyWealthThreshold - pop.wealth) *
@@ -151,22 +151,22 @@ export function ProvinceDetail({
       }
       const pressure = getProvincePopulationPressure(ws, defaultConfig, province.id)
       tendency += pressure * defaultConfig.peasantRevoltPressureFactor
-    } else if (popClass === 'townsmen') {
-      const townsmenWealth = getPopWealthByClass(ws, province.id, 'townsmen')
+    } else if (popClass === 'middle') {
+      const townsmenWealth = getPopWealthByClass(ws, province.id, 'middle')
       if (townsmenWealth < defaultConfig.overExtractionWealthSafeThreshold) {
         tendency += defaultConfig.townsmenRevoltExtractionFactor
         tendency +=
           Math.log1p(getProvinceMonthlyResourceRevenue(ws, defaultConfig, province.id)) *
           defaultConfig.townsmenRevoltProductionFactor
       }
-    } else if (popClass === 'nobles') {
+    } else if (popClass === 'upper') {
       const noblesPop = (() => {
         for (const holdingId of province.holdingIds) {
           const popIds = ws.popIndex?.byHolding[holdingId]
           if (!popIds) continue
           for (const popId of popIds) {
             const p = ws.popGroups[popId]
-            if (p && p.class === 'nobles') return p
+            if (p && p.class === 'upper') return p
           }
         }
         return undefined
@@ -195,13 +195,11 @@ export function ProvinceDetail({
     return tendency
   }
 
-  const peasantRevoltTendency = currentState
-    ? calcRevoltTendencyForClass(currentState, 'peasants')
-    : 0
+  const peasantRevoltTendency = currentState ? calcRevoltTendencyForClass(currentState, 'lower') : 0
   const townsmenRevoltTendency = currentState
-    ? calcRevoltTendencyForClass(currentState, 'townsmen')
+    ? calcRevoltTendencyForClass(currentState, 'middle')
     : 0
-  const noblesRevoltTendency = currentState ? calcRevoltTendencyForClass(currentState, 'nobles') : 0
+  const noblesRevoltTendency = currentState ? calcRevoltTendencyForClass(currentState, 'upper') : 0
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -374,7 +372,7 @@ export function ProvinceDetail({
                   )}
                 </div>
                 <div className="mt-1 border-t border-gray-700 pt-1">
-                  {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
+                  {(['lower', 'middle', 'upper'] as const).map((popClass) => {
                     const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
                     const cap = getHoldingClassCapacity(
                       currentState,
@@ -464,9 +462,9 @@ export function ProvinceDetail({
                 className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
                 onClick={() => onPopGroupClick(pop.id)}
               >
-                {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
+                {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
                 <span className="text-xs font-normal text-gray-400">
-                  (
+                  ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
                   {pop.employed
                     ? t('detail.province.pop_employed')
                     : t('detail.province.pop_unemployed')}
@@ -497,9 +495,9 @@ export function ProvinceDetail({
       <div className="text-sm">
         {(
           [
-            [t('detail.province.peasants'), peasantRevoltTendency],
-            [t('detail.province.townsmen'), townsmenRevoltTendency],
-            [t('detail.province.nobles'), noblesRevoltTendency],
+            [t('detail.province.lower'), peasantRevoltTendency],
+            [t('detail.province.middle'), townsmenRevoltTendency],
+            [t('detail.province.upper'), noblesRevoltTendency],
           ] as const
         ).map(([label, tendency]) => (
           <div key={label} className="flex justify-between">

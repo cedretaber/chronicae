@@ -25,7 +25,27 @@ import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import type { Person } from '../types/person'
-import type { PopGroup } from '../types/popGroup'
+import type { PopGroup, PopStratum, PopType } from '../types/popGroup'
+import { POP_TYPES_BY_STRATUM } from '../types/popGroup'
+
+// v0.55 §23.3: PopStratum 内の PopType 分布 (各 stratum で合計 1.0)。worldgen 初期生成専用。
+const WORLDGEN_POP_TYPE_DISTRIBUTION: Record<PopType, number> = {
+  // lower
+  peasants: 0.55,
+  laborers: 0.15,
+  artisans: 0.15,
+  scribes: 0.05,
+  soldiers: 0.1,
+  // middle
+  freeholders: 0.3,
+  masters: 0.2,
+  merchants: 0.2,
+  bureaucrats: 0.1,
+  ministeriales: 0.2,
+  // upper
+  nobles: 0.6,
+  patricians: 0.4,
+}
 import type { StateRegion } from '../types/stateRegion'
 import type { HouseShare, HouseShareIndex } from '../types/office'
 import type { HouseShareId, LandContractId } from '../types/ids'
@@ -1629,7 +1649,7 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'peasants',
+        'lower',
         seedAssets,
         overuseMod,
       )
@@ -1641,7 +1661,7 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'townsmen',
+        'middle',
         seedAssets,
         overuseMod,
       )
@@ -1653,7 +1673,7 @@ export function generateWorld(
         province.features,
         seedImprovements,
         defaultConfig,
-        'nobles',
+        'upper',
         seedAssets,
         overuseMod,
       )
@@ -1665,50 +1685,42 @@ export function generateWorld(
       )
       const fillRatio = fillPct / 100
 
-      const { value: peasantWealth, rng: rp4 } = randomInt(rf1, 35, 60)
-      const { value: townsmanWealth, rng: rp5 } = randomInt(rp4, 45, 70)
-      const { value: noblesWealth, rng: rp6 } = randomInt(rp5, 50, 80)
-      const { value: peasantUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
-      const { value: townsmanUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
-      const { value: noblesUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
+      const { value: lowerWealth, rng: rp4 } = randomInt(rf1, 35, 60)
+      const { value: middleWealth, rng: rp5 } = randomInt(rp4, 45, 70)
+      const { value: upperWealth, rng: rp6 } = randomInt(rp5, 50, 80)
+      const { value: lowerUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
+      const { value: middleUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
+      const { value: upperUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
       rng = rp9
 
-      const peasantsId = newPopGroupId(`pop-${holdingId as string}-peasants`)
-      const townsmanId = newPopGroupId(`pop-${holdingId as string}-townsmen`)
-      const noblesId = newPopGroupId(`pop-${holdingId as string}-nobles`)
-
-      popGroupsRecord[peasantsId] = {
-        id: peasantsId,
-        holdingId,
-        class: 'peasants',
-        employed: true,
-        size: Math.max(minPopSizeByClass.peasants, agriCap * fillRatio),
-        wealth: peasantWealth,
-        unrest: peasantUnrest,
-        attitudes: {},
+      // v0.55 §23.3: PopStratum 容量 × fillRatio を stratum total とし、PopType 分布で分割する。
+      //   wealth/unrest は stratum 単位で抽選し同 stratum の全 PopType に適用する (RNG 消費を抑制)。
+      const strataGen: { stratum: PopStratum; cap: number; wealth: number; unrest: number }[] = [
+        { stratum: 'lower', cap: agriCap, wealth: lowerWealth, unrest: lowerUnrest },
+        { stratum: 'middle', cap: urbanCap, wealth: middleWealth, unrest: middleUnrest },
+        { stratum: 'upper', cap: eliteCap, wealth: upperWealth, unrest: upperUnrest },
+      ]
+      const holdingPopIds: PopGroupId[] = []
+      for (const sg of strataGen) {
+        const stratumSize = Math.max(minPopSizeByClass[sg.stratum], sg.cap * fillRatio)
+        for (const popType of POP_TYPES_BY_STRATUM[sg.stratum]) {
+          const ratio = WORLDGEN_POP_TYPE_DISTRIBUTION[popType]
+          const id = newPopGroupId(`pop-${holdingId as string}-${popType}`)
+          popGroupsRecord[id] = {
+            id,
+            holdingId,
+            class: sg.stratum,
+            popType,
+            employed: true,
+            size: stratumSize * ratio,
+            wealth: sg.wealth,
+            unrest: sg.unrest,
+            attitudes: {},
+          }
+          holdingPopIds.push(id)
+        }
       }
-      popGroupsRecord[townsmanId] = {
-        id: townsmanId,
-        holdingId,
-        class: 'townsmen',
-        employed: true,
-        size: Math.max(minPopSizeByClass.townsmen, urbanCap * fillRatio),
-        wealth: townsmanWealth,
-        unrest: townsmanUnrest,
-        attitudes: {},
-      }
-      popGroupsRecord[noblesId] = {
-        id: noblesId,
-        holdingId,
-        class: 'nobles',
-        employed: true,
-        size: Math.max(minPopSizeByClass.nobles, eliteCap * fillRatio),
-        wealth: noblesWealth,
-        unrest: noblesUnrest,
-        attitudes: {},
-      }
-
-      popIndexByHolding[holdingId] = [peasantsId, townsmanId, noblesId]
+      popIndexByHolding[holdingId] = holdingPopIds
     }
   }
 
@@ -1742,7 +1754,7 @@ export function generateWorld(
     }
 
     // Apply class adjustments
-    if (pop.class === 'peasants') {
+    if (pop.class === 'lower') {
       const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
       if (ownerHouseAttitude) {
         attitudes = {
@@ -1753,7 +1765,7 @@ export function generateWorld(
           },
         }
       }
-    } else if (pop.class === 'townsmen') {
+    } else if (pop.class === 'middle') {
       const polityAttitude = attitudes[polityKey]
       if (polityAttitude) {
         attitudes = {
@@ -1774,7 +1786,7 @@ export function generateWorld(
           },
         }
       }
-    } else if (pop.class === 'nobles') {
+    } else if (pop.class === 'upper') {
       const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
       if (ownerHouseAttitude) {
         attitudes = {

@@ -18,7 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 
-const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
+const POP_CLASSES: PopClass[] = ['lower', 'middle', 'upper']
 
 function collectPopStats(state: WorldState) {
   let totalPop = 0

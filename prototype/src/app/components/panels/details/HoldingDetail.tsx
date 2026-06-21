@@ -47,7 +47,6 @@ import {
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
-import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 
 export function HoldingDetail({
@@ -58,6 +57,7 @@ export function HoldingDetail({
   onHouseClick,
   onProvinceClick,
   onPopGroupClick,
+  onRealEstateClick,
 }: {
   holding: Holding
   session: SimulationSession | null
@@ -66,6 +66,7 @@ export function HoldingDetail({
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
+  onRealEstateClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -159,17 +160,6 @@ export function HoldingDetail({
             (revenueSnapshot?.assetResults ?? []).map((ar) => [ar.assetId as string, ar]),
           )
 
-          const fillCache = new Map<string, { employedSize: number; cap: number }>()
-          const getFill = (popClass: import('@sim/types/popGroup').PopClass) => {
-            const cached = fillCache.get(popClass)
-            if (cached) return cached
-            const employedSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
-            const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
-            const result = { employedSize, cap }
-            fillCache.set(popClass, result)
-            return result
-          }
-
           return (
             <div className="text-sm">
               <DetailSection title={t('detail.realEstate.title')} count={assets.length} />
@@ -188,157 +178,83 @@ export function HoldingDetail({
               </div>
               <div className="mt-1 flex flex-col gap-1">
                 {assets.map((asset) => {
-                  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                  // v0.55: カードは要約のみ (種別・所有者・押領・月次純益)。レシピ構成/雇用枠/産出内訳の
+                  //   詳細はクリックで開く RealEstateDetail パネルに集約する。
+                  const ar = assetResultById.get(asset.id)
+                  const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
-                    <div key={asset.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                    <div
+                      key={asset.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onRealEstateClick(asset.id)}
+                      className="cursor-pointer rounded bg-gray-700 p-1.5 text-xs hover:bg-gray-600"
+                    >
                       <div className="flex items-baseline justify-between">
                         <span className="font-medium text-gray-200">
                           {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
                             defaultValue: asset.realEstateKind,
-                          })}
+                          })}{' '}
+                          <span className="text-gray-500">Lv.{asset.level}</span>
                         </span>
-                        <span className="text-gray-500">Lv.{asset.level}</span>
+                        <span className="text-gray-500">→</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">{t('detail.realEstate.owner')}:</span>
-                        {asset.owner ? (
-                          asset.owner.kind === 'house' ? (
-                            <HouseLink
-                              houseId={asset.owner.id}
-                              houses={currentState.houses}
-                              onClick={onHouseClick}
-                            />
-                          ) : asset.owner.kind === 'person' ? (
-                            <PersonLink
-                              personId={asset.owner.id}
-                              persons={currentState.persons}
-                              onClick={onPersonClick}
-                            />
-                          ) : (
-                            <PolityLink
-                              polityId={asset.owner.id}
-                              world={currentState}
-                              onClick={onPolityClick}
-                            />
-                          )
-                        ) : (
-                          <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
-                        )}
-                      </div>
-                      {(() => {
-                        // v0.53: active 押領表示。押領者・未収累計・時効残り年。
-                        const seizure = getActiveSeizureForAsset(currentState, asset.id)
-                        if (!seizure) return null
-                        const remainingYears = Math.floor(
-                          getSeizurePrescriptionRemainingYears(
-                            currentState,
-                            defaultConfig,
-                            seizure,
-                          ),
-                        )
-                        return (
-                          <div className="mt-0.5 rounded border border-amber-700/50 bg-amber-950/30 px-1 py-0.5 text-amber-300">
-                            <div className="font-medium">
-                              ⚠ {t('detail.obligation.seized', { defaultValue: '押領中' })}
-                              {' — '}
-                              {t('detail.obligation.prescription_remaining', {
-                                defaultValue: '時効まで残り {{years}} 年',
-                                years: remainingYears,
-                              })}
-                            </div>
-                            <div className="flex justify-between text-[11px]">
-                              <span className="text-amber-400/70">
-                                {t('detail.obligation.seized_by', { defaultValue: '押領者' })}:
-                              </span>
+                        {/* 所有者リンクのクリックがカード遷移を兼ねないよう伝播を止める */}
+                        <span onClick={(e) => e.stopPropagation()}>
+                          {asset.owner ? (
+                            asset.owner.kind === 'house' ? (
+                              <HouseLink
+                                houseId={asset.owner.id}
+                                houses={currentState.houses}
+                                onClick={onHouseClick}
+                              />
+                            ) : asset.owner.kind === 'person' ? (
+                              <PersonLink
+                                personId={asset.owner.id}
+                                persons={currentState.persons}
+                                onClick={onPersonClick}
+                              />
+                            ) : (
                               <PolityLink
-                                polityId={seizure.seizerPolityId}
+                                polityId={asset.owner.id}
                                 world={currentState}
                                 onClick={onPolityClick}
                               />
-                            </div>
-                            <div className="flex justify-between text-[11px]">
-                              <span className="text-amber-400/70">
-                                {t('detail.obligation.unpaid_accumulated', {
-                                  defaultValue: '未収累計',
-                                })}
-                                :
-                              </span>
-                              <span>{formatAmount(seizure.accumulatedUnpaidAmount)}</span>
-                            </div>
-                          </div>
-                        )
-                      })()}
-                      {def.employmentSlots.map((slot) => {
-                        const fill = getFill(slot.popClass)
-                        const pct =
-                          fill.cap > 0 ? clamp100((fill.employedSize / fill.cap) * 100) : 0
-                        return (
-                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-gray-500">
-                              {t(`detail.province.${slot.popClass}`)}
-                            </span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
-                              <div
-                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="w-16 text-right text-gray-400">
-                              {fill.employedSize.toFixed(0)}/{fill.cap.toFixed(0)}
-                            </span>
-                          </div>
-                        )
-                      })}
-                      {(() => {
-                        // v0.54: 月次資源 snapshot がある場合、asset 別の産出・売却益を表示。
-                        const ar = assetResultById.get(asset.id)
-                        if (!ar) return null
-                        const outputs = Object.entries(ar.outputs)
-                          .filter(([, v]) => v !== undefined && v > 0)
-                          .map(
-                            ([res, v]) =>
-                              `${t(`detail.realEstate.resource_${res}`, { defaultValue: res })} ${(v ?? 0).toFixed(0)}`,
-                          )
-                          .join(', ')
-                        return (
-                          <div className="mt-1 border-t border-gray-600/50 pt-0.5 text-[11px]">
-                            {outputs ? (
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">
-                                  {t('detail.realEstate.output', { defaultValue: '産出' })}:
-                                </span>
-                                <span className="text-gray-300">{outputs}</span>
-                              </div>
-                            ) : null}
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">
-                                {t('detail.realEstate.gross_revenue', { defaultValue: '売上' })}:
-                              </span>
-                              <span className="text-gray-300">{formatAmount(ar.grossRevenue)}</span>
-                            </div>
-                            {ar.inputCost > 0 ? (
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">
-                                  {t('detail.realEstate.input_cost', { defaultValue: '原価' })}:
-                                </span>
-                                <span className="text-rose-400">-{formatAmount(ar.inputCost)}</span>
-                              </div>
-                            ) : null}
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">
-                                {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
-                              </span>
-                              <span
-                                className={
-                                  ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                                }
-                              >
-                                {formatAmount(ar.netRevenue)}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })()}
+                            )
+                          ) : (
+                            <span className="text-gray-500">{t('detail.realEstate.unowned')}</span>
+                          )}
+                        </span>
+                      </div>
+                      {seizure ? (
+                        <div className="mt-0.5 rounded border border-amber-700/50 bg-amber-950/30 px-1 py-0.5 text-amber-300">
+                          ⚠ {t('detail.realEstate.seized', { defaultValue: '押領中' })}
+                          {' — '}
+                          {t('detail.realEstate.prescriptionRemaining', {
+                            years: Math.floor(
+                              getSeizurePrescriptionRemainingYears(
+                                currentState,
+                                defaultConfig,
+                                seizure,
+                              ),
+                            ),
+                          })}
+                        </div>
+                      ) : null}
+                      {ar ? (
+                        <div className="mt-1 flex justify-between border-t border-gray-600/50 pt-0.5 text-[11px]">
+                          <span className="text-gray-500">
+                            {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
+                          </span>
+                          <span
+                            className={ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                          >
+                            {formatAmount(ar.netRevenue)}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -413,19 +329,19 @@ export function HoldingDetail({
                         const empSize = getHoldingEmployedPopSize(
                           currentState,
                           holding.id,
-                          slot.popClass,
+                          slot.stratum,
                         )
                         const cap = getHoldingClassCapacity(
                           currentState,
                           defaultConfig,
                           holding.id,
-                          slot.popClass,
+                          slot.stratum,
                         )
                         const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
                         return (
-                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
+                          <div key={slot.stratum} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-xs text-gray-500">
-                              {t(`detail.province.${slot.popClass}`)}
+                              {t(`detail.province.${slot.stratum}`)}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div
@@ -849,7 +765,7 @@ export function HoldingDetail({
       {currentState && (
         <>
           <DetailSection title="POP" />
-          {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
+          {(['lower', 'middle', 'upper'] as const).map((popClass) => {
             const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
             const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
             const unempSize = getHoldingUnemployedPopSize(currentState, holding.id, popClass)
@@ -893,9 +809,9 @@ export function HoldingDetail({
                     className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
                     onClick={() => onPopGroupClick(pop.id)}
                   >
-                    {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
+                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
                     <span className="text-xs font-normal text-gray-400">
-                      (
+                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
                       {pop.employed
                         ? t('detail.province.pop_employed')
                         : t('detail.province.pop_unemployed')}

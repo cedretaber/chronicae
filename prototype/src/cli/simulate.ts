@@ -347,9 +347,9 @@ function computeUnrestStats(state: WorldState): {
   for (const pid of provinceIds) {
     const unrest = getProvinceUnrest(state, pid)
     totalUnrest += unrest
-    totalPeasant += getPopUnrestByClass(state, pid, 'peasants')
-    totalTownsmen += getPopUnrestByClass(state, pid, 'townsmen')
-    totalNoble += getPopUnrestByClass(state, pid, 'nobles')
+    totalPeasant += getPopUnrestByClass(state, pid, 'lower')
+    totalTownsmen += getPopUnrestByClass(state, pid, 'middle')
+    totalNoble += getPopUnrestByClass(state, pid, 'upper')
     if (unrest > 50) highUnrestCount++
     count++
   }
@@ -867,33 +867,35 @@ async function main(): Promise<void> {
         console.log(
           '  Economy: popWealth=' +
             econ.avgPopWealth.toFixed(1) +
-            ' | food p/base=' +
-            econ.resource.food.avgPriceRatio.toFixed(2) +
+            // v0.55 Phase 1 暫定表示: grain(staple)/timber(raw)/tools(processed) を代表に。
+            //   Phase 8 で NeedCategory 集約表示へ置換する。
+            ' | grain p/base=' +
+            econ.resource.grain.avgPriceRatio.toFixed(2) +
             ' clamp=' +
-            econ.resource.food.clampedPct.toFixed(0) +
+            econ.resource.grain.clampedPct.toFixed(0) +
             '% ful=' +
-            econ.resource.food.avgFulfillment.toFixed(2) +
-            ' | raw p/base=' +
-            econ.resource.raw_materials.avgPriceRatio.toFixed(2) +
+            econ.resource.grain.avgFulfillment.toFixed(2) +
+            ' | timber p/base=' +
+            econ.resource.timber.avgPriceRatio.toFixed(2) +
             ' clamp=' +
-            econ.resource.raw_materials.clampedPct.toFixed(0) +
-            '% | goods p/base=' +
-            econ.resource.processed_goods.avgPriceRatio.toFixed(2) +
+            econ.resource.timber.clampedPct.toFixed(0) +
+            '% | tools p/base=' +
+            econ.resource.tools.avgPriceRatio.toFixed(2) +
             ' clamp=' +
-            econ.resource.processed_goods.clampedPct.toFixed(0) +
+            econ.resource.tools.clampedPct.toFixed(0) +
             '% ful=' +
-            econ.resource.processed_goods.avgFulfillment.toFixed(2) +
-            ' | shortage f/r/g=' +
-            econ.resource.food.shortagePct.toFixed(0) +
+            econ.resource.tools.avgFulfillment.toFixed(2) +
+            ' | shortage g/t/o=' +
+            econ.resource.grain.shortagePct.toFixed(0) +
             '/' +
-            econ.resource.raw_materials.shortagePct.toFixed(0) +
+            econ.resource.timber.shortagePct.toFixed(0) +
             '/' +
-            econ.resource.processed_goods.shortagePct.toFixed(0) +
+            econ.resource.tools.shortagePct.toFixed(0) +
             '% maxSev=' +
             Math.max(
-              econ.resource.food.maxSeverity,
-              econ.resource.raw_materials.maxSeverity,
-              econ.resource.processed_goods.maxSeverity,
+              econ.resource.grain.maxSeverity,
+              econ.resource.timber.maxSeverity,
+              econ.resource.tools.maxSeverity,
             ).toFixed(2) +
             ' Δval=' +
             econ.marketValueDelta.toFixed(0) +

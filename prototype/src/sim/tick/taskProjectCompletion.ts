@@ -21,12 +21,19 @@ import {
   canBuildRealEstateAsset,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
-import { hasCapacityPressure } from '../selectors/popSelectors'
+import { hasCapacityPressure, hasEmploymentSlack } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import {
+  computeProjectMaterialBaseUnits,
+  getProjectMaterialRequirements,
+  getProjectMarketKey,
+} from '../selectors/projectMaterialSelectors'
 import { createProjectId } from '../types/ids'
 import {
   addProjectToIndexMut,
@@ -253,8 +260,10 @@ function buildProjectFieldsForAim(
 
       const holdingDev = getHoldingDevelopment(ws, config, holdingId)
       const hasCapPressure = hasCapacityPressure(ws, config, holdingId)
+      // v0.55 §B: 失業スラックがあれば、満員でなくても雇用を生む不動産開発ルートへ (インフラより優先)。
+      const hasSlack = hasEmploymentSlack(ws, config, holdingId)
 
-      if (hasCapPressure) {
+      if (hasCapPressure || hasSlack) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
         if (!realEstateKind) {
           // fallback: no buildable kind → try infrastructure instead
@@ -264,9 +273,11 @@ function buildProjectFieldsForAim(
             REAL_ESTATE_DEFINITIONS[realEstateKind].maxLevelByHoldingKind[
               holding?.kind ?? 'manor'
             ] ?? 3
+          const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+          const slotCap = config.realEstateSlotCapacityBase[holding?.kind ?? 'manor'] ?? 3
+          const hasSlotRoom = assetIds.length < slotCap
           // upgrade: find existing asset of this kind with level < maxLevel
           const upgradeTarget = (() => {
-            const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
             for (const aId of assetIds) {
               const a = ws.realEstateAssets[aId]
               if (a && a.realEstateKind === realEstateKind && a.level < maxLevel && !a.owner)
@@ -274,7 +285,12 @@ function buildProjectFieldsForAim(
             }
             return undefined
           })()
-          const targetLevel = upgradeTarget ? upgradeTarget.level + 1 : 1
+          // v0.55 §B: 失業スラック駆動かつ空きスロットがあれば新規建設 (level 1) を優先し、空き枠を
+          //   idle labor で埋める。空きが無ければ既存 asset の upgrade にフォールバック。純粋な
+          //   capacity pressure 時 (スラック無し) は従来どおり upgrade 優先。
+          const preferNewBuild = hasSlack && hasSlotRoom
+          const effectiveUpgradeTarget = preferNewBuild ? undefined : upgradeTarget
+          const targetLevel = effectiveUpgradeTarget ? effectiveUpgradeTarget.level + 1 : 1
           const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
           const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
           const required = baseCost * costMult * config.projectBudgetMarginMultiplier
@@ -284,7 +300,7 @@ function buildProjectFieldsForAim(
             kind: 'develop_real_estate',
             holdingId,
             realEstateKind,
-            targetRealEstateAssetId: upgradeTarget?.id,
+            targetRealEstateAssetId: effectiveUpgradeTarget?.id,
             targetRealEstateLevel: targetLevel,
             currentStageKey: getInitialProjectStageKey('develop_real_estate'),
             budget: {
@@ -820,17 +836,49 @@ export function handleAdvanceProjectCompletionMut(
       : outcome === 'partial'
         ? config.projectAdvanceProgressPartial
         : config.projectAdvanceProgressFailure
+
+  // v0.55 §19: 建設・修繕 Project は建築資材費を smoothedPrice で算出し週次 budget から消費する。
+  //   budgetPaymentScale = min(1, remaining / desiredWeeklyMaterialCost) で進捗を減衰させる (§19.5)。
+  //   資材不足は smoothedPrice 上昇 → desired cost 増 → scale 低下、の一本の因果に統一 (§19.4 B3)。
+  const materialReqs = getProjectMaterialRequirements(ws, project)
+  if (
+    materialReqs &&
+    (project.kind === 'develop_holding' ||
+      project.kind === 'develop_real_estate' ||
+      project.kind === 'upgrade_owned_real_estate' ||
+      project.kind === 'handle_crisis')
+  ) {
+    const baseUnits = computeProjectMaterialBaseUnits(ws, config, project)
+    const marketKey = getProjectMarketKey(ws, project)
+    let desiredCost = 0
+    for (const u of baseUnits) {
+      const ps = marketKey
+        ? ws.marketResourcePrices[marketResourcePriceKey(marketKey, u.resource)]
+        : undefined
+      desiredCost += u.baseUnits * getSmoothedPriceOrBase(ps?.smoothedPrice, u.resource)
+    }
+    const budgetPaymentScale =
+      desiredCost > 0 ? Math.min(1, project.budget.remaining / desiredCost) : 1
+    const effectiveProgressGain = progressGain * budgetPaymentScale
+    const newProgress = Math.min(project.progress + effectiveProgressGain, project.targetProgress)
+    const actualCost = Math.min(desiredCost, project.budget.remaining)
+    const newBudget: ProjectBudget = {
+      ...project.budget,
+      remaining: project.budget.remaining - actualCost,
+      spent: project.budget.spent + actualCost,
+    }
+    ws.projects[projectId] = { ...project, progress: newProgress, budget: newBudget }
+    return
+  }
+
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
 
-  // v0.48 一般化: budget 持ち holding Project (develop_holding / handle_crisis) は advance task ごとに
-  //   予算を消費する。それ以外は progress のみ更新。
-  if (
-    project.kind === 'develop_holding' ||
-    project.kind === 'develop_real_estate' ||
-    project.kind === 'acquire_real_estate' ||
-    project.kind === 'upgrade_owned_real_estate' ||
-    project.kind === 'handle_crisis'
-  ) {
+  // 非材料 budget Project は従来の抽象 budget 消費を維持する:
+  //   - acquire_real_estate: 購入であり建築資材を持たない
+  //   - handle_crisis (非修繕: famine/plague/drought/unrest): 建築資材 profile が無い (§18.2 は
+  //     war_damage/disrepair のみ材料化)。escrow budget が消費されず stuck になるのを防ぐ。
+  //   develop_* は常に材料 profile を持つため上の材料経路で処理され、ここには到達しない。
+  if (project.kind === 'acquire_real_estate' || project.kind === 'handle_crisis') {
     const expectedTasks = Math.max(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),

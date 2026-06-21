@@ -1,7 +1,15 @@
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PopGroup } from '../types/popGroup'
 import type { ResourceKind } from '../types/resource'
+import type { NeedCategory, NeedTier } from '../types/needCategory'
+import {
+  NEED_CATEGORIES,
+  NEED_CATEGORY_TIER,
+  NEED_CATEGORY_CONTRIBUTIONS,
+} from '../types/needCategory'
+import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
 // v0.54 市場清算 rewrite (§6.3c.1) 価格計算 (imbalance ベース):
@@ -43,45 +51,61 @@ export function computeMarketFulfillment(
   return { fulfillmentRatio, shortage, shortageSeverity }
 }
 
-// v0.54 §15.3 購買力係数: wealth 0/50/100 の係数を 2 区間線形補間する。raw_materials は POP 需要を持たない。
-function getPopResourcePurchasingPowerFactor(
-  pop: PopGroup,
-  resource: ResourceKind,
+// v0.55 §15.3: NeedTier ごとの購買力係数 (飽和曲線)。pop.wealth は 0..100 の指数として扱う
+//   (codebase の wealth セマンティクスに合わせ、spec §15.3 の per-capita 除算は用いない)。
+//   factor = clamp(floor + (1-floor) * (w / (w + half)), floor, 1)。
+export function purchasingPowerFactor(
+  tier: NeedTier,
+  wealthIndex: number,
   config: SimulationConfig,
 ): number {
-  let at0: number
-  let at50: number
-  let at100: number
-  if (resource === 'food') {
-    at0 = config.foodPurchasingPowerFactorAtWealth0
-    at50 = config.foodPurchasingPowerFactorAtWealth50
-    at100 = config.foodPurchasingPowerFactorAtWealth100
-  } else if (resource === 'processed_goods') {
-    at0 = config.processedGoodsPurchasingPowerFactorAtWealth0
-    at50 = config.processedGoodsPurchasingPowerFactorAtWealth50
-    at100 = config.processedGoodsPurchasingPowerFactorAtWealth100
-  } else {
-    return 0
-  }
-  const w = clamp(pop.wealth, 0, 100)
-  if (w <= 50) return at0 + (at50 - at0) * (w / 50)
-  return at50 + (at100 - at50) * ((w - 50) / 50)
+  const floor = config.needTierFloor[tier]
+  const half = config.needTierWealthHalf[tier]
+  const w = clamp(wealthIndex, 0, 100)
+  const raw = floor + (1 - floor) * (w / (w + half))
+  return clamp(raw, floor, 1.0)
 }
 
-// v0.54 §15: POP の resource 需要 (effectiveDemand)。size × class 別需要係数 × 購買力係数。
-export function getPopResourceDemand(
+// §5.4 / §15.3: POP の NeedCategory 別需要を ResourceKind buyOrders へ解決する。
+//   desiredCategoryValue (value 建て) = amountPerPop × size × purchasingPowerFactor(tier)。
+//   buyOrders_i (資源単位) = share_i × desiredValue / contributionValue_i (§5.4)。
+//   demand 集計と wellbeing fulfillment の双方が同じ解決を使う。
+export type ResolvedNeedCategory = {
+  category: NeedCategory
+  tier: NeedTier
+  desiredValue: number
+  resources: {
+    resource: ResourceKind
+    buyOrders: number
+    contributionValue: number
+    share: number
+  }[]
+}
+
+export function computePopNeedDemand(
   pop: PopGroup,
-  resource: ResourceKind,
   config: SimulationConfig,
-): number {
-  let perSize: number
-  if (resource === 'food') {
-    perSize = config.popFoodDemandPerSizeByClass[pop.class]
-  } else if (resource === 'processed_goods') {
-    perSize = config.popProcessedGoodsDemandPerSizeByClass[pop.class]
-  } else {
-    return 0
+  priceLookup: (resource: ResourceKind) => number,
+): ResolvedNeedCategory[] {
+  const profile = POP_NEED_PROFILES[pop.popType]
+  const beta = config.needResourceChoiceBeta
+  const result: ResolvedNeedCategory[] = []
+  for (const category of NEED_CATEGORIES) {
+    const amountPerPop = profile[category]
+    if (amountPerPop <= 0) continue
+    const tier = NEED_CATEGORY_TIER[category]
+    const ppf = purchasingPowerFactor(tier, pop.wealth, config)
+    const desiredValue = amountPerPop * pop.size * ppf
+    if (desiredValue <= 0) continue
+    const shares = resolveCategoryShares(NEED_CATEGORY_CONTRIBUTIONS[category], priceLookup, beta)
+    const resources = shares.map((s) => ({
+      resource: s.resource,
+      contributionValue: s.contributionValue,
+      share: s.share,
+      buyOrders: (s.share * desiredValue) / s.contributionValue,
+    }))
+    if (resources.length === 0) continue
+    result.push({ category, tier, desiredValue, resources })
   }
-  const ppFactor = getPopResourcePurchasingPowerFactor(pop, resource, config)
-  return pop.size * perSize * ppFactor
+  return result
 }

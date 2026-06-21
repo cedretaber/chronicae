@@ -886,7 +886,7 @@ export function checkGeographyAndHoldings(
 
   // --- v0.33 §13.4: class capacity の健全性（NaN/Infinity/負を返さない） ---
   if (config) {
-    const POP_CLASSES = ['peasants', 'townsmen', 'nobles'] as const
+    const POP_CLASSES = ['lower', 'middle', 'upper'] as const
     for (const [holdingIdStr, holding] of Object.entries(state.holdings)) {
       if (!holding) continue
       const hid = holdingIdStr as HoldingId

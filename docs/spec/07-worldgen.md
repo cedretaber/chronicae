@@ -31,7 +31,17 @@ config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInh
 
 ### 7.2 PopGroup 初期生成
 
-各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは class capacity に基づく。
+各 **Holding** に PopStratum（lower / middle / upper）ごとの POP を生成する。POP サイズは stratum capacity に基づく。
+
+**v0.55**: 旧 3 class（peasants/townsmen/nobles）を **PopStratum × PopType** へ置換。各 stratum capacity を **PopType 比率**で分割し、PopType ごとに別 PopGroup を生成する（merge key に popType が入るため別管理、§13.3）。holding kind で比率を補正してよい（manor は peasants/freeholders/ministeriales 多め、city は laborers/artisans/masters/merchants/scribes/patricians 多め）。初期 PopType 分布:
+
+```text
+lower:   peasants 55% / laborers 15% / artisans 15% / scribes 5% / soldiers 10%
+middle:  freeholders 30% / masters 20% / merchants 20% / bureaucrats 10% / ministeriales 20%
+upper:   nobles 60% / patricians 40%
+```
+
+holding あたりの PopGroup 数が増える（最大 ~12 type × employed/unemployed）。POP の転職・移住が無いため初期比率が極端に偏らないよう配慮する（soft modifier 方針のため局所的 type 不足は効率低下に留まり hard 失業にはならない、§14.3）。
 
 **size の初期値**（class capacity ベース）:
 ```ts
@@ -39,31 +49,32 @@ config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInh
 // getHoldingClassCapacity(state, config, holdingId, popClass) を selector と共有し、
 // capacity は RealEstateAsset の employmentSlots + HoldingImprovement の classCapacityPerLevel から導出する。
 // RealEstateAsset 配置（§7.3d）および改善配置（§7.3c）は POP seeding より前段で確定済み。
-const peasantCap  = getHoldingClassCapacity(state, config, holdingId, 'peasants')
-const townsmenCap = getHoldingClassCapacity(state, config, holdingId, 'townsmen')
-const nobleCap    = getHoldingClassCapacity(state, config, holdingId, 'nobles')
+const lowerCap  = getHoldingClassCapacity(state, config, holdingId, 'lower')
+const middleCap = getHoldingClassCapacity(state, config, holdingId, 'middle')
+const upperCap  = getHoldingClassCapacity(state, config, holdingId, 'upper')
 
 const fillRatio = rng.nextFloat(initialPopFillRatioMin, initialPopFillRatioMax) / 100
 
-peasants.size  = max(minPopSizeByClass.peasants, peasantCap * fillRatio)
-townsmen.size  = max(minPopSizeByClass.townsmen, townsmenCap * fillRatio)
-nobles.size    = max(minPopSizeByClass.nobles, nobleCap * fillRatio)
+// v0.55: 各 stratum の size を PopType 比率で分割し PopType ごとに PopGroup 生成
+lowerGroups[t].size  = max(minPopSizeByClass.lower,  lowerCap  * fillRatio * lowerRatio[t])
+middleGroups[t].size = max(minPopSizeByClass.middle, middleCap * fillRatio * middleRatio[t])
+upperGroups[t].size  = max(minPopSizeByClass.upper,  upperCap  * fillRatio * upperRatio[t])
 ```
 
 全 POP は `employed: true` で生成する。worldgen では未就業（`employed: false`）POP を生成しない。
 
-**wealth の初期値**（class ごとに差をつける）:
+**wealth の初期値**（PopStratum ごとに差をつける）:
 ```ts
-peasants.wealth  = randomInt(35, 60)
-townsmen.wealth  = randomInt(45, 70)
-nobles.wealth    = randomInt(50, 80)
+lower.wealth   = randomInt(35, 60)
+middle.wealth  = randomInt(45, 70)
+upper.wealth   = randomInt(50, 80)
 ```
 
 **unrest の初期値**（低〜中程度）:
 ```ts
-peasants.unrest  = randomInt(10, 30)
-townsmen.unrest  = randomInt(10, 25)
-nobles.unrest    = randomInt(5, 25)
+lower.unrest   = randomInt(10, 30)
+middle.unrest  = randomInt(10, 25)
+upper.unrest   = randomInt(5, 25)
 ```
 
 **popIndex の初期化**: 各 POP 生成時に `popIndex.byHolding` を更新する。
@@ -167,11 +178,11 @@ city:
 
 ### 7.3d 初期 RealEstateAsset の配置
 
-各 Holding に RealEstateAsset（field / pasture / workshop）を一定確率で配置する。RealEstateAsset は雇用枠（employmentSlots）を提供し、POP の class capacity の主な供給源となる。
+各 Holding に RealEstateAsset（v0.55: `farm / mountain / woodland / workshop`）を一定確率で配置する。RealEstateAsset は雇用枠（employmentSlots、PopStratum weight）を提供し、POP の stratum capacity の主な供給源となる。初期 `recipeSlots` は RealEstateKind ごとの `DefaultRecipeSlotProfile`（§3.2c / §9）を 20 slot に largest-remainder 配分したもの。
 
 **生成手順**:
 
-1. Holding ごとに全 `RealEstateKind`（field / pasture / workshop）を列挙し、`canBuildRealEstateAssetPure(holding.kind, terrain, features, kind)` で建設可能な kind を絞り込む
+1. Holding ごとに全 `RealEstateKind`（v0.55: farm / mountain / woodland / workshop）を列挙し、`canBuildRealEstateAssetPure(holding.kind, terrain, features, kind)` で建設可能な kind を絞り込む（v0.55: 一次産業 farm/mountain/woodland は manor のみ、workshop は city のみ。terrain gate あり）
 2. 建設可能な kind ごとに `randomFloat` を 1 回消費し、確率 0.6 で配置する。`realEstateSlotCapacityBase`（manor: 3, city: 4）に達したら打ち切り
 3. **補完**: 上記で 1 つも配置されなかった Holding には、建設可能な先頭 kind を 1 つ追加する（最低 1 asset 保証）
 
@@ -185,7 +196,7 @@ city:
 - `level`: 1
 - `createdWeek`: 1
 
-**RNG 消費順（決定性）**: 建設不可な kind は `randomFloat` を消費しない。buildable kinds の列挙順は `REAL_ESTATE_DEFINITIONS` のキー順（field → pasture → workshop）で固定。
+**RNG 消費順（決定性）**: 建設不可な kind は `randomFloat` を消費しない。buildable kinds の列挙順は `REAL_ESTATE_DEFINITIONS` のキー順（v0.55: farm → mountain → woodland → workshop）で固定。
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 

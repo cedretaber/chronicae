@@ -111,7 +111,7 @@ describe('origin helpers', () => {
       originalPolityId: createPolityId('c', 0),
       provinceId,
       holdingIds: [holdingA, holdingB],
-      popClass: 'peasants' as PopClass,
+      popClass: 'lower' as PopClass,
       leaderPersonId: leaderId,
       startedWeek: 42,
     }
@@ -124,7 +124,7 @@ describe('origin helpers', () => {
       kind: 'regime_changed_by_popular_revolt',
       provinceId,
       holdingId: holdingA,
-      popClass: 'peasants' as PopClass,
+      popClass: 'lower' as PopClass,
       leaderPersonId: leaderId,
       week: 17,
     }

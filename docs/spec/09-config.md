@@ -278,28 +278,27 @@
 | warSupplyAttritionEventStrengthThreshold | 5 | SUPPLY_ATTRITION 発火の最小 strength 損耗 |
 | **Disaster / Harvest（発生率・豊作）** | | |
 | disasterEnabled | true | 災害・豊作有効（CrisisSystem の年次発生ロール + HarvestSystem の kill-switch） |
-| famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province（CrisisSystem が使用） |
+| famineBaseChancePerYear | 0 | 飢饉の背景発生率/年/Province（v0.55: 飢饉は扶養力不足駆動になり既定 0。任意の背景飢饉率ノブ） |
 | plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province（同上） |
 | bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年/Province（HarvestSystem） |
-| faminePressureChanceBonus | 9.2 | 人口圧力超過分あたりの飢饉発生率加算（pressure 1.0 で 100%） |
+| faminePressureChanceBonus | 9.2 | 飢饉発生率 = base + bonus × max(0, pressure − famineOnsetPressure)（v0.55: 不足分駆動） |
 | plaguePressureChanceBonus | 2.0 | 人口圧力超過分あたりの疫病発生率加算 |
-| ~~famineWealthPenalty~~ | 8 | **v0.48 で未使用**（旧 DisasterSystem の単発効果。被害は Crisis severity 駆動に置換） |
-| ~~famineSizeDamageRate~~ | 0.10 | **v0.48 で未使用**（初期ショックは `crisisInitialShockSizeRateByKind`） |
-| ~~plagueWealthPenalty~~ | 10 | **v0.48 で未使用** |
-| ~~plagueSizeDamageRate~~ | 0.05 | **v0.48 で未使用** |
 | disasterReliefCostPerProvince | 20 | 救済費用/Province（現在は一旦オミット、将来再導入） |
-| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（現在は一旦オミット） |
 | bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
 | bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
 | bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
 | bountifulHarvestTownsmanUnrestReduction | 1 | 豊作による townsmen unrest 低下量 |
 | **Crisis（v0.48・暫定値。balance は機能完成後にまとめて調整, CLAUDE.md §4）** | | |
 | crisisEnabled | true | Crisis システム有効（週次処理 + 各経路の spawn） |
-| droughtBaseChancePerYear | 0.04 | 干魃基礎発生率/年/Province |
-| droughtPressureChanceBonus | 5.0 | 人口圧力超過分あたりの干魃発生率加算 |
+| droughtBaseChancePerYear | 0.04 | 干魃発生率/年/Province（v0.55: 気候イベント。人口圧とは独立した base のみ） |
+| famineOnsetPressure | 1.0 | v0.55 飢饉: pressure（人口/扶養力）がこれを超えた分が「食料不足」= 発火/餓死の不足量 |
+| famineMortalityPerDeficit | 0.3 | v0.55 飢饉: 急性餓死率 = min(famineMaxMortalityRate, perDeficit × (pressure − onset)) |
+| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る lower POP の上限割合 |
+| droughtFoodOutputPenaltyRate | 1.0 | v0.55 干魃: 食料産出倍率 = max(floor, 1 − rate × severity/100) |
+| droughtFoodOutputFloor | 0.3 | v0.55 干魃: 産出減衰の下げ止まり（severity 100 でも floor 倍は残る） |
 | crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 / disrepair 30 | kind 別 初期 severity（disrepair は修理工数 = Project targetProgress） |
 | crisisSeverityPressureBonus | 20 | 人口圧力超過分あたりの初期 severity 加算（famine/plague/drought のみ） |
-| crisisInitialShockSizeRateByKind | famine 0.05 / plague 0.04 / drought 0.03 / war_damage 0.02 / unrest 0 / disrepair 0 | 発生時の一回限り人口減率 |
+| crisisInitialShockSizeRateByKind | famine 0（餓死は deficit 比例で別算出）/ plague 0.04 / drought 0（生産被害経由）/ war_damage 0.02 / unrest 0 / disrepair 0 | 発生時の一回限り人口減率 |
 | crisisDeadlineWeeksByKind | famine 24 / plague 20 / drought 32 / war_damage 32 / unrest 12 / disrepair 999 | kind 別 有効期限（週）。disrepair は型充足用で Crisis/Project とも deadline 不使用 |
 | crisisBudgetTreasuryRatio | 0.1 | 対処予算 = floor(treasury × 本値) と cap の小さい方 |
 | crisisBudgetCapByKind | famine 60 / plague 80 / drought 50 / war_damage 80 / unrest 40 / disrepair 60 | kind 別 予算上限 |
@@ -332,10 +331,6 @@
 | rebellionStartedDevastation | 2 | 反乱開始時の荒廃 |
 | rebellionSucceededDevastation | 3 | 反乱成功時の荒廃 |
 | rebellionFailedDevastation | 5 | 反乱失敗時の荒廃 |
-| famineDevastation | 5 | 飢饉による荒廃 |
-| famineReliefDevelopmentRecovery | 2 | 飢饉救済による荒廃軽減 |
-| plagueDevastation | 8 | 疫病による荒廃 |
-| bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
 | **Control System** | | |
 | controlMaxDistancePenalty | 10 | 距離 1 あたりの支配力上限ペナルティ |
 | controlMaxMinimum | 40 | 支配力上限の最低値 |
@@ -490,7 +485,7 @@
 | povertyUnrestGain | 0.02 | 貧困による unrest 上昇係数 |
 | prosperityWealthThreshold | 70 | 繁栄閾値（これ超過で unrest 低下） |
 | prosperityUnrestReduction | 0.01 | 繁栄による unrest 低下係数 |
-| unrestNaturalDecayRate | 0.005 | unrest 月次自然減衰率 |
+| unrestNaturalDecayRate | 0.05 | unrest 月次自然減衰率（v0.55: 0.005→0.05。平衡不穏度 ≈ 月次不足ペナルティ / 減衰率 のため、0.005 では essential の慢性不足で不穏度が全員 100 に飽和していた。慢性的な必需品不足自体は前近代として妥当なので供給は据え置き、回復側の減衰を上げて不穏度が勾配を持つようにした。実測 seed1×50年: pinned100 98%→0%、平均 99.4→44.5） |
 | retainedWealthGainByClass | {peasants:0.30, townsmen:0.45, nobles:0.25} | 残留富 1 に対する wealth 増加量（class 別） |
 | overExtractionThreshold | 0.95 | 過剰徴収判定の回収率閾値 |
 | overExtractionWealthSafeThreshold | 55 | この wealth 以上ならペナルティ回避 |
@@ -703,7 +698,10 @@
 | realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
 | realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
 | developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
-| developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上 |
+| developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上（既存施設の満員度トリガ） |
+| developRealEstateEmploymentSlackThreshold | 5 | holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」（v0.55 §B）。満員でなくても新規開発/レベルアップで idle labor を雇用できるための追加トリガ。capacity pressure は employed/cap が高いほど立つので失業時は逆に立たず検出できない、その穴を埋める。develop_owned_holding 候補生成・develop_real_estate vs インフラのルーティング・house レベルアップ aim の3箇所に効く。スラック駆動かつ空きスロットありなら新規建設（level 1）を優先し空き枠を埋める |
+| developRealEstateEmploymentSlackScore | 15 | 雇用スラック駆動の develop_owned_holding 候補の基準スコア（capacity pressure 駆動の 15 に揃える） |
+| improveRealEstateEmploymentSlackBonus | 8 | 失業スラックのある holding の improve_house_real_estate（house レベルアップ）aim への加点（拡張分を即雇用できる holding を優先） |
 | minSlotOveruseModifier | 0.5 | スロット上限超過時の容量乗算下限（slotCap/usedSlots を clamp） |
 | **資源経済（v0.54 §20、market-clearing rewrite）** | | 初期値は調整前提。150年 run で価格の floor/ceiling 常時張り付き・shortage 常態化・marketValueDelta の極端な生成破棄が無いか観察（縮退回避のみ、本格 balance は defer。§6.3c.1 / §14.9） |
 | marketPriceSwing | 0.75 | 価格振れ幅（全資源共通）。`price = basePrice × (1 + swing × clamp(imbalance, −1, 1))` → 価格幅 basePrice×[0.25, 1.75]。資源別 min/max/elasticity を置換 |
@@ -712,17 +710,21 @@
 | marketResourcePriceHistoryLimit | 120 | StateRegion×資源ごとの価格履歴保持件数（月次 120=10年分） |
 | marketPriceSmoothingPreviousWeight / CurrentWeight | 0.75 / 0.25 | 平滑化価格の前回 / 当月重み |
 | realEstateRecipeSlotCount | 20 | RealEstateAsset の recipe slot 総数（20 slot=100%） |
+| recipeSwitchMinGainRate | 0.02 | recipeSwitchSystem の最小利益改善率（これを超える 1-slot 移動のみ適用） |
+| recipeSwitchIntervalWeeks | 12 | recipeSwitchSystem の実行間隔（週）。1評価=最大1slot(5%)のため間隔=転換速度。v0.55: 月次4→四半期12。作付け・工房設備はそう頻繁に入れ替えられない理屈。月次は herding 振動（皆が儲かる recipe へ殺到→供給過多→暴落→再転換）を生み、間隔を延ばすと市場が安定。年次48は全面転換に約20年かかり硬直しすぎるため四半期を採用 |
 | resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
-| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
+| realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。v0.55: farm=[{irrigation:0.15},{transport:0.10}], mountain=[{transport:0.10}], woodland=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
 | realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
-| popFoodDemandPerSizeByClass | {peasants:1.0, townsmen:1.05, nobles:1.10} | POP size あたり food 需要（class 別、階層差小） |
-| popProcessedGoodsDemandPerSizeByClass | {peasants:0.20, townsmen:0.60, nobles:1.20} | POP size あたり processed_goods 需要（上流ほど大） |
-| food/processedGoodsPurchasingPowerFactorAtWealth0/50/100 | food=0.6/1.0/1.2、processed=0.1/0.7/1.3 | wealth 0/50/100 の購買力係数（2 区間線形補間） |
-| foodShortageWealthPenalty / UnrestGain | 3.0 / 4.0 | food shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。負のチャネル §8.2） |
-| foodHighPriceWealthPenalty / UnrestGain | 1.5 / 1.5 | food 価格高騰（priceMultiplier の basePrice 超過比）あたりの wealth-/unrest+（high price チャネル。shortage とは別概念 §8.3） |
-| foodFulfillmentWealthGain / UnrestReduction | 0.5 / 1.0 | food 充足（fulfillmentRatio=1）かつ価格安定時の wealth+/unrest-（§19.2 正のチャネル。load-bearing につき維持） |
-| processedGoodsShortageWealthPenalty / UnrestGain | 1.0 / 1.0 | processed_goods shortage 時の wealth-/unrest+（`× shortageSeverity` で比例。food より弱い） |
-| processedGoodsFulfillmentWealthGain / UnrestReduction | 0.5 / 0.5 | processed_goods 充足時の wealth+/unrest- |
+| **資源経済 v0.55（21 ResourceKind・NeedCategory・InputCategory・PopType、§6.3c.2 / draft §4–§17）** | | 初期値は調整前提。balance は機能完成後にまとめて defer（縮退回避のみ） |
+| needResourceChoiceBeta | 2 | NeedCategory 内の resource 選択の比率配分指数（`share = utility^β / Σ`。β大ほど安い資源に集中、greedy 回避、§5.4） |
+| inputResourceChoiceBeta | 2 | InputCategory 内の resource 選択の比率配分指数（need と同形、§6.3） |
+| inputShortageOutputFloor | 0.25 | input 不足時の output 下げ止まり（`modifier = floor + (1−floor)×inputFulfillmentScale`。strict Liebig を置換、§12.5） |
+| laborTypeFulfillmentFloor | 0.70 | PopType 構成ミスマッチ時の生産効率の下限（soft modifier。`floor + (1−floor)×weightedCoverage`、§14.3） |
+| needTierFloor | {essential:0.85, ordinary:0.10, luxury:0.00} | NeedTier 別購買力の下限（wealth 0 でも essential は 0.85 購入、§15.3） |
+| needTierWealthHalf | {essential:20, ordinary:60, luxury:150} | NeedTier 別購買力飽和曲線の half 点（係数が中間まで伸びる wealthIndex、§15.3） |
+| needShortageWealthPenaltyByTier | {essential:0.30, ordinary:0.12, luxury:0.06} | NeedCategory shortage の weekly wealth delta 係数（tier 別、§16.2） |
+| needShortageUnrestPenaltyByTier | {essential:0.40, ordinary:0.10, luxury:0.02} | NeedCategory shortage の weekly unrest delta 係数（tier 別、§16.2） |
+| ~~popFoodDemandPerSizeByClass~~ ほか v0.54 食料/加工 demand・購買力・shortage penalty 群 | — | v0.55 廃止（NeedCategory モデルへ統合。`needTierFloor` / `needShortage*ByTier` / `PopNeedProfile`（popNeedDefinitions.ts）が置換） |
 | **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |

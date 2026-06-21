@@ -2,11 +2,12 @@ import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
-import type { PopClass } from '../types/popGroup'
+import type { PopClass, PopStratum } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+import type { NeedTier } from '../types/needCategory'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
 import type { RealEstateInfrastructureModifier } from './realEstateDefinitions'
@@ -70,11 +71,6 @@ export type SimulationConfig = {
   rebellionStartedDevastation: number
   rebellionSucceededDevastation: number
   rebellionFailedDevastation: number
-  // Disaster development effects
-  famineDevastation: number
-  famineReliefDevelopmentRecovery: number
-  plagueDevastation: number
-  bountifulHarvestDevelopmentGain: number
   // Control system
   controlMaxDistancePenalty: number
   controlMaxMinimum: number
@@ -216,10 +212,12 @@ export type SimulationConfig = {
   femaleRoleEligibilityChance: number
   // v0.8 POP system
   popSystemEnabled: boolean
-  minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  minPopSizeByClass: Record<PopStratum, number>
   minProvinceCarryingCapacity: number
-  manpowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
-  baseMonthlyGrowthByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  // v0.55 POP 再設計: carrying capacity = 食料市場供給 / perCapitaFoodNeed。1人あたり月次食料需要の基準。
+  perCapitaFoodNeed: number
+  manpowerFactorByClass: Record<PopStratum, number>
+  baseMonthlyGrowthByClass: Record<PopStratum, number>
   populationPressureThreshold: number
   populationPressureWealthPenalty: number
   populationPressureUnrestGain: number
@@ -228,7 +226,7 @@ export type SimulationConfig = {
   prosperityWealthThreshold: number
   prosperityUnrestReduction: number
   unrestNaturalDecayRate: number
-  retainedWealthGainByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  retainedWealthGainByClass: Record<PopStratum, number>
   overExtractionThreshold: number
   overExtractionWealthSafeThreshold: number
   overExtractionUnrestSafeThreshold: number
@@ -266,18 +264,20 @@ export type SimulationConfig = {
   warUnrestDamage: number
   warPeasantSizeDamage: number
   warTownsmanSizeDamage: number
-  famineWealthPenalty: number
-  famineSizeDamageRate: number
-  famineReliefDamageMultiplier: number
   faminePressureChanceBonus: number
-  plagueWealthPenalty: number
-  plagueSizeDamageRate: number
   plaguePressureChanceBonus: number
   // v0.48 Crisis (災害・戦災・反乱前段の entity 化, §7.2)
   crisisEnabled: boolean
-  // 発生年次ロール (drought は新規。famine/plague は既存 *BaseChancePerYear を流用)
+  // 発生年次ロール (drought は気候イベントで base のみ。famine は v0.55 で扶養力不足駆動)
   droughtBaseChancePerYear: number
-  droughtPressureChanceBonus: number
+  // v0.55 飢饉 (食料不足の結果としての急性餓死, §B):
+  //   発火・餓死とも pressure (= 人口 / 食料扶養力) ベース。fulfillment は購買力加重のため不使用。
+  famineOnsetPressure: number // この pressure を超えた分が「食料不足」= 飢饉の発火/餓死の不足量
+  famineMortalityPerDeficit: number // 急性餓死率 = min(max, perDeficit × (pressure − onset))
+  famineMaxMortalityRate: number // 1 回の飢饉発生で減る lower POP の上限割合
+  // v0.55 干魃 (食料生産への被害, §B): 発生 holding の食料 recipe 産出に乗算する減衰。
+  droughtFoodOutputPenaltyRate: number // 産出倍率 = max(floor, 1 − rate × severity/100)
+  droughtFoodOutputFloor: number
   // 初期 severity (= 対処 Project の targetProgress)。0–100。pressureExcess に比例して加算 (clamp 100)
   crisisInitialSeverityByKind: Record<CrisisKind, number>
   crisisSeverityPressureBonus: number
@@ -355,7 +355,7 @@ export type SimulationConfig = {
   nobleRevoltHouseDisloyaltyFactor: number
   nobleRevoltLowLegitimacyFactor: number
   // ProvinceRevolt power
-  popRevoltPowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  popRevoltPowerFactorByClass: Record<PopStratum, number>
   provinceRevoltHouseSuppressionFactor: number
   provinceRevoltCountrySuppressionFactor: number
   provinceRevoltTreasurySuppressionFactor: number
@@ -591,7 +591,7 @@ export type SimulationConfig = {
   // popFactor の正規化基準。class 間で POP スケールが大きく異なる (worldgen 実測: 該当 holding kind で
   //   peasants ~85 / nobles ~2.5、townsmen は都市発達後) ため per-class 基準にする。
   //   sourceKind→class: levy→peasants / urban_militia→townsmen / noble_retinue→nobles。
-  regimentReinforcementReferencePopByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  regimentReinforcementReferencePopByClass: Record<PopStratum, number>
   regimentReinforcementMinPopFactor: number
   regimentReinforcementMaxPopFactor: number
   regimentReinforcementCostPerStrength: number
@@ -1069,6 +1069,9 @@ export type SimulationConfig = {
   aimProgressCompletionTolerance: number
   projectDeadlineWeeksDevelopment: number
   projectDeadlineWeeksDiplomatic: number
+  // v0.55 §22: 建設資材 shortage / 追加予算を考慮した kind 別 deadline。
+  projectDeadlineWeeksHoldingDevelopment: number
+  projectDeadlineWeeksRealEstateDevelopment: number
   projectStageMaxAttempts: number
   pressureResponseDefaultDeadlineWeeks: number
   supervisedProjectWorkloadWeight: number
@@ -1388,6 +1391,14 @@ export type SimulationConfig = {
   >
   realEstateInfrastructureModifiers: Record<RealEstateKind, RealEstateInfrastructureModifier[]>
   developRealEstateCapacityPressureThreshold: number
+  // v0.55 §B: holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」と判定。
+  //   既存施設が満員でなくても (capacity pressure が立たなくても) 新規開発/レベルアップで idle labor を
+  //   雇用できるため、develop_real_estate トリガ・ルーティング・house レベルアップ aim の追加シグナルにする。
+  developRealEstateEmploymentSlackThreshold: number
+  // 雇用スラック駆動の develop_owned_holding 候補の基準スコア (capacity pressure 駆動の 15 に揃える)。
+  developRealEstateEmploymentSlackScore: number
+  // 雇用スラックのある holding の improve_house_real_estate (house レベルアップ) aim に加点するボーナス。
+  improveRealEstateEmploymentSlackBonus: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
@@ -1403,6 +1414,27 @@ export type SimulationConfig = {
   marketResourcePriceHistoryLimit: number
   marketPriceSmoothingPreviousWeight: number
   marketPriceSmoothingCurrentWeight: number
+  // v0.55 §6.3: InputCategory → ResourceKind 比率配分の鋭さ (share ∝ utility^beta)。
+  inputResourceChoiceBeta: number
+  // v0.55 §5.4: NeedCategory → ResourceKind 比率配分の鋭さ。
+  needResourceChoiceBeta: number
+  // v0.55 §14.3: laborTypeFulfillmentModifier の下限 (PopType 構成が理想から外れても最低稼働率)。
+  laborTypeFulfillmentFloor: number
+  // v0.55 §12.4/§12.5 (抽象市場改訂): input shortage 時の output 下限。supply 0 でも
+  //   inputShortageModifier = floor + (1-floor) × inputFulfillmentScale 倍は生産する (完全停止を防ぐ)。
+  inputShortageOutputFloor: number
+  // v0.55 §17: recipe 自動入れ替えの最小利益改善率 (月あたり最大 1 slot は system 側で atomic に保証)。
+  recipeSwitchMinGainRate: number
+  // v0.55: recipeSwitchSystem の実行間隔 (週)。作付け・工房設備はそう頻繁に入れ替えられないため、
+  //   月次 (4) より長い四半期 (12) / 年次 (48) を選べる。tick.ts の intervalOverrides 経由。
+  recipeSwitchIntervalWeeks: number
+  // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
+  //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
+  needTierFloor: Record<NeedTier, number>
+  needTierWealthHalf: Record<NeedTier, number>
+  // v0.55 §16.2: NeedTier ごとの shortage penalty (weekly wealth/unrest delta 係数)。
+  needShortageWealthPenaltyByTier: Record<NeedTier, number>
+  needShortageUnrestPenaltyByTier: Record<NeedTier, number>
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -1413,28 +1445,8 @@ export type SimulationConfig = {
   >
   // owner income / holding due
   realEstateHoldingDueRate: number
-  // POP 需要
-  popFoodDemandPerSizeByClass: Record<PopClass, number>
-  popProcessedGoodsDemandPerSizeByClass: Record<PopClass, number>
-  // 購買力 (wealth 0/50/100 の 2 区間線形補間)
-  foodPurchasingPowerFactorAtWealth0: number
-  foodPurchasingPowerFactorAtWealth50: number
-  foodPurchasingPowerFactorAtWealth100: number
-  processedGoodsPurchasingPowerFactorAtWealth0: number
-  processedGoodsPurchasingPowerFactorAtWealth50: number
-  processedGoodsPurchasingPowerFactorAtWealth100: number
-  // POP wealth / unrest 反映
-  foodShortageWealthPenalty: number
-  foodShortageUnrestGain: number
-  foodHighPriceWealthPenalty: number
-  foodHighPriceUnrestGain: number
-  // §19.2: food が充足し価格が安定している地域への正の効果 (wealth+/unrest-)。
-  foodFulfillmentWealthGain: number
-  foodFulfillmentUnrestReduction: number
-  processedGoodsShortageWealthPenalty: number
-  processedGoodsShortageUnrestGain: number
-  processedGoodsFulfillmentWealthGain: number
-  processedGoodsFulfillmentUnrestReduction: number
+  // v0.55: 旧 food/processed 2 軸 POP 需要・購買力・wellbeing config は NeedCategory ベース
+  //   (popNeedDefinitions / needTier*) へ全面移行したため削除 (§5/§15/§16)。
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   realEstateSeizurePrescriptionYears: number
   landContractDefaultPrescriptionYears: number
@@ -1492,7 +1504,7 @@ export const defaultConfig: SimulationConfig = {
   minAttackerWinChanceToDeclare: 0.45,
   winChanceWarGateEnabled: true,
   disasterEnabled: true,
-  famineBaseChancePerYear: 0.08,
+  famineBaseChancePerYear: 0, // v0.55: 飢饉は扶養力不足駆動。既定 0 (背景飢饉率の任意ノブ)
   plagueBaseChancePerYear: 0.03,
   bountifulHarvestBaseChancePerYear: 0.05,
   disasterReliefCostPerProvince: 20,
@@ -1504,10 +1516,6 @@ export const defaultConfig: SimulationConfig = {
   rebellionStartedDevastation: 2,
   rebellionSucceededDevastation: 3,
   rebellionFailedDevastation: 5,
-  famineDevastation: 5,
-  famineReliefDevelopmentRecovery: 2,
-  plagueDevastation: 8,
-  bountifulHarvestDevelopmentGain: 3,
   // Control system
   controlMaxDistancePenalty: 10,
   controlMaxMinimum: 40,
@@ -1643,10 +1651,11 @@ export const defaultConfig: SimulationConfig = {
   femaleRoleEligibilityChance: 0.03,
   // v0.8 POP system
   popSystemEnabled: true,
-  minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },
+  minPopSizeByClass: { lower: 5, middle: 1, upper: 1 },
   minProvinceCarryingCapacity: 50,
-  manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
-  baseMonthlyGrowthByClass: { peasants: 0.008, townsmen: 0.002, nobles: 0.001 },
+  perCapitaFoodNeed: 1.0,
+  manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
+  baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,
   populationPressureWealthPenalty: 0.2,
   populationPressureUnrestGain: 0.3,
@@ -1654,16 +1663,16 @@ export const defaultConfig: SimulationConfig = {
   povertyUnrestGain: 0.02,
   prosperityWealthThreshold: 70,
   prosperityUnrestReduction: 0.01,
-  unrestNaturalDecayRate: 0.005,
-  retainedWealthGainByClass: { peasants: 0.3, townsmen: 0.45, nobles: 0.25 },
+  unrestNaturalDecayRate: 0.05,
+  retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,
   overExtractionUnrestSafeThreshold: 45,
   overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
   classCapacityBaseByHoldingKind: {
-    manor: { peasants: 0, townsmen: 0, nobles: 0 },
-    city: { peasants: 0, townsmen: 0, nobles: 0 },
+    manor: { lower: 0, middle: 0, upper: 0 },
+    city: { lower: 0, middle: 0, upper: 0 },
   },
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: {
@@ -1687,12 +1696,12 @@ export const defaultConfig: SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
   provinceFeatureLakeBaseChance: 0.06,
   provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
-  employedManpowerMultiplierByClass: { peasants: 1.0, townsmen: 0.8, nobles: 1.2 },
+  employedManpowerMultiplierByClass: { lower: 1.0, middle: 0.8, upper: 1.2 },
   unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
-  unemployedWealthDecayByClass: { peasants: 0.2, townsmen: 0.3, nobles: 0.15 },
-  unemployedUnrestGainByClass: { peasants: 0.2, townsmen: 0.35, nobles: 0.45 },
-  unemployedGrowthModifierByClass: { peasants: 0.6, townsmen: 0.5, nobles: 0.7 },
+  unemployedWealthDecayByClass: { lower: 0.2, middle: 0.3, upper: 0.15 },
+  unemployedUnrestGainByClass: { lower: 0.2, middle: 0.35, upper: 0.45 },
+  unemployedGrowthModifierByClass: { lower: 0.6, middle: 0.5, upper: 0.7 },
   // v0.24 Initial POP generation
   initialPopFillRatioMin: 70,
   initialPopFillRatioMax: 95,
@@ -1706,17 +1715,18 @@ export const defaultConfig: SimulationConfig = {
   warUnrestDamage: 10,
   warPeasantSizeDamage: 0.5,
   warTownsmanSizeDamage: 0.3,
-  famineWealthPenalty: 8,
-  famineSizeDamageRate: 0.1,
-  famineReliefDamageMultiplier: 0.3,
   faminePressureChanceBonus: 9.2,
-  plagueWealthPenalty: 10,
-  plagueSizeDamageRate: 0.05,
   plaguePressureChanceBonus: 2.0,
   // v0.48 Crisis (§7.2)。balance は機能完成後にまとめて調整する前提の暫定値 (CLAUDE.md §4)。
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,
-  droughtPressureChanceBonus: 5.0,
+  // v0.55 飢饉: 食料不足の結果として発火・餓死。pressure ベース (購買力中立)。
+  famineOnsetPressure: 1.0,
+  famineMortalityPerDeficit: 0.3,
+  famineMaxMortalityRate: 0.15,
+  // v0.55 干魃: 食料生産への被害。severity 30 → 産出 ×0.70、severity 50 → ×0.50 (floor 0.30)。
+  droughtFoodOutputPenaltyRate: 1.0,
+  droughtFoodOutputFloor: 0.3,
   crisisInitialSeverityByKind: {
     famine: 30,
     plague: 35,
@@ -1727,9 +1737,9 @@ export const defaultConfig: SimulationConfig = {
   },
   crisisSeverityPressureBonus: 20,
   crisisInitialShockSizeRateByKind: {
-    famine: 0.05,
+    famine: 0, // v0.55: 飢饉の餓死は deficit 比例で別途算出 (famineMortalityPerDeficit)。table 値は不使用
     plague: 0.04,
-    drought: 0.03,
+    drought: 0, // v0.55: 干魃は食料生産を減衰させ飢饉経由で減らす。直接の人口ショックは持たない
     war_damage: 0.02,
     unrest: 0,
     disrepair: 0, // disrepair は初期 pop ショック無し
@@ -1812,7 +1822,7 @@ export const defaultConfig: SimulationConfig = {
   nobleRevoltHouseDisloyaltyFactor: 0.2,
   nobleRevoltLowLegitimacyFactor: 0.2,
   // ProvinceRevolt power
-  popRevoltPowerFactorByClass: { peasants: 0.02, townsmen: 0.015, nobles: 0.08 },
+  popRevoltPowerFactorByClass: { lower: 0.02, middle: 0.015, upper: 0.08 },
   provinceRevoltHouseSuppressionFactor: 1.0,
   provinceRevoltCountrySuppressionFactor: 0.8,
   provinceRevoltTreasurySuppressionFactor: 2.0,
@@ -2032,7 +2042,7 @@ export const defaultConfig: SimulationConfig = {
   regimentReinforcementPeaceMultiplier: 1.0,
   regimentReinforcementWarMultiplier: 0.4,
   regimentReinforcementMobilizedMultiplier: 0.25,
-  regimentReinforcementReferencePopByClass: { peasants: 80, townsmen: 15, nobles: 2.5 },
+  regimentReinforcementReferencePopByClass: { lower: 80, middle: 15, upper: 2.5 },
   regimentReinforcementMinPopFactor: 0.1,
   regimentReinforcementMaxPopFactor: 1.5,
   regimentReinforcementCostPerStrength: 0.2,
@@ -2533,6 +2543,8 @@ export const defaultConfig: SimulationConfig = {
   aimProgressCompletionTolerance: 1,
   projectDeadlineWeeksDevelopment: 48,
   projectDeadlineWeeksDiplomatic: 24,
+  projectDeadlineWeeksHoldingDevelopment: 72,
+  projectDeadlineWeeksRealEstateDevelopment: 52,
   projectStageMaxAttempts: 3,
   pressureResponseDefaultDeadlineWeeks: 48,
   supervisedProjectWorkloadWeight: 2,
@@ -2931,23 +2943,29 @@ export const defaultConfig: SimulationConfig = {
   warSupplyAttritionEventStrengthThreshold: 5,
   // === v0.52 RealEstateAsset ===
   realEstateTerrainCapacityMultiplier: {
-    field: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
-    pasture: { plains: 1.0, hills: 1.3, mountains: 0.8, forest: 0.65, wetlands: 0.4 },
+    farm: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
+    mountain: { mountains: 1.3, hills: 1.0, plains: 0.4, forest: 0.5, wetlands: 0.3 },
+    woodland: { forest: 1.3, hills: 1.0, plains: 0.5, mountains: 0.6, wetlands: 0.4 },
     workshop: { plains: 1.0, hills: 0.9, forest: 0.85, wetlands: 0.75, mountains: 0.7 },
   },
   realEstateFeatureCapacityMultiplier: {
-    field: { major_river: 1.1, lake: 1.05 },
-    pasture: {},
+    farm: { major_river: 1.1, lake: 1.05 },
+    mountain: {},
+    woodland: { major_river: 1.05 },
     workshop: { coastal: 1.05, major_river: 1.05 },
   },
   realEstateInfrastructureModifiers: {
-    field: [
+    farm: [
       { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.15 },
       { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
     ],
-    pasture: [
-      { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.1 },
+    mountain: [
       { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+      { infraKind: 'transport_infrastructure', modifierPerLevel: 0.1 },
+    ],
+    woodland: [
+      { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+      { infraKind: 'transport_infrastructure', modifierPerLevel: 0.1 },
     ],
     workshop: [
       { infraKind: 'workshop_infrastructure', modifierPerLevel: 0.15 },
@@ -2955,16 +2973,21 @@ export const defaultConfig: SimulationConfig = {
     ],
   },
   developRealEstateCapacityPressureThreshold: 0.8,
+  developRealEstateEmploymentSlackThreshold: 5,
+  developRealEstateEmploymentSlackScore: 15,
+  improveRealEstateEmploymentSlackBonus: 8,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
   developRealEstateProjectBaseCost: {
-    field: 30,
-    pasture: 28,
+    farm: 30,
+    mountain: 32,
+    woodland: 30,
     workshop: 35,
   },
   developRealEstateProjectBaseProgress: {
-    field: 100,
-    pasture: 100,
+    farm: 100,
+    mountain: 100,
+    woodland: 100,
     workshop: 110,
   },
   // v0.52 不動産売買
@@ -2977,28 +3000,22 @@ export const defaultConfig: SimulationConfig = {
   marketResourcePriceHistoryLimit: 120,
   marketPriceSmoothingPreviousWeight: 0.75,
   marketPriceSmoothingCurrentWeight: 0.25,
+  inputResourceChoiceBeta: 2,
+  needResourceChoiceBeta: 2,
+  laborTypeFulfillmentFloor: 0.7,
+  // §12.4/§12.5 (抽象市場改訂): supply 0 でも potential の 25% は生産する。希少 input は market price で
+  //   購入扱い (高価 input × 低 output → 低利益/赤字) となり、price シグナルと recipe 転換動機が残る。
+  inputShortageOutputFloor: 0.25,
+  recipeSwitchMinGainRate: 0.02,
+  recipeSwitchIntervalWeeks: 12,
+  needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
+  needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
+  needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },
+  needShortageUnrestPenaltyByTier: { essential: 0.4, ordinary: 0.1, luxury: 0.02 },
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,
   realEstateHoldingDueRate: 0.1,
-  popFoodDemandPerSizeByClass: { peasants: 1.0, townsmen: 1.05, nobles: 1.1 },
-  popProcessedGoodsDemandPerSizeByClass: { peasants: 0.2, townsmen: 0.6, nobles: 1.2 },
-  foodPurchasingPowerFactorAtWealth0: 0.6,
-  foodPurchasingPowerFactorAtWealth50: 1.0,
-  foodPurchasingPowerFactorAtWealth100: 1.2,
-  processedGoodsPurchasingPowerFactorAtWealth0: 0.1,
-  processedGoodsPurchasingPowerFactorAtWealth50: 0.7,
-  processedGoodsPurchasingPowerFactorAtWealth100: 1.3,
-  foodShortageWealthPenalty: 3.0,
-  foodShortageUnrestGain: 4.0,
-  foodHighPriceWealthPenalty: 1.5,
-  foodHighPriceUnrestGain: 1.5,
-  foodFulfillmentWealthGain: 0.5,
-  foodFulfillmentUnrestReduction: 1.0,
-  processedGoodsShortageWealthPenalty: 1.0,
-  processedGoodsShortageUnrestGain: 1.0,
-  processedGoodsFulfillmentWealthGain: 0.5,
-  processedGoodsFulfillmentUnrestReduction: 0.5,
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   // 初期値は保守的にし、押領・上納拒否が乱発しないようにする。観察後に調整する。
   realEstateSeizurePrescriptionYears: 20,

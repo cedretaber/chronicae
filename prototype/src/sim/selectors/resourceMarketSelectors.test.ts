@@ -6,35 +6,35 @@ import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions
 // v0.54 市場清算 rewrite (§6.3c.1): imbalance ベース価格 + fulfillment/shortage の純関数テスト。
 const cfg = defaultConfig
 const SWING = defaultConfig.marketPriceSwing // 0.75
-const FOOD_BASE = RESOURCE_PRICE_DEFINITIONS.food.basePrice
+const FOOD_BASE = RESOURCE_PRICE_DEFINITIONS.grain.basePrice
 
 describe('computeResourcePrice — imbalance price (§6.3c.1)', () => {
   it('buy == sell: price == basePrice (imbalance 0)', () => {
-    expect(computeResourcePrice('food', 100, 100, cfg)).toBeCloseTo(FOOD_BASE, 6)
+    expect(computeResourcePrice('grain', 100, 100, cfg)).toBeCloseTo(FOOD_BASE, 6)
   })
 
   it('supply 過多 (buy < sell): price 下がるが下限 basePrice×(1−swing) で底打ち', () => {
     // 大幅な供給過多 → imbalance ≈ −1 → 下限。
-    const price = computeResourcePrice('food', 1000, 1, cfg)
+    const price = computeResourcePrice('grain', 1000, 1, cfg)
     expect(price).toBeCloseTo(FOOD_BASE * (1 - SWING), 4)
     expect(price).toBeGreaterThan(0) // 廃棄ではなく安値で全量売れる
   })
 
   it('supply 不足 (buy > sell): price 上がるが上限 basePrice×(1+swing) で頭打ち', () => {
-    const price = computeResourcePrice('food', 1, 1000, cfg)
+    const price = computeResourcePrice('grain', 1, 1000, cfg)
     expect(price).toBeCloseTo(FOOD_BASE * (1 + SWING), 4)
   })
 
   it('edge: buy=0, sell=0 → basePrice', () => {
-    expect(computeResourcePrice('food', 0, 0, cfg)).toBeCloseTo(FOOD_BASE, 6)
+    expect(computeResourcePrice('grain', 0, 0, cfg)).toBeCloseTo(FOOD_BASE, 6)
   })
 
   it('edge: buy=0, sell>0 → 下限価格 (需要ゼロでも全量売れた扱い)', () => {
-    expect(computeResourcePrice('food', 50, 0, cfg)).toBeCloseTo(FOOD_BASE * (1 - SWING), 6)
+    expect(computeResourcePrice('grain', 50, 0, cfg)).toBeCloseTo(FOOD_BASE * (1 - SWING), 6)
   })
 
   it('edge: buy>0, sell=0 → 上限価格', () => {
-    expect(computeResourcePrice('food', 0, 50, cfg)).toBeCloseTo(FOOD_BASE * (1 + SWING), 6)
+    expect(computeResourcePrice('grain', 0, 50, cfg)).toBeCloseTo(FOOD_BASE * (1 + SWING), 6)
   })
 
   it('price は常に basePrice×[1−swing, 1+swing] に収まる', () => {
@@ -47,7 +47,7 @@ describe('computeResourcePrice — imbalance price (§6.3c.1)', () => {
       [0.001, 1000],
       [1000, 0.001],
     ]) {
-      const p = computeResourcePrice('food', sell!, buy!, cfg)
+      const p = computeResourcePrice('grain', sell!, buy!, cfg)
       expect(p).toBeGreaterThanOrEqual(lo - 1e-9)
       expect(p).toBeLessThanOrEqual(hi + 1e-9)
     }

@@ -317,7 +317,7 @@ describe('WarCreationSystem (§6)', () => {
         originalPolityId: holder,
         provinceId: pRev,
         holdingIds: [holdingId],
-        popClass: 'peasants',
+        popClass: 'lower',
         leaderPersonId: 'pe-rebel' as never,
         startedWeek: 0,
       },

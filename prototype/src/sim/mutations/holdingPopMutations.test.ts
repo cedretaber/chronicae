@@ -17,13 +17,15 @@ function setup() {
   // 同一 province の 2 holding に peasant POP を 1 つずつ (province 多重の罠を検出するため)
   const p1 = addToOrCreatePopGroupMut(ws, {
     holdingId: H1,
-    class: 'peasants',
+    class: 'lower',
+    popType: 'peasants',
     employed: true,
     size: 100,
   })
   const p2 = addToOrCreatePopGroupMut(ws, {
     holdingId: H2,
-    class: 'peasants',
+    class: 'lower',
+    popType: 'peasants',
     employed: true,
     size: 100,
   })
@@ -57,7 +59,7 @@ describe('holding-scoped pop/attitude mutable helpers', () => {
 
   it('class フィルタが効く (非該当 class は不変)', () => {
     const { ws, p1 } = setup()
-    adjustHoldingPopWealthMut(ws, H1, -8, 'nobles')
+    adjustHoldingPopWealthMut(ws, H1, -8, 'upper')
     expect(ws.popGroups[p1]!.wealth).toBe(50) // commoner なので noble 指定では不変
   })
 

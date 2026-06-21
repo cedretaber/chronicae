@@ -114,21 +114,21 @@ function calcHoldingRevoltTendency(
       (governorScore - config.revoltAbilityNeutralScore) * config.revoltAbilitySuppressionFactor
   }
 
-  if (rebelClass === 'peasants') {
+  if (rebelClass === 'lower') {
     if (pop.wealth < config.povertyWealthThreshold) {
       tendency += (config.povertyWealthThreshold - pop.wealth) * config.peasantRevoltPovertyFactor
     }
     tendency +=
       getProvincePopulationPressure(state, config, provinceId) * config.peasantRevoltPressureFactor
-  } else if (rebelClass === 'townsmen') {
-    const townsmenWealth = getPopWealthByClass(state, provinceId, 'townsmen')
+  } else if (rebelClass === 'middle') {
+    const townsmenWealth = getPopWealthByClass(state, provinceId, 'middle')
     if (townsmenWealth < config.overExtractionWealthSafeThreshold) {
       tendency += config.townsmenRevoltExtractionFactor
       tendency +=
         Math.log1p(getProvinceMonthlyResourceRevenue(state, config, provinceId)) *
         config.townsmenRevoltProductionFactor
     }
-  } else if (rebelClass === 'nobles') {
+  } else if (rebelClass === 'upper') {
     const a_house = getAttitudeOrDefault(state, pop, { kind: 'house', id: ownerHouseId })
     const a_polity = getAttitudeOrDefault(state, pop, { kind: 'polity', id: terminalPolityId })
     const houseScore =
@@ -216,7 +216,7 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
     const terminalContractId = holdingChain[holdingChain.length - 1]
     if (!terminalContractId) continue
 
-    const classes: PopClass[] = ['peasants', 'townsmen', 'nobles']
+    const classes: PopClass[] = ['lower', 'middle', 'upper']
     let bestClass: PopClass | undefined
     let bestTendency = -Infinity
 

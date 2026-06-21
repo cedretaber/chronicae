@@ -1,5 +1,13 @@
 import type { TickContext } from './context'
-import type { StateRegionId, HoldingId, ProductionRecipeId, PopGroupId } from '../types/ids'
+import type {
+  StateRegionId,
+  HoldingId,
+  ProductionRecipeId,
+  PopGroupId,
+  ProjectId,
+  CrisisId,
+} from '../types/ids'
+import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
 import type { PopGroup } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -11,17 +19,24 @@ import type {
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
 } from '../selectors/resourceProductionSelectors'
+import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
+import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
+import {
+  computeProjectMaterialBaseUnits,
+  getProjectMarketKey,
+} from '../selectors/projectMaterialSelectors'
 import {
   computeResourcePrice,
   computeMarketFulfillment,
-  getPopResourceDemand,
+  computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
-import { clamp100 } from '../utils/math'
+import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
+import { clamp, clamp100 } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
@@ -38,25 +53,51 @@ type RecipeRecord = {
   recipeLabor: number
   potentialOutputs: Partial<Record<ResourceKind, number>>
   potentialInputs: Partial<Record<ResourceKind, number>>
+  inputCategories: ResolvedInputCategory[]
+  // §14.3 laborTypeFulfillmentModifier (観察用)。Pass 2 で asset 単位に slotCount 加重集約する。
+  laborTypeFulfillment: number
 }
 
 type MarketAccum = {
   marketKey: string
   recipes: RecipeRecord[]
-  supply: Record<ResourceKind, number>
+  // §12: 全 resource の buyOrders (POP 消費需要 + recipe input 需要)。supply は清算ループで level 昇順に算出。
   demand: Record<ResourceKind, number>
-  // §19: market 内の POP に food/processed の充足率・価格を反映するため popId を集める。
-  popGroupIds: PopGroupId[]
+  // §16: 各 POP の NeedCategory 解決を保持し、清算後の per-pop wellbeing 計算に使う。
+  popDemands: { popId: PopGroupId; needs: ResolvedNeedCategory[] }[]
 }
 
 function emptyResourceRecord(): Record<ResourceKind, number> {
-  return { food: 0, raw_materials: 0, processed_goods: 0 }
+  const r = {} as Record<ResourceKind, number>
+  for (const k of RESOURCE_KINDS) r[k] = 0
+  return r
 }
 
 export function runResourceEconomySystem(ctx: TickContext): TickContext {
   const { state, config } = ctx
   const log = createLogger(config.debug)
   const week = state.absoluteWeek
+
+  // v0.55 §B: active な干魃 Crisis の holding → severity を引く。食料 recipe の産出を減衰させ、
+  //   foodSupply 低下 → 扶養力低下 → 飢饉の原因とする。determinism: crisis key sorted 反復。
+  const droughtSeverityByHolding = new Map<string, number>()
+  for (const cid of (Object.keys(state.crises) as CrisisId[]).sort()) {
+    const c = state.crises[cid]
+    if (!c || c.kind !== 'drought' || c.status !== 'active') continue
+    const key = c.holdingId as string
+    const prev = droughtSeverityByHolding.get(key) ?? 0
+    if (c.severity > prev) droughtSeverityByHolding.set(key, c.severity)
+  }
+  // 食料 recipe 産出への干魃減衰倍率 (食料以外・干魃無しは 1)。供給集計と per-asset 売却益の双方で使う。
+  const droughtOutputScale = (holdingId: HoldingId, resource: ResourceKind): number => {
+    if (FOOD_RESOURCE_VALUE[resource] === undefined) return 1
+    const sev = droughtSeverityByHolding.get(holdingId)
+    if (sev === undefined) return 1
+    return Math.max(
+      config.droughtFoodOutputFloor,
+      1 - config.droughtFoodOutputPenaltyRate * (sev / 100),
+    )
+  }
 
   // marketKey ごとの集計。states を sorted key 順で反復し、market を生成順に並べる。
   const markets: MarketAccum[] = []
@@ -70,11 +111,16 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     const accum: MarketAccum = {
       marketKey,
       recipes: [],
-      supply: emptyResourceRecord(),
       demand: emptyResourceRecord(),
-      popGroupIds: [],
+      popDemands: [],
     }
     markets.push(accum)
+
+    // §6.3 share 解決用の前月 smoothedPrice (cold-start は basePrice fallback §4.3a)。
+    const marketPriceLookup = (resource: ResourceKind): number => {
+      const ps = state.marketResourcePrices[marketResourcePriceKey(marketKey, resource)]
+      return getSmoothedPriceOrBase(ps?.smoothedPrice, resource)
+    }
 
     for (const provinceId of region.provinceIds) {
       const province = state.provinces[provinceId]
@@ -99,6 +145,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             config,
             asset,
             allocatedLabor,
+            marketPriceLookup,
           )
 
           for (const rp of recipePotentials) {
@@ -110,108 +157,140 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               recipeLabor: rp.recipeLabor,
               potentialOutputs: rp.potentialOutputs,
               potentialInputs: rp.potentialInputs,
+              inputCategories: rp.inputCategories,
+              laborTypeFulfillment: rp.laborTypeFulfillment,
             })
 
-            // 一次生産の supply 集計: food (field) / raw_materials (pasture)。
-            //   processed_goods は raw 充足後に決まるためここでは加えない。
-            const foodOut = rp.potentialOutputs.food
-            if (foodOut !== undefined) accum.supply.food += foodOut
-            const rawOut = rp.potentialOutputs.raw_materials
-            if (rawOut !== undefined) accum.supply.raw_materials += rawOut
-            // workshop の raw 潜在需要 (§13 step 4)。
-            const rawIn = rp.potentialInputs.raw_materials
-            if (rawIn !== undefined) accum.demand.raw_materials += rawIn
+            // recipe input の潜在需要 (§12.3 step 2)。supply は清算ループで level 昇順に算出する。
+            for (const r of RESOURCE_KINDS) {
+              const potIn = rp.potentialInputs[r]
+              if (potIn !== undefined) accum.demand[r] += potIn
+            }
           }
         }
 
-        // POP の food / processed_goods 需要 (§13 step 8)。
+        // POP の消費需要 (§5.4 / §12.3 step 3): NeedCategory 別需要を ResourceKind buyOrders へ展開。
         const popIds = state.popIndex.byHolding[holdingId] ?? []
         for (const popId of popIds) {
           const pop = state.popGroups[popId]
           if (!pop) continue
-          accum.demand.food += getPopResourceDemand(pop, 'food', config)
-          accum.demand.processed_goods += getPopResourceDemand(pop, 'processed_goods', config)
-          accum.popGroupIds.push(popId)
+          const needs = computePopNeedDemand(pop, config, marketPriceLookup)
+          for (const cat of needs) {
+            for (const res of cat.resources) {
+              accum.demand[res.resource] += res.buyOrders
+            }
+          }
+          accum.popDemands.push({ popId, needs })
         }
       }
     }
   }
 
-  // ─── 市場解決 (§13 step 5-9) ───
-  // raw_materials を先に解決 → rawFulfillmentRatio → processed_goods supply を確定。
+  // ─── §18.4: 建設・修繕 Project の建築資材需要を月次 buyOrders へ注入する ───
+  //   active な対象 Project を sorted 列挙し、対象 holding の StateRegion 市場へ per-advance baseUnits を加算。
+  const marketByKey = new Map<string, MarketAccum>()
+  for (const m of markets) marketByKey.set(m.marketKey, m)
+  for (const projectId of (Object.keys(state.projects) as ProjectId[]).sort()) {
+    const project = state.projects[projectId]
+    if (!project || project.status !== 'active') continue
+    const baseUnits = computeProjectMaterialBaseUnits(state, config, project)
+    if (baseUnits.length === 0) continue
+    const marketKey = getProjectMarketKey(state, project)
+    if (marketKey === null) continue
+    const market = marketByKey.get(marketKey)
+    if (!market) continue
+    for (const u of baseUnits) market.demand[u.resource] += u.baseUnits
+  }
+
+  // ─── 市場解決 (§12.3 DAG topological clearing) ───
+  // 各 market を resource level 昇順に清算する (下記ループ内)。
   const newPrices: Record<string, MarketResourcePriceState> = {}
   const snapshots: Record<HoldingId, HoldingResourceRevenueSnapshot> = {}
-  // §19: food/processed の充足率・価格を POP wealth/unrest に反映する (Phase 4)。
+  // §16: staple/ordinary の充足率・価格を POP wealth/unrest に反映する。
   const newPopGroups: Record<PopGroupId, PopGroup> = { ...state.popGroups }
 
   for (const market of markets) {
-    // ─── 市場清算 (§6.3c.1, Victoria 3 型) ───
-    // sellOrders = 生産者が売りに出した量 (=旧 supply 集計) / buyOrders = POP・workshop が求めた量 (=旧 demand)。
-    // raw を先に清算 → rawFulfillmentRatio で processed 産出量を縮小する。
-    const rawSell = market.supply.raw_materials
-    const rawBuy = market.demand.raw_materials
-    const rawPrice = computeResourcePrice('raw_materials', rawSell, rawBuy, config)
-    const rawFulfill = computeMarketFulfillment(rawSell, rawBuy, config)
-    const rawFulfillmentRatio = rawFulfill.fulfillmentRatio
-
-    // processed sellOrders = Σ workshop potential processed × rawFulfillmentRatio (input 不足で産出縮小)。
-    let processedSupply = 0
-    for (const rec of market.recipes) {
-      const pp = rec.potentialOutputs.processed_goods
-      if (pp !== undefined && rec.potentialInputs.raw_materials !== undefined) {
-        processedSupply += pp * rawFulfillmentRatio
-      } else if (pp !== undefined) {
-        processedSupply += pp
-      }
-    }
-    market.supply.processed_goods = processedSupply
-
-    const foodSell = market.supply.food
-    const foodBuy = market.demand.food
-    const foodPrice = computeResourcePrice('food', foodSell, foodBuy, config)
-    const foodFulfill = computeMarketFulfillment(foodSell, foodBuy, config)
-
-    const processedBuy = market.demand.processed_goods
-    const processedPrice = computeResourcePrice(
-      'processed_goods',
-      processedSupply,
-      processedBuy,
-      config,
-    )
-    const processedFulfill = computeMarketFulfillment(processedSupply, processedBuy, config)
-
-    const price: Record<ResourceKind, number> = {
-      food: foodPrice,
-      raw_materials: rawPrice,
-      processed_goods: processedPrice,
-    }
-    const sellOrders: Record<ResourceKind, number> = {
-      food: foodSell,
-      raw_materials: rawSell,
-      processed_goods: processedSupply,
-    }
-    const buyOrders: Record<ResourceKind, number> = {
-      food: foodBuy,
-      raw_materials: rawBuy,
-      processed_goods: processedBuy,
-    }
+    // ─── 市場清算 (§12 DAG 化) ───
+    // demand は pass 1 で全 resource 分を計上済み (POP 需要 + recipe input 需要)。
+    // supply は resource level 昇順に increment 計算する: level-N resource の supply は
+    //   Σ(potentialOutput × inputShortageModifier)。modifier は下位 level の
+    //   fulfillment が確定するまで分からないため up-front では計算しない (§12.2)。
+    const price: Record<ResourceKind, number> = emptyResourceRecord()
+    const sellOrders: Record<ResourceKind, number> = emptyResourceRecord()
+    const buyOrders: Record<ResourceKind, number> = emptyResourceRecord()
     const fulfillment: Record<
       ResourceKind,
       { fulfillmentRatio: number; shortage: boolean; shortageSeverity: number }
-    > = {
-      food: foodFulfill,
-      raw_materials: rawFulfill,
-      processed_goods: processedFulfill,
+    > = {} as Record<
+      ResourceKind,
+      { fulfillmentRatio: number; shortage: boolean; shortageSeverity: number }
+    >
+    // 清算で全 resource を level ごとに必ず再代入する。init は型のため (sentinel: 需要ゼロ扱い)。
+    for (const r of RESOURCE_KINDS) {
+      fulfillment[r] = { fulfillmentRatio: 1, shortage: false, shortageSeverity: 0 }
+      buyOrders[r] = market.demand[r]
     }
 
-    // ─── Pass 2: per-asset 売却益 (§13 step 10-11 / §6.3c.1) ───
-    // produced は全量 price で売れる (sellRatio 廃止)。workshop の raw input は不足でも buyOrders 全量 cost、
-    // output (processed) だけ rawFulfillmentRatio で縮小する → raw 不足 workshop の netRevenue は負になり得る。
+    // recipe の input fulfillment scale (Liebig 最小律 §12.4)。input が無ければ 1。
+    //   category 単位で評価する: categoryFulfillment = Σ share_i × fulfillmentRatio_i (§6.3)、
+    //   その最小を取る (substitutable な同 category 内 resource は share 加重平均、category 間は最小律)。
+    //   下位 level が clearing 済みであることに依存する (level 昇順反復で保証)。
+    const recipeInputScale = (rec: RecipeRecord): number => {
+      if (rec.inputCategories.length === 0) return 1
+      let scale = 1
+      for (const cat of rec.inputCategories) {
+        let catFulfillment = 0
+        for (const res of cat.resources) {
+          catFulfillment += res.share * fulfillment[res.resource].fulfillmentRatio
+        }
+        if (catFulfillment < scale) scale = catFulfillment
+      }
+      return scale
+    }
+
+    // v0.55 §12.4/§12.5 (抽象市場改訂): input shortage を「実配給 0」ではなく floor 付きの output
+    //   penalty として扱う (Victoria 3 的)。supply 0 でも inputShortageOutputFloor 倍は生産を続け、
+    //   input は market price で購入扱い (希少時は高価な input × 低 output → 低利益/赤字)。これにより
+    //   price シグナルが生き、上位 recipe (例 gem_mine) への転換動機が残る。
+    //   raw recipe (input 無し) は recipeInputScale=1 → modifier=1 で無影響。
+    //   inputFulfillmentScale (Liebig 最小律) は従来どおり計算し、floor 付き modifier へ変換してから
+    //   actualOutput / actualInputConsumed に掛ける (直接 actualOutput には掛けない)。
+    const inputShortageModifier = (rec: RecipeRecord): number => {
+      const floor = config.inputShortageOutputFloor
+      return floor + (1 - floor) * recipeInputScale(rec)
+    }
+
+    // resource level 昇順に supply を確定し clearing する (§12.3)。
+    for (const level of RESOURCE_LEVELS_SORTED) {
+      for (const resource of RESOURCE_KINDS) {
+        if (RESOURCE_LEVELS[resource] !== level) continue
+        let sell = 0
+        for (const rec of market.recipes) {
+          const pot = rec.potentialOutputs[resource]
+          if (pot === undefined) continue
+          sell += pot * inputShortageModifier(rec) * droughtOutputScale(rec.holdingId, resource)
+        }
+        const buy = buyOrders[resource]
+        price[resource] = computeResourcePrice(resource, sell, buy, config)
+        fulfillment[resource] = computeMarketFulfillment(sell, buy, config)
+        sellOrders[resource] = sell
+      }
+    }
+
+    // ─── Pass 2: per-asset 売却益 (§12.5 課金ポリシー) ───
+    // produced は全量 price で売れる (sellRatio 廃止)。input shortage 時は floor 付き
+    //   inputShortageModifier で actualOutput を減衰させ、input は同 modifier で実消費・実コストを
+    //   pro-rate する (§12.5 改訂): actualInputConsumed = desiredInput × inputShortageModifier。
+    //   供給 0 でも floor 倍は生産・購入するため、希少 input は高価格で課金され低利益/赤字となる。
     // recipe を asset 単位に集約し、asset を holding snapshot にまとめる。
     const assetResultByAsset = new Map<string, RealEstateProductionResult>()
     const assetOrderByHolding = new Map<string, string[]>()
+    // 観察用充足率の slotCount 加重集約: 集計中は inputFulfillment/laborTypeFulfillment に
+    //   Σ(slotCount × value) を貯め、snapshot 組み立て時に ΣslotCount で正規化する。
+    const fulfillmentWeightByAsset = new Map<string, number>()
     for (const rec of market.recipes) {
-      const outputScale = rec.potentialInputs.raw_materials !== undefined ? rawFulfillmentRatio : 1
+      const outputScale = inputShortageModifier(rec)
+      const recipeInputFulfillment = recipeInputScale(rec) // raw Liebig 最小律 (0..1, input 無し=1)
 
       const recipeOutputs: Partial<Record<ResourceKind, number>> = {}
       const recipeInputs: Partial<Record<ResourceKind, number>> = {}
@@ -220,15 +299,19 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const r of RESOURCE_KINDS) {
         const pot = rec.potentialOutputs[r]
         if (pot !== undefined) {
-          const produced = pot * outputScale // 全量売却 (在庫なし・市場抽象化)
+          // 全量売却 (在庫なし・市場抽象化)。干魃 holding の食料産出は減衰 (§B)。
+          const produced = pot * outputScale * droughtOutputScale(rec.holdingId, r)
           recipeOutputs[r] = produced
           recipeGross += produced * price[r]
         }
-        const potIn = rec.potentialInputs[r]
-        if (potIn !== undefined) {
-          // input は buyOrders 全量 cost (不足でも満額払う)。inputScale を掛けない。
-          recipeInputs[r] = potIn
-          recipeInputCost += potIn * price[r]
+      }
+      // §12.5 pro-rate: floor 付き inputShortageModifier に合わせて実消費・実コストを縮小する。
+      //   category 解決済みの resource 別 buyOrders を outputScale (= modifier) で按分課金する。
+      for (const cat of rec.inputCategories) {
+        for (const res of cat.resources) {
+          const consumed = res.buyOrders * outputScale
+          recipeInputs[res.resource] = (recipeInputs[res.resource] ?? 0) + consumed
+          recipeInputCost += consumed * price[res.resource]
         }
       }
       const recipeNet = recipeGross - recipeInputCost
@@ -244,6 +327,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
+          inputFulfillment: 0, // 集計中は Σ(slotCount × value)、後で正規化
+          laborTypeFulfillment: 0,
         }
         assetResultByAsset.set(assetKey, assetResult)
         const hKey = rec.holdingId as string
@@ -254,6 +339,13 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       assetResult.grossRevenue += recipeGross
       assetResult.inputCost += recipeInputCost
       assetResult.netRevenue += recipeNet
+      // 充足率の slotCount 加重和を貯める (正規化は snapshot 組み立て時)。
+      assetResult.inputFulfillment += recipeInputFulfillment * rec.slotCount
+      assetResult.laborTypeFulfillment += rec.laborTypeFulfillment * rec.slotCount
+      fulfillmentWeightByAsset.set(
+        assetKey,
+        (fulfillmentWeightByAsset.get(assetKey) ?? 0) + rec.slotCount,
+      )
       for (const r of RESOURCE_KINDS) {
         if (recipeOutputs[r] !== undefined)
           assetResult.outputs[r] = (assetResult.outputs[r] ?? 0) + (recipeOutputs[r] ?? 0)
@@ -271,6 +363,15 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const assetKey of assetKeys) {
         const ar = assetResultByAsset.get(assetKey)
         if (!ar) continue
+        // slotCount 加重和を平均へ正規化 (weight 0 は理論上発生しないが念のため 1 扱い)。
+        const weight = fulfillmentWeightByAsset.get(assetKey) ?? 0
+        if (weight > 0) {
+          ar.inputFulfillment /= weight
+          ar.laborTypeFulfillment /= weight
+        } else {
+          ar.inputFulfillment = 1
+          ar.laborTypeFulfillment = 1
+        }
         assetResults.push(ar)
         totalNetRevenue += Math.max(0, ar.netRevenue)
         for (const r of RESOURCE_KINDS) {
@@ -329,43 +430,29 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       }
     }
 
-    // ─── §13 step 13 / §19: food/processed 充足率・価格を POP wealth/unrest に反映 ───
-    // 負のチャネル: shortage 時 wealth-/unrest+ (shortageSeverity 比例)。
-    // 高価格チャネル: priceMultiplier 超過に応じた生活費負担 (shortage とは別概念)。
-    // 正のチャネル (§19.2, load-bearing): 充足かつ価格安定で wealth+/unrest- (fulfillmentRatio ベース)。
-    //   market の値を同 market 内 POP に一律適用。clamp 0..100。
-    // 重要: 正のチャネルは「その財を実際に需要している」ときのみ発火させる。buyOrders=0 の市場では
-    //   fulfillmentRatio が sentinel の 1 を返すため、ゲートしないと需要ゼロの財で満額の満足ボーナスが
-    //   付いてしまう (例: 加工品を需要しない貧困 peasant のみの市場)。需要ゼロは contentment 0 が正。
-    const foodHasDemand = buyOrders.food > 0
-    const processedHasDemand = buyOrders.processed_goods > 0
-    const foodFulfillmentRatio = foodFulfill.fulfillmentRatio
-    const foodShortageSeverity = foodFulfill.shortageSeverity
-    const foodPriceExcess = Math.max(0, price.food / RESOURCE_PRICE_DEFINITIONS.food.basePrice - 1)
-    // §19.2 正の効果は「充足 かつ 価格安定」が条件。価格高騰時は減衰させる。需要ゼロなら 0。
-    const foodWellbeing = foodHasDemand
-      ? foodFulfillmentRatio * Math.max(0, 1 - foodPriceExcess)
-      : 0
-    const processedShortageSeverity = processedFulfill.shortageSeverity
-    const processedWellbeing = processedHasDemand ? processedFulfill.fulfillmentRatio : 0
-
-    const wealthDelta =
-      -config.foodShortageWealthPenalty * foodShortageSeverity -
-      config.foodHighPriceWealthPenalty * foodPriceExcess +
-      config.foodFulfillmentWealthGain * foodWellbeing -
-      config.processedGoodsShortageWealthPenalty * processedShortageSeverity +
-      config.processedGoodsFulfillmentWealthGain * processedWellbeing
-    const unrestDelta =
-      config.foodShortageUnrestGain * foodShortageSeverity +
-      config.foodHighPriceUnrestGain * foodPriceExcess -
-      config.foodFulfillmentUnrestReduction * foodWellbeing +
-      config.processedGoodsShortageUnrestGain * processedShortageSeverity -
-      config.processedGoodsFulfillmentUnrestReduction * processedWellbeing
-
-    if (wealthDelta !== 0 || unrestDelta !== 0) {
-      for (const popId of market.popGroupIds) {
-        const pop = newPopGroups[popId]
-        if (!pop) continue
+    // ─── §16: NeedCategory 別 fulfillment を per-pop で集計し wealth/unrest へ反映 ───
+    //   各 pop の need 解決 (pass1 で smoothedPrice ベースに確定済み) を使い、各 category の
+    //   categoryFulfillment = Σ share_i × marketFulfillmentRatio_i (need value 加重, §16.1) を求める。
+    //   shortage = 1 - fulfillment。tier 別 penalty を weekly delta に積む (§16.2)。
+    //   需要 0 の category は pass1 で除外済み (resources 空は popDemands に入らない)。
+    //   NOTE: pop.wealth は 0..100 の指数なので spec §16.2 の ×pop.size は適用しない (index delta)。
+    for (const { popId, needs } of market.popDemands) {
+      if (needs.length === 0) continue
+      const pop = newPopGroups[popId]
+      if (!pop) continue
+      let wealthDelta = 0
+      let unrestDelta = 0
+      for (const cat of needs) {
+        let fulfillmentC = 0
+        for (const res of cat.resources) {
+          fulfillmentC += res.share * fulfillment[res.resource].fulfillmentRatio
+        }
+        const shortage = 1 - clamp(fulfillmentC, 0, 1)
+        if (shortage <= 0) continue
+        wealthDelta -= config.needShortageWealthPenaltyByTier[cat.tier] * shortage
+        unrestDelta += config.needShortageUnrestPenaltyByTier[cat.tier] * shortage
+      }
+      if (wealthDelta !== 0 || unrestDelta !== 0) {
         const newWealth = clamp100(pop.wealth + wealthDelta)
         const newUnrest = clamp100(pop.unrest + unrestDelta)
         if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
