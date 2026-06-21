@@ -713,6 +713,7 @@ detail:
     resource_processed_meat: 'Processed meat'
     # v0.55 real estate detail panel
     detail_window_title: 'Real Estate: {{name}}'
+    location: 'Location'
     recipe_composition: 'Recipe composition'
     employment_capacity: 'Employment capacity'
     no_recipe: 'No recipe assigned'

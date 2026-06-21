@@ -97,7 +97,7 @@ export function RealEstateDetail({
           )}
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.realEstate.real_estate_location')}:</span>
+          <span className="text-gray-400">{t('detail.realEstate.location')}:</span>
           <button
             className="cursor-pointer text-blue-400 hover:text-blue-300"
             onClick={() => onHoldingClick(asset.holdingId)}

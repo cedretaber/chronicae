@@ -816,6 +816,7 @@ detail:
     resource_processed_meat: '加工肉'
     # v0.55 不動産詳細パネル
     detail_window_title: '不動産: {{name}}'
+    location: '所在'
     recipe_composition: 'レシピ構成'
     employment_capacity: '雇用枠'
     no_recipe: 'レシピ未設定'
