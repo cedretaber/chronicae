@@ -160,6 +160,30 @@ for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
 
 再就業時の wealth / unrest / attitudes は移動元と移動先の人口加重平均で統合される。
 
+> **v0.56 拡張**: Holding 単位の Phase1/Phase2 コアを `normalizePopEmploymentMut(ws, config, holdingId)` に抽出し、本体はこの helper を全 holding に適用する薄い形になった（mobility 後の `PopEmploymentNormalizeSystem` でも再利用）。さらに **再就業 Phase2 を demand-aware 化**: 空き枠を `computeHoldingPopTypeDemand` の `shortageByType` が大きい PopType から優先して埋める（shortage 降順→PopGroupId 昇順で決定論）。これにより「popType 盲目に再就業 → 翌月 lateral で是正」の遠回りを避け、recipe 理想構成への収束を速める。
+
+### 6.3b POP 転職・移住システム（v0.56、4週ごと）
+
+EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が recipe 労働需要・生活条件に応じて **転職**（同一 holding 内の職種/階層変更）と **移住**（同一 StateRegion 内の holding 間移動）を少しずつ行う。tick 順は `EmploymentRebalance → PopJobChange → PopMigration → PopEmploymentNormalize → ResourceEconomy`。RNG は使わず、全反復を sorted key 順に固定（dump-world bit-identical 維持）。実装の確定設計の経緯は `docs/drafts/spec-v056-update.md`（r2）参照。
+
+- **共通 mutation `movePopSizeToKeyMut(ws, sourcePopId, target, amount, options?)`**: source POP から `amount` を別の merge key（`{holdingId, class, popType, employed}`）へ移す。`addToOrCreatePopGroupMut` を再利用し、既存 target があれば人口加重平均で merge、無ければ新規作成。`target.class === getPopStratum(target.popType)` を検査。source は `minSourceSize`（default = `popSizeEpsilon`）を割らない。promotion cost 等の incoming wealth/unrest は **合成 `inheritFrom` で create/merge 両パスに一貫反映**（helper シグネチャ不変）。**人口保存**: 移動後の残りが epsilon 以下の sliver になる場合は source を丸ごと移して除去する（minSourceSize 分の population leak を防ぐ）。`popMobilityMinMoveAmount` 未満の移動可否判定は呼び出し側 system が担う。
+
+- **read-model selector**: `computeHoldingPopTypeDemand`（holding 単位の `idealShareByType`〔recipe 理想構成を stratum 内正規化〕/ `desiredEmployedByType`〔= stratum capacity × idealShare〕/ `currentEmployedByType` / `shortage` / `surplus`）と `computeStratumWealthQuantiles`（StateRegion × stratum・size 加重の p25/median/p75。promotion/demotion の相対 gate 用）。
+
+- **PopJobChangeSystem**: holding ごとに **候補優先度ループ**で処理。cap は **holding 人口比率**（`totalPop × popJobChangeMaxFractionPerHoldingPerMonth`、`…HardCap` で頭打ち）。各 source（surplus を持つ employed / unemployed）× 許可遷移 target（`popMobilityDefinitions.ts` の lateral/promotion/demotion 表、kind は stratum 順序から導出）を評価し、優先度（unemployed 優先→shortage 大→低 wealth→ID 昇順）で 1 件選び、demand を再評価しながら cap を消化する。
+  - **capacity gate は「employed 人数を増やす move のみ」**（`increasesEmployedHeadcount = target.employed && (!source.employed || target.class !== source.class)`）。同一 stratum の employed→employed lateral は雇用総量不変なので gate を掛けない（capacity 一杯の holding でも構成是正が進む）。
+  - **promotion/demotion の wealth gate は相対分位**: promotion は `source.wealth ≥ p75 かつ > median + popPromotionEpsilon`、demotion は `unemployed または (≤ p25 かつ < median − popDemotionEpsilon)`。分布が潰れている（全員同 wealth）ときは epsilon ガードで不発（失業者のみ demotion 候補）。promotion cost は移動 cohort の incoming wealth にのみ反映（source pool は下げない）。demotion 後の `employed` は §A5 表（employed source + 雇用余地 → employed、それ以外 → unemployed）。
+
+- **PopMigrationSystem**: StateRegion ごとに、月初固定の holding 単位 cache（demand / size 加重 wealth・unrest / `holdingJobCongestion` = totalPop / Σcapacity / terminalPolity / capacity ceiling〔構造由来・月内不変〕）を構築。migration pressure = `(unemployed?40:0) + max(0,50−wealth)×0.6 + unrest×0.3 + max(0,congestion−1)×30`。pressure ≥ threshold の source について、同一 region 内の各 target holding の opportunity score = `vacancy×45 + popTypeDemandScore×25 + targetWealth×15 + lowUnrest×15 − crossPolityPenalty` を計算（**`popTypeDemandScore` は vacancy ではなく理想構成からのズレ** `max(0, idealShare − currentShare)/idealShare` で B2 の二重計上を回避）。最良 target（score 降順→holdingId 昇順）が source-stay score を `popMigrationScoreGapThreshold` 超で上回れば、人口比 outflow/inflow cap 内で移住（target は原則 `employed: true`）。capacity は live（cache 済 ceiling − live employed）で読み、超過を防ぐ。terminal polity 跨ぎは禁止せず score penalty。
+
+- **PopEmploymentNormalizeSystem**: mobility 後に全 holding へ `normalizePopEmploymentMut` を再適用（capacity 整合の保険）。
+
+- **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（上位 N 件、PopJobChange が初期化・PopMigration が append して bounded top-N merge）。Province/Holding detail UI が表示。SimEvent / Chronicle には出さない（月次大量発生のため）。
+
+- **IntegrityCheck**: 既存の POP 不変条件（stratum 整合・merge key 一意・byHolding 整合・wealth/unrest clamp）で十分。capacity 整合は normalize が運用上保証し hard invariant にはしない（成長後の一時超過で誤検知を避ける）。
+
+> **balance-defer（観測済み・調整保留）**: 実測では POP wealth が経済劣化で ~0 に潰れるため、相対 gate 下でも **promotion は不発・demotion / migration のみ発火**（下方移動偏重）。閾値の妥当性検証は経済 wealth 崩壊の是正待ち。また inflow cap = `pop × fraction` のため空 holding は移民を受け入れられない（将来「空 holding の植民」が必要なら別途設計）。fraction cap 0.001 は中央 holding 人口 ~30 で月 ~0.03 とやや遅い。これらは機能完成後のバランス調整対象。
+
 ### 6.3c ResourceEconomySystem（4週ごと、v0.54 / v0.55 で商品経済へ拡張）
 
 EmploymentRebalanceSystem の後・LandRevenueSystem の直前に実行する月次の資源経済。旧来の「POP / development が直接 money revenue を生む」モデル（getPopProduction）を廃止し、**資源生産 → StateRegion 市場で売却 → money revenue** に置換する。RNG を消費せず、全 Record 反復を sorted key 順に固定する（dump-world bit-identical 維持。`Object.keys(state.states).sort()` 等）。出力は `marketResourcePrices` / `monthlyHoldingResourceRevenue` の 2 read-model slice と POP wealth/unrest への反映のみで、treasury / owner / chain は変更しない（分配は LandRevenueSystem の責務）。
