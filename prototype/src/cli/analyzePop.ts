@@ -2,151 +2,127 @@ import { generateWorld } from '@sim/worldgen/generateWorld'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import type { WorldState } from '@sim/types/world'
-import type { PopClass } from '@sim/types/popGroup'
-import type { ProvinceId } from '@sim/types/ids'
-import {
-  getProvincePopulation,
-  getProvinceCarryingCapacity,
-  getHoldingClassCapacity,
-  getHoldingEmployedPopSize,
-  getHoldingUnemployedPopSize,
-} from '@sim/selectors/popSelectors'
-import { clamp } from '@sim/utils/math'
+import type { PopStratum, PopType } from '@sim/types/popGroup'
+import { POP_STRATA, POP_TYPES, getPopStratum } from '@sim/types/popGroup'
+import { getHoldingClassCapacity } from '@sim/selectors/popSelectors'
+import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolData } from '@sim/namegen/namePoolTypes'
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 
-const POP_CLASSES: PopClass[] = ['lower', 'middle', 'upper']
+// v0.56: v0.55 PopStratum/PopType + 転職・移住 snapshot に対応した POP 観測ツール。
+//   旧版は byClass を peasants/townsmen/nobles で集計しており全 0 を出していた (v0.55 で stratum 値が
+//   lower/middle/upper に移行済み)。
+
+function weightedQuantile(items: { value: number; weight: number }[], q: number): number {
+  const sorted = [...items].sort((a, b) => a.value - b.value)
+  let total = 0
+  for (const it of sorted) total += it.weight
+  const first = sorted[0]
+  if (total <= 0) return first ? first.value : 0
+  const threshold = q * total
+  let cum = 0
+  for (const it of sorted) {
+    cum += it.weight
+    if (cum >= threshold) return it.value
+  }
+  const last = sorted[sorted.length - 1]
+  return last ? last.value : 0
+}
 
 function collectPopStats(state: WorldState) {
+  const byStratum: Record<
+    PopStratum,
+    { pop: number; capacity: number; employed: number; unemployed: number; wealthSum: number }
+  > = {
+    lower: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
+    middle: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
+    upper: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
+  }
+  const wealthByStratum: Record<PopStratum, { value: number; weight: number }[]> = {
+    lower: [],
+    middle: [],
+    upper: [],
+  }
+  const empByType = new Map<PopType, number>()
+  const unempByType = new Map<PopType, number>()
+
   let totalPop = 0
-  let totalCapacity = 0
-  let totalEmployed = 0
-  let totalUnemployed = 0
   let totalWealth = 0
   let totalUnrest = 0
-  let popCount = 0
 
-  const byClass: Record<
-    string,
-    {
-      pop: number
-      capacity: number
-      employed: number
-      unemployed: number
-      wealth: number
-      unrest: number
-      count: number
-    }
-  > = {
-    peasants: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
-    townsmen: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
-    nobles: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
-  }
-
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
+  for (const province of Object.values(state.provinces)) {
     if (!province) continue
-
     for (const holdingId of province.holdingIds) {
-      for (const popClass of POP_CLASSES) {
-        const cap = getHoldingClassCapacity(state, defaultConfig, holdingId, popClass)
-        const employed = getHoldingEmployedPopSize(state, holdingId, popClass)
-        const unemployed = getHoldingUnemployedPopSize(state, holdingId, popClass)
-
-        const cls = byClass[popClass]
-        if (!cls) continue
-        cls.capacity += cap
-        cls.employed += employed
-        cls.unemployed += unemployed
-        cls.pop += employed + unemployed
-
-        totalCapacity += cap
-        totalEmployed += employed
-        totalUnemployed += unemployed
+      for (const stratum of POP_STRATA) {
+        byStratum[stratum].capacity += getHoldingClassCapacity(
+          state,
+          defaultConfig,
+          holdingId,
+          stratum,
+        )
       }
     }
   }
 
   for (const pop of Object.values(state.popGroups)) {
     if (!pop) continue
+    const s = byStratum[pop.class]
+    s.pop += pop.size
+    s.wealthSum += pop.wealth * pop.size
+    if (pop.employed) {
+      s.employed += pop.size
+      empByType.set(pop.popType, (empByType.get(pop.popType) ?? 0) + pop.size)
+    } else {
+      s.unemployed += pop.size
+      unempByType.set(pop.popType, (unempByType.get(pop.popType) ?? 0) + pop.size)
+    }
+    wealthByStratum[pop.class].push({ value: pop.wealth, weight: pop.size })
     totalPop += pop.size
     totalWealth += pop.wealth * pop.size
     totalUnrest += pop.unrest * pop.size
-    popCount++
-
-    const cls = byClass[pop.class]
-    if (cls) {
-      cls.wealth += pop.wealth * pop.size
-      cls.unrest += pop.unrest * pop.size
-      cls.count++
-    }
   }
 
-  for (const cls of Object.values(byClass)) {
-    if (cls.pop > 0) {
-      cls.wealth = cls.wealth / cls.pop
-      cls.unrest = cls.unrest / cls.pop
-    }
-  }
-
-  const pressures: number[] = []
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    const pop = getProvincePopulation(state, provinceId as ProvinceId)
-    const cap = getProvinceCarryingCapacity(state, defaultConfig, provinceId as ProvinceId)
-    if (cap > 0) pressures.push(clamp(pop / cap, 0, 2))
-  }
-
-  const avgPressure =
-    pressures.length > 0 ? pressures.reduce((a, b) => a + b, 0) / pressures.length : 0
-  const maxPressure = pressures.length > 0 ? Math.max(...pressures) : 0
-  const overPressureCount = pressures.filter((p) => p > 1).length
+  const totalCapacity = POP_STRATA.reduce((acc, s) => acc + byStratum[s].capacity, 0)
+  const totalEmployed = POP_STRATA.reduce((acc, s) => acc + byStratum[s].employed, 0)
+  const totalUnemployed = POP_STRATA.reduce((acc, s) => acc + byStratum[s].unemployed, 0)
 
   return {
-    totalPop: Math.round(totalPop),
-    totalCapacity: Math.round(totalCapacity),
-    fillRatio: totalCapacity > 0 ? totalPop / totalCapacity : 0,
-    totalEmployed: Math.round(totalEmployed),
-    totalUnemployed: Math.round(totalUnemployed),
-    employmentRate: totalPop > 0 ? totalEmployed / totalPop : 1,
+    totalPop,
+    totalCapacity,
+    totalEmployed,
+    totalUnemployed,
     avgWealth: totalPop > 0 ? totalWealth / totalPop : 0,
     avgUnrest: totalPop > 0 ? totalUnrest / totalPop : 0,
-    avgPressure,
-    maxPressure,
-    overPressureCount,
-    totalProvinces: pressures.length,
-    popGroupCount: popCount,
-    byClass,
+    byStratum,
+    wealthByStratum,
+    empByType,
+    unempByType,
   }
 }
 
-function formatRow(year: number, stats: ReturnType<typeof collectPopStats>): string {
-  const p = stats.byClass.peasants!
-  const t = stats.byClass.townsmen!
-  const n = stats.byClass.nobles!
+function formatRow(
+  year: number,
+  stats: ReturnType<typeof collectPopStats>,
+  state: WorldState,
+): string {
+  const mob = state.monthlyPopMobility
   return [
     String(year).padStart(4),
-    String(stats.totalPop).padStart(7),
-    String(stats.totalCapacity).padStart(7),
-    stats.fillRatio.toFixed(2).padStart(6),
-    (stats.employmentRate * 100).toFixed(1).padStart(6) + '%',
-    String(stats.totalUnemployed).padStart(7),
-    stats.avgWealth.toFixed(1).padStart(7),
-    stats.avgUnrest.toFixed(1).padStart(7),
-    stats.avgPressure.toFixed(2).padStart(7),
-    String(stats.overPressureCount).padStart(5) + '/' + String(stats.totalProvinces),
-    // per-class pop
-    String(Math.round(p.pop)).padStart(7),
-    String(Math.round(t.pop)).padStart(7),
-    String(Math.round(n.pop)).padStart(7),
-    // per-class unemployed
-    String(Math.round(p.unemployed)).padStart(7),
-    String(Math.round(t.unemployed)).padStart(7),
-    String(Math.round(n.unemployed)).padStart(7),
+    Math.round(stats.totalPop).toString().padStart(7),
+    Math.round(stats.totalCapacity).toString().padStart(7),
+    (stats.totalCapacity > 0 ? stats.totalPop / stats.totalCapacity : 0).toFixed(2).padStart(5),
+    (stats.totalPop > 0 ? (stats.totalEmployed / stats.totalPop) * 100 : 0).toFixed(0).padStart(4) +
+      '%',
+    stats.avgWealth.toFixed(1).padStart(6),
+    stats.avgUnrest.toFixed(1).padStart(6),
+    Math.round(stats.byStratum.lower.pop).toString().padStart(7),
+    Math.round(stats.byStratum.middle.pop).toString().padStart(7),
+    Math.round(stats.byStratum.upper.pop).toString().padStart(6),
+    (mob ? mob.jobChangedTotal : 0).toFixed(2).padStart(7),
+    (mob ? mob.migratedTotal : 0).toFixed(2).padStart(6),
   ].join(' | ')
 }
 
@@ -155,22 +131,88 @@ function printHeader(): void {
     'Year'.padStart(4),
     'TotPop'.padStart(7),
     'TotCap'.padStart(7),
-    'Fill'.padStart(6),
-    'EmpRt'.padStart(7),
-    'Unemp'.padStart(7),
-    'Wealth'.padStart(7),
-    'Unrest'.padStart(7),
-    'AvgPrs'.padStart(7),
-    'Over'.padStart(10),
-    'Peasnt'.padStart(7),
-    'Townsm'.padStart(7),
-    'Nobles'.padStart(7),
-    'P.Unem'.padStart(7),
-    'T.Unem'.padStart(7),
-    'N.Unem'.padStart(7),
+    'Fill'.padStart(5),
+    'EmpRt'.padStart(5),
+    'Wealth'.padStart(6),
+    'Unrest'.padStart(6),
+    'Lower'.padStart(7),
+    'Middle'.padStart(7),
+    'Upper'.padStart(6),
+    'JobChg'.padStart(7),
+    'Migr'.padStart(6),
   ].join(' | ')
   console.log(header)
   console.log('-'.repeat(header.length))
+}
+
+function printFinalBreakdown(state: WorldState): void {
+  const stats = collectPopStats(state)
+
+  console.log('')
+  console.log('=== Final Breakdown by Stratum ===')
+  for (const stratum of POP_STRATA) {
+    const d = stats.byStratum[stratum]
+    const empRate = d.pop > 0 ? ((d.employed / d.pop) * 100).toFixed(1) : '0.0'
+    const avgWealth = d.pop > 0 ? d.wealthSum / d.pop : 0
+    console.log(
+      `  ${stratum.padEnd(7)}: pop=${Math.round(d.pop).toString().padStart(7)}, ` +
+        `cap=${Math.round(d.capacity).toString().padStart(7)}, ` +
+        `emp=${Math.round(d.employed).toString().padStart(7)}, ` +
+        `unemp=${Math.round(d.unemployed).toString().padStart(7)}, ` +
+        `empRate=${empRate}%, avgWealth=${avgWealth.toFixed(1)}`,
+    )
+  }
+
+  console.log('')
+  console.log('=== Wealth distribution by Stratum (size-weighted) ===')
+  for (const stratum of POP_STRATA) {
+    const arr = stats.wealthByStratum[stratum]
+    if (arr.length === 0) {
+      console.log(`  ${stratum.padEnd(7)}: (no pops)`)
+      continue
+    }
+    const ge60 = arr.filter((x) => x.value >= 60).reduce((a, b) => a + b.weight, 0)
+    const total = arr.reduce((a, b) => a + b.weight, 0)
+    console.log(
+      `  ${stratum.padEnd(7)}: p25=${weightedQuantile(arr, 0.25).toFixed(0).padStart(3)}, ` +
+        `median=${weightedQuantile(arr, 0.5).toFixed(0).padStart(3)}, ` +
+        `p75=${weightedQuantile(arr, 0.75).toFixed(0).padStart(3)}, ` +
+        `wealth>=60: ${((100 * ge60) / total).toFixed(1)}% of pop`,
+    )
+  }
+
+  console.log('')
+  console.log('=== Employed / Unemployed by PopType ===')
+  for (const popType of POP_TYPES) {
+    const emp = stats.empByType.get(popType) ?? 0
+    const unemp = stats.unempByType.get(popType) ?? 0
+    if (emp + unemp < 0.5) continue
+    console.log(
+      `  ${popType.padEnd(13)}(${getPopStratum(popType).padEnd(6)}): ` +
+        `emp=${Math.round(emp).toString().padStart(7)}, unemp=${Math.round(unemp).toString().padStart(7)}`,
+    )
+  }
+
+  // mobility kind distribution from the last snapshot's topMovements (sample, not exhaustive).
+  const mob = state.monthlyPopMobility
+  console.log('')
+  console.log('=== Last-month mobility (snapshot) ===')
+  if (!mob) {
+    console.log('  (no snapshot)')
+    return
+  }
+  const kinds = { lateral: 0, promotion: 0, demotion: 0, migration: 0 }
+  for (const m of mob.topMovements) {
+    if (m.kind === 'migration') kinds.migration++
+    else kinds[classifyMobilityKind(m.fromPopType, m.toPopType)]++
+  }
+  console.log(
+    `  jobChangedTotal=${mob.jobChangedTotal.toFixed(3)}, migratedTotal=${mob.migratedTotal.toFixed(3)}`,
+  )
+  console.log(
+    `  topMovements kinds: lateral=${kinds.lateral} promotion=${kinds.promotion} ` +
+      `demotion=${kinds.demotion} migration=${kinds.migration} (top ${mob.topMovements.length})`,
+  )
 }
 
 function main() {
@@ -196,7 +238,7 @@ function main() {
   const poolData = YAML.parse(fs.readFileSync(namePoolPath, 'utf8')) as NamePoolData
   const nameService = createNamePoolService(poolData)
 
-  console.log(`=== POP Dynamics Analysis ===`)
+  console.log(`=== POP Dynamics Analysis (v0.56) ===`)
   console.log(`Seed: ${seed} | Years: ${years} | Preset: ${preset}`)
   console.log('')
 
@@ -209,48 +251,19 @@ function main() {
   let rng = worldResult.rng
 
   printHeader()
-
-  const initStats = collectPopStats(state)
-  console.log(formatRow(state.currentYear, initStats))
+  console.log(formatRow(state.currentYear, collectPopStats(state), state))
 
   const totalWeeks = years * 48
   for (let w = 0; w < totalWeeks; w++) {
-    const result = tick({
-      state,
-      rng,
-      config: defaultConfig,
-    })
+    const result = tick({ state, rng, config: defaultConfig })
     state = result.state
     rng = result.rng
-
     if (state.currentWeekOfYear === 48) {
-      const stats = collectPopStats(state)
-      console.log(formatRow(state.currentYear, stats))
+      console.log(formatRow(state.currentYear, collectPopStats(state), state))
     }
   }
 
-  console.log('')
-  console.log('=== Final Breakdown by Class ===')
-  const final = collectPopStats(state)
-  for (const [cls, data] of Object.entries(final.byClass)) {
-    const empRate = data.pop > 0 ? ((data.employed / data.pop) * 100).toFixed(1) : '100.0'
-    console.log(
-      `  ${cls.padEnd(10)}: pop=${Math.round(data.pop).toString().padStart(6)}, ` +
-        `cap=${Math.round(data.capacity).toString().padStart(6)}, ` +
-        `employed=${Math.round(data.employed).toString().padStart(6)}, ` +
-        `unemployed=${Math.round(data.unemployed).toString().padStart(6)}, ` +
-        `empRate=${empRate}%, ` +
-        `wealth=${data.wealth.toFixed(1)}, unrest=${data.unrest.toFixed(1)}`,
-    )
-  }
-  console.log(
-    `  ${'TOTAL'.padEnd(10)}: pop=${final.totalPop.toString().padStart(6)}, ` +
-      `cap=${final.totalCapacity.toString().padStart(6)}, ` +
-      `employed=${final.totalEmployed.toString().padStart(6)}, ` +
-      `unemployed=${final.totalUnemployed.toString().padStart(6)}, ` +
-      `empRate=${(final.employmentRate * 100).toFixed(1)}%, ` +
-      `fill=${final.fillRatio.toFixed(2)}, pressure=${final.avgPressure.toFixed(2)}`,
-  )
+  printFinalBreakdown(state)
 }
 
 try {
