@@ -79,7 +79,7 @@ function withHoldingResourceRevenue(
   const asset: RealEstateAsset = {
     id: assetId,
     holdingId,
-    realEstateKind: 'field',
+    realEstateKind: 'farm',
     level: 1,
     createdWeek: 0,
     recipeSlots: {},
@@ -352,7 +352,7 @@ function withOwnedAssetSnapshot(
   const asset: RealEstateAsset = {
     id: assetId,
     holdingId,
-    realEstateKind: 'field',
+    realEstateKind: 'farm',
     level: 1,
     createdWeek: 0,
     recipeSlots: {},

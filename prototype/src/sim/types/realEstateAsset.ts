@@ -7,7 +7,10 @@ import type {
   ProductionRecipeId,
 } from './ids'
 
-export type RealEstateKind = 'field' | 'pasture' | 'workshop'
+// v0.55 §7: RealEstateKind を粗い分類へ再編。生産内容は ProductionRecipe が持つ。
+//   farm: 農園・牧場・農村家内生産・漁撈 / mountain: 鉱山・採石場 /
+//   woodland: 山林・伐採・狩猟 / workshop: 都市工房・専門加工業
+export type RealEstateKind = 'farm' | 'mountain' | 'woodland' | 'workshop'
 
 export type AssetOwnerRef =
   | { kind: 'house'; id: HouseId }

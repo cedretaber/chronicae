@@ -102,6 +102,9 @@ export function computeResourceLevels(
 const RESOURCE_LEVEL_RESULT = computeResourceLevels(PRODUCTION_RECIPE_DEFINITIONS)
 export const RESOURCE_LEVELS: Record<ResourceKind, number> = RESOURCE_LEVEL_RESULT.levels
 
+// recipe 依存グラフに循環があれば cycle 経路、無ければ null (§12.2 IntegrityCheck 用)。
+export const RESOURCE_DEPENDENCY_CYCLE: ResourceKind[] | null = RESOURCE_LEVEL_RESULT.cycle
+
 // 昇順 unique level 列 (清算の topological 反復順)。
 export const RESOURCE_LEVELS_SORTED: readonly number[] = Array.from(
   new Set(RESOURCE_KINDS.map((r) => RESOURCE_LEVELS[r])),

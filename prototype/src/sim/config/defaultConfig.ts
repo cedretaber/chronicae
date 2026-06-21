@@ -2931,23 +2931,29 @@ export const defaultConfig: SimulationConfig = {
   warSupplyAttritionEventStrengthThreshold: 5,
   // === v0.52 RealEstateAsset ===
   realEstateTerrainCapacityMultiplier: {
-    field: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
-    pasture: { plains: 1.0, hills: 1.3, mountains: 0.8, forest: 0.65, wetlands: 0.4 },
+    farm: { plains: 1.3, hills: 0.75, wetlands: 0.7, forest: 0.5, mountains: 0.25 },
+    mountain: { mountains: 1.3, hills: 1.0, plains: 0.4, forest: 0.5, wetlands: 0.3 },
+    woodland: { forest: 1.3, hills: 1.0, plains: 0.5, mountains: 0.6, wetlands: 0.4 },
     workshop: { plains: 1.0, hills: 0.9, forest: 0.85, wetlands: 0.75, mountains: 0.7 },
   },
   realEstateFeatureCapacityMultiplier: {
-    field: { major_river: 1.1, lake: 1.05 },
-    pasture: {},
+    farm: { major_river: 1.1, lake: 1.05 },
+    mountain: {},
+    woodland: { major_river: 1.05 },
     workshop: { coastal: 1.05, major_river: 1.05 },
   },
   realEstateInfrastructureModifiers: {
-    field: [
+    farm: [
       { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.15 },
       { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
     ],
-    pasture: [
-      { infraKind: 'irrigation_infrastructure', modifierPerLevel: 0.1 },
+    mountain: [
       { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+      { infraKind: 'transport_infrastructure', modifierPerLevel: 0.1 },
+    ],
+    woodland: [
+      { infraKind: 'storage_infrastructure', modifierPerLevel: 0.1 },
+      { infraKind: 'transport_infrastructure', modifierPerLevel: 0.1 },
     ],
     workshop: [
       { infraKind: 'workshop_infrastructure', modifierPerLevel: 0.15 },
@@ -2958,13 +2964,15 @@ export const defaultConfig: SimulationConfig = {
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
   developRealEstateProjectBaseCost: {
-    field: 30,
-    pasture: 28,
+    farm: 30,
+    mountain: 32,
+    woodland: 30,
     workshop: 35,
   },
   developRealEstateProjectBaseProgress: {
-    field: 100,
-    pasture: 100,
+    farm: 100,
+    mountain: 100,
+    woodland: 100,
     workshop: 110,
   },
   // v0.52 不動産売買

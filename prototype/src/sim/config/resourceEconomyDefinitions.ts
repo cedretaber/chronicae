@@ -9,10 +9,41 @@ export type ResourcePriceConfig = {
   basePrice: number
 }
 
+// v0.55 §4.3: 21 種の初期 basePrice (調整前提)。
 export const RESOURCE_PRICE_DEFINITIONS: Record<ResourceKind, ResourcePriceConfig> = {
-  food: { basePrice: 1.0 },
-  raw_materials: { basePrice: 1.2 },
-  processed_goods: { basePrice: 2.0 },
+  grain: { basePrice: 1.0 },
+  fish: { basePrice: 1.2 },
+  meat: { basePrice: 1.4 },
+  fruit: { basePrice: 1.8 },
+  beer: { basePrice: 1.4 },
+  wine: { basePrice: 3.5 },
+
+  flax: { basePrice: 0.9 },
+  wool: { basePrice: 1.1 },
+  timber: { basePrice: 1.0 },
+  stone: { basePrice: 0.9 },
+  iron_ore: { basePrice: 1.6 },
+  fur: { basePrice: 3.0 },
+  gems: { basePrice: 7.0 },
+  dye: { basePrice: 2.2 },
+
+  tools: { basePrice: 3.5 },
+  fabric: { basePrice: 2.2 },
+  clothes: { basePrice: 4.5 },
+  luxury_clothes: { basePrice: 9.0 },
+  jewelry: { basePrice: 14.0 },
+  smoked_fish: { basePrice: 2.4 },
+  processed_meat: { basePrice: 2.6 },
+}
+
+// v0.55 §4.3a smoothedPrice cold-start fallback: 21 種は v0.55 新規導入のため初月は価格 history が
+//   無く smoothedPrice が未定義。smoothedPrice を読む全箇所で不在時は basePrice を fallback とする。
+export function getSmoothedPriceOrBase(
+  smoothedPrice: number | undefined,
+  resource: ResourceKind,
+): number {
+  if (smoothedPrice !== undefined) return smoothedPrice
+  return RESOURCE_PRICE_DEFINITIONS[resource].basePrice
 }
 
 // v0.54 §11.2 生産施設 modifier (capacity 用の realEstateInfrastructureModifiers とは別物)。
@@ -27,11 +58,12 @@ export const REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS: Record<
   RealEstateKind,
   RealEstateProductionFacilityModifier[]
 > = {
-  field: [
+  farm: [
     { improvementKind: 'irrigation_infrastructure', bonusPerLevel: 0.15 },
     { improvementKind: 'transport_infrastructure', bonusPerLevel: 0.1 },
   ],
-  pasture: [{ improvementKind: 'transport_infrastructure', bonusPerLevel: 0.1 }],
+  mountain: [{ improvementKind: 'transport_infrastructure', bonusPerLevel: 0.1 }],
+  woodland: [{ improvementKind: 'transport_infrastructure', bonusPerLevel: 0.1 }],
   workshop: [
     { improvementKind: 'workshop_infrastructure', bonusPerLevel: 0.15 },
     { improvementKind: 'market_infrastructure', bonusPerLevel: 0.1 },

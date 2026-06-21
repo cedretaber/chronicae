@@ -52,11 +52,13 @@ function getPopResourcePurchasingPowerFactor(
   let at0: number
   let at50: number
   let at100: number
-  if (resource === 'food') {
+  // v0.55 Phase 1 stopgap: grain=staple (旧 food 係数) / beer=ordinary (旧 processed 係数)。
+  //   Phase 4 で NeedTier ベースの購買力曲線 (§15.3) へ置換する。
+  if (resource === 'grain') {
     at0 = config.foodPurchasingPowerFactorAtWealth0
     at50 = config.foodPurchasingPowerFactorAtWealth50
     at100 = config.foodPurchasingPowerFactorAtWealth100
-  } else if (resource === 'processed_goods') {
+  } else if (resource === 'beer') {
     at0 = config.processedGoodsPurchasingPowerFactorAtWealth0
     at50 = config.processedGoodsPurchasingPowerFactorAtWealth50
     at100 = config.processedGoodsPurchasingPowerFactorAtWealth100
@@ -75,9 +77,10 @@ export function getPopResourceDemand(
   config: SimulationConfig,
 ): number {
   let perSize: number
-  if (resource === 'food') {
+  // v0.55 Phase 1 stopgap (上記 purchasing power factor と対): grain=staple / beer=ordinary。
+  if (resource === 'grain') {
     perSize = config.popFoodDemandPerSizeByClass[pop.class]
-  } else if (resource === 'processed_goods') {
+  } else if (resource === 'beer') {
     perSize = config.popProcessedGoodsDemandPerSizeByClass[pop.class]
   } else {
     return 0
