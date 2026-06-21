@@ -3,6 +3,7 @@ import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopClass, PopStratum } from '../types/popGroup'
+import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
@@ -256,6 +257,27 @@ export type SimulationConfig = {
   initialPopFillRatioMax: number
   // v0.24 POP epsilon
   popSizeEpsilon: number
+  // v0.56 POP 転職・移住 (spec-v056-update.md §15)
+  //   common
+  popMobilityMinMoveAmount: number
+  popMobilityTopMovementLimit: number
+  //   job change (cap は holding 人口比率 + hard cap, C2)
+  popJobChangeMaxFractionPerHoldingPerMonth: number
+  popJobChangeMaxPerHoldingPerMonthHardCap: number
+  popJobChangeMonthlyRateByKind: Record<PopMobilityKind, number>
+  //   wealth gate は相対分位 (C3)。epsilon は分布が潰れた際の不発ガード。
+  popPromotionEpsilon: number
+  popDemotionEpsilon: number
+  popPromotionWealthCostByTargetStratum: Partial<Record<PopStratum, number>>
+  //   migration (cap は holding 人口比率 + hard cap, C2)
+  popMigrationMaxOutflowFractionPerHoldingPerMonth: number
+  popMigrationMaxInflowFractionPerHoldingPerMonth: number
+  popMigrationMaxOutflowPerHoldingPerMonthHardCap: number
+  popMigrationMaxInflowPerHoldingPerMonthHardCap: number
+  popMigrationMonthlyRateByStratum: Record<PopStratum, number>
+  popMigrationPressureThreshold: number
+  popMigrationScoreGapThreshold: number
+  popMigrationCrossPolityScorePenalty: number
   bountifulHarvestPeasantWealthGain: number
   bountifulHarvestPeasantUnrestReduction: number
   bountifulHarvestTownsmanWealthGain: number
@@ -1707,6 +1729,23 @@ export const defaultConfig: SimulationConfig = {
   initialPopFillRatioMax: 95,
   // v0.24 POP epsilon
   popSizeEpsilon: 0.01,
+  // v0.56 POP 転職・移住 (§15。初期値。長期 seed 観察で調整)
+  popMobilityMinMoveAmount: 0.01,
+  popMobilityTopMovementLimit: 20,
+  popJobChangeMaxFractionPerHoldingPerMonth: 0.001,
+  popJobChangeMaxPerHoldingPerMonthHardCap: 0.15,
+  popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.01 },
+  popPromotionEpsilon: 1,
+  popDemotionEpsilon: 1,
+  popPromotionWealthCostByTargetStratum: { middle: 5, upper: 10 },
+  popMigrationMaxOutflowFractionPerHoldingPerMonth: 0.001,
+  popMigrationMaxInflowFractionPerHoldingPerMonth: 0.001,
+  popMigrationMaxOutflowPerHoldingPerMonthHardCap: 0.15,
+  popMigrationMaxInflowPerHoldingPerMonthHardCap: 0.15,
+  popMigrationMonthlyRateByStratum: { lower: 0.01, middle: 0.005, upper: 0.002 },
+  popMigrationPressureThreshold: 35,
+  popMigrationScoreGapThreshold: 20,
+  popMigrationCrossPolityScorePenalty: 15,
   bountifulHarvestPeasantWealthGain: 10,
   bountifulHarvestPeasantUnrestReduction: 5,
   bountifulHarvestTownsmanWealthGain: 2,

@@ -58,6 +58,7 @@ import type { Clan } from './clan'
 import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImprovement'
 import type { RealEstateAsset, RealEstateAssetIndex } from './realEstateAsset'
 import type { MarketResourcePriceState, HoldingResourceRevenueSnapshot } from './resourceEconomy'
+import type { MonthlyPopMobilitySnapshot } from './popMobility'
 import type { RealEstateSeizure, RealEstateSeizureIndex } from './realEstateSeizure'
 import type { LandContractDefault, LandContractDefaultIndex } from './landContractDefault'
 import type { Project, ProjectIndex } from './project'
@@ -125,6 +126,8 @@ export type WorldState = {
   // v0.54 資源経済 read-model (ResourceEconomySystem が月次出力。next*Id 不要)
   marketResourcePrices: Record<string, MarketResourcePriceState>
   monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
+  // v0.56 POP mobility read-model (PopMigrationSystem が月次出力。latest のみ。optional 開始)
+  monthlyPopMobility?: MonthlyPopMobilitySnapshot
   // v0.53 RealEstateSeizure (押領)
   realEstateSeizures: Record<RealEstateSeizureId, RealEstateSeizure>
   realEstateSeizureIndex: RealEstateSeizureIndex
