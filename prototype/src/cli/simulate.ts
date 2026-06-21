@@ -376,7 +376,10 @@ function computeUnrestStats(state: WorldState): {
 }
 
 // v0.54 §22.2: 資源経済の観察統計。価格縮退・POP wealth 床張り付き・財政経路 (owned vs holding due) を見る。
-function computeEconomyStats(state: WorldState): {
+function computeEconomyStats(
+  state: WorldState,
+  config: typeof defaultConfig,
+): {
   avgPopWealth: number
   resource: Record<
     ResourceKind,
@@ -428,7 +431,7 @@ function computeEconomyStats(state: WorldState): {
       if (!ps || ps.resource !== r) continue
       n++
       priceRatioSum += ps.lastPrice / def.basePrice
-      const swing = defaultConfig.marketPriceSwing
+      const swing = config.marketPriceSwing
       const atFloor = Math.abs(ps.lastPrice - def.basePrice * (1 - swing)) < 1e-3
       const atCeil = Math.abs(ps.lastPrice - def.basePrice * (1 + swing)) < 1e-3
       if (atFloor || atCeil) clamped++
@@ -463,7 +466,7 @@ function computeEconomyStats(state: WorldState): {
       const asset = state.realEstateAssets[ar.assetId]
       if (asset?.owner) {
         ownedNet += positiveNet
-        const due = positiveNet * defaultConfig.realEstateHoldingDueRate
+        const due = positiveNet * config.realEstateHoldingDueRate
         totalHoldingDue += due
         totalOwnerIncome += positiveNet - due
       }
@@ -860,7 +863,7 @@ async function main(): Promise<void> {
             '/' +
             unrestStats.totalProvinces,
         )
-        const econ = computeEconomyStats(result.state)
+        const econ = computeEconomyStats(result.state, config)
         console.log(
           '  Economy: popWealth=' +
             econ.avgPopWealth.toFixed(1) +

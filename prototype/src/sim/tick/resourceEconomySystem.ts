@@ -353,26 +353,33 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     // 高価格チャネル: priceMultiplier 超過に応じた生活費負担 (shortage とは別概念)。
     // 正のチャネル (§19.2, load-bearing): 充足かつ価格安定で wealth+/unrest- (fulfillmentRatio ベース)。
     //   market の値を同 market 内 POP に一律適用。clamp 0..100。
+    // 重要: 正のチャネルは「その財を実際に需要している」ときのみ発火させる。buyOrders=0 の市場では
+    //   fulfillmentRatio が sentinel の 1 を返すため、ゲートしないと需要ゼロの財で満額の満足ボーナスが
+    //   付いてしまう (例: 加工品を需要しない貧困 peasant のみの市場)。需要ゼロは contentment 0 が正。
+    const foodHasDemand = buyOrders.food > 0
+    const processedHasDemand = buyOrders.processed_goods > 0
     const foodFulfillmentRatio = foodFulfill.fulfillmentRatio
     const foodShortageSeverity = foodFulfill.shortageSeverity
     const foodPriceExcess = Math.max(0, price.food / RESOURCE_PRICE_DEFINITIONS.food.basePrice - 1)
-    // §19.2 正の効果は「充足 かつ 価格安定」が条件。価格高騰時は減衰させる。
-    const foodWellbeing = foodFulfillmentRatio * Math.max(0, 1 - foodPriceExcess)
-    const processedFulfillmentRatio = processedFulfill.fulfillmentRatio
+    // §19.2 正の効果は「充足 かつ 価格安定」が条件。価格高騰時は減衰させる。需要ゼロなら 0。
+    const foodWellbeing = foodHasDemand
+      ? foodFulfillmentRatio * Math.max(0, 1 - foodPriceExcess)
+      : 0
     const processedShortageSeverity = processedFulfill.shortageSeverity
+    const processedWellbeing = processedHasDemand ? processedFulfill.fulfillmentRatio : 0
 
     const wealthDelta =
       -config.foodShortageWealthPenalty * foodShortageSeverity -
       config.foodHighPriceWealthPenalty * foodPriceExcess +
       config.foodFulfillmentWealthGain * foodWellbeing -
       config.processedGoodsShortageWealthPenalty * processedShortageSeverity +
-      config.processedGoodsFulfillmentWealthGain * processedFulfillmentRatio
+      config.processedGoodsFulfillmentWealthGain * processedWellbeing
     const unrestDelta =
       config.foodShortageUnrestGain * foodShortageSeverity +
       config.foodHighPriceUnrestGain * foodPriceExcess -
       config.foodFulfillmentUnrestReduction * foodWellbeing +
       config.processedGoodsShortageUnrestGain * processedShortageSeverity -
-      config.processedGoodsFulfillmentUnrestReduction * processedFulfillmentRatio
+      config.processedGoodsFulfillmentUnrestReduction * processedWellbeing
 
     if (wealthDelta !== 0 || unrestDelta !== 0) {
       for (const popId of market.popGroupIds) {

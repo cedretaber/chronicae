@@ -217,6 +217,38 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(ar.netRevenue).toBeGreaterThan(0)
   })
 
+  it('正の充足チャネルは需要ゼロの資源で発火しない (buyOrders=0 ゲート)', () => {
+    // peasants のみ (processed 需要 0) の市場。processed 正チャネルを巨大にしても wealth は跳ねない。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'field').state
+    state = withEmployedPop(state, hd, 'peasants', 100, 50)
+    // food 系チャネルを 0 にし、processed 正チャネルだけ巨大にして単離する。
+    const cfg: SimulationConfig = {
+      ...defaultConfig,
+      foodShortageWealthPenalty: 0,
+      foodHighPriceWealthPenalty: 0,
+      foodFulfillmentWealthGain: 0,
+      foodShortageUnrestGain: 0,
+      foodHighPriceUnrestGain: 0,
+      foodFulfillmentUnrestReduction: 0,
+      processedGoodsShortageWealthPenalty: 0,
+      processedGoodsShortageUnrestGain: 0,
+      processedGoodsFulfillmentWealthGain: 50, // 巨大: ゲートが無ければ wealth が跳ねる
+      processedGoodsFulfillmentUnrestReduction: 0,
+      // peasants が processed を需要しないことを保証
+      popProcessedGoodsDemandPerSizeByClass: {
+        ...defaultConfig.popProcessedGoodsDemandPerSizeByClass,
+        peasants: 0,
+      },
+    }
+    const result = runEcon(state, cfg)
+    const popId = state.popIndex.byHolding[hd]![0]!
+    // processed 需要ゼロ → 正チャネル発火せず wealth 不変 (50 のまま)
+    expect(result.popGroups[popId]!.wealth).toBe(50)
+  })
+
   it('does not consume RNG and does not mutate treasury (Phase 2-3 side-effect boundary)', () => {
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
