@@ -32,9 +32,10 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
   // capacityPerLevel = base (§23.1a) × stratum weight (§13.4)。
   farm: {
     realEstateKind: 'farm',
-    allowedHoldingKinds: ['manor', 'city'],
+    // v0.55: 一次産業 (農園/鉱山/林地) は荘園 holding のみ。都市は工房専業とする。
+    allowedHoldingKinds: ['manor'],
     allowedTerrains: ['plains', 'wetlands', 'hills', 'forest'],
-    maxLevelByHoldingKind: { manor: 3, city: 2 },
+    maxLevelByHoldingKind: { manor: 3 },
     // base 50 × (lower 0.80 / middle 0.20)
     employmentSlots: [
       { stratum: 'lower', capacityPerLevel: 40 },
@@ -44,9 +45,9 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
   },
   mountain: {
     realEstateKind: 'mountain',
-    allowedHoldingKinds: ['manor', 'city'],
+    allowedHoldingKinds: ['manor'],
     allowedTerrains: ['mountains', 'hills'],
-    maxLevelByHoldingKind: { manor: 3, city: 2 },
+    maxLevelByHoldingKind: { manor: 3 },
     // base 35 × (lower 0.90 / middle 0.10)
     employmentSlots: [
       { stratum: 'lower', capacityPerLevel: 31.5 },
@@ -56,9 +57,9 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
   },
   woodland: {
     realEstateKind: 'woodland',
-    allowedHoldingKinds: ['manor', 'city'],
+    allowedHoldingKinds: ['manor'],
     allowedTerrains: ['forest', 'hills'],
-    maxLevelByHoldingKind: { manor: 3, city: 2 },
+    maxLevelByHoldingKind: { manor: 3 },
     // base 40 × (lower 0.85 / middle 0.15)
     employmentSlots: [
       { stratum: 'lower', capacityPerLevel: 34 },
