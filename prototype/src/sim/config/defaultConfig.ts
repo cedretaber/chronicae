@@ -219,6 +219,8 @@ export type SimulationConfig = {
   popSystemEnabled: boolean
   minPopSizeByClass: Record<PopStratum, number>
   minProvinceCarryingCapacity: number
+  // v0.55 POP 再設計: carrying capacity = 食料市場供給 / perCapitaFoodNeed。1人あたり月次食料需要の基準。
+  perCapitaFoodNeed: number
   manpowerFactorByClass: Record<PopStratum, number>
   baseMonthlyGrowthByClass: Record<PopStratum, number>
   populationPressureThreshold: number
@@ -1647,6 +1649,7 @@ export const defaultConfig: SimulationConfig = {
   popSystemEnabled: true,
   minPopSizeByClass: { lower: 5, middle: 1, upper: 1 },
   minProvinceCarryingCapacity: 50,
+  perCapitaFoodNeed: 1.0,
   manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
   baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,

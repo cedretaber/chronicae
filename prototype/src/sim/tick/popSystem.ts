@@ -2,27 +2,22 @@ import { clamp } from '../utils/math'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PopGroupId, ProvinceId } from '../types/ids'
-import {
-  getProvincePopulationPressure,
-  getHoldingClassCapacity,
-  getHoldingEmployedPopSize,
-} from '../selectors/popSelectors'
-import { addToOrCreatePopGroupMut, removePopGroupMut } from '../mutations/popMutations'
+import { getProvincePopulationPressure } from '../selectors/popSelectors'
+import { removePopGroupMut } from '../mutations/popMutations'
 
+// v0.55 POP 再設計: 旧 minSize 底上げ (就業 POP を minPopSizeByClass へ無条件で水増し) は撤廃した。
+//   雇用 capacity を持たない class (upper) を per-group に minSize へ底上げすると、その超過分が
+//   employmentRebalanceSystem 経由で未就業へ流れ、未就業が無制限に蓄積する人口生成ポンプになっていた
+//   (旧雇用システムの遺物バグ)。マルサス的モデルでは人口は食料 carrying capacity に縛られるため、
+//   人為的な下限底上げは不要。normalizePopSizes は epsilon 以下の POP を除去するのみとする。
 export function normalizePopSizes(ctx: TickContext): TickContext {
-  const minSizeByClass = ctx.config.minPopSizeByClass
   const epsilon = ctx.config.popSizeEpsilon
   let changed = false
 
-  // Check if any changes are needed
   for (const popGroupId of Object.keys(ctx.state.popGroups).sort()) {
     const pop = ctx.state.popGroups[popGroupId as PopGroupId]
     if (!pop) continue
-    if (pop.employed && pop.size < minSizeByClass[pop.class]) {
-      changed = true
-      break
-    }
-    if (!pop.employed && pop.size <= epsilon) {
+    if (pop.size <= epsilon) {
       changed = true
       break
     }
@@ -36,23 +31,11 @@ export function normalizePopSizes(ctx: TickContext): TickContext {
     popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
   }
 
-  // Collect unemployed POPs to remove (can't modify while iterating)
   const toRemove: PopGroupId[] = []
-
   for (const popGroupId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
     const pop = ws.popGroups[popGroupId]
     if (!pop) continue
-
-    if (pop.employed) {
-      const minSize = minSizeByClass[pop.class]
-      if (pop.size < minSize) {
-        ws.popGroups[pop.id] = { ...pop, size: minSize }
-      }
-    } else {
-      if (pop.size <= epsilon) {
-        toRemove.push(pop.id)
-      }
-    }
+    if (pop.size <= epsilon) toRemove.push(pop.id)
   }
 
   for (const popId of toRemove) {
@@ -70,7 +53,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
     nextPopGroupId: ctx.state.nextPopGroupId,
   }
 
-  // Snapshot POP IDs before loop — new POPs created by overflow won't be processed
+  // Snapshot POP IDs before loop (決定論的反復順)。v0.55: overflow による新規 POP 生成は廃止。
   const popIdSnapshot = Object.keys(ws.popGroups).sort() as PopGroupId[]
 
   // Pre-compute pressure per province
@@ -104,31 +87,16 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const delta =
       pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * employmentGrowthModifier
 
-    // 2. Apply growth with overflow
+    // 2. Apply growth (v0.55 POP 再設計)
+    //   成長は food carrying capacity の growthFactor (pressure) で頭打ちにする。
+    //   旧「就業POPを職capacityへ近づけ超過分を新unemployedへ overflow」する人口=職スロット結合は
+    //   除去 (旧雇用システムの遺物)。employed が職capacityを超えた分は直後の
+    //   employmentRebalanceSystem (Phase1 強制失業) が派生処理する。
     let newSize: number
     if (delta <= 0) {
       newSize = Math.max(0, pop.size + delta)
-    } else if (!pop.employed) {
-      newSize = pop.size + delta
     } else {
-      const capacity = getHoldingClassCapacity(ws, ctx.config, pop.holdingId, pop.class)
-      const current = getHoldingEmployedPopSize(ws, pop.holdingId, pop.class)
-      const room = Math.max(0, capacity - current)
-      const toOriginal = Math.min(delta, room)
-      const overflow = delta - toOriginal
-
-      newSize = pop.size + toOriginal
-
-      if (overflow > 0) {
-        addToOrCreatePopGroupMut(ws, {
-          holdingId: pop.holdingId,
-          class: pop.class,
-          popType: pop.popType,
-          employed: false,
-          size: overflow,
-          inheritFrom: pop,
-        })
-      }
+      newSize = pop.size + delta
     }
 
     // 3. Population pressure effect
@@ -161,9 +129,8 @@ export function runPopSystem(ctx: TickContext): TickContext {
       newUnrest += ctx.config.unemployedUnrestGainByClass[pop.class]
     }
 
-    // 7. Clamp
-    const minSize = ctx.config.minPopSizeByClass[pop.class]
-    const finalSize = pop.employed ? Math.max(minSize, newSize) : Math.max(0, newSize)
+    // 7. Clamp (v0.55 POP 再設計: 就業 POP の minSize 底上げは撤廃。人口は food CC に縛られる)
+    const finalSize = Math.max(0, newSize)
     const finalWealth = clamp(newWealth, 0, 100)
     const finalUnrest = clamp(newUnrest, 0, 100)
 
