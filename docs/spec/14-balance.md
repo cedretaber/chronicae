@@ -258,38 +258,40 @@ land_claim を自然に発生させるには、「他者の province の holding
 
 ---
 
-## 14.9 資源経済（v0.54 投入時の観察）
+## 14.9 資源経済（v0.54 market-clearing rewrite 後の観察）
 
-> **注（supersession）**: 本節は v0.54 の **旧市場清算モデル**（`sold = min(supply, demand)` / 超過分廃棄 / 資源別 min/max/elasticity）下の観察である。その後 **Victoria 3 型 market-clearing rewrite**（§6.3c.1: sell orders 全量 revenue 化・imbalance 価格・shortage penalty）を導入したため、ここで述べる挙動（food 過剰床での廃棄・clamp 張り付き）は現行モデルでは変化する（超過は安値で全量売れる）。**rewrite 実装後に再観察して本節を更新すること**。
+> **更新履歴**: 本節は当初 v0.54 の**旧市場清算モデル**（`sold = min(supply, demand)` / 超過廃棄 / 資源別 min/max/elasticity）下で記録されたが、**Victoria 3 型 market-clearing rewrite**（§6.3c.1: sell orders 全量 revenue 化・imbalance 価格・shortage penalty）の導入後に**再観察して全面更新した**（旧観察は supersede 済み）。
 
-計測条件: tiny preset 150年 × 3 seed (1, 42, 123)、整合性違反 0・完走。digest の `Economy:` 行（`computeEconomyStats`）から price/clamp/fulfillment、`Unrest:` 行から不満度を集計。300年 × 1 seed (1) も完走を確認済。**CLAUDE.md §4 に従い config は変更せず観察値の記録のみ**（「縮退回避のみ」の方針を堅持）。
+計測条件: tiny preset 150年 × 3 seed (1, 42, 123)、整合性違反 0・完走。300年 × 1 seed (1) も完走確認。digest の `Economy:` 行（`computeEconomyStats`）から price/clamp/fulfillment/shortage/severity/marketValueDelta、`Unrest:` 行から不満度を集計。**CLAUDE.md §4 に従い config は変更せず観察値の記録のみ**（「縮退回避のみ」の方針を堅持）。
 
-### 14.9.1 観察された市場の縮退傾向
+### 14.9.1 観察された市場の傾向（rewrite 後）
 
-3 seed × 150年の最終時点（p=lastPrice/basePrice、clamp=floor/ceiling 張り付き市場比率、ful=sold/effectiveDemand）:
+3 seed × 150年の最終時点（p=lastPrice/basePrice、clamp=floor/ceiling 張り付き市場比率 [新レンジ base×0.25〜1.75 基準]、ful=fulfillmentRatio、sh=shortage 市場比率、Δval=marketValueDelta）:
 
-| seed | food | raw_materials | processed_goods | popWealth | unrest avg |
-|---|---|---|---|---|---|
-| 1 | p0.61 clamp75% ful1.00 | p1.14 clamp75% | p1.78 clamp50% **ful0.40** | 70.4 | 43.8 |
-| 42 | p0.60 clamp75% ful1.00 | p0.67 clamp75% | p1.77 clamp50% **ful0.38** | 53.7 | 37.8 |
-| 123 | p0.60 clamp100% ful1.00 | p0.61 clamp75% | p2.09 clamp75% **ful0.25** | 57.0 | 61.2 |
+| seed | food | raw_materials | processed_goods | popWealth | unrest avg | Δval |
+|---|---|---|---|---|---|---|
+| 1 | p0.25 clamp100% ful1.00 | p1.00 clamp100% sh50% | p1.64 clamp50% **ful0.30 sh50%** | 60.8 | 44.0 | −17.5k |
+| 42 | p0.33 clamp75% ful1.00 | p0.45 clamp75% sh0% | p1.02 clamp75% **ful0.50 sh50%** | 62.8 | 37.9 | +14.0k |
+| 123 | p0.25 clamp100% ful1.00 | p0.63 clamp100% sh25% | p1.53 clamp75% **ful0.25 sh75%** | 67.1 | 60.8 | +0.8k |
 
-market の 50-100% が price clamp に張り付く。要因は2系統に分かれる:
+rewrite で価格メカニズムは変わった（超過廃棄ゼロ・全量売却・shortage penalty 明示化）が、**根底のトポロジー由来の傾向は旧モデルと同型で残存**する。要因は2系統:
 
-1. **food の床張り付き（可変だが無害）**: food は全 seed で min（0.6）に床留め・ful=1.00。POP food 需要に対し field の food 産出が過剰で、価格が常に下限に張る。ただし**飢餓は皆無（ful=1.00 を 150年維持）**、POP wealth は健全（53-70）、treasury も健全。安価で潤沢な主食は農本経済として不自然ではなく、機能的な害は無い。`baseOutputPerLabor`(food) または food 需要係数で内部均衡へ寄せられる**唯一の可変レバー**だが、調整しても利得が無く、v0.55 の市場間交易が food 需給を再構成するため**見送り**。
+1. **food の床張り付き（可変だが無害・継続）**: food は全 seed で下限（base×0.25）に床留め・ful=1.00・shortage 0%。POP food 需要に対し field 産出が過剰で価格が常に下限に張る。rewrite 後は「安値で全量売れる」ため**生産者の廃棄損は消えた**（旧モデルの「数量頭打ち＋価格下落」二重苦が解消）。**飢餓は皆無（ful=1.00 を 150/300年維持）**、POP wealth 健全（60-67）、treasury 健全。安価で潤沢な主食は農本経済として不自然でなく機能的害は無い。唯一の可変レバー（food の `baseOutputPerLabor` / 需要係数）は調整利得がなく、v0.55 交易が food 需給を再構成するため**見送り**。
 
-2. **raw 床 + processed_goods 慢性不足（構造的・現状では調整不能）**: workshop を持たない StateRegion は raw を売る相手が域内に無く（raw を消費するのは workshop のみ）→ raw が床に張る。同時に processed_goods を生産できず、域外から調達する手段が無い（市場間交易は未実装）→ ful=0.25-0.40 の慢性不足・価格が天井寄りに張る。**これは per-region 市場かつ交易ゼロのトポロジーに内在する縮退であり、係数調整では解消しない**。v0.55 のインターリージョン交易が根本解（workshopless 域が goods を輸入・raw を輸出できるようになる）。
+2. **raw 床 + processed_goods 慢性不足（構造的・調整不能・継続）**: workshop を持たない StateRegion は raw の域内買い手が無く（raw を消費するのは workshop のみ）raw が床に張る。同時に goods を域外調達できず（市場間交易は未実装）processed が ful=0.25-0.50・shortage 50-75% の慢性不足、価格は天井寄り。**per-region 市場・交易ゼロのトポロジーに内在する縮退であり係数調整では解消しない**。v0.55 のインターリージョン交易が根本解。rewrite はこの不足を **shortage / shortageSeverity（maxSev=1.0）として可視化**しただけで、悪化も改善もさせていない。
 
-### 14.9.2 unrest 上昇は v0.54 起因ではない（戦争起因・既存）
+3. **marketValueDelta（非保存・新指標）**: −17.5k〜+14.0k と seed により符号が変わる。shortage 過多 seed（s1: goods 不足で buy>sell の高価格購入が producerRevenue を上回る）は負（価値の破棄）、供給過多 seed（s42: 床価格で sell>buy）は正（価値の生成）。これは**市場抽象化による意図的な非保存**（§6.3c.1）であり、LandRevenue 分配の保存則（§21.4）とは別レイヤ。Δval が極端化する縮退（例: 毎月 −100k 級の慢性破棄）は観察されず、規模は健全。
 
-seed123 のみ unrest が単調上昇（17.8 → 61.2、high>50 が 11/17）。経済カップリング（§19）の係数算術では food 充足（ful=1.00）による減（`foodFulfillmentUnrestReduction` −1.0/月）が goods 不足による増（`processedGoodsShortageUnrestGain × 0.75` ≈ +0.6/月）を上回り、**経済由来の net は unrest を下げる方向**。
+### 14.9.2 unrest 均衡は rewrite 後も安定（負チャネル弱化の影響は軽微）
 
-main（v0.54 前）seed123 を 150年走らせた baseline では unrest は **20.9 → 64.2（high 13/17）**で、v0.54（61.2 / 11/17）**より高い**。つまり seed123 の unrest ratchet は**戦争多発 seed の既存の政治力学**（revolt 156件・war 系イベント多数）であり、v0.54 が導入・悪化させたものではない（むしろ経済カップリングがわずかに緩和）。よって `processedGoodsShortageUnrestGain` を下げても政治ドライバには届かず、「縮退回避」の対象にもならない。一般 unrest バランスは §14.3 / §14.4 系の既存課題として将来の総合調整に委ねる。
+rewrite で POP 負カップリングは「`1−fulfillmentRatio` 比例」から「`shortageSeverity` 比例」へ変更され、**fulfillment が threshold（0.5）以上の帯では penalty が 0 になる＝負チャネルが構造的に弱まった**。§19.2 の「food net coupling ≈ −1.0/月（load-bearing）」均衡がドリフトしないか要注視だったが、再観察の結果 unrest avg は **seed1: 43.8→44.0 / seed42: 37.8→37.9 / seed123: 61.2→60.8** と**実質不変**（旧モデル比 ±0.4 以内）。food は全 seed で ful=1.00（shortage 0%）のため負チャネルの弱化は food では発火せず、正チャネル（充足ゲイン）が従来どおり均衡を支えている。**均衡の drift は起きていない**。
 
-### 14.9.3 結論: 3項目とも見送り（v0.55 交易へ引き継ぎ）
+seed123 の高 unrest（60.8、high>50 が 11/17）は旧 §14.9 同様**戦争多発 seed の既存政治力学**（revolt 多数）であり経済起因ではない（main baseline 64.2 > rewrite 60.8 でむしろ低い）。一般 unrest バランスは §14.3 / §14.4 の既存課題として将来の総合調整へ。
 
-- food 過剰床: 無害・唯一の可変レバーだが利得なし → 見送り。
-- raw/goods 縮退: 交易ゼロのトポロジーに内在 → v0.55 市場間交易で根本解。
-- seed123 unrest 上昇: 既存の戦争起因（v0.54 はむしろ緩和）→ 一般バランス調整へ。
+### 14.9.3 結論: 3項目とも見送り継続（v0.55 交易へ引き継ぎ）
 
-財政経路は owned 比率が上がっても健全（150年で owned 17-63%、treasury は land-holding polity で 65-3036）。これは holdingDue 機構（§17.4）が私的所有の拡大下でも財政を維持していることの実証で、v0.55 交易の作業はこれら3観察を入力として引き継ぐ。
+- food 過剰床: rewrite で廃棄損は解消・無害 → 見送り。
+- raw/goods 縮退: 交易ゼロのトポロジーに内在（rewrite は shortage として可視化しただけ）→ v0.55 市場間交易で根本解。
+- unrest: 負チャネル弱化後も均衡は安定（drift なし）。seed123 の高 unrest は既存の戦争起因 → 一般バランス調整へ。
+
+財政経路は owned 比率が上がっても健全（150年で owned 30-55%、due/ownerInc とも正常）。holdingDue 機構（§17.4）が私的所有の拡大下でも財政を維持しており、netRevenue が負になり得る rewrite 後も positiveNet 床留め（§6.3c.1）で保存則は不変。v0.55 交易の作業はこれら観察を入力として引き継ぐ。
