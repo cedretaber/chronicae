@@ -13,6 +13,7 @@ import {
   getActiveSeizureForAsset,
   getSeizurePrescriptionRemainingYears,
 } from '@sim/selectors/realEstateSeizureSelectors'
+import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
 import { formatAmount } from '@/app/utils/format'
 
 // v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
@@ -51,10 +52,26 @@ export function RealEstateDetail({
 
   // per-asset の雇用枠 (capacityPerLevel × level)。employedSize は holding 単位でしか取れないため、
   //   単一 asset では誤読を避けて capacity (枠) のみを表示する。
-  const capacitySlots = def.employmentSlots.map((slot) => ({
-    stratum: slot.stratum,
-    capacity: slot.capacityPerLevel * asset.level,
-  }))
+  //   雇用充足率は holding 単位 (employed / effectiveCapacity)。POP は holding 帰属で asset へは枠比按分の
+  //   ため、同 holding 内の各 asset で同一値になる (holding-level の充足率 proxy)。
+  const capacitySlots = def.employmentSlots.map((slot) => {
+    let fill: number | null = null
+    if (currentState) {
+      const employed = getHoldingEmployedPopSize(currentState, asset.holdingId, slot.stratum)
+      const cap = getHoldingClassCapacity(
+        currentState,
+        defaultConfig,
+        asset.holdingId,
+        slot.stratum,
+      )
+      fill = cap > 0 ? employed / cap : null
+    }
+    return {
+      stratum: slot.stratum,
+      capacity: slot.capacityPerLevel * asset.level,
+      fill,
+    }
+  })
 
   // per-asset の月次産出・収支 (snapshot がある場合)。
   const revenueSnapshot = currentState?.monthlyHoldingResourceRevenue[asset.holdingId]
@@ -166,7 +183,14 @@ export function RealEstateDetail({
         {capacitySlots.map((slot) => (
           <div key={slot.stratum} className="flex justify-between">
             <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
-            <span className="text-gray-300">{slot.capacity.toFixed(0)}</span>
+            <span className="text-gray-300">
+              {slot.capacity.toFixed(0)}
+              {slot.fill !== null && (
+                <span className="ml-1 text-gray-500">
+                  ({t('detail.realEstate.employment_fulfillment')} {(slot.fill * 100).toFixed(0)}%)
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>
@@ -201,6 +225,22 @@ export function RealEstateDetail({
               <span className="text-gray-500">{t('detail.realEstate.net_revenue')}:</span>
               <span className={assetResult.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                 {formatAmount(assetResult.netRevenue)}
+              </span>
+            </div>
+          </div>
+          <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-500">{t('detail.realEstate.input_fulfillment')}:</span>
+              <span className="text-gray-300">
+                {(assetResult.inputFulfillment * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">
+                {t('detail.realEstate.labor_type_fulfillment')}:
+              </span>
+              <span className="text-gray-300">
+                {(assetResult.laborTypeFulfillment * 100).toFixed(0)}%
               </span>
             </div>
           </div>

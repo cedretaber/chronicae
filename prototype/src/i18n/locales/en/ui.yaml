@@ -689,6 +689,10 @@ detail:
     gross_revenue: 'Revenue'
     input_cost: 'Input cost'
     net_revenue: 'Net'
+    # v0.55 fulfillment (observational)
+    employment_fulfillment: 'Employment fill'
+    input_fulfillment: 'Input fulfillment'
+    labor_type_fulfillment: 'Labor-type fulfillment'
     # v0.55 resource names (21 kinds)
     resource_grain: 'Grain'
     resource_fish: 'Fish'

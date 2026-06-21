@@ -52,6 +52,8 @@ type RecipeRecord = {
   potentialOutputs: Partial<Record<ResourceKind, number>>
   potentialInputs: Partial<Record<ResourceKind, number>>
   inputCategories: ResolvedInputCategory[]
+  // §14.3 laborTypeFulfillmentModifier (観察用)。Pass 2 で asset 単位に slotCount 加重集約する。
+  laborTypeFulfillment: number
 }
 
 type MarketAccum = {
@@ -133,6 +135,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               potentialOutputs: rp.potentialOutputs,
               potentialInputs: rp.potentialInputs,
               inputCategories: rp.inputCategories,
+              laborTypeFulfillment: rp.laborTypeFulfillment,
             })
 
             // recipe input の潜在需要 (§12.3 step 2)。supply は清算ループで level 昇順に算出する。
@@ -259,8 +262,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     // recipe を asset 単位に集約し、asset を holding snapshot にまとめる。
     const assetResultByAsset = new Map<string, RealEstateProductionResult>()
     const assetOrderByHolding = new Map<string, string[]>()
+    // 観察用充足率の slotCount 加重集約: 集計中は inputFulfillment/laborTypeFulfillment に
+    //   Σ(slotCount × value) を貯め、snapshot 組み立て時に ΣslotCount で正規化する。
+    const fulfillmentWeightByAsset = new Map<string, number>()
     for (const rec of market.recipes) {
       const outputScale = inputShortageModifier(rec)
+      const recipeInputFulfillment = recipeInputScale(rec) // raw Liebig 最小律 (0..1, input 無し=1)
 
       const recipeOutputs: Partial<Record<ResourceKind, number>> = {}
       const recipeInputs: Partial<Record<ResourceKind, number>> = {}
@@ -296,6 +303,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
+          inputFulfillment: 0, // 集計中は Σ(slotCount × value)、後で正規化
+          laborTypeFulfillment: 0,
         }
         assetResultByAsset.set(assetKey, assetResult)
         const hKey = rec.holdingId as string
@@ -306,6 +315,13 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       assetResult.grossRevenue += recipeGross
       assetResult.inputCost += recipeInputCost
       assetResult.netRevenue += recipeNet
+      // 充足率の slotCount 加重和を貯める (正規化は snapshot 組み立て時)。
+      assetResult.inputFulfillment += recipeInputFulfillment * rec.slotCount
+      assetResult.laborTypeFulfillment += rec.laborTypeFulfillment * rec.slotCount
+      fulfillmentWeightByAsset.set(
+        assetKey,
+        (fulfillmentWeightByAsset.get(assetKey) ?? 0) + rec.slotCount,
+      )
       for (const r of RESOURCE_KINDS) {
         if (recipeOutputs[r] !== undefined)
           assetResult.outputs[r] = (assetResult.outputs[r] ?? 0) + (recipeOutputs[r] ?? 0)
@@ -323,6 +339,15 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const assetKey of assetKeys) {
         const ar = assetResultByAsset.get(assetKey)
         if (!ar) continue
+        // slotCount 加重和を平均へ正規化 (weight 0 は理論上発生しないが念のため 1 扱い)。
+        const weight = fulfillmentWeightByAsset.get(assetKey) ?? 0
+        if (weight > 0) {
+          ar.inputFulfillment /= weight
+          ar.laborTypeFulfillment /= weight
+        } else {
+          ar.inputFulfillment = 1
+          ar.laborTypeFulfillment = 1
+        }
         assetResults.push(ar)
         totalNetRevenue += Math.max(0, ar.netRevenue)
         for (const r of RESOURCE_KINDS) {
