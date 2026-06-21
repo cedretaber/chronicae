@@ -278,28 +278,27 @@
 | warSupplyAttritionEventStrengthThreshold | 5 | SUPPLY_ATTRITION 発火の最小 strength 損耗 |
 | **Disaster / Harvest（発生率・豊作）** | | |
 | disasterEnabled | true | 災害・豊作有効（CrisisSystem の年次発生ロール + HarvestSystem の kill-switch） |
-| famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province（CrisisSystem が使用） |
+| famineBaseChancePerYear | 0 | 飢饉の背景発生率/年/Province（v0.55: 飢饉は扶養力不足駆動になり既定 0。任意の背景飢饉率ノブ） |
 | plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province（同上） |
 | bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年/Province（HarvestSystem） |
-| faminePressureChanceBonus | 9.2 | 人口圧力超過分あたりの飢饉発生率加算（pressure 1.0 で 100%） |
+| faminePressureChanceBonus | 9.2 | 飢饉発生率 = base + bonus × max(0, pressure − famineOnsetPressure)（v0.55: 不足分駆動） |
 | plaguePressureChanceBonus | 2.0 | 人口圧力超過分あたりの疫病発生率加算 |
-| ~~famineWealthPenalty~~ | 8 | **v0.48 で未使用**（旧 DisasterSystem の単発効果。被害は Crisis severity 駆動に置換） |
-| ~~famineSizeDamageRate~~ | 0.10 | **v0.48 で未使用**（初期ショックは `crisisInitialShockSizeRateByKind`） |
-| ~~plagueWealthPenalty~~ | 10 | **v0.48 で未使用** |
-| ~~plagueSizeDamageRate~~ | 0.05 | **v0.48 で未使用** |
 | disasterReliefCostPerProvince | 20 | 救済費用/Province（現在は一旦オミット、将来再導入） |
-| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（現在は一旦オミット） |
 | bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
 | bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
 | bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
 | bountifulHarvestTownsmanUnrestReduction | 1 | 豊作による townsmen unrest 低下量 |
 | **Crisis（v0.48・暫定値。balance は機能完成後にまとめて調整, CLAUDE.md §4）** | | |
 | crisisEnabled | true | Crisis システム有効（週次処理 + 各経路の spawn） |
-| droughtBaseChancePerYear | 0.04 | 干魃基礎発生率/年/Province |
-| droughtPressureChanceBonus | 5.0 | 人口圧力超過分あたりの干魃発生率加算 |
+| droughtBaseChancePerYear | 0.04 | 干魃発生率/年/Province（v0.55: 気候イベント。人口圧とは独立した base のみ） |
+| famineOnsetPressure | 1.0 | v0.55 飢饉: pressure（人口/扶養力）がこれを超えた分が「食料不足」= 発火/餓死の不足量 |
+| famineMortalityPerDeficit | 0.3 | v0.55 飢饉: 急性餓死率 = min(famineMaxMortalityRate, perDeficit × (pressure − onset)) |
+| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る lower POP の上限割合 |
+| droughtFoodOutputPenaltyRate | 1.0 | v0.55 干魃: 食料産出倍率 = max(floor, 1 − rate × severity/100) |
+| droughtFoodOutputFloor | 0.3 | v0.55 干魃: 産出減衰の下げ止まり（severity 100 でも floor 倍は残る） |
 | crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 / disrepair 30 | kind 別 初期 severity（disrepair は修理工数 = Project targetProgress） |
 | crisisSeverityPressureBonus | 20 | 人口圧力超過分あたりの初期 severity 加算（famine/plague/drought のみ） |
-| crisisInitialShockSizeRateByKind | famine 0.05 / plague 0.04 / drought 0.03 / war_damage 0.02 / unrest 0 / disrepair 0 | 発生時の一回限り人口減率 |
+| crisisInitialShockSizeRateByKind | famine 0（餓死は deficit 比例で別算出）/ plague 0.04 / drought 0（生産被害経由）/ war_damage 0.02 / unrest 0 / disrepair 0 | 発生時の一回限り人口減率 |
 | crisisDeadlineWeeksByKind | famine 24 / plague 20 / drought 32 / war_damage 32 / unrest 12 / disrepair 999 | kind 別 有効期限（週）。disrepair は型充足用で Crisis/Project とも deadline 不使用 |
 | crisisBudgetTreasuryRatio | 0.1 | 対処予算 = floor(treasury × 本値) と cap の小さい方 |
 | crisisBudgetCapByKind | famine 60 / plague 80 / drought 50 / war_damage 80 / unrest 40 / disrepair 60 | kind 別 予算上限 |
@@ -332,10 +331,6 @@
 | rebellionStartedDevastation | 2 | 反乱開始時の荒廃 |
 | rebellionSucceededDevastation | 3 | 反乱成功時の荒廃 |
 | rebellionFailedDevastation | 5 | 反乱失敗時の荒廃 |
-| famineDevastation | 5 | 飢饉による荒廃 |
-| famineReliefDevelopmentRecovery | 2 | 飢饉救済による荒廃軽減 |
-| plagueDevastation | 8 | 疫病による荒廃 |
-| bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
 | **Control System** | | |
 | controlMaxDistancePenalty | 10 | 距離 1 あたりの支配力上限ペナルティ |
 | controlMaxMinimum | 40 | 支配力上限の最低値 |

@@ -5,7 +5,9 @@ import type {
   ProductionRecipeId,
   PopGroupId,
   ProjectId,
+  CrisisId,
 } from '../types/ids'
+import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
 import type { PopGroup } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -75,6 +77,27 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   const { state, config } = ctx
   const log = createLogger(config.debug)
   const week = state.absoluteWeek
+
+  // v0.55 §B: active な干魃 Crisis の holding → severity を引く。食料 recipe の産出を減衰させ、
+  //   foodSupply 低下 → 扶養力低下 → 飢饉の原因とする。determinism: crisis key sorted 反復。
+  const droughtSeverityByHolding = new Map<string, number>()
+  for (const cid of (Object.keys(state.crises) as CrisisId[]).sort()) {
+    const c = state.crises[cid]
+    if (!c || c.kind !== 'drought' || c.status !== 'active') continue
+    const key = c.holdingId as string
+    const prev = droughtSeverityByHolding.get(key) ?? 0
+    if (c.severity > prev) droughtSeverityByHolding.set(key, c.severity)
+  }
+  // 食料 recipe 産出への干魃減衰倍率 (食料以外・干魃無しは 1)。供給集計と per-asset 売却益の双方で使う。
+  const droughtOutputScale = (holdingId: HoldingId, resource: ResourceKind): number => {
+    if (FOOD_RESOURCE_VALUE[resource] === undefined) return 1
+    const sev = droughtSeverityByHolding.get(holdingId)
+    if (sev === undefined) return 1
+    return Math.max(
+      config.droughtFoodOutputFloor,
+      1 - config.droughtFoodOutputPenaltyRate * (sev / 100),
+    )
+  }
 
   // marketKey ごとの集計。states を sorted key 順で反復し、market を生成順に並べる。
   const markets: MarketAccum[] = []
@@ -245,7 +268,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         for (const rec of market.recipes) {
           const pot = rec.potentialOutputs[resource]
           if (pot === undefined) continue
-          sell += pot * inputShortageModifier(rec)
+          sell += pot * inputShortageModifier(rec) * droughtOutputScale(rec.holdingId, resource)
         }
         const buy = buyOrders[resource]
         price[resource] = computeResourcePrice(resource, sell, buy, config)
@@ -276,7 +299,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const r of RESOURCE_KINDS) {
         const pot = rec.potentialOutputs[r]
         if (pot !== undefined) {
-          const produced = pot * outputScale // 全量売却 (在庫なし・市場抽象化)
+          // 全量売却 (在庫なし・市場抽象化)。干魃 holding の食料産出は減衰 (§B)。
+          const produced = pot * outputScale * droughtOutputScale(rec.holdingId, r)
           recipeOutputs[r] = produced
           recipeGross += produced * price[r]
         }

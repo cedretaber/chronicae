@@ -71,11 +71,6 @@ export type SimulationConfig = {
   rebellionStartedDevastation: number
   rebellionSucceededDevastation: number
   rebellionFailedDevastation: number
-  // Disaster development effects
-  famineDevastation: number
-  famineReliefDevelopmentRecovery: number
-  plagueDevastation: number
-  bountifulHarvestDevelopmentGain: number
   // Control system
   controlMaxDistancePenalty: number
   controlMaxMinimum: number
@@ -269,18 +264,20 @@ export type SimulationConfig = {
   warUnrestDamage: number
   warPeasantSizeDamage: number
   warTownsmanSizeDamage: number
-  famineWealthPenalty: number
-  famineSizeDamageRate: number
-  famineReliefDamageMultiplier: number
   faminePressureChanceBonus: number
-  plagueWealthPenalty: number
-  plagueSizeDamageRate: number
   plaguePressureChanceBonus: number
   // v0.48 Crisis (災害・戦災・反乱前段の entity 化, §7.2)
   crisisEnabled: boolean
-  // 発生年次ロール (drought は新規。famine/plague は既存 *BaseChancePerYear を流用)
+  // 発生年次ロール (drought は気候イベントで base のみ。famine は v0.55 で扶養力不足駆動)
   droughtBaseChancePerYear: number
-  droughtPressureChanceBonus: number
+  // v0.55 飢饉 (食料不足の結果としての急性餓死, §B):
+  //   発火・餓死とも pressure (= 人口 / 食料扶養力) ベース。fulfillment は購買力加重のため不使用。
+  famineOnsetPressure: number // この pressure を超えた分が「食料不足」= 飢饉の発火/餓死の不足量
+  famineMortalityPerDeficit: number // 急性餓死率 = min(max, perDeficit × (pressure − onset))
+  famineMaxMortalityRate: number // 1 回の飢饉発生で減る lower POP の上限割合
+  // v0.55 干魃 (食料生産への被害, §B): 発生 holding の食料 recipe 産出に乗算する減衰。
+  droughtFoodOutputPenaltyRate: number // 産出倍率 = max(floor, 1 − rate × severity/100)
+  droughtFoodOutputFloor: number
   // 初期 severity (= 対処 Project の targetProgress)。0–100。pressureExcess に比例して加算 (clamp 100)
   crisisInitialSeverityByKind: Record<CrisisKind, number>
   crisisSeverityPressureBonus: number
@@ -1507,7 +1504,7 @@ export const defaultConfig: SimulationConfig = {
   minAttackerWinChanceToDeclare: 0.45,
   winChanceWarGateEnabled: true,
   disasterEnabled: true,
-  famineBaseChancePerYear: 0.08,
+  famineBaseChancePerYear: 0, // v0.55: 飢饉は扶養力不足駆動。既定 0 (背景飢饉率の任意ノブ)
   plagueBaseChancePerYear: 0.03,
   bountifulHarvestBaseChancePerYear: 0.05,
   disasterReliefCostPerProvince: 20,
@@ -1519,10 +1516,6 @@ export const defaultConfig: SimulationConfig = {
   rebellionStartedDevastation: 2,
   rebellionSucceededDevastation: 3,
   rebellionFailedDevastation: 5,
-  famineDevastation: 5,
-  famineReliefDevelopmentRecovery: 2,
-  plagueDevastation: 8,
-  bountifulHarvestDevelopmentGain: 3,
   // Control system
   controlMaxDistancePenalty: 10,
   controlMaxMinimum: 40,
@@ -1722,17 +1715,18 @@ export const defaultConfig: SimulationConfig = {
   warUnrestDamage: 10,
   warPeasantSizeDamage: 0.5,
   warTownsmanSizeDamage: 0.3,
-  famineWealthPenalty: 8,
-  famineSizeDamageRate: 0.1,
-  famineReliefDamageMultiplier: 0.3,
   faminePressureChanceBonus: 9.2,
-  plagueWealthPenalty: 10,
-  plagueSizeDamageRate: 0.05,
   plaguePressureChanceBonus: 2.0,
   // v0.48 Crisis (§7.2)。balance は機能完成後にまとめて調整する前提の暫定値 (CLAUDE.md §4)。
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,
-  droughtPressureChanceBonus: 5.0,
+  // v0.55 飢饉: 食料不足の結果として発火・餓死。pressure ベース (購買力中立)。
+  famineOnsetPressure: 1.0,
+  famineMortalityPerDeficit: 0.3,
+  famineMaxMortalityRate: 0.15,
+  // v0.55 干魃: 食料生産への被害。severity 30 → 産出 ×0.70、severity 50 → ×0.50 (floor 0.30)。
+  droughtFoodOutputPenaltyRate: 1.0,
+  droughtFoodOutputFloor: 0.3,
   crisisInitialSeverityByKind: {
     famine: 30,
     plague: 35,
@@ -1743,9 +1737,9 @@ export const defaultConfig: SimulationConfig = {
   },
   crisisSeverityPressureBonus: 20,
   crisisInitialShockSizeRateByKind: {
-    famine: 0.05,
+    famine: 0, // v0.55: 飢饉の餓死は deficit 比例で別途算出 (famineMortalityPerDeficit)。table 値は不使用
     plague: 0.04,
-    drought: 0.03,
+    drought: 0, // v0.55: 干魃は食料生産を減衰させ飢饉経由で減らす。直接の人口ショックは持たない
     war_damage: 0.02,
     unrest: 0,
     disrepair: 0, // disrepair は初期 pop ショック無し

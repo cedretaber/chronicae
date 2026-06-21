@@ -21,7 +21,9 @@ import type {
   RealEstateAssetId,
   HouseId,
   ProductionRecipeId,
+  CrisisId,
 } from '../types/ids'
+import type { Crisis } from '../types/crisis'
 import { makeEmptyV016State, withProvince, withHolding, withHouse } from '../testFixtures'
 import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { computeAllocatedLaborByAsset } from '../selectors/resourceProductionSelectors'
@@ -98,6 +100,22 @@ function withEmployedPop(
   }
 }
 
+let crisisCounter = 0
+function withDrought(state: WorldState, holdingId: HoldingId, severity: number): WorldState {
+  const id = ('cr-' + crisisCounter++) as CrisisId
+  const crisis: Crisis = {
+    id,
+    kind: 'drought',
+    holdingId,
+    severity,
+    createdWeek: 0,
+    deadlineWeek: 32,
+    status: 'active',
+    reasonIds: [],
+  }
+  return { ...state, crises: { ...state.crises, [id]: crisis } }
+}
+
 function runEcon(state: WorldState, config: SimulationConfig = defaultConfig): WorldState {
   const ctx = createTickContext({ state, config, rng: createRng('test') })
   return runResourceEconomySystem(ctx).state
@@ -120,6 +138,40 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap).toBeDefined()
     expect(snap!.byResource.grain).toBeGreaterThan(0)
     expect(snap!.totalNetRevenue).toBeGreaterThan(0)
+  })
+
+  it('干魃 Crisis (v0.55 §B): active な holding の食料 (grain) 産出を severity 倍率で減衰させる', () => {
+    function grainOutput(withCrisis: boolean): number {
+      let state = makeEmptyV016State()
+      state = withProvince(state, 'pr-0' as ProvinceId, {})
+      const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+      state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
+      state = withEmployedPop(state, hd, 'lower', 100)
+      if (withCrisis) state = withDrought(state, hd, 30)
+      const result = runEcon(state)
+      return result.monthlyHoldingResourceRevenue[hd]!.byResource.grain ?? 0
+    }
+    const base = grainOutput(false)
+    const drought = grainOutput(true)
+    // severity 30 → 倍率 = max(floor 0.3, 1 − 1.0 × 0.30) = 0.70。
+    const expectedScale = 1 - defaultConfig.droughtFoodOutputPenaltyRate * (30 / 100)
+    expect(base).toBeGreaterThan(0)
+    expect(drought).toBeCloseTo(base * expectedScale, 5)
+  })
+
+  it('干魃 Crisis: 産出減衰は floor で下げ止まる (severity 100 でも floor 倍は残る)', () => {
+    function grainOutput(severity: number | null): number {
+      let state = makeEmptyV016State()
+      state = withProvince(state, 'pr-0' as ProvinceId, {})
+      const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+      state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
+      state = withEmployedPop(state, hd, 'lower', 100)
+      if (severity !== null) state = withDrought(state, hd, severity)
+      return runEcon(state).monthlyHoldingResourceRevenue[hd]!.byResource.grain ?? 0
+    }
+    const base = grainOutput(null)
+    const severe = grainOutput(100)
+    expect(severe).toBeCloseTo(base * defaultConfig.droughtFoodOutputFloor, 5)
   })
 
   it('workshop with a grain source brews more beer; without it falls to the shortage floor', () => {

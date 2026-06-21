@@ -361,14 +361,22 @@ polity.treasury -= distributedTotal
 
 ```ts
 const pressureExcess = Math.max(0, pressure - config.populationPressureThreshold)
-const famineChance  = config.famineBaseChancePerYear  + config.faminePressureChanceBonus  * pressureExcess
-const plagueChance  = config.plagueBaseChancePerYear  + config.plaguePressureChanceBonus  * pressureExcess
-const droughtChance = config.droughtBaseChancePerYear + config.droughtPressureChanceBonus * pressureExcess
+// v0.55: 飢饉は「食料生産が物理的扶養力を割った結果」。発火は購買力中立の pressure（人口/扶養力）の
+//   famineOnsetPressure 超過分に比例。base は既定 0（任意の背景飢饉率ノブ）。
+const famineDeficit = Math.max(0, pressure - config.famineOnsetPressure)
+const famineChance  = config.famineBaseChancePerYear  + config.faminePressureChanceBonus  * famineDeficit
+const plagueChance  = config.plagueBaseChancePerYear  + config.plaguePressureChanceBonus * pressureExcess
+// v0.55: 干魃は気候イベント。人口圧と独立した base のみ（食料生産を減衰させ飢饉の原因となる）。
+const droughtChance = config.droughtBaseChancePerYear
 ```
+
+> **v0.55 §B（飢饉・干魃の商品経済整合）**: 旧実装では famine も drought も pressureExcess（人口圧）駆動で発火し、固定率の人口ショックを直接与えていた。商品ベース経済では (1)「食料生産が人口を養えない」は carrying-capacity 経由で**慢性的に**既にモデル化されており（popSystem の `growthFactor = 1 − pressure²` が pressure>1 で負転、§6.5）、(2) market は価格上限で食料を実質無限購入させてしまう抽象化のため、生産不足が「餓死」に結びつかなかった。v0.55 で**消費（結果）を時間軸で分担**する: carrying-capacity が慢性の成長抑制を担い、**飢饉は急性の餓死を担う**。market fulfillment は購買力加重で「買えない＝飢える」層ほど需要が下がり充足が高く出る（逆向き）ため、信号には用いず物理的な pressure（perCapitaFoodNeed ベース）を使う。
 
 - **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
-- **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。famine/drought は peasants、plague/war_damage は全 class。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
+- **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。plague/war_damage は table 値（plague は全 class、war_damage は peasants）。**v0.55: 飢饉の餓死は table 値ではなく不足分比例の急性死** `min(famineMaxMortalityRate, famineMortalityPerDeficit × max(0, pressure − famineOnsetPressure))`（peasants）。**干魃は直接の人口ショックを持たず（table 0）**、後述の食料生産減衰で扶養力を下げて飢饉を誘発する。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
+- **干魃の食料生産被害（v0.55 §B）**: active な drought Crisis を持つ holding の食料 recipe 産出を、`resourceEconomySystem` の市場清算で乗算減衰する: `倍率 = max(droughtFoodOutputFloor, 1 − droughtFoodOutputPenaltyRate × severity/100)`。供給集計と per-asset 売却益の双方に同じ倍率を適用（決定的、crisis key sorted 反復）。食料以外の産出（鉱石等）は影響しない。干魃は state 食料供給・当該 holding 収益を確かに押し下げる（実測: 干魃多発で grain fulfillment mean 0.989→0.953）。
+  - **granularity の注意（実測）**: carrying capacity / pressure は **state 単位**で集計される（`getStateCarryingCapacity` / `getStatePopulation`）一方、干魃は **holding 単位**で発生するため、1 件の局所的な干魃の食料減は state 全体で希釈される。均衡 pressure（~0.77）は `famineOnsetPressure`（1.0）から遠いため、**default 値では単発の干魃が飢饉の閾値を越えることは稀**で、飢饉は主に過剰人口（pressure overshoot）由来で発火する。「広域・甚大な干魃が飢饉を引き起こす」連鎖を信頼できる動力学にするには holding 単位の食料 granularity 化が必要（将来。`project_disaster_relief_future` 参照）。現状は (1) 干魃＝食料経済への被害（収益・供給。検証済）と (2) 飢饉＝物理的食料不足（pressure>1）の結果（検証済）という 2 つの独立した修正であり、両者を強く連結させるのは scope 外。
 - **設備による被害軽減（v0.48.1）**: `crisisMitigationByKind[kind]` に「軽減する設備種別 + レベルあたり軽減率」を持つ kind は、その holding の当該設備の**実効レベル**（`level × conditionEffectiveness(condition)`、§6.6b）に応じて severity と初期ショックを乗算で下げる（`factor = max(0, 1 − reductionPerLevel × 実効レベル)`、決定的で RNG を引かない）。既定は **灌漑設備（irrigation_infrastructure）→ 干魃** / **貯蔵設備（storage_infrastructure）→ 飢饉**（各 0.25/level、健全・max level 3 で最大 75% 軽減＝25% 残る）。「灌漑された農地は干魃に強い / 蔵があれば飢饉を凌げる」という設備の固有性を与える。**機能不全（condition < 閾値）の設備は実効レベルが下がり軽減効果も低下、condition 0 で軽減ゼロ**（壊れた蔵/灌漑は守れない＝設備維持管理と連動）。未登録 kind（plague 等）は軽減なし。
   - **定期保守点検（v0.48.2 で実装）**: 「機能不全になってから修理する」reactive モデルに対し、普段の保守点検で機能不全を未然に防ぐ proactive な仕組みを condition 3 段モデルとして追加した（§6.6b）。要保守帯（50〜80）で代官＋owner 財政により condition を回復し、保守の失敗（代官不在・財政難）だけが機能不全 Crisis の入口になる。
 - **後方互換**: Province レベルの物語ビートとして旧 `FAMINE` / `PLAGUE` イベントを 1 件だけ残す（drought は新規 kind で legacy event を持たず per-holding `CRISIS_CREATED` のみ）。

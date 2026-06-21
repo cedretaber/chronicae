@@ -375,6 +375,7 @@ function spawnCrisisForHolding(
   holdingId: HoldingId,
   kind: CrisisKind,
   pressureExcess: number,
+  pressure: number,
   absoluteWeek: number,
   emitEvent: (input: CreateSimEventInput) => void,
 ): boolean {
@@ -425,8 +426,17 @@ function spawnCrisisForHolding(
     reasonIds: [],
   })
 
-  // 初期ショック (一回限りの人口減, holding スコープで 1 回。province ラッパーの多重罠を回避, §4.1)
-  const shockRate = config.crisisInitialShockSizeRateByKind[kind] * mitigationFactor
+  // 初期ショック (一回限りの人口減, holding スコープで 1 回。province ラッパーの多重罠を回避, §4.1)。
+  //   v0.55: 飢饉は固定率テーブルではなく「扶養力超過の不足分に比例した急性餓死」。市場が上限価格で
+  //   食料を無限購入させてしまう抽象化を、物理制約 (餓死) で補完する (input shortage と対称)。
+  //   慢性的な人口調整は popSystem の carrying-capacity growthFactor が担当し、飢饉は急性層を担う。
+  let shockRate = config.crisisInitialShockSizeRateByKind[kind] * mitigationFactor
+  if (kind === 'famine') {
+    const deficit = Math.max(0, pressure - config.famineOnsetPressure)
+    shockRate =
+      Math.min(config.famineMaxMortalityRate, config.famineMortalityPerDeficit * deficit) *
+      mitigationFactor
+  }
   if (shockRate > 0) {
     const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'lower'
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass)
@@ -553,12 +563,19 @@ function runAnnualSpawn(
     const pressure = getProvincePopulationPressure(ws, config, provinceId)
     const pressureExcess = Math.max(0, pressure - config.populationPressureThreshold)
 
+    // v0.55: 飢饉は「食料生産が物理的扶養力 (perCapitaFoodNeed ベース) を割った結果」として発火する。
+    //   信号は購買力中立の pressure (= 人口 / 扶養力)。扶養力超過の不足分 (pressure − famineOnsetPressure)
+    //   に比例して発火確率が上がる。market fulfillment は購買力加重で「買えない=飢える」層ほど需要が
+    //   下がり充足が高く出る (逆向き) ため使わない。base は既定 0 (任意の背景飢饉率ノブ)。
+    const famineDeficit = Math.max(0, pressure - config.famineOnsetPressure)
     const famineChance =
-      config.famineBaseChancePerYear + config.faminePressureChanceBonus * pressureExcess
+      config.famineBaseChancePerYear + config.faminePressureChanceBonus * famineDeficit
     const plagueChance =
       config.plagueBaseChancePerYear + config.plaguePressureChanceBonus * pressureExcess
-    const droughtChance =
-      config.droughtBaseChancePerYear + config.droughtPressureChanceBonus * pressureExcess
+    // v0.55: 干魃は気候イベント。人口圧とは独立した base chance のみで発火する。発生 holding の
+    //   食料生産を減衰させ (resourceEconomySystem) → 扶養力低下 → 飢饉の原因となる。
+    //   直接の人口ショックは持たない (crisisInitialShockSizeRateByKind.drought = 0)。
+    const droughtChance = config.droughtBaseChancePerYear
 
     const f = randomFloat(rng)
     rng = f.rng
@@ -580,6 +597,7 @@ function runAnnualSpawn(
             holdingId,
             kind,
             pressureExcess,
+            pressure,
             absoluteWeek,
             emitEvent,
           )

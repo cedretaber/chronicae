@@ -288,3 +288,37 @@ describe('設備による Crisis 被害軽減 (v0.48.1 §6.6b)', () => {
     expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine * 0.75)
   })
 })
+
+// v0.55 §B: 飢饉の人口ショックを「扶養力超過の不足分に比例した急性餓死」に変更した。
+//   buildWorld は食料供給なし → carrying capacity = floor 50、POP 1000 → pressure = clamp(20, 0, 2) = 2.0。
+//   deficit = pressure − famineOnsetPressure(1.0) = 1.0。
+describe('飢饉の急性餓死 (v0.55 §B: deficit 比例)', () => {
+  function ctxWith(configOverride: Partial<typeof defaultConfig>) {
+    return createTickContext({
+      state: buildWorld(),
+      rng: createRng('crisis-spawn'),
+      config: { ...defaultConfig, ...FORCE_FAMINE, ...configOverride },
+    })
+  }
+
+  it('pressure 超過時に不足分比例の餓死を適用し、famineMaxMortalityRate で頭打ちになる', () => {
+    // deficit 1.0 × perDeficit 0.3 = 0.3 だが max 0.15 で cap → 1000 × (1−0.15) = 850。
+    const next = runCrisisSystem(ctxWith({}))
+    expect(next.state.popGroups[POP]!.size).toBeCloseTo(
+      1000 * (1 - defaultConfig.famineMaxMortalityRate),
+    )
+  })
+
+  it('cap 未満では perDeficit × deficit に比例した餓死になる', () => {
+    // perDeficit 0.05 × deficit 1.0 = 0.05 (< cap 0.15) → 1000 × (1−0.05) = 950。
+    const next = runCrisisSystem(ctxWith({ famineMortalityPerDeficit: 0.05 }))
+    expect(next.state.popGroups[POP]!.size).toBeCloseTo(950)
+  })
+
+  it('pressure が famineOnsetPressure 以下なら餓死は起きない (飢饉 Crisis は発生しても死者ゼロ)', () => {
+    // onset を pressure 上限超に設定 → deficit 0 → 餓死なし。Crisis 自体は base=1 で発生する。
+    const next = runCrisisSystem(ctxWith({ famineOnsetPressure: 999 }))
+    expect(Object.values(next.state.crises).some((c) => c?.kind === 'famine')).toBe(true)
+    expect(next.state.popGroups[POP]!.size).toBe(1000)
+  })
+})
