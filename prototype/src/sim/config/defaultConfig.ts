@@ -1413,9 +1413,8 @@ export type SimulationConfig = {
   needResourceChoiceBeta: number
   // v0.55 §14.3: laborTypeFulfillmentModifier の下限 (PopType 構成が理想から外れても最低稼働率)。
   laborTypeFulfillmentFloor: number
-  // v0.55 §17: recipe 自動入れ替えの最小利益改善率 / 月あたり最大移動 slot 数。
+  // v0.55 §17: recipe 自動入れ替えの最小利益改善率 (月あたり最大 1 slot は system 側で atomic に保証)。
   recipeSwitchMinGainRate: number
-  recipeSwitchMaxSlotsPerAssetPerMonth: number
   // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
   //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
   needTierFloor: Record<NeedTier, number>
@@ -1433,28 +1432,8 @@ export type SimulationConfig = {
   >
   // owner income / holding due
   realEstateHoldingDueRate: number
-  // POP 需要
-  popFoodDemandPerSizeByClass: Record<PopClass, number>
-  popProcessedGoodsDemandPerSizeByClass: Record<PopClass, number>
-  // 購買力 (wealth 0/50/100 の 2 区間線形補間)
-  foodPurchasingPowerFactorAtWealth0: number
-  foodPurchasingPowerFactorAtWealth50: number
-  foodPurchasingPowerFactorAtWealth100: number
-  processedGoodsPurchasingPowerFactorAtWealth0: number
-  processedGoodsPurchasingPowerFactorAtWealth50: number
-  processedGoodsPurchasingPowerFactorAtWealth100: number
-  // POP wealth / unrest 反映
-  foodShortageWealthPenalty: number
-  foodShortageUnrestGain: number
-  foodHighPriceWealthPenalty: number
-  foodHighPriceUnrestGain: number
-  // §19.2: food が充足し価格が安定している地域への正の効果 (wealth+/unrest-)。
-  foodFulfillmentWealthGain: number
-  foodFulfillmentUnrestReduction: number
-  processedGoodsShortageWealthPenalty: number
-  processedGoodsShortageUnrestGain: number
-  processedGoodsFulfillmentWealthGain: number
-  processedGoodsFulfillmentUnrestReduction: number
+  // v0.55: 旧 food/processed 2 軸 POP 需要・購買力・wellbeing config は NeedCategory ベース
+  //   (popNeedDefinitions / needTier*) へ全面移行したため削除 (§5/§15/§16)。
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   realEstateSeizurePrescriptionYears: number
   landContractDefaultPrescriptionYears: number
@@ -3011,7 +2990,6 @@ export const defaultConfig: SimulationConfig = {
   needResourceChoiceBeta: 2,
   laborTypeFulfillmentFloor: 0.7,
   recipeSwitchMinGainRate: 0.02,
-  recipeSwitchMaxSlotsPerAssetPerMonth: 1,
   needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
   needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
   needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },
@@ -3020,24 +2998,6 @@ export const defaultConfig: SimulationConfig = {
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,
   realEstateHoldingDueRate: 0.1,
-  popFoodDemandPerSizeByClass: { lower: 1.0, middle: 1.05, upper: 1.1 },
-  popProcessedGoodsDemandPerSizeByClass: { lower: 0.2, middle: 0.6, upper: 1.2 },
-  foodPurchasingPowerFactorAtWealth0: 0.6,
-  foodPurchasingPowerFactorAtWealth50: 1.0,
-  foodPurchasingPowerFactorAtWealth100: 1.2,
-  processedGoodsPurchasingPowerFactorAtWealth0: 0.1,
-  processedGoodsPurchasingPowerFactorAtWealth50: 0.7,
-  processedGoodsPurchasingPowerFactorAtWealth100: 1.3,
-  foodShortageWealthPenalty: 3.0,
-  foodShortageUnrestGain: 4.0,
-  foodHighPriceWealthPenalty: 1.5,
-  foodHighPriceUnrestGain: 1.5,
-  foodFulfillmentWealthGain: 0.5,
-  foodFulfillmentUnrestReduction: 1.0,
-  processedGoodsShortageWealthPenalty: 1.0,
-  processedGoodsShortageUnrestGain: 1.0,
-  processedGoodsFulfillmentWealthGain: 0.5,
-  processedGoodsFulfillmentUnrestReduction: 0.5,
   // === v0.53 押領・土地契約不履行・時効 (spec §19) ===
   // 初期値は保守的にし、押領・上納拒否が乱発しないようにする。観察後に調整する。
   realEstateSeizurePrescriptionYears: 20,

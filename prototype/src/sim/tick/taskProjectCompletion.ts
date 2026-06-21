@@ -864,8 +864,12 @@ export function handleAdvanceProjectCompletionMut(
 
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
 
-  // 非材料 budget Project (acquire_real_estate) は従来の抽象 budget 消費を維持する。
-  if (project.kind === 'acquire_real_estate') {
+  // 非材料 budget Project は従来の抽象 budget 消費を維持する:
+  //   - acquire_real_estate: 購入であり建築資材を持たない
+  //   - handle_crisis (非修繕: famine/plague/drought/unrest): 建築資材 profile が無い (§18.2 は
+  //     war_damage/disrepair のみ材料化)。escrow budget が消費されず stuck になるのを防ぐ。
+  //   develop_* は常に材料 profile を持つため上の材料経路で処理され、ここには到達しない。
+  if (project.kind === 'acquire_real_estate' || project.kind === 'handle_crisis') {
     const expectedTasks = Math.max(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),

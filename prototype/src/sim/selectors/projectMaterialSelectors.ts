@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { Project } from '../types/project'
 import type { ResourceKind } from '../types/resource'
+import { RESOURCE_KINDS } from '../types/resource'
 import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import {
@@ -32,13 +33,14 @@ export function getProjectMaterialRequirements(
 }
 
 // category を満たす単一 ResourceKind (construction_* は単一資源)。複数の場合は contribution 最大を採る。
+//   determinism: RESOURCE_KINDS sorted order で反復し、同点は先勝ち (Object.keys 順依存を避ける)。
 function soleResourceForCategory(req: ProjectMaterialRequirement): {
   resource: ResourceKind
   contributionValue: number
 } | null {
   const contributions = INPUT_CATEGORY_CONTRIBUTIONS[req.category]
   let best: { resource: ResourceKind; contributionValue: number } | null = null
-  for (const r of Object.keys(contributions) as ResourceKind[]) {
+  for (const r of RESOURCE_KINDS) {
     const v = contributions[r]
     if (v === undefined) continue
     if (!best || v > best.contributionValue) best = { resource: r, contributionValue: v }
