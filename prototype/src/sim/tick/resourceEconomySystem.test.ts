@@ -121,9 +121,9 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap!.totalNetRevenue).toBeGreaterThan(0)
   })
 
-  it('workshop with a grain source brews beer; without it produces none', () => {
+  it('workshop with a grain source brews more beer; without it falls to the shortage floor', () => {
     // pr-0 (manor, farm=grain) と city holding を同 province=同 StateRegion(sr-0) に置く。
-    //   workshop の既定 recipe は tool_workshop + workshop_brewery。grain があれば beer を醸造できる。
+    //   workshop の既定 recipe は tool_workshop + workshop_brewery。grain があれば beer を多く醸造できる。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const manor = firstHoldingId(state, 'pr-0' as ProvinceId)
@@ -136,9 +136,10 @@ describe('runResourceEconomySystem — production & market', () => {
 
     const withRaw = runEcon(state)
     const citySnapWith = withRaw.monthlyHoldingResourceRevenue[city]
-    expect(citySnapWith!.byResource.beer ?? 0).toBeGreaterThan(0)
+    const beerWith = citySnapWith!.byResource.beer ?? 0
+    expect(beerWith).toBeGreaterThan(0)
 
-    // farm を取り除く (grain 供給 0) → workshop の beer は 0 になる。
+    // farm を取り除く (grain 供給 0) → §12.4 改訂: 完全停止せず floor (inputShortageOutputFloor) 倍まで縮小。
     let noRaw = makeEmptyV016State()
     noRaw = withProvince(noRaw, 'pr-0' as ProvinceId, {})
     const city2 = 'hd-city2' as HoldingId
@@ -147,7 +148,10 @@ describe('runResourceEconomySystem — production & market', () => {
     noRaw = withEmployedPop(noRaw, city2, 'middle', 100)
     const noRawResult = runEcon(noRaw)
     const citySnapNo = noRawResult.monthlyHoldingResourceRevenue[city2]
-    expect(citySnapNo!.byResource.beer ?? 0).toBe(0)
+    const beerNo = citySnapNo!.byResource.beer ?? 0
+    // 供給ゼロでも floor 倍は生産する (>0)。ただし grain がある方より少ない。
+    expect(beerNo).toBeGreaterThan(0)
+    expect(beerNo).toBeLessThan(beerWith)
   })
 
   it('food price rises with demand: more POP (demand) lifts price above a low-demand market', () => {
@@ -199,9 +203,10 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap.totalNetRevenue).toBeGreaterThan(0)
   })
 
-  it('input 供給ゼロ workshop: §12.5 pro-rate で input cost も output も 0 に縮小する', () => {
-    // input 供給 (grain/iron_ore/timber) 無しの workshop → inputFulfillmentScale=0。
-    //   §12.5 pro-rate により実消費=0・実コスト=0、output も 0 → netRevenue=0 (満額課金しない)。
+  it('input 供給ゼロ workshop: §12.4/§12.5 改訂 — floor 倍は生産し input を market price で購入する', () => {
+    // input 供給 (grain/iron_ore/timber) 無しの workshop → inputFulfillmentScale=0、
+    //   inputShortageModifier = floor (= inputShortageOutputFloor) へ。完全停止せず floor 倍を生産し、
+    //   希少 input を market price (天井) で購入扱い → 実コスト>0・低利益/赤字となる。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const city = 'hd-city' as HoldingId
@@ -212,12 +217,10 @@ describe('runResourceEconomySystem — production & market', () => {
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[city]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
-    // pro-rate: 入力ゼロ → 消費ゼロ・コストゼロ・産出ゼロ
-    expect(ar.outputs.beer ?? 0).toBe(0)
-    expect(ar.outputs.tools ?? 0).toBe(0)
-    expect(ar.inputCost).toBe(0)
-    expect(ar.netRevenue).toBe(0)
-    expect(snap.totalNetRevenue).toBe(0)
+    // floor: 入力ゼロでも floor 倍は生産する (>0) / input は market price で課金される (>0)。
+    expect(ar.outputs.beer ?? 0).toBeGreaterThan(0)
+    expect(ar.outputs.tools ?? 0).toBeGreaterThan(0)
+    expect(ar.inputCost).toBeGreaterThan(0)
   })
 
   it('consumerCost 二層性: POP food 需要は価格を上げるが asset inputCost に計上されない', () => {

@@ -187,7 +187,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     // ─── 市場清算 (§12 DAG 化) ───
     // demand は pass 1 で全 resource 分を計上済み (POP 需要 + recipe input 需要)。
     // supply は resource level 昇順に increment 計算する: level-N resource の supply は
-    //   Σ(potentialOutput × inputFulfillmentScale)。inputFulfillmentScale は下位 level の
+    //   Σ(potentialOutput × inputShortageModifier)。modifier は下位 level の
     //   fulfillment が確定するまで分からないため up-front では計算しない (§12.2)。
     const price: Record<ResourceKind, number> = emptyResourceRecord()
     const sellOrders: Record<ResourceKind, number> = emptyResourceRecord()
@@ -222,6 +222,18 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       return scale
     }
 
+    // v0.55 §12.4/§12.5 (抽象市場改訂): input shortage を「実配給 0」ではなく floor 付きの output
+    //   penalty として扱う (Victoria 3 的)。supply 0 でも inputShortageOutputFloor 倍は生産を続け、
+    //   input は market price で購入扱い (希少時は高価な input × 低 output → 低利益/赤字)。これにより
+    //   price シグナルが生き、上位 recipe (例 gem_mine) への転換動機が残る。
+    //   raw recipe (input 無し) は recipeInputScale=1 → modifier=1 で無影響。
+    //   inputFulfillmentScale (Liebig 最小律) は従来どおり計算し、floor 付き modifier へ変換してから
+    //   actualOutput / actualInputConsumed に掛ける (直接 actualOutput には掛けない)。
+    const inputShortageModifier = (rec: RecipeRecord): number => {
+      const floor = config.inputShortageOutputFloor
+      return floor + (1 - floor) * recipeInputScale(rec)
+    }
+
     // resource level 昇順に supply を確定し clearing する (§12.3)。
     for (const level of RESOURCE_LEVELS_SORTED) {
       for (const resource of RESOURCE_KINDS) {
@@ -230,7 +242,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         for (const rec of market.recipes) {
           const pot = rec.potentialOutputs[resource]
           if (pot === undefined) continue
-          sell += pot * recipeInputScale(rec)
+          sell += pot * inputShortageModifier(rec)
         }
         const buy = buyOrders[resource]
         price[resource] = computeResourcePrice(resource, sell, buy, config)
@@ -240,14 +252,15 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     }
 
     // ─── Pass 2: per-asset 売却益 (§12.5 課金ポリシー) ───
-    // produced は全量 price で売れる (sellRatio 廃止)。複数 input shortage 時は律速 input に合わせて
-    // 実消費・実コストを pro-rate する (§12.5): actualInputConsumed = desiredInput × inputFulfillmentScale。
-    // 全 input 満額課金にはしない (partial shortage 時に netRevenue が不自然に急落するのを防ぐため)。
+    // produced は全量 price で売れる (sellRatio 廃止)。input shortage 時は floor 付き
+    //   inputShortageModifier で actualOutput を減衰させ、input は同 modifier で実消費・実コストを
+    //   pro-rate する (§12.5 改訂): actualInputConsumed = desiredInput × inputShortageModifier。
+    //   供給 0 でも floor 倍は生産・購入するため、希少 input は高価格で課金され低利益/赤字となる。
     // recipe を asset 単位に集約し、asset を holding snapshot にまとめる。
     const assetResultByAsset = new Map<string, RealEstateProductionResult>()
     const assetOrderByHolding = new Map<string, string[]>()
     for (const rec of market.recipes) {
-      const outputScale = recipeInputScale(rec)
+      const outputScale = inputShortageModifier(rec)
 
       const recipeOutputs: Partial<Record<ResourceKind, number>> = {}
       const recipeInputs: Partial<Record<ResourceKind, number>> = {}
@@ -261,8 +274,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           recipeGross += produced * price[r]
         }
       }
-      // §12.5 pro-rate: 律速 input (inputFulfillmentScale) に合わせて実消費・実コストを縮小する。
-      //   category 解決済みの resource 別 buyOrders を outputScale で按分課金する。
+      // §12.5 pro-rate: floor 付き inputShortageModifier に合わせて実消費・実コストを縮小する。
+      //   category 解決済みの resource 別 buyOrders を outputScale (= modifier) で按分課金する。
       for (const cat of rec.inputCategories) {
         for (const res of cat.resources) {
           const consumed = res.buyOrders * outputScale

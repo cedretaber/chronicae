@@ -1413,6 +1413,9 @@ export type SimulationConfig = {
   needResourceChoiceBeta: number
   // v0.55 §14.3: laborTypeFulfillmentModifier の下限 (PopType 構成が理想から外れても最低稼働率)。
   laborTypeFulfillmentFloor: number
+  // v0.55 §12.4/§12.5 (抽象市場改訂): input shortage 時の output 下限。supply 0 でも
+  //   inputShortageModifier = floor + (1-floor) × inputFulfillmentScale 倍は生産する (完全停止を防ぐ)。
+  inputShortageOutputFloor: number
   // v0.55 §17: recipe 自動入れ替えの最小利益改善率 (月あたり最大 1 slot は system 側で atomic に保証)。
   recipeSwitchMinGainRate: number
   // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
@@ -2989,6 +2992,9 @@ export const defaultConfig: SimulationConfig = {
   inputResourceChoiceBeta: 2,
   needResourceChoiceBeta: 2,
   laborTypeFulfillmentFloor: 0.7,
+  // §12.4/§12.5 (抽象市場改訂): supply 0 でも potential の 25% は生産する。希少 input は market price で
+  //   購入扱い (高価 input × 低 output → 低利益/赤字) となり、price シグナルと recipe 転換動機が残る。
+  inputShortageOutputFloor: 0.25,
   recipeSwitchMinGainRate: 0.02,
   needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
   needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
