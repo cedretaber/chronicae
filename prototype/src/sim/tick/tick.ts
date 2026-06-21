@@ -8,6 +8,7 @@ import {
 import { advanceTime } from './advanceTime'
 import { runLandRevenueSystem } from './landRevenueSystem'
 import { runResourceEconomySystem } from './resourceEconomySystem'
+import { runRecipeSwitchSystem } from './recipeSwitchSystem'
 import { runObligationConsistencySystem } from './obligationConsistencySystem'
 import { runObligationAccrualSystem } from './obligationAccrualSystem'
 import { runPrescriptionSystem } from './prescriptionSystem'
@@ -147,6 +148,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runResourceEconomySystem,
+  },
+  // v0.55 §17: ResourceEconomySystem 直後 (最新 smoothedPrice / 当月 snapshot を壊さない)。
+  {
+    name: 'recipeSwitchSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRecipeSwitchSystem,
   },
   { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
   // v0.53 義務不履行 (押領・上納拒否・時効)。spec §22: LandRevenue → consistency → accrual → prescription → cleanup。

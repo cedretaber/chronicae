@@ -1410,6 +1410,9 @@ export type SimulationConfig = {
   needResourceChoiceBeta: number
   // v0.55 §14.3: laborTypeFulfillmentModifier の下限 (PopType 構成が理想から外れても最低稼働率)。
   laborTypeFulfillmentFloor: number
+  // v0.55 §17: recipe 自動入れ替えの最小利益改善率 / 月あたり最大移動 slot 数。
+  recipeSwitchMinGainRate: number
+  recipeSwitchMaxSlotsPerAssetPerMonth: number
   // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
   //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
   needTierFloor: Record<NeedTier, number>
@@ -3002,6 +3005,8 @@ export const defaultConfig: SimulationConfig = {
   inputResourceChoiceBeta: 2,
   needResourceChoiceBeta: 2,
   laborTypeFulfillmentFloor: 0.7,
+  recipeSwitchMinGainRate: 0.02,
+  recipeSwitchMaxSlotsPerAssetPerMonth: 1,
   needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
   needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
   needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },

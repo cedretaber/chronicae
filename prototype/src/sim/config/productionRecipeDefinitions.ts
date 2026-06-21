@@ -358,6 +358,27 @@ export function getDefaultRecipeSlotsForRealEstateKind(
   return distributeSlots(DEFAULT_RECIPE_WEIGHTS_BY_KIND[kind], slotCount)
 }
 
+// §17.3: RealEstateKind で採用可能な recipeId 一覧 (sorted, determinism)。recipe switch 候補列挙に使う。
+const ALLOWED_RECIPE_IDS_BY_KIND: Record<RealEstateKind, ProductionRecipeId[]> = (() => {
+  const m: Record<RealEstateKind, ProductionRecipeId[]> = {
+    farm: [],
+    mountain: [],
+    woodland: [],
+    workshop: [],
+  }
+  const ids = (Object.keys(PRODUCTION_RECIPE_DEFINITIONS) as ProductionRecipeId[]).sort()
+  for (const id of ids) {
+    const recipe = PRODUCTION_RECIPE_DEFINITIONS[id]
+    if (!recipe) continue
+    for (const kind of recipe.allowedRealEstateKinds) m[kind].push(id)
+  }
+  return m
+})()
+
+export function getAllowedRecipeIdsForKind(kind: RealEstateKind): readonly ProductionRecipeId[] {
+  return ALLOWED_RECIPE_IDS_BY_KIND[kind]
+}
+
 // §14.2 / §14.3: recipe ごとの理想労働構成。spec は workshop 例のみ提示のため、recipe の性質
 //   (一次生産 / 農村加工 / 都市工房) ごとに §13.2 PopType 分類と整合する profile を割り当てる。
 //   v0.55 では soft modifier (floor 0.70) なので構成ズレは効率低下に留まる。
