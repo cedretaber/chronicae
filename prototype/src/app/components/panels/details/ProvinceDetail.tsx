@@ -49,7 +49,7 @@ import {
 } from './shared/widgets'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { PolityLink, HouseLink, PersonLink } from './shared/links'
-import { formatScore, formatPower } from '@/app/utils/format'
+import { formatScore, formatPower, formatAmount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { getChronicleEntriesForProvince } from '@sim/selectors/chronicleSelectors'
@@ -490,6 +490,38 @@ export function ProvinceDetail({
           ))}
         </>
       )}
+
+      {currentState?.monthlyPopMobility?.byState[province.stateId] ? (
+        <>
+          <DetailSection title={t('detail.popMobility.section_title')} />
+          <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
+            <div className="flex justify-between">
+              <span>{t('detail.popMobility.job_changed')}</span>
+              <span>
+                {formatAmount(
+                  currentState.monthlyPopMobility.byState[province.stateId]!.jobChanged,
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>{t('detail.popMobility.migrated_in')}</span>
+              <span>
+                {formatAmount(
+                  currentState.monthlyPopMobility.byState[province.stateId]!.migratedIn,
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>{t('detail.popMobility.migrated_out')}</span>
+              <span>
+                {formatAmount(
+                  currentState.monthlyPopMobility.byState[province.stateId]!.migratedOut,
+                )}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <DetailSection title={t('detail.province.revolt_risk')} />
       <div className="text-sm">

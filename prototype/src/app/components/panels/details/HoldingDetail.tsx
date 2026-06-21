@@ -271,6 +271,43 @@ export function HoldingDetail({
           )
         })()}
 
+      {currentState?.monthlyPopMobility
+        ? (() => {
+            const moves = currentState.monthlyPopMobility.topMovements.filter(
+              (m) =>
+                (m.sourceHoldingId as string) === (holding.id as string) ||
+                (m.targetHoldingId as string) === (holding.id as string),
+            )
+            if (moves.length === 0) return null
+            return (
+              <>
+                <DetailSection
+                  title={t('detail.popMobility.holding_section_title')}
+                  count={moves.length}
+                />
+                <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
+                  {moves.map((m, i) => (
+                    <div key={i} className="flex justify-between rounded bg-gray-700 p-1.5">
+                      <span>
+                        {t(`detail.province.pop_type.${m.fromPopType}`, {
+                          defaultValue: m.fromPopType,
+                        })}{' '}
+                        →{' '}
+                        {t(`detail.province.pop_type.${m.toPopType}`, {
+                          defaultValue: m.toPopType,
+                        })}
+                      </span>
+                      <span>
+                        {t(`detail.popMobility.kind_${m.kind}`)} {formatAmount(m.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()
+        : null}
+
       {/* Infrastructure */}
       {currentState &&
         (() => {

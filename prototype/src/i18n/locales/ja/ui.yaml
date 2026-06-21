@@ -639,6 +639,14 @@ detail:
       commitment: '確約'
 
   # プロヴィンス詳細
+  popMobility:
+    section_title: 'POP 流動 (国・月次)'
+    holding_section_title: 'POP 流動 (この holding)'
+    job_changed: '転職'
+    migrated_in: '流入'
+    migrated_out: '流出'
+    kind_job_change: '転職'
+    kind_migration: '移住'
   province:
     state: '州域'
     terminal_polity: '最終支配国'

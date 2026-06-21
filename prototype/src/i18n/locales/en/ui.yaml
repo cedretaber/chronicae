@@ -536,6 +536,14 @@ detail:
       commitment: 'Commitment'
 
   # Province detail
+  popMobility:
+    section_title: 'POP Mobility (state, monthly)'
+    holding_section_title: 'POP Mobility (this holding)'
+    job_changed: 'Job changes'
+    migrated_in: 'Migrated in'
+    migrated_out: 'Migrated out'
+    kind_job_change: 'job'
+    kind_migration: 'migration'
   province:
     state: 'State'
     terminal_polity: 'Terminal Polity'
