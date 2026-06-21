@@ -3,7 +3,22 @@ import { makeEmptyV016State } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { handleAdvanceProjectCompletionMut } from './taskProjectCompletion'
 import type { HandleCrisisProject } from '../types/project'
+import type { Crisis } from '../types/crisis'
 import type { HoldingId, PolityId, PersonId, ProjectId, CrisisId } from '../types/ids'
+
+// v0.55: handle_crisis の建築資材消費は war_damage / disrepair の修繕 crisis のみ対象 (§18.2)。
+function makeWarDamageCrisis(): Crisis {
+  return {
+    id: 'cr-1' as CrisisId,
+    kind: 'war_damage',
+    holdingId: 'hl-1' as HoldingId,
+    severity: 50,
+    createdWeek: 0,
+    deadlineWeek: 100,
+    status: 'active',
+    reasonIds: [],
+  }
+}
 
 function makeProject(): HandleCrisisProject {
   return {
@@ -30,6 +45,7 @@ describe('handle_crisis budget 消費の一般化 (A7)', () => {
     const s = makeEmptyV016State()
     const project = makeProject()
     s.projects[project.id] = project
+    s.crises[project.crisisId] = makeWarDamageCrisis()
 
     handleAdvanceProjectCompletionMut(s, defaultConfig, project.id, 'success')
 

@@ -1070,6 +1070,9 @@ export type SimulationConfig = {
   aimProgressCompletionTolerance: number
   projectDeadlineWeeksDevelopment: number
   projectDeadlineWeeksDiplomatic: number
+  // v0.55 §22: 建設資材 shortage / 追加予算を考慮した kind 別 deadline。
+  projectDeadlineWeeksHoldingDevelopment: number
+  projectDeadlineWeeksRealEstateDevelopment: number
   projectStageMaxAttempts: number
   pressureResponseDefaultDeadlineWeeks: number
   supervisedProjectWorkloadWeight: number
@@ -2550,6 +2553,8 @@ export const defaultConfig: SimulationConfig = {
   aimProgressCompletionTolerance: 1,
   projectDeadlineWeeksDevelopment: 48,
   projectDeadlineWeeksDiplomatic: 24,
+  projectDeadlineWeeksHoldingDevelopment: 72,
+  projectDeadlineWeeksRealEstateDevelopment: 52,
   projectStageMaxAttempts: 3,
   pressureResponseDefaultDeadlineWeeks: 48,
   supervisedProjectWorkloadWeight: 2,

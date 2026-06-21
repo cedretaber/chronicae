@@ -27,6 +27,13 @@ import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeiz
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import {
+  computeProjectMaterialBaseUnits,
+  getProjectMaterialRequirements,
+  getProjectMarketKey,
+} from '../selectors/projectMaterialSelectors'
 import { createProjectId } from '../types/ids'
 import {
   addProjectToIndexMut,
@@ -820,17 +827,45 @@ export function handleAdvanceProjectCompletionMut(
       : outcome === 'partial'
         ? config.projectAdvanceProgressPartial
         : config.projectAdvanceProgressFailure
+
+  // v0.55 §19: 建設・修繕 Project は建築資材費を smoothedPrice で算出し週次 budget から消費する。
+  //   budgetPaymentScale = min(1, remaining / desiredWeeklyMaterialCost) で進捗を減衰させる (§19.5)。
+  //   資材不足は smoothedPrice 上昇 → desired cost 増 → scale 低下、の一本の因果に統一 (§19.4 B3)。
+  const materialReqs = getProjectMaterialRequirements(ws, project)
+  if (
+    materialReqs &&
+    (project.kind === 'develop_holding' ||
+      project.kind === 'develop_real_estate' ||
+      project.kind === 'upgrade_owned_real_estate' ||
+      project.kind === 'handle_crisis')
+  ) {
+    const baseUnits = computeProjectMaterialBaseUnits(ws, config, project)
+    const marketKey = getProjectMarketKey(ws, project)
+    let desiredCost = 0
+    for (const u of baseUnits) {
+      const ps = marketKey
+        ? ws.marketResourcePrices[marketResourcePriceKey(marketKey, u.resource)]
+        : undefined
+      desiredCost += u.baseUnits * getSmoothedPriceOrBase(ps?.smoothedPrice, u.resource)
+    }
+    const budgetPaymentScale =
+      desiredCost > 0 ? Math.min(1, project.budget.remaining / desiredCost) : 1
+    const effectiveProgressGain = progressGain * budgetPaymentScale
+    const newProgress = Math.min(project.progress + effectiveProgressGain, project.targetProgress)
+    const actualCost = Math.min(desiredCost, project.budget.remaining)
+    const newBudget: ProjectBudget = {
+      ...project.budget,
+      remaining: project.budget.remaining - actualCost,
+      spent: project.budget.spent + actualCost,
+    }
+    ws.projects[projectId] = { ...project, progress: newProgress, budget: newBudget }
+    return
+  }
+
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
 
-  // v0.48 一般化: budget 持ち holding Project (develop_holding / handle_crisis) は advance task ごとに
-  //   予算を消費する。それ以外は progress のみ更新。
-  if (
-    project.kind === 'develop_holding' ||
-    project.kind === 'develop_real_estate' ||
-    project.kind === 'acquire_real_estate' ||
-    project.kind === 'upgrade_owned_real_estate' ||
-    project.kind === 'handle_crisis'
-  ) {
+  // 非材料 budget Project (acquire_real_estate) は従来の抽象 budget 消費を維持する。
+  if (project.kind === 'acquire_real_estate') {
     const expectedTasks = Math.max(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),

@@ -1,5 +1,11 @@
 import type { TickContext } from './context'
-import type { StateRegionId, HoldingId, ProductionRecipeId, PopGroupId } from '../types/ids'
+import type {
+  StateRegionId,
+  HoldingId,
+  ProductionRecipeId,
+  PopGroupId,
+  ProjectId,
+} from '../types/ids'
 import type { PopGroup } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -18,6 +24,10 @@ import {
 } from '../selectors/resourceProductionSelectors'
 import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
+import {
+  computeProjectMaterialBaseUnits,
+  getProjectMarketKey,
+} from '../selectors/projectMaterialSelectors'
 import {
   computeResourcePrice,
   computeMarketFulfillment,
@@ -148,6 +158,22 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         }
       }
     }
+  }
+
+  // ─── §18.4: 建設・修繕 Project の建築資材需要を月次 buyOrders へ注入する ───
+  //   active な対象 Project を sorted 列挙し、対象 holding の StateRegion 市場へ per-advance baseUnits を加算。
+  const marketByKey = new Map<string, MarketAccum>()
+  for (const m of markets) marketByKey.set(m.marketKey, m)
+  for (const projectId of (Object.keys(state.projects) as ProjectId[]).sort()) {
+    const project = state.projects[projectId]
+    if (!project || project.status !== 'active') continue
+    const baseUnits = computeProjectMaterialBaseUnits(state, config, project)
+    if (baseUnits.length === 0) continue
+    const marketKey = getProjectMarketKey(state, project)
+    if (marketKey === null) continue
+    const market = marketByKey.get(marketKey)
+    if (!market) continue
+    for (const u of baseUnits) market.demand[u.resource] += u.baseUnits
   }
 
   // ─── 市場解決 (§12.3 DAG topological clearing) ───

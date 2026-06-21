@@ -219,16 +219,18 @@ export function getProjectDeadlineWeeks(
 ): number {
   if (isDiplomaticProjectKind(kind)) return config.projectDeadlineWeeksDiplomatic
   if (kind === 'personal_training') return config.personalTrainingDeadlineWeeks
+  // v0.55 §22: develop 系は kind 別の base deadline を使う (holding / real_estate)。
   if (
     (kind === 'develop_holding' ||
       kind === 'develop_real_estate' ||
       kind === 'upgrade_owned_real_estate') &&
     targetProgress !== undefined
   ) {
-    return Math.ceil(
-      config.projectDeadlineWeeksDevelopment *
-        (targetProgress / config.projectDefaultTargetProgress),
-    )
+    const base =
+      kind === 'develop_holding'
+        ? config.projectDeadlineWeeksHoldingDevelopment
+        : config.projectDeadlineWeeksRealEstateDevelopment
+    return Math.ceil(base * (targetProgress / config.projectDefaultTargetProgress))
   }
   return config.projectDeadlineWeeksDevelopment
 }
