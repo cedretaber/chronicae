@@ -50,6 +50,7 @@ import { runInfluenceModifierConsistencySystem } from './influenceModifierConsis
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem, runStaleWarGoalSweepSystem } from './peaceSettlementSystem'
+import { cancelOrphanedLandContractDefaults } from './cancelOrphanedLandContractDefaults'
 import { runCleanupWarSystem } from './cleanupWarSystem'
 import { runCleanupBattleLogSystem } from './cleanupBattleLogSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
@@ -569,6 +570,15 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runStaleWarGoalSweepSystem,
   },
   {
+    // v0.55: active LandContractDefault のアンカー契約が consolidation / peace settlement /
+    //   polityOwnerConsistency 等で同 tick に消えた dangling を年末 integrity 前に resolved 化する。
+    //   staleWarGoalSweepSystem (WarGoal 版) と同型・同位置 (consistency 系の後・weekly で年末 tick をカバー)。
+    name: 'cancelOrphanedLandContractDefaults',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: cancelOrphanedLandContractDefaults,
+  },
+  {
     // v0.36 §14: consistency 系の後・cleanupWar の前。stale war demobilize /
     //   owner 失効 disband / homeHolding 消失 disband / terminal 変化で owner 付け替え。
     name: 'regimentMaintenanceSystem',
@@ -710,6 +720,7 @@ export function tick(input: TickInput): TickResult {
     houseFoundingSystem: ctx.config.houseFoundingIntervalWeeks,
     houseSplitEvaluationSystem: ctx.config.houseSplitEvaluationIntervalWeeks,
     clanFormationSystem: ctx.config.clanFormationIntervalWeeks,
+    recipeSwitchSystem: ctx.config.recipeSwitchIntervalWeeks,
   }
 
   for (const system of scheduledSystems) {

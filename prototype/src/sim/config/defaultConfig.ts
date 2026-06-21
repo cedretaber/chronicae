@@ -1420,6 +1420,9 @@ export type SimulationConfig = {
   inputShortageOutputFloor: number
   // v0.55 §17: recipe 自動入れ替えの最小利益改善率 (月あたり最大 1 slot は system 側で atomic に保証)。
   recipeSwitchMinGainRate: number
+  // v0.55: recipeSwitchSystem の実行間隔 (週)。作付け・工房設備はそう頻繁に入れ替えられないため、
+  //   月次 (4) より長い四半期 (12) / 年次 (48) を選べる。tick.ts の intervalOverrides 経由。
+  recipeSwitchIntervalWeeks: number
   // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
   //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
   needTierFloor: Record<NeedTier, number>
@@ -2999,6 +3002,7 @@ export const defaultConfig: SimulationConfig = {
   //   購入扱い (高価 input × 低 output → 低利益/赤字) となり、price シグナルと recipe 転換動機が残る。
   inputShortageOutputFloor: 0.25,
   recipeSwitchMinGainRate: 0.02,
+  recipeSwitchIntervalWeeks: 12,
   needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
   needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
   needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },

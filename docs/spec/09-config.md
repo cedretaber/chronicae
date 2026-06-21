@@ -712,6 +712,8 @@
 | marketResourcePriceHistoryLimit | 120 | StateRegion×資源ごとの価格履歴保持件数（月次 120=10年分） |
 | marketPriceSmoothingPreviousWeight / CurrentWeight | 0.75 / 0.25 | 平滑化価格の前回 / 当月重み |
 | realEstateRecipeSlotCount | 20 | RealEstateAsset の recipe slot 総数（20 slot=100%） |
+| recipeSwitchMinGainRate | 0.02 | recipeSwitchSystem の最小利益改善率（これを超える 1-slot 移動のみ適用） |
+| recipeSwitchIntervalWeeks | 12 | recipeSwitchSystem の実行間隔（週）。1評価=最大1slot(5%)のため間隔=転換速度。v0.55: 月次4→四半期12。作付け・工房設備はそう頻繁に入れ替えられない理屈。月次は herding 振動（皆が儲かる recipe へ殺到→供給過多→暴落→再転換）を生み、間隔を延ばすと市場が安定。年次48は全面転換に約20年かかり硬直しすぎるため四半期を採用 |
 | resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
 | realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
 | realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
