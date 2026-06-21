@@ -44,7 +44,7 @@ export function computeMarketFulfillment(
 }
 
 // v0.54 §15.3 購買力係数: wealth 0/50/100 の係数を 2 区間線形補間する。raw_materials は POP 需要を持たない。
-export function getPopResourcePurchasingPowerFactor(
+function getPopResourcePurchasingPowerFactor(
   pop: PopGroup,
   resource: ResourceKind,
   config: SimulationConfig,

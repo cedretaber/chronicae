@@ -19,9 +19,9 @@ export type ProductionRecipe = {
 }
 
 // v0.54 の固定 recipe id (worldgen で連番生成しない literal cast)。
-export const FIELD_FOOD = 'field_food' as ProductionRecipeId
-export const PASTURE_RAW_MATERIALS = 'pasture_raw_materials' as ProductionRecipeId
-export const WORKSHOP_PROCESSED_GOODS = 'workshop_processed_goods' as ProductionRecipeId
+const FIELD_FOOD = 'field_food' as ProductionRecipeId
+const PASTURE_RAW_MATERIALS = 'pasture_raw_materials' as ProductionRecipeId
+const WORKSHOP_PROCESSED_GOODS = 'workshop_processed_goods' as ProductionRecipeId
 
 export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, ProductionRecipe> = {
   [FIELD_FOOD]: {
@@ -48,15 +48,6 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
   },
 }
 
-// 全 recipe を sorted key 順反復するための列挙 (determinism §13.1)。
-export const PRODUCTION_RECIPE_IDS: readonly ProductionRecipeId[] = (
-  Object.keys(PRODUCTION_RECIPE_DEFINITIONS) as ProductionRecipeId[]
-).sort()
-
-export function getProductionRecipe(recipeId: ProductionRecipeId): ProductionRecipe | undefined {
-  return PRODUCTION_RECIPE_DEFINITIONS[recipeId]
-}
-
 // v0.54 §8.3: RealEstateKind ごとの既定 recipeSlots。各 asset は 20 slot を主 recipe に割り当てる。
 //   slotCount は config.realEstateRecipeSlotCount と一致させる (integrity §21.1 で検査)。
 const DEFAULT_RECIPE_BY_REAL_ESTATE_KIND: Record<RealEstateKind, ProductionRecipeId> = {
@@ -70,14 +61,4 @@ export function getDefaultRecipeSlotsForRealEstateKind(
   slotCount = 20,
 ): Partial<Record<ProductionRecipeId, number>> {
   return { [DEFAULT_RECIPE_BY_REAL_ESTATE_KIND[kind]]: slotCount }
-}
-
-export function getRecipeSlotTotal(
-  recipeSlots: Partial<Record<ProductionRecipeId, number>>,
-): number {
-  let total = 0
-  for (const v of Object.values(recipeSlots)) {
-    if (v !== undefined) total += v
-  }
-  return total
 }

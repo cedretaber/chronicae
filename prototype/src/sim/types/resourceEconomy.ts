@@ -1,4 +1,4 @@
-import type { HoldingId, RealEstateAssetId, ProductionRecipeId } from './ids'
+import type { HoldingId, RealEstateAssetId } from './ids'
 import type { ResourceKind } from './resource'
 
 // v0.54 §5 / 市場清算 rewrite (§6.3c.1) 価格履歴: StateRegion × ResourceKind ごとに保存する。
@@ -34,30 +34,15 @@ export function marketResourcePriceKey(marketKey: string, resource: ResourceKind
 //   分配 (owner/due/seizure/chain/treasury) は LandRevenueSystem の責務であり snapshot は持たない (§16.1)。
 //   全て per-month (4 週分をまとめて解決した値)。追加で ×4 してはならない (§16.1)。
 
-// §16.5 ProductionRecipeResult: recipe 単位の結果 (主に debug / UI 用)。
-export type ProductionRecipeResult = {
-  recipeId: ProductionRecipeId
-  slotCount: number
-  allocatedLabor: number
-  outputs: Partial<Record<ResourceKind, number>>
-  inputs: Partial<Record<ResourceKind, number>>
-  soldOutputs: Partial<Record<ResourceKind, number>>
-  grossRevenue: number
-  inputCost: number
-  netRevenue: number
-}
-
 // §16.4 RealEstateProductionResult: asset 単位の結果。
 export type RealEstateProductionResult = {
   assetId: RealEstateAssetId
   holdingId: HoldingId
   outputs: Partial<Record<ResourceKind, number>>
   inputs: Partial<Record<ResourceKind, number>>
-  soldOutputs: Partial<Record<ResourceKind, number>>
   grossRevenue: number
   inputCost: number
   netRevenue: number
-  recipeResults: ProductionRecipeResult[]
 }
 
 // §16.3 HoldingResourceRevenueSnapshot: holding 単位の月次 snapshot。

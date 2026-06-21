@@ -83,34 +83,3 @@ export function changeRealEstateAssetOwnerMut(
     ws.realEstateAssets[assetId] = updated
   }
 }
-
-export function removeRealEstateAssetMut(ws: WorldState, assetId: RealEstateAssetId): void {
-  const asset = ws.realEstateAssets[assetId]
-  if (!asset) return
-
-  const holdingKey = asset.holdingId as string
-  const holdingSlot = ws.realEstateAssetIndex.byHolding[holdingKey]
-  if (holdingSlot) {
-    const filtered = holdingSlot.filter((id) => (id as string) !== (assetId as string))
-    if (filtered.length > 0) {
-      ws.realEstateAssetIndex.byHolding[holdingKey] = filtered
-    } else {
-      delete ws.realEstateAssetIndex.byHolding[holdingKey]
-    }
-  }
-
-  if (asset.owner) {
-    const ownerK = assetOwnerKey(asset.owner)
-    const ownerSlot = ws.realEstateAssetIndex.byOwner[ownerK]
-    if (ownerSlot) {
-      const filtered = ownerSlot.filter((id) => (id as string) !== (assetId as string))
-      if (filtered.length > 0) {
-        ws.realEstateAssetIndex.byOwner[ownerK] = filtered
-      } else {
-        delete ws.realEstateAssetIndex.byOwner[ownerK]
-      }
-    }
-  }
-
-  delete ws.realEstateAssets[assetId]
-}

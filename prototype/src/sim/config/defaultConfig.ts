@@ -218,7 +218,6 @@ export type SimulationConfig = {
   popSystemEnabled: boolean
   minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   minProvinceCarryingCapacity: number
-  productivityByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   manpowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   baseMonthlyGrowthByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   populationPressureThreshold: number
@@ -247,9 +246,7 @@ export type SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: Partial<Record<ProvinceTerrain, number>>
   provinceFeatureLakeBaseChance: number
   provinceFeatureLakeTerrainDelta: Partial<Record<ProvinceTerrain, number>>
-  // v0.24 Occupation production/manpower multipliers
-  employedProductivityMultiplier: number
-  unemployedProductivityMultiplier: number
+  // v0.24 Occupation manpower multipliers
   employedManpowerMultiplierByClass: Record<PopClass, number>
   unemployedManpowerMultiplier: number
   // v0.24 Unemployed POP penalties
@@ -1395,8 +1392,6 @@ export type SimulationConfig = {
   realEstateSlotCapacityBase: Record<HoldingKind, number>
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
   developRealEstateProjectBaseProgress: Record<RealEstateKind, number>
-  realEstateOwnerIncomeRate: number
-  realEstateKindIncomeWeight: Record<RealEstateKind, number>
   realEstateSalePriceYears: number
   // === v0.54 資源経済 (spec §20) ===
   // 市場・価格
@@ -1650,7 +1645,6 @@ export const defaultConfig: SimulationConfig = {
   popSystemEnabled: true,
   minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },
   minProvinceCarryingCapacity: 50,
-  productivityByClass: { peasants: 1.0, townsmen: 1.5, nobles: 0.6 },
   manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
   baseMonthlyGrowthByClass: { peasants: 0.008, townsmen: 0.002, nobles: 0.001 },
   populationPressureThreshold: 0.9,
@@ -1693,8 +1687,6 @@ export const defaultConfig: SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
   provinceFeatureLakeBaseChance: 0.06,
   provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
-  employedProductivityMultiplier: 1.0,
-  unemployedProductivityMultiplier: 0.1,
   employedManpowerMultiplierByClass: { peasants: 1.0, townsmen: 0.8, nobles: 1.2 },
   unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
@@ -2975,9 +2967,7 @@ export const defaultConfig: SimulationConfig = {
     pasture: 100,
     workshop: 110,
   },
-  // v0.52 owner income / 不動産売買
-  realEstateOwnerIncomeRate: 0.05,
-  realEstateKindIncomeWeight: { field: 1.0, pasture: 1.0, workshop: 1.0 },
+  // v0.52 不動産売買
   realEstateSalePriceYears: 20,
   // === v0.54 資源経済 (spec §20) ===
   // 初期値は調整前提。Step 2 観察ゲート (§6.1) で rawRatio ≈ 1 / price ≈ basePrice に較正する。

@@ -8,7 +8,6 @@ import type {
   MarketResourcePricePoint,
   HoldingResourceRevenueSnapshot,
   RealEstateProductionResult,
-  ProductionRecipeResult,
 } from '../types/resourceEconomy'
 import { RESOURCE_KINDS } from '../types/resource'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
@@ -22,7 +21,7 @@ import {
   computeMarketFulfillment,
   getPopResourceDemand,
 } from '../selectors/resourceMarketSelectors'
-import { clamp } from '../utils/math'
+import { clamp100 } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
@@ -215,16 +214,14 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       const outputScale = rec.potentialInputs.raw_materials !== undefined ? rawFulfillmentRatio : 1
 
       const recipeOutputs: Partial<Record<ResourceKind, number>> = {}
-      const recipeSold: Partial<Record<ResourceKind, number>> = {}
       const recipeInputs: Partial<Record<ResourceKind, number>> = {}
       let recipeGross = 0
       let recipeInputCost = 0
       for (const r of RESOURCE_KINDS) {
         const pot = rec.potentialOutputs[r]
         if (pot !== undefined) {
-          const produced = pot * outputScale
+          const produced = pot * outputScale // 全量売却 (在庫なし・市場抽象化)
           recipeOutputs[r] = produced
-          recipeSold[r] = produced // 全量売却 (在庫なし・市場抽象化)
           recipeGross += produced * price[r]
         }
         const potIn = rec.potentialInputs[r]
@@ -235,17 +232,6 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         }
       }
       const recipeNet = recipeGross - recipeInputCost
-      const recipeResult: ProductionRecipeResult = {
-        recipeId: rec.recipeId,
-        slotCount: rec.slotCount,
-        allocatedLabor: rec.recipeLabor,
-        outputs: recipeOutputs,
-        inputs: recipeInputs,
-        soldOutputs: recipeSold,
-        grossRevenue: recipeGross,
-        inputCost: recipeInputCost,
-        netRevenue: recipeNet,
-      }
 
       const assetKey = rec.asset.id as string
       let assetResult = assetResultByAsset.get(assetKey)
@@ -255,11 +241,9 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           holdingId: rec.holdingId,
           outputs: {},
           inputs: {},
-          soldOutputs: {},
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
-          recipeResults: [],
         }
         assetResultByAsset.set(assetKey, assetResult)
         const hKey = rec.holdingId as string
@@ -267,15 +251,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         order.push(assetKey)
         assetOrderByHolding.set(hKey, order)
       }
-      assetResult.recipeResults.push(recipeResult)
       assetResult.grossRevenue += recipeGross
       assetResult.inputCost += recipeInputCost
       assetResult.netRevenue += recipeNet
       for (const r of RESOURCE_KINDS) {
         if (recipeOutputs[r] !== undefined)
           assetResult.outputs[r] = (assetResult.outputs[r] ?? 0) + (recipeOutputs[r] ?? 0)
-        if (recipeSold[r] !== undefined)
-          assetResult.soldOutputs[r] = (assetResult.soldOutputs[r] ?? 0) + (recipeSold[r] ?? 0)
         if (recipeInputs[r] !== undefined)
           assetResult.inputs[r] = (assetResult.inputs[r] ?? 0) + (recipeInputs[r] ?? 0)
       }
@@ -385,8 +366,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       for (const popId of market.popGroupIds) {
         const pop = newPopGroups[popId]
         if (!pop) continue
-        const newWealth = clamp(pop.wealth + wealthDelta, 0, 100)
-        const newUnrest = clamp(pop.unrest + unrestDelta, 0, 100)
+        const newWealth = clamp100(pop.wealth + wealthDelta)
+        const newUnrest = clamp100(pop.unrest + unrestDelta)
         if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
           newPopGroups[popId] = { ...pop, wealth: newWealth, unrest: newUnrest }
         }
