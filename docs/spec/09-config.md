@@ -715,7 +715,6 @@
 | marketPriceSmoothingPreviousWeight / CurrentWeight | 0.75 / 0.25 | 平滑化価格の前回 / 当月重み |
 | realEstateRecipeSlotCount | 20 | RealEstateAsset の recipe slot 総数（20 slot=100%） |
 | resourceEconomyControlModifierMin | 0.5 | polityControl 0 でも生産する下限（control 100 で 1.0） |
-| realEstateLevelOutputBonus | （未設定） | 設定時 assetLevelModifier=1+(level-1)×bonus。未設定なら level そのまま |
 | realEstateProductionFacilityModifiers | kind→[{improvementKind, bonusPerLevel}]。field=[{irrigation:0.15},{transport:0.10}], pasture=[{transport:0.10}], workshop=[{workshop:0.15},{market:0.10},{transport:0.10}] | 生産施設 modifier（capacity 用 realEstateInfrastructureModifiers とは別。加算・linear condition・staffing 減衰） |
 | realEstateHoldingDueRate | 0.10 | 所有 asset の positiveNet のうち holding に納める due の率（残りが owner income。§6.4.2） |
 | popFoodDemandPerSizeByClass | {peasants:1.0, townsmen:1.05, nobles:1.10} | POP size あたり food 需要（class 別、階層差小） |

@@ -1412,7 +1412,6 @@ export type SimulationConfig = {
   realEstateRecipeSlotCount: number
   // 生産
   resourceEconomyControlModifierMin: number
-  realEstateLevelOutputBonus?: number
   realEstateProductionFacilityModifiers: Record<
     RealEstateKind,
     RealEstateProductionFacilityModifier[]

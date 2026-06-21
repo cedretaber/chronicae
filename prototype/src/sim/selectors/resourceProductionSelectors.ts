@@ -36,13 +36,6 @@ export function computePolityControlModifier(
   return clamp(min + (polityControl / 100) * (1 - min), min, 1.0)
 }
 
-// v0.54 §12.2 assetLevelModifier。
-export function computeAssetLevelModifier(level: number, config: SimulationConfig): number {
-  const bonus = config.realEstateLevelOutputBonus
-  if (bonus === undefined) return level
-  return 1 + (level - 1) * bonus
-}
-
 // v0.54 §11.4 staffingFulfillment: 施設を運用する人員の充足率 proxy。
 //   degeneration-avoidance pass では holding-level の class 別 employed/capacity を proxy とする (§11.4 簡易案)。
 export function computeStaffingFulfillment(used: number, capacity: number): number {
@@ -182,7 +175,8 @@ export function computeAssetRecipePotentials(
   if (!holding) return []
   const totalSlots = config.realEstateRecipeSlotCount
   const controlMod = computePolityControlModifier(holding.polityControl, config)
-  const levelMod = computeAssetLevelModifier(asset.level, config)
+  // v0.54: asset.level は雇用枠 (capacityPerLevel × level、施設サイズ) にのみ効く。
+  //   level→労働あたり生産性の結合は撤去 (生産性向上は将来の技術/制度システムに委ねる)。
   const facilityMod = computeProductionFacilityModifier(state, config, asset)
 
   const results: AssetRecipePotential[] = []
@@ -199,8 +193,7 @@ export function computeAssetRecipePotentials(
       totalSlots,
       recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
     )
-    const potential =
-      recipeLabor * recipe.baseOutputPerLabor * scaleMult * levelMod * facilityMod * controlMod
+    const potential = recipeLabor * recipe.baseOutputPerLabor * scaleMult * facilityMod * controlMod
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const r of RESOURCE_KINDS) {
