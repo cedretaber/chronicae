@@ -259,11 +259,11 @@ type HoldingResourceRevenueSnapshot = {
   holdingId: HoldingId; week: number
   totalNetRevenue: number               // = Σ max(0, asset netRevenue)（観察用集計。分配の課税基盤は per-asset で算出）
   byResource: Partial<Record<ResourceKind, number>>
-  assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/soldOutputs/grossRevenue/inputCost/netRevenue
+  assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/grossRevenue/inputCost/netRevenue
 }
 ```
 
-ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。`minMultiplier`/`maxMultiplier`/`elasticity` フィールドは deprecated・未使用）。
+ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。旧 `minMultiplier`/`maxMultiplier`/`elasticity` フィールドは型から削除済み）。
 
 **WorldState 追加**:
 

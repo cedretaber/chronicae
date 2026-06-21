@@ -480,7 +480,7 @@
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、employed=true の POP） |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
-| productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
+| ~~productivityByClass~~ | — | v0.54 廃止（旧 getPopProduction の per-class 生産性。生産は ResourceEconomySystem の recipe×labor に置換、§6.3c） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
 | baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別） |
 | populationPressureThreshold | 0.90 | pressure がこれを超えると wealth/unrest に影響 |
@@ -499,8 +499,7 @@
 | overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
 | **Employment capacity（v0.52: occupation 廃止・employed boolean 化）** | | |
 | ~~occupationCapacityBaseByHoldingKind~~ | — | v0.52 廃止。基礎容量は RealEstateAsset の employmentSlots + HoldingImprovement の classCapacityPerLevel から導出（`getHoldingClassCapacity`） |
-| employedProductivityMultiplier | 1.0 | employed=true の POP の生産性倍率 |
-| unemployedProductivityMultiplier | 0.1 | employed=false の POP の生産性倍率 |
+| ~~employedProductivityMultiplier / unemployedProductivityMultiplier~~ | — | v0.54 廃止（旧 getPopProduction の生産性倍率。生産は employed POP への labor 按分に置換、未受け皿の労働は遊休、§6.3c / §10.2） |
 | employedManpowerMultiplierByClass | {peasants:1.0, townsmen:0.8, nobles:1.2} | employed=true の class 別兵力倍率 |
 | unemployedManpowerMultiplier | 0.5 | employed=false の POP の兵力倍率 |
 | unemployedWealthDecayByClass | {peasants:0.20,townsmen:0.30,nobles:0.15} | 未就業（employed=false）POP の 4 週あたり wealth 減衰量 |
@@ -699,8 +698,7 @@
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
 | **RealEstateAsset（v0.52）** | | |
 | realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
-| realEstateOwnerIncomeRate | 0.05 | RealEstateAsset owner の収入率（Holding 粗収入に対する比率） |
-| realEstateKindIncomeWeight | {field:1.0, pasture:1.0, workshop:1.0} | RealEstateKind ごとの収入重み（同一 Holding 内の asset 間で重み按分） |
+| ~~realEstateOwnerIncomeRate / realEstateKindIncomeWeight~~ | — | v0.54 廃止（旧 owner income path。owner 収入は per-asset netRevenue から realEstateHoldingDueRate で分配、§6.4.2） |
 | realEstateTerrainCapacityMultiplier | kind × terrain の乗数。例: field={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, pasture={plains:1.0,hills:1.3,mountains:0.8,forest:0.65,wetlands:0.4} | RealEstateAsset の容量に対する terrain 補正 |
 | realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
 | realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
