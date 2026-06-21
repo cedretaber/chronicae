@@ -605,9 +605,9 @@ detail:
     weight: 'Weight'
     size: 'Size'
     wealth: 'Wealth'
-    lower: 'Lower Stratum'
-    middle: 'Middle Stratum'
-    upper: 'Upper Stratum'
+    lower: 'Lower Class'
+    middle: 'Middle Class'
+    upper: 'Upper Class'
     pop_type:
       laborers: 'Laborers'
       peasants: 'Peasants'
@@ -671,8 +671,10 @@ detail:
   # v0.52 RealEstateAsset
   realEstate:
     title: 'Real Estate'
-    kind_field: 'Field'
-    kind_pasture: 'Pasture'
+    # v0.55 real estate kinds (farm/mountain/woodland/workshop)
+    kind_farm: 'Farm'
+    kind_mountain: 'Mine'
+    kind_woodland: 'Woodland'
     kind_workshop: 'Workshop'
     owner: 'Owner'
     unowned: 'Unowned'
@@ -687,9 +689,28 @@ detail:
     gross_revenue: 'Revenue'
     input_cost: 'Input cost'
     net_revenue: 'Net'
-    resource_food: 'Food'
-    resource_raw_materials: 'Raw materials'
-    resource_processed_goods: 'Goods'
+    # v0.55 resource names (21 kinds)
+    resource_grain: 'Grain'
+    resource_fish: 'Fish'
+    resource_meat: 'Meat'
+    resource_fruit: 'Fruit'
+    resource_beer: 'Beer'
+    resource_wine: 'Wine'
+    resource_flax: 'Flax'
+    resource_wool: 'Wool'
+    resource_timber: 'Timber'
+    resource_stone: 'Stone'
+    resource_iron_ore: 'Iron ore'
+    resource_fur: 'Fur'
+    resource_gems: 'Gems'
+    resource_dye: 'Dye'
+    resource_tools: 'Tools'
+    resource_fabric: 'Fabric'
+    resource_clothes: 'Clothes'
+    resource_luxury_clothes: 'Luxury clothes'
+    resource_jewelry: 'Jewelry'
+    resource_smoked_fish: 'Smoked fish'
+    resource_processed_meat: 'Processed meat'
 
   # v0.54 market detail panel (per-StateRegion resource market)
   market:

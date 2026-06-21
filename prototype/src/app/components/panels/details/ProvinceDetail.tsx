@@ -462,9 +462,9 @@ export function ProvinceDetail({
                 className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
                 onClick={() => onPopGroupClick(pop.id)}
               >
-                {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
+                {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
                 <span className="text-xs font-normal text-gray-400">
-                  (
+                  ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
                   {pop.employed
                     ? t('detail.province.pop_employed')
                     : t('detail.province.pop_unemployed')}

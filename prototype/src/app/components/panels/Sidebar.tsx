@@ -399,14 +399,9 @@ function WatchlistRow({
   )
 }
 
-// v0.54 市場一覧の row。地域名 + province 数 + 3 資源の価格乖離チップ (一覧性のため)。
-//   乖離 = 現在価格 / 基本価格 - 1。正 (高い) は琥珀、負 (安い) は青、ほぼ基本価格は灰。
-const MARKET_RESOURCE_GLYPH: Record<string, string> = {
-  food: '\u{1F33E}', // 🌾
-  raw_materials: '\u{26CF}', // ⛏
-  processed_goods: '\u{1F528}', // 🔨
-}
-
+// v0.55 市場一覧の row。地域名 + 高騰上位3種・下落上位3種の価格乖離チップ (一覧性のため、
+//   資源が 21 種に増えたため全表示はやめ上位のみ)。乖離 = 現在価格 / 基本価格 - 1。
+//   高騰 (▲) は琥珀、下落 (▼) は青。資源はアイコンが付かないため i18n 名称で表示する。
 function MarketRow({
   stateRegion,
   worldState,
@@ -418,8 +413,41 @@ function MarketRow({
   isSelected: boolean
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   const resolveName = useEntityName()
   const regionName = resolveName('state_region', stateRegion.nameKey, stateRegion.nameKey)
+
+  // 取引データのある資源の乖離率を集計。RESOURCE_KINDS は sorted のため stable sort で順序も決定論的。
+  const deviations = RESOURCE_KINDS.flatMap((resource) => {
+    const ps = worldState?.marketResourcePrices[marketResourcePriceKey(stateRegion.id, resource)]
+    if (!ps) return []
+    const def = RESOURCE_PRICE_DEFINITIONS[resource]
+    const deviationPct = (ps.lastPrice / def.basePrice - 1) * 100
+    const shortage = ps.history[ps.history.length - 1]?.shortage ?? false
+    return [{ resource, deviationPct, shortage }]
+  })
+  const risers = deviations
+    .filter((d) => d.deviationPct > 0.5)
+    .sort((a, b) => b.deviationPct - a.deviationPct)
+    .slice(0, 3)
+  const fallers = deviations
+    .filter((d) => d.deviationPct < -0.5)
+    .sort((a, b) => a.deviationPct - b.deviationPct)
+    .slice(0, 3)
+
+  const renderChip = (
+    d: { resource: (typeof RESOURCE_KINDS)[number]; deviationPct: number; shortage: boolean },
+    arrow: string,
+    color: string,
+  ) => (
+    <span key={d.resource} className={color}>
+      {arrow}
+      {t(`detail.realEstate.resource_${d.resource}`, { defaultValue: d.resource })}{' '}
+      {d.deviationPct >= 0 ? '+' : ''}
+      {d.deviationPct.toFixed(0)}%{d.shortage && <span className="text-rose-400">⚠</span>}
+    </span>
+  )
+
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -428,35 +456,14 @@ function MarketRow({
       onClick={onClick}
     >
       <div className="font-bold">{regionName}</div>
-      <div className="mt-0.5 flex flex-wrap gap-2 text-xs">
-        {RESOURCE_KINDS.map((resource) => {
-          const def = RESOURCE_PRICE_DEFINITIONS[resource]
-          const ps =
-            worldState?.marketResourcePrices[marketResourcePriceKey(stateRegion.id, resource)]
-          const glyph = MARKET_RESOURCE_GLYPH[resource] ?? '?'
-          if (!ps) {
-            return (
-              <span key={resource} className="text-gray-600">
-                {glyph} —
-              </span>
-            )
-          }
-          const deviationPct = (ps.lastPrice / def.basePrice - 1) * 100
-          const color =
-            Math.abs(deviationPct) < 0.5
-              ? 'text-gray-400'
-              : deviationPct > 0
-                ? 'text-amber-400'
-                : 'text-sky-400'
-          const shortage = ps.history[ps.history.length - 1]?.shortage ?? false
-          return (
-            <span key={resource} className={color}>
-              {glyph} {deviationPct >= 0 ? '+' : ''}
-              {deviationPct.toFixed(0)}%{shortage && <span className="text-rose-400">⚠</span>}
-            </span>
-          )
-        })}
-      </div>
+      {risers.length === 0 && fallers.length === 0 ? (
+        <div className="mt-0.5 text-xs text-gray-600">—</div>
+      ) : (
+        <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs">
+          {risers.map((d) => renderChip(d, '▲', 'text-amber-400'))}
+          {fallers.map((d) => renderChip(d, '▼', 'text-sky-400'))}
+        </div>
+      )}
     </div>
   )
 }

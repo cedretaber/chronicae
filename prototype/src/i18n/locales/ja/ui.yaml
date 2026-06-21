@@ -708,9 +708,9 @@ detail:
     weight: '比重'
     size: '規模'
     wealth: '資産'
-    lower: '下層民'
-    middle: '中間層'
-    upper: '上層民'
+    lower: '下層階級'
+    middle: '中産階級'
+    upper: '上流階級'
     pop_type:
       laborers: '労働者'
       peasants: '農民'
@@ -774,8 +774,10 @@ detail:
   # v0.52 不動産
   realEstate:
     title: '不動産'
-    kind_field: '農地'
-    kind_pasture: '牧場'
+    # v0.55 不動産種別 (farm/mountain/woodland/workshop)
+    kind_farm: '農地'
+    kind_mountain: '鉱山'
+    kind_woodland: '林地'
     kind_workshop: '工房'
     owner: '所有者'
     unowned: '未所有'
@@ -790,9 +792,28 @@ detail:
     gross_revenue: '売上'
     input_cost: '原価'
     net_revenue: '純益'
-    resource_food: '食料'
-    resource_raw_materials: '原材料'
-    resource_processed_goods: '加工品'
+    # v0.55 資源名 (21 種)
+    resource_grain: '穀物'
+    resource_fish: '魚'
+    resource_meat: '肉'
+    resource_fruit: '果物'
+    resource_beer: 'ビール'
+    resource_wine: 'ワイン'
+    resource_flax: '亜麻'
+    resource_wool: '羊毛'
+    resource_timber: '木材'
+    resource_stone: '石材'
+    resource_iron_ore: '鉄鉱石'
+    resource_fur: '毛皮'
+    resource_gems: '宝石原石'
+    resource_dye: '染料'
+    resource_tools: '道具'
+    resource_fabric: '織物'
+    resource_clothes: '衣料'
+    resource_luxury_clothes: '高級衣料'
+    resource_jewelry: '装飾品'
+    resource_smoked_fish: '燻製魚'
+    resource_processed_meat: '加工肉'
 
   # v0.54 市場詳細パネル (StateRegion ごとの資源市場)
   market:
