@@ -8,8 +8,14 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ResourceKind } from '../types/resource'
 import type { InputCategory } from '../types/inputCategory'
 import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
+import type { PopType, PopStratum } from '../types/popGroup'
+import { POP_TYPES_BY_STRATUM } from '../types/popGroup'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
-import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
+import {
+  PRODUCTION_RECIPE_DEFINITIONS,
+  RECIPE_LABOR_PROFILES,
+} from '../config/productionRecipeDefinitions'
+import type { RecipeLaborDemand } from '../config/productionRecipeDefinitions'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import {
   computeAssetSlotCapacityTerm,
@@ -173,6 +179,71 @@ export type AssetRecipePotential = {
 
 const basePriceLookup = (r: ResourceKind): number => RESOURCE_PRICE_DEFINITIONS[r].basePrice
 
+// §14.3: asset の実 PopType 構成 (actualShare_t) を近似する。
+//   asset の employmentSlot stratum weight で、各 stratum 内の holding employed PopType 比率を加重し、
+//   present stratum の weight 合計で正規化する (空 stratum の労働は不在として扱う)。
+function computeAssetPopTypeShares(
+  state: WorldState,
+  asset: RealEstateAsset,
+): Partial<Record<PopType, number>> {
+  const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+  const sizeByType: Partial<Record<PopType, number>> = {}
+  const sizeByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  const popIds = state.popIndex.byHolding[asset.holdingId] ?? []
+  for (const pid of popIds) {
+    const p = state.popGroups[pid]
+    if (!p || !p.employed) continue
+    sizeByType[p.popType] = (sizeByType[p.popType] ?? 0) + p.size
+    sizeByStratum[p.class] += p.size
+  }
+  const shares: Partial<Record<PopType, number>> = {}
+  let presentWeight = 0
+  for (const slot of def.employmentSlots) {
+    if (sizeByStratum[slot.stratum] > 0) presentWeight += slot.capacityPerLevel
+  }
+  if (presentWeight <= 0) return shares
+  for (const slot of def.employmentSlots) {
+    const stratumSize = sizeByStratum[slot.stratum]
+    if (stratumSize <= 0) continue
+    const stratumWeight = slot.capacityPerLevel / presentWeight
+    for (const t of POP_TYPES_BY_STRATUM[slot.stratum]) {
+      const sz = sizeByType[t] ?? 0
+      if (sz <= 0) continue
+      shares[t] = (shares[t] ?? 0) + stratumWeight * (sz / stratumSize)
+    }
+  }
+  return shares
+}
+
+// §14.3: 理想労働構成と実構成から output 効率 modifier と input 軽減 multiplier を算出する。
+//   weightedCoverage = Σ_t min(actualShare_t, idealShare_t) (ヒストグラム交差, 簡約形)。
+//   outputModifier = floor + (1-floor) × weightedCoverage。
+//   inputEfficiencyMultiplier = 1 - Σ_admin (inputEfficiencyBonus × coverage)、下限 0.5。
+function computeLaborModifiers(
+  profile: RecipeLaborDemand[],
+  actualShares: Partial<Record<PopType, number>>,
+  floor: number,
+): { outputModifier: number; inputEfficiencyMultiplier: number } {
+  let totalIdeal = 0
+  for (const d of profile) totalIdeal += d.idealWeight
+  if (totalIdeal <= 0) return { outputModifier: 1, inputEfficiencyMultiplier: 1 }
+  let weightedCoverage = 0
+  let inputReduction = 0
+  for (const d of profile) {
+    const idealShare = d.idealWeight / totalIdeal
+    const actual = actualShares[d.popType] ?? 0
+    weightedCoverage += Math.min(actual, idealShare)
+    if (d.role === 'administrative_support' && d.inputEfficiencyBonus) {
+      const coverage = idealShare > 0 ? Math.min(actual / idealShare, 1) : 0
+      inputReduction += d.inputEfficiencyBonus * coverage
+    }
+  }
+  return {
+    outputModifier: floor + (1 - floor) * weightedCoverage,
+    inputEfficiencyMultiplier: Math.max(0.5, 1 - inputReduction),
+  }
+}
+
 export function computeAssetRecipePotentials(
   state: WorldState,
   config: SimulationConfig,
@@ -189,6 +260,8 @@ export function computeAssetRecipePotentials(
   //   level→労働あたり生産性の結合は撤去 (生産性向上は将来の技術/制度システムに委ねる)。
   const facilityMod = computeProductionFacilityModifier(state, config, asset)
   const beta = config.inputResourceChoiceBeta
+  // §14.3: asset の実 PopType 構成 (recipe 非依存) を一度だけ算出する。
+  const actualPopTypeShares = computeAssetPopTypeShares(state, asset)
 
   const results: AssetRecipePotential[] = []
   const recipeIds = (Object.keys(asset.recipeSlots) as ProductionRecipeId[]).sort()
@@ -204,7 +277,20 @@ export function computeAssetRecipePotentials(
       totalSlots,
       recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
     )
-    const potential = recipeLabor * recipe.baseOutputPerLabor * scaleMult * facilityMod * controlMod
+    // §14.3 laborTypeFulfillmentModifier (output 効率) と inputEfficiency (input 軽減) を算出。
+    const profile = RECIPE_LABOR_PROFILES[recipeId] ?? []
+    const labor = computeLaborModifiers(
+      profile,
+      actualPopTypeShares,
+      config.laborTypeFulfillmentFloor,
+    )
+    const potential =
+      recipeLabor *
+      recipe.baseOutputPerLabor *
+      scaleMult *
+      facilityMod *
+      controlMod *
+      labor.outputModifier
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
@@ -212,11 +298,12 @@ export function computeAssetRecipePotentials(
     }
 
     // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
+    //   §14.3 inputEfficiency: admin role coverage で input requirement を軽減する (output 倍率とは別経路)。
     const potentialInputs: Partial<Record<ResourceKind, number>> = {}
     const inputCategories: ResolvedInputCategory[] = []
     if (recipe.inputs) {
       for (const req of recipe.inputs) {
-        const desiredAmount = req.amountPerOutput * potential
+        const desiredAmount = req.amountPerOutput * potential * labor.inputEfficiencyMultiplier
         const contributions = INPUT_CATEGORY_CONTRIBUTIONS[req.category]
         const shares = resolveCategoryShares(contributions, priceLookup, beta)
         const resources: { resource: ResourceKind; buyOrders: number; share: number }[] = []

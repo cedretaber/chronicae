@@ -1,8 +1,26 @@
 import type { ProductionRecipeId } from '../types/ids'
 import type { ResourceKind } from '../types/resource'
 import type { RealEstateKind } from '../types/realEstateAsset'
+import type { PopType } from '../types/popGroup'
 import type { InputCategory } from '../types/inputCategory'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+
+// §8.1 / §14: recipe の理想労働構成 (soft modifier, hard gate ではない / §14.1)。
+export type RecipeLaborRole =
+  | 'primary_producer'
+  | 'supervisor'
+  | 'administrative_support'
+  | 'auxiliary_labor'
+
+export type RecipeLaborDemand = {
+  popType: PopType
+  role: RecipeLaborRole
+  idealWeight: number
+  directOutputPower?: number // §14.3 (v0.55 簡約形では未使用)
+  inputEfficiencyBonus?: number // §14.3 admin role の input 軽減
+  throughputBonus?: number // §14.4 将来用 metadata (未使用)
+  maxRatioTo?: { popType: PopType; ratio: number } // §14.4 将来用 metadata (hard enforce しない)
+}
 
 // §8.1 ProductionRecipe: 不動産が採用する生産レシピ。
 //   生産内容は RealEstateKind ではなく recipe に持たせる (RealEstateKind は粗い分類 §7)。
@@ -338,4 +356,63 @@ export function getDefaultRecipeSlotsForRealEstateKind(
   slotCount = 20,
 ): Partial<Record<ProductionRecipeId, number>> {
   return distributeSlots(DEFAULT_RECIPE_WEIGHTS_BY_KIND[kind], slotCount)
+}
+
+// §14.2 / §14.3: recipe ごとの理想労働構成。spec は workshop 例のみ提示のため、recipe の性質
+//   (一次生産 / 農村加工 / 都市工房) ごとに §13.2 PopType 分類と整合する profile を割り当てる。
+//   v0.55 では soft modifier (floor 0.70) なので構成ズレは効率低下に留まる。
+const FARM_FIELD_LABOR: RecipeLaborDemand[] = [
+  { popType: 'peasants', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
+  { popType: 'freeholders', role: 'supervisor', idealWeight: 1, directOutputPower: 1.3 },
+]
+const FARM_CRAFT_LABOR: RecipeLaborDemand[] = [
+  { popType: 'peasants', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
+  { popType: 'artisans', role: 'supervisor', idealWeight: 1, directOutputPower: 1.2 },
+]
+const EXTRACTION_LABOR: RecipeLaborDemand[] = [
+  { popType: 'laborers', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
+  { popType: 'freeholders', role: 'supervisor', idealWeight: 1, directOutputPower: 1.3 },
+]
+const WORKSHOP_LABOR: RecipeLaborDemand[] = [
+  { popType: 'artisans', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
+  {
+    popType: 'masters',
+    role: 'supervisor',
+    idealWeight: 1,
+    directOutputPower: 1.5,
+    maxRatioTo: { popType: 'artisans', ratio: 1 / 3 },
+  },
+  {
+    popType: 'scribes',
+    role: 'administrative_support',
+    idealWeight: 1,
+    inputEfficiencyBonus: 0.1,
+    maxRatioTo: { popType: 'artisans', ratio: 1 / 3 },
+  },
+]
+
+export const RECIPE_LABOR_PROFILES: Record<ProductionRecipeId, RecipeLaborDemand[]> = {
+  [GRAIN_FIELD]: FARM_FIELD_LABOR,
+  [FLAX_FIELD]: FARM_FIELD_LABOR,
+  [SHEEP_PASTURE]: FARM_FIELD_LABOR,
+  [CATTLE_PASTURE]: FARM_FIELD_LABOR,
+  [ORCHARD]: FARM_FIELD_LABOR,
+  [VINEYARD]: FARM_FIELD_LABOR,
+  [DYE_GARDEN]: FARM_FIELD_LABOR,
+  [FISHING_HUT]: FARM_FIELD_LABOR,
+  [FARM_BREWERY]: FARM_CRAFT_LABOR,
+  [FARM_WEAVING_SHED]: FARM_CRAFT_LABOR,
+  [IRON_MINE]: EXTRACTION_LABOR,
+  [GEM_MINE]: EXTRACTION_LABOR,
+  [QUARRY]: EXTRACTION_LABOR,
+  [LOGGING_HUT]: EXTRACTION_LABOR,
+  [HUNTING_LODGE]: EXTRACTION_LABOR,
+  [URBAN_BREWERY]: WORKSHOP_LABOR,
+  [TEXTILE_WORKSHOP]: WORKSHOP_LABOR,
+  [TAILOR]: WORKSHOP_LABOR,
+  [LUXURY_TAILOR]: WORKSHOP_LABOR,
+  [TOOL_WORKSHOP]: WORKSHOP_LABOR,
+  [JEWELER_WORKSHOP]: WORKSHOP_LABOR,
+  [SMOKEHOUSE]: WORKSHOP_LABOR,
+  [BUTCHER_WORKSHOP]: WORKSHOP_LABOR,
 }
