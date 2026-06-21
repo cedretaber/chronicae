@@ -380,8 +380,15 @@ function computeEconomyStats(state: WorldState): {
   avgPopWealth: number
   resource: Record<
     ResourceKind,
-    { avgPriceRatio: number; clampedPct: number; avgFulfillment: number }
+    {
+      avgPriceRatio: number
+      clampedPct: number
+      avgFulfillment: number
+      shortagePct: number
+      maxSeverity: number
+    }
   >
+  marketValueDelta: number
   ownedRevenueRatio: number
   totalHoldingDue: number
   totalOwnerIncome: number
@@ -396,16 +403,26 @@ function computeEconomyStats(state: WorldState): {
   }
   const avgPopWealth = sizeSum > 0 ? wealthSum / sizeSum : 0
 
-  // 資源価格・充足率 (market ごとの lastPrice / 直近 history)
+  // 資源価格・充足率・shortage (market ごとの lastPrice / 直近 history)
   const resource = {} as Record<
     ResourceKind,
-    { avgPriceRatio: number; clampedPct: number; avgFulfillment: number }
+    {
+      avgPriceRatio: number
+      clampedPct: number
+      avgFulfillment: number
+      shortagePct: number
+      maxSeverity: number
+    }
   >
+  // 市場抽象化による価値の生成/消滅 (非保存・観察用): Σ producerRevenue − consumerCost (直近 history)。
+  let marketValueDelta = 0
   for (const r of RESOURCE_KINDS) {
     const def = RESOURCE_PRICE_DEFINITIONS[r]
     let priceRatioSum = 0
     let clamped = 0
     let fulfillSum = 0
+    let shortageCount = 0
+    let maxSeverity = 0
     let n = 0
     for (const ps of Object.values(state.marketResourcePrices)) {
       if (!ps || ps.resource !== r) continue
@@ -416,12 +433,19 @@ function computeEconomyStats(state: WorldState): {
       const atCeil = Math.abs(ps.lastPrice - def.basePrice * (1 + swing)) < 1e-3
       if (atFloor || atCeil) clamped++
       const last = ps.history[ps.history.length - 1]
-      if (last) fulfillSum += last.fulfillmentRatio
+      if (last) {
+        fulfillSum += last.fulfillmentRatio
+        if (last.shortage) shortageCount++
+        if (last.shortageSeverity > maxSeverity) maxSeverity = last.shortageSeverity
+        marketValueDelta += last.producerRevenue - last.consumerCost
+      }
     }
     resource[r] = {
       avgPriceRatio: n > 0 ? priceRatioSum / n : 0,
       clampedPct: n > 0 ? (100 * clamped) / n : 0,
       avgFulfillment: n > 0 ? fulfillSum / n : 0,
+      shortagePct: n > 0 ? (100 * shortageCount) / n : 0,
+      maxSeverity,
     }
   }
 
@@ -449,6 +473,7 @@ function computeEconomyStats(state: WorldState): {
   return {
     avgPopWealth,
     resource,
+    marketValueDelta,
     ownedRevenueRatio: allNet > 0 ? ownedNet / allNet : 0,
     totalHoldingDue,
     totalOwnerIncome,
@@ -855,6 +880,20 @@ async function main(): Promise<void> {
             econ.resource.processed_goods.clampedPct.toFixed(0) +
             '% ful=' +
             econ.resource.processed_goods.avgFulfillment.toFixed(2) +
+            ' | shortage f/r/g=' +
+            econ.resource.food.shortagePct.toFixed(0) +
+            '/' +
+            econ.resource.raw_materials.shortagePct.toFixed(0) +
+            '/' +
+            econ.resource.processed_goods.shortagePct.toFixed(0) +
+            '% maxSev=' +
+            Math.max(
+              econ.resource.food.maxSeverity,
+              econ.resource.raw_materials.maxSeverity,
+              econ.resource.processed_goods.maxSeverity,
+            ).toFixed(2) +
+            ' Δval=' +
+            econ.marketValueDelta.toFixed(0) +
             ' | owned=' +
             (econ.ownedRevenueRatio * 100).toFixed(0) +
             '% due=' +

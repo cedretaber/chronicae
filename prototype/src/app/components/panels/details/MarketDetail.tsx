@@ -69,9 +69,16 @@ export function MarketDetail({
             <div key={resource} className="rounded bg-gray-700 p-1.5 text-xs">
               <div className="flex items-baseline justify-between">
                 <span className="font-medium text-gray-200">{resourceName}</span>
-                <span className={`font-medium ${deviationColor}`}>
-                  {deviationPct >= 0 ? '+' : ''}
-                  {deviationPct.toFixed(0)}%
+                <span className="flex items-center gap-1">
+                  {last?.shortage && (
+                    <span className="rounded bg-rose-900/70 px-1 text-[10px] text-rose-300">
+                      {t('detail.market.shortage')} {(last.shortageSeverity * 100).toFixed(0)}%
+                    </span>
+                  )}
+                  <span className={`font-medium ${deviationColor}`}>
+                    {deviationPct >= 0 ? '+' : ''}
+                    {deviationPct.toFixed(0)}%
+                  </span>
                 </span>
               </div>
               <div className="mt-0.5 flex justify-between">
@@ -85,13 +92,13 @@ export function MarketDetail({
               {last && (
                 <div className="mt-0.5 flex justify-between border-t border-gray-600/50 pt-0.5 text-[11px] text-gray-500">
                   <span>
-                    {t('detail.market.supply')}: {formatAmount(last.sellOrders)}
+                    {t('detail.market.sell_orders')}: {formatAmount(last.sellOrders)}
                   </span>
                   <span>
-                    {t('detail.market.demand')}: {formatAmount(last.buyOrders)}
+                    {t('detail.market.buy_orders')}: {formatAmount(last.buyOrders)}
                   </span>
                   <span>
-                    {t('detail.market.sold')}: {formatAmount(last.fulfillmentRatio)}
+                    {t('detail.market.fulfillment')}: {(last.fulfillmentRatio * 100).toFixed(0)}%
                   </span>
                 </div>
               )}

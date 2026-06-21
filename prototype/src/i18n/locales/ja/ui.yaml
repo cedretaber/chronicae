@@ -792,6 +792,10 @@ detail:
     supply: '供給'
     demand: '需要'
     sold: '売却'
+    sell_orders: '売り'
+    buy_orders: '買い'
+    fulfillment: '充足率'
+    shortage: '不足'
 
   # v0.53 押領・上納拒否 (RealEstateSeizure / LandContractDefault) の状態表示
   obligation:

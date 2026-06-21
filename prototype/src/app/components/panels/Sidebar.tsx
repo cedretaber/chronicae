@@ -448,10 +448,11 @@ function MarketRow({
               : deviationPct > 0
                 ? 'text-amber-400'
                 : 'text-sky-400'
+          const shortage = ps.history[ps.history.length - 1]?.shortage ?? false
           return (
             <span key={resource} className={color}>
               {glyph} {deviationPct >= 0 ? '+' : ''}
-              {deviationPct.toFixed(0)}%
+              {deviationPct.toFixed(0)}%{shortage && <span className="text-rose-400">⚠</span>}
             </span>
           )
         })}

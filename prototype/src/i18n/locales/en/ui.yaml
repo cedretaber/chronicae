@@ -689,6 +689,10 @@ detail:
     supply: 'Supply'
     demand: 'Demand'
     sold: 'Sold'
+    sell_orders: 'Sell'
+    buy_orders: 'Buy'
+    fulfillment: 'Fulfillment'
+    shortage: 'Shortage'
 
   # v0.53 RealEstateSeizure / LandContractDefault state display
   obligation:
