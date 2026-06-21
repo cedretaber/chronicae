@@ -25,10 +25,17 @@ import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelecto
 import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
-// v0.55: 規模の経済 (recipeScaleMultiplier) は撤去した。「少数の不動産 × 20 slot (5%刻み) レシピ」の
-//   現行構成では集中度ボーナスが単作ロックインを生むだけで噛み合わず、recipeSwitchSystem の 1-slot 山登りが
-//   局所最適 (全 grain) を脱出できなかった (集中 recipe = 2.0倍 / 新 recipe の最初の 1 slot = 1.0倍 という
-//   二重ペナルティで限界 gain が閾値未満になる)。slot あたり生産性は集中度に依らず一定とする。
+// v0.54 §9 規模の経済: 同 asset 内で同 recipe を多く採用するほど slot あたり生産性が上がる。
+function getRecipeScaleMultiplier(
+  slotCountForRecipe: number,
+  totalSlots: number,
+  maxMultiplierAtFullSlots: number,
+): number {
+  if (slotCountForRecipe <= 0) return 0
+  if (totalSlots <= 1) return 1.0
+  const scaleBonusAtFull = maxMultiplierAtFullSlots - 1.0
+  return 1.0 + scaleBonusAtFull * ((slotCountForRecipe - 1) / (totalSlots - 1))
+}
 
 // v0.54 §12.3 polityControlModifier: control 0 でも min、control 100 で 1.0。
 function computePolityControlModifier(polityControl: number, config: SimulationConfig): number {
@@ -267,6 +274,11 @@ export function computeAssetRecipePotentials(
     if (!recipe) continue
 
     const recipeLabor = allocatedLabor * (slotCount / totalSlots)
+    const scaleMult = getRecipeScaleMultiplier(
+      slotCount,
+      totalSlots,
+      recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
+    )
     // §14.3 laborTypeFulfillmentModifier (output 効率) と inputEfficiency (input 軽減) を算出。
     const profile = RECIPE_LABOR_PROFILES[recipeId] ?? []
     const labor = computeLaborModifiers(
@@ -274,9 +286,13 @@ export function computeAssetRecipePotentials(
       actualPopTypeShares,
       config.laborTypeFulfillmentFloor,
     )
-    // v0.55: 規模の経済 (scaleMult) 撤去。slot あたり生産性は集中度に依らず一定。
     const potential =
-      recipeLabor * recipe.baseOutputPerLabor * facilityMod * controlMod * labor.outputModifier
+      recipeLabor *
+      recipe.baseOutputPerLabor *
+      scaleMult *
+      facilityMod *
+      controlMod *
+      labor.outputModifier
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {

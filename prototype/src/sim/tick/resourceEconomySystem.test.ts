@@ -76,6 +76,7 @@ function withEmployedPop(
   popClass: PopClass,
   size: number,
   wealth = 50,
+  employed = true,
 ): WorldState {
   const id = ('pg-' + popCounter++) as PopGroupId
   const pop: PopGroup = {
@@ -83,7 +84,7 @@ function withEmployedPop(
     holdingId,
     class: popClass,
     popType: REP_POP_TYPE[popClass],
-    employed: true,
+    employed,
     size,
     wealth,
     unrest: 0,
@@ -160,8 +161,10 @@ describe('runResourceEconomySystem — production & market', () => {
       state = withProvince(state, 'pr-0' as ProvinceId, {})
       const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
       state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
-      state = withEmployedPop(state, hd, 'lower', 50) // 一定の供給
-      state = withEmployedPop(state, hd, 'middle', popSize) // 需要のみ増やす (workshop 無)
+      // 供給は lower POP のみ (一定)。需要側は未就業 middle POP にする — farm は middle も雇用するため、
+      //   就業させると grain を生産してしまい「需要のみ増やす」意図が崩れる (v0.55 grain 出力2倍で顕在化)。
+      state = withEmployedPop(state, hd, 'lower', 10) // 一定の供給
+      state = withEmployedPop(state, hd, 'middle', popSize, 50, false) // 未就業=需要のみ
       const result = runEcon(state)
       return result.marketResourcePrices['sr-0:grain']!.lastPrice
     }

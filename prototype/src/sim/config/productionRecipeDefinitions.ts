@@ -44,6 +44,10 @@ export type ProductionRecipe = {
   outputs: RecipeOutputDefinition[]
   // 労働あたり産出 (§11.1 recipeLabor 方式)。slot は配分比率であり生産量乗数ではない。
   baseOutputPerLabor: number
+  // 規模の経済 (§10): config フィールドは maxMultiplierAtFullSlots を維持 (M12)。
+  scaleEconomy?: {
+    maxMultiplierAtFullSlots: number
+  }
   // §8.1 将来用 (v0.55 では型のみ・enforce しない / M11)。
   allowedTerrains?: ProvinceTerrain[]
   allowedFeatures?: ProvinceFeature[]
@@ -78,19 +82,23 @@ const JEWELER_WORKSHOP = 'jeweler_workshop' as ProductionRecipeId
 const SMOKEHOUSE = 'smokehouse' as ProductionRecipeId
 const BUTCHER_WORKSHOP = 'butcher_workshop' as ProductionRecipeId
 
+const SCALE_2X = { maxMultiplierAtFullSlots: 2.0 }
+
 export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, ProductionRecipe> = {
   // ── farm ──
   [GRAIN_FIELD]: {
     id: GRAIN_FIELD,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'grain', amount: 1.0 }],
-    baseOutputPerLabor: 1.0,
+    baseOutputPerLabor: 2.0,
+    scaleEconomy: SCALE_2X,
   },
   [FLAX_FIELD]: {
     id: FLAX_FIELD,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'flax', amount: 1.0 }],
     baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
   },
   [SHEEP_PASTURE]: {
     id: SHEEP_PASTURE,
@@ -100,36 +108,42 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
       { resource: 'meat', amount: 0.25 },
     ],
     baseOutputPerLabor: 0.55,
+    scaleEconomy: SCALE_2X,
   },
   [CATTLE_PASTURE]: {
     id: CATTLE_PASTURE,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'meat', amount: 1.0 }],
     baseOutputPerLabor: 0.6,
+    scaleEconomy: SCALE_2X,
   },
   [ORCHARD]: {
     id: ORCHARD,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'fruit', amount: 1.0 }],
     baseOutputPerLabor: 0.45,
+    scaleEconomy: SCALE_2X,
   },
   [VINEYARD]: {
     id: VINEYARD,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'wine', amount: 1.0 }],
     baseOutputPerLabor: 0.35,
+    scaleEconomy: SCALE_2X,
   },
   [DYE_GARDEN]: {
     id: DYE_GARDEN,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'dye', amount: 1.0 }],
     baseOutputPerLabor: 0.4,
+    scaleEconomy: SCALE_2X,
   },
   [FISHING_HUT]: {
     id: FISHING_HUT,
     allowedRealEstateKinds: ['farm'],
     outputs: [{ resource: 'fish', amount: 1.0 }],
     baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
   },
   // 農村自家醸造。低効率 (都市 urban_brewery 比)。
   [FARM_BREWERY]: {
@@ -138,6 +152,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'brewing_grain', amountPerOutput: 0.8 }],
     outputs: [{ resource: 'beer', amount: 1.0 }],
     baseOutputPerLabor: 0.5,
+    scaleEconomy: SCALE_2X,
   },
   // 農村家内制織物。低効率・高 input。
   [FARM_WEAVING_SHED]: {
@@ -146,6 +161,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'textile_fiber', amountPerOutput: 1.15 }],
     outputs: [{ resource: 'fabric', amount: 1.0 }],
     baseOutputPerLabor: 0.45,
+    scaleEconomy: SCALE_2X,
   },
   // ── mountain ──
   [IRON_MINE]: {
@@ -153,18 +169,21 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     allowedRealEstateKinds: ['mountain'],
     outputs: [{ resource: 'iron_ore', amount: 1.0 }],
     baseOutputPerLabor: 0.55,
+    scaleEconomy: SCALE_2X,
   },
   [GEM_MINE]: {
     id: GEM_MINE,
     allowedRealEstateKinds: ['mountain'],
     outputs: [{ resource: 'gems', amount: 1.0 }],
     baseOutputPerLabor: 0.15,
+    scaleEconomy: SCALE_2X,
   },
   [QUARRY]: {
     id: QUARRY,
     allowedRealEstateKinds: ['mountain'],
     outputs: [{ resource: 'stone', amount: 1.0 }],
     baseOutputPerLabor: 0.8,
+    scaleEconomy: SCALE_2X,
   },
   // ── woodland ──
   [LOGGING_HUT]: {
@@ -172,6 +191,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     allowedRealEstateKinds: ['woodland'],
     outputs: [{ resource: 'timber', amount: 1.0 }],
     baseOutputPerLabor: 0.8,
+    scaleEconomy: SCALE_2X,
   },
   // 毛皮を主産物、肉を副産物とする。
   [HUNTING_LODGE]: {
@@ -182,6 +202,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
       { resource: 'meat', amount: 0.3 },
     ],
     baseOutputPerLabor: 0.5,
+    scaleEconomy: SCALE_2X,
   },
   // ── workshop (level 1: 一次加工 / level 2: clothes・luxury_clothes) ──
   [URBAN_BREWERY]: {
@@ -190,6 +211,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'brewing_grain', amountPerOutput: 0.65 }],
     outputs: [{ resource: 'beer', amount: 1.0 }],
     baseOutputPerLabor: 1.1,
+    scaleEconomy: SCALE_2X,
   },
   [TEXTILE_WORKSHOP]: {
     id: TEXTILE_WORKSHOP,
@@ -197,6 +219,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'textile_fiber', amountPerOutput: 0.9 }],
     outputs: [{ resource: 'fabric', amount: 1.0 }],
     baseOutputPerLabor: 1.05,
+    scaleEconomy: SCALE_2X,
   },
   [TAILOR]: {
     id: TAILOR,
@@ -204,6 +227,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'fabric', amountPerOutput: 0.65 }],
     outputs: [{ resource: 'clothes', amount: 1.0 }],
     baseOutputPerLabor: 0.85,
+    scaleEconomy: SCALE_2X,
   },
   [LUXURY_TAILOR]: {
     id: LUXURY_TAILOR,
@@ -215,6 +239,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     ],
     outputs: [{ resource: 'luxury_clothes', amount: 1.0 }],
     baseOutputPerLabor: 0.35,
+    scaleEconomy: SCALE_2X,
   },
   // v0.55 では metal=iron_ore / construction_wood=timber。
   [TOOL_WORKSHOP]: {
@@ -226,6 +251,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     ],
     outputs: [{ resource: 'tools', amount: 1.0 }],
     baseOutputPerLabor: 0.6,
+    scaleEconomy: SCALE_2X,
   },
   [JEWELER_WORKSHOP]: {
     id: JEWELER_WORKSHOP,
@@ -233,6 +259,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'gems', amountPerOutput: 0.5 }],
     outputs: [{ resource: 'jewelry', amount: 1.0 }],
     baseOutputPerLabor: 0.25,
+    scaleEconomy: SCALE_2X,
   },
   // 燻製燃料・加工材として construction_wood を要求する。
   [SMOKEHOUSE]: {
@@ -244,6 +271,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     ],
     outputs: [{ resource: 'smoked_fish', amount: 1.0 }],
     baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
   },
   [BUTCHER_WORKSHOP]: {
     id: BUTCHER_WORKSHOP,
@@ -251,6 +279,7 @@ export const PRODUCTION_RECIPE_DEFINITIONS: Record<ProductionRecipeId, Productio
     inputs: [{ category: 'raw_meat', amountPerOutput: 0.75 }],
     outputs: [{ resource: 'processed_meat', amount: 1.0 }],
     baseOutputPerLabor: 0.75,
+    scaleEconomy: SCALE_2X,
   },
 }
 

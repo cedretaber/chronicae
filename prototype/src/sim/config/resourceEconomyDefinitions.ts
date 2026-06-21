@@ -11,7 +11,7 @@ export type ResourcePriceConfig = {
 
 // v0.55 §4.3: 21 種の初期 basePrice (調整前提)。
 export const RESOURCE_PRICE_DEFINITIONS: Record<ResourceKind, ResourcePriceConfig> = {
-  grain: { basePrice: 1.0 },
+  grain: { basePrice: 0.5 },
   fish: { basePrice: 1.2 },
   meat: { basePrice: 1.4 },
   fruit: { basePrice: 1.8 },
