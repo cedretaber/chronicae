@@ -1,7 +1,7 @@
 import { clamp } from '../utils/math'
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PopGroupId, HoldingId } from '../types/ids'
-import type { PopClass, PopGroup } from '../types/popGroup'
+import type { PopClass, PopGroup, PopType } from '../types/popGroup'
 import type { AttitudeMap } from '../types/attitude'
 import { createPopGroupId } from '../types/ids'
 
@@ -164,17 +164,23 @@ export function addToOrCreatePopGroupMut(
   input: {
     holdingId: HoldingId
     class: PopClass
+    popType: PopType
     employed: boolean
     size: number
     inheritFrom?: PopGroup
   },
 ): PopGroupId {
-  // Find existing pop with same merge key (holdingId + class + employed)
+  // Find existing pop with same merge key (holdingId + class + popType + employed, §13.3)
   const existingPopIds = ws.popIndex.byHolding[input.holdingId]
   if (existingPopIds) {
     for (const popId of existingPopIds) {
       const existing = ws.popGroups[popId]
-      if (existing && existing.class === input.class && existing.employed === input.employed) {
+      if (
+        existing &&
+        existing.class === input.class &&
+        existing.popType === input.popType &&
+        existing.employed === input.employed
+      ) {
         // Merge into existing pop using population-weighted average
         const oldSize = existing.size
         const newSize = oldSize + input.size
@@ -207,6 +213,7 @@ export function addToOrCreatePopGroupMut(
     id: newId,
     holdingId: input.holdingId,
     class: input.class,
+    popType: input.popType,
     employed: input.employed,
     size: input.size,
     wealth: input.inheritFrom?.wealth ?? 50,
@@ -244,6 +251,7 @@ export function movePopEmploymentMut(
   const targetPopId = addToOrCreatePopGroupMut(ws, {
     holdingId: source.holdingId,
     class: source.class,
+    popType: source.popType,
     employed: input.targetEmployed,
     size: moveSize,
     inheritFrom: source,
@@ -334,7 +342,7 @@ export function mergeCompatiblePopsMut(ws: WorldState): void {
   for (const popId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
     const pop = ws.popGroups[popId]
     if (!pop) continue
-    const key = `${pop.holdingId}|${pop.class}|${pop.employed}`
+    const key = `${pop.holdingId}|${pop.class}|${pop.popType}|${pop.employed}`
     const existing = mergeMap.get(key)
     if (existing) {
       existing.push(popId)

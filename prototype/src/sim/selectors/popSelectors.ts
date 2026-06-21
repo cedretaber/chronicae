@@ -67,7 +67,7 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
   return weightedSum / totalPopulation
 }
 
-const POP_CLASSES: PopClass[] = ['peasants', 'townsmen', 'nobles']
+const POP_CLASSES: PopClass[] = ['lower', 'middle', 'upper']
 
 export function getProvinceCarryingCapacity(
   state: WorldState,

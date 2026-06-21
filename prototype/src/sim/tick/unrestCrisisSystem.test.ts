@@ -36,7 +36,8 @@ function buildWorld(): WorldState {
       [POP]: {
         id: POP,
         holdingId: HOLDING,
-        class: 'peasants',
+        class: 'lower',
+        popType: 'peasants',
         employed: true,
         size: 1000,
         wealth: 30,
@@ -75,7 +76,7 @@ describe('unrestCrisisSystem (Phase C)', () => {
     //   (REVOLT_SETTLED emit + unrest 低下 + purge) を検証する。
     const s = buildWorld()
     const beforeUnrest = s.popGroups[POP]!.unrest
-    const crisis = addResolvedUnrest(s, { kind: 'tax_relief', claimantPopClass: 'peasants' })
+    const crisis = addResolvedUnrest(s, { kind: 'tax_relief', claimantPopClass: 'lower' })
 
     const next = runUnrestCrisisSystem(makeCtx(s))
 
@@ -86,7 +87,7 @@ describe('unrestCrisisSystem (Phase C)', () => {
 
   it('resolved unrest (secession) → 鎮圧 (lastRevoltSuppressedWeek) し Crisis を purge する', () => {
     const s = buildWorld()
-    const crisis = addResolvedUnrest(s, { kind: 'secession', claimantPopClass: 'peasants' })
+    const crisis = addResolvedUnrest(s, { kind: 'secession', claimantPopClass: 'lower' })
 
     const next = runUnrestCrisisSystem(makeCtx(s))
 
@@ -105,7 +106,7 @@ describe('unrestCrisisSystem (Phase C)', () => {
       deadlineWeek: 100,
       status: 'active',
       reasonIds: [],
-      demand: { kind: 'secession', claimantPopClass: 'peasants' },
+      demand: { kind: 'secession', claimantPopClass: 'lower' },
     })
     setCrisisStatusMut(s, crisis.id, 'expired')
 

@@ -2,7 +2,7 @@ import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
-import type { PopClass } from '../types/popGroup'
+import type { PopClass, PopStratum } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
@@ -216,10 +216,10 @@ export type SimulationConfig = {
   femaleRoleEligibilityChance: number
   // v0.8 POP system
   popSystemEnabled: boolean
-  minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  minPopSizeByClass: Record<PopStratum, number>
   minProvinceCarryingCapacity: number
-  manpowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
-  baseMonthlyGrowthByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  manpowerFactorByClass: Record<PopStratum, number>
+  baseMonthlyGrowthByClass: Record<PopStratum, number>
   populationPressureThreshold: number
   populationPressureWealthPenalty: number
   populationPressureUnrestGain: number
@@ -228,7 +228,7 @@ export type SimulationConfig = {
   prosperityWealthThreshold: number
   prosperityUnrestReduction: number
   unrestNaturalDecayRate: number
-  retainedWealthGainByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  retainedWealthGainByClass: Record<PopStratum, number>
   overExtractionThreshold: number
   overExtractionWealthSafeThreshold: number
   overExtractionUnrestSafeThreshold: number
@@ -355,7 +355,7 @@ export type SimulationConfig = {
   nobleRevoltHouseDisloyaltyFactor: number
   nobleRevoltLowLegitimacyFactor: number
   // ProvinceRevolt power
-  popRevoltPowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  popRevoltPowerFactorByClass: Record<PopStratum, number>
   provinceRevoltHouseSuppressionFactor: number
   provinceRevoltCountrySuppressionFactor: number
   provinceRevoltTreasurySuppressionFactor: number
@@ -591,7 +591,7 @@ export type SimulationConfig = {
   // popFactor の正規化基準。class 間で POP スケールが大きく異なる (worldgen 実測: 該当 holding kind で
   //   peasants ~85 / nobles ~2.5、townsmen は都市発達後) ため per-class 基準にする。
   //   sourceKind→class: levy→peasants / urban_militia→townsmen / noble_retinue→nobles。
-  regimentReinforcementReferencePopByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  regimentReinforcementReferencePopByClass: Record<PopStratum, number>
   regimentReinforcementMinPopFactor: number
   regimentReinforcementMaxPopFactor: number
   regimentReinforcementCostPerStrength: number
@@ -1645,10 +1645,10 @@ export const defaultConfig: SimulationConfig = {
   femaleRoleEligibilityChance: 0.03,
   // v0.8 POP system
   popSystemEnabled: true,
-  minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },
+  minPopSizeByClass: { lower: 5, middle: 1, upper: 1 },
   minProvinceCarryingCapacity: 50,
-  manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
-  baseMonthlyGrowthByClass: { peasants: 0.008, townsmen: 0.002, nobles: 0.001 },
+  manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
+  baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,
   populationPressureWealthPenalty: 0.2,
   populationPressureUnrestGain: 0.3,
@@ -1657,15 +1657,15 @@ export const defaultConfig: SimulationConfig = {
   prosperityWealthThreshold: 70,
   prosperityUnrestReduction: 0.01,
   unrestNaturalDecayRate: 0.005,
-  retainedWealthGainByClass: { peasants: 0.3, townsmen: 0.45, nobles: 0.25 },
+  retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,
   overExtractionUnrestSafeThreshold: 45,
   overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
   classCapacityBaseByHoldingKind: {
-    manor: { peasants: 0, townsmen: 0, nobles: 0 },
-    city: { peasants: 0, townsmen: 0, nobles: 0 },
+    manor: { lower: 0, middle: 0, upper: 0 },
+    city: { lower: 0, middle: 0, upper: 0 },
   },
   // v0.33 Province terrain / features (habitability スカラーを置換)
   provinceTerrainSettlementSuitability: {
@@ -1689,12 +1689,12 @@ export const defaultConfig: SimulationConfig = {
   provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
   provinceFeatureLakeBaseChance: 0.06,
   provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
-  employedManpowerMultiplierByClass: { peasants: 1.0, townsmen: 0.8, nobles: 1.2 },
+  employedManpowerMultiplierByClass: { lower: 1.0, middle: 0.8, upper: 1.2 },
   unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
-  unemployedWealthDecayByClass: { peasants: 0.2, townsmen: 0.3, nobles: 0.15 },
-  unemployedUnrestGainByClass: { peasants: 0.2, townsmen: 0.35, nobles: 0.45 },
-  unemployedGrowthModifierByClass: { peasants: 0.6, townsmen: 0.5, nobles: 0.7 },
+  unemployedWealthDecayByClass: { lower: 0.2, middle: 0.3, upper: 0.15 },
+  unemployedUnrestGainByClass: { lower: 0.2, middle: 0.35, upper: 0.45 },
+  unemployedGrowthModifierByClass: { lower: 0.6, middle: 0.5, upper: 0.7 },
   // v0.24 Initial POP generation
   initialPopFillRatioMin: 70,
   initialPopFillRatioMax: 95,
@@ -1814,7 +1814,7 @@ export const defaultConfig: SimulationConfig = {
   nobleRevoltHouseDisloyaltyFactor: 0.2,
   nobleRevoltLowLegitimacyFactor: 0.2,
   // ProvinceRevolt power
-  popRevoltPowerFactorByClass: { peasants: 0.02, townsmen: 0.015, nobles: 0.08 },
+  popRevoltPowerFactorByClass: { lower: 0.02, middle: 0.015, upper: 0.08 },
   provinceRevoltHouseSuppressionFactor: 1.0,
   provinceRevoltCountrySuppressionFactor: 0.8,
   provinceRevoltTreasurySuppressionFactor: 2.0,
@@ -2034,7 +2034,7 @@ export const defaultConfig: SimulationConfig = {
   regimentReinforcementPeaceMultiplier: 1.0,
   regimentReinforcementWarMultiplier: 0.4,
   regimentReinforcementMobilizedMultiplier: 0.25,
-  regimentReinforcementReferencePopByClass: { peasants: 80, townsmen: 15, nobles: 2.5 },
+  regimentReinforcementReferencePopByClass: { lower: 80, middle: 15, upper: 2.5 },
   regimentReinforcementMinPopFactor: 0.1,
   regimentReinforcementMaxPopFactor: 1.5,
   regimentReinforcementCostPerStrength: 0.2,
@@ -2992,8 +2992,8 @@ export const defaultConfig: SimulationConfig = {
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,
   realEstateHoldingDueRate: 0.1,
-  popFoodDemandPerSizeByClass: { peasants: 1.0, townsmen: 1.05, nobles: 1.1 },
-  popProcessedGoodsDemandPerSizeByClass: { peasants: 0.2, townsmen: 0.6, nobles: 1.2 },
+  popFoodDemandPerSizeByClass: { lower: 1.0, middle: 1.05, upper: 1.1 },
+  popProcessedGoodsDemandPerSizeByClass: { lower: 0.2, middle: 0.6, upper: 1.2 },
   foodPurchasingPowerFactorAtWealth0: 0.6,
   foodPurchasingPowerFactorAtWealth50: 1.0,
   foodPurchasingPowerFactorAtWealth100: 1.2,

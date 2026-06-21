@@ -90,7 +90,8 @@ function buildWorld(): WorldState {
       [POP]: {
         id: POP,
         holdingId: HOLDING,
-        class: 'peasants',
+        class: 'lower',
+        popType: 'peasants',
         employed: true,
         size: 1000,
         wealth: 50,

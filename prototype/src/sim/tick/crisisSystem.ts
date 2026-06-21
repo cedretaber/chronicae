@@ -55,7 +55,7 @@ function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: Cris
   // famine / drought: 農業 peasants が居る holding のみ
   for (const popId of popIds) {
     const pop = ws.popGroups[popId]
-    if (pop && pop.class === 'peasants' && pop.employed) return true
+    if (pop && pop.class === 'lower' && pop.employed) return true
   }
   return false
 }
@@ -428,7 +428,7 @@ function spawnCrisisForHolding(
   // 初期ショック (一回限りの人口減, holding スコープで 1 回。province ラッパーの多重罠を回避, §4.1)
   const shockRate = config.crisisInitialShockSizeRateByKind[kind] * mitigationFactor
   if (shockRate > 0) {
-    const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'peasants'
+    const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'lower'
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass)
   }
 
@@ -640,7 +640,7 @@ function runWeeklyProcessing(
           ? crisis.demand?.claimantPopClass
           : crisis.kind === 'disrepair'
             ? undefined
-            : 'peasants'
+            : 'lower'
 
     // owner を live 解決 (§0-10)。owner inactive/holding terminal 喪失 → expired+purge (EC2/EC5)。
     const ownerPolityId = getHoldingTerminalPolityId(ws, holdingId)

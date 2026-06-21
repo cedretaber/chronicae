@@ -123,6 +123,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
         addToOrCreatePopGroupMut(ws, {
           holdingId: pop.holdingId,
           class: pop.class,
+          popType: pop.popType,
           employed: false,
           size: overflow,
           inheritFrom: pop,

@@ -5,7 +5,14 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { PopGroup, PopClass } from '../types/popGroup'
+import type { PopGroup, PopClass, PopType } from '../types/popGroup'
+
+// stratum→代表 PopType (テスト用。getPopStratum(rep)===stratum を満たす)。
+const REP_POP_TYPE: Record<PopClass, PopType> = {
+  lower: 'peasants',
+  middle: 'freeholders',
+  upper: 'nobles',
+}
 import type { RealEstateAsset, RealEstateKind, AssetOwnerRef } from '../types/realEstateAsset'
 import type {
   ProvinceId,
@@ -74,6 +81,7 @@ function withEmployedPop(
     id,
     holdingId,
     class: popClass,
+    popType: REP_POP_TYPE[popClass],
     employed: true,
     size,
     wealth,
@@ -103,7 +111,7 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm').state
-    state = withEmployedPop(state, hd, 'peasants', 100)
+    state = withEmployedPop(state, hd, 'lower', 100)
 
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[hd]
@@ -122,8 +130,8 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withHolding(state, city, 'pr-0' as ProvinceId, { kind: 'city' })
     state = withAsset(state, manor, 'farm').state
     state = withAsset(state, city, 'workshop').state
-    state = withEmployedPop(state, manor, 'peasants', 100)
-    state = withEmployedPop(state, city, 'townsmen', 100)
+    state = withEmployedPop(state, manor, 'lower', 100)
+    state = withEmployedPop(state, city, 'middle', 100)
 
     const withRaw = runEcon(state)
     const citySnapWith = withRaw.monthlyHoldingResourceRevenue[city]
@@ -135,7 +143,7 @@ describe('runResourceEconomySystem — production & market', () => {
     const city2 = 'hd-city2' as HoldingId
     noRaw = withHolding(noRaw, city2, 'pr-0' as ProvinceId, { kind: 'city' })
     noRaw = withAsset(noRaw, city2, 'workshop').state
-    noRaw = withEmployedPop(noRaw, city2, 'townsmen', 100)
+    noRaw = withEmployedPop(noRaw, city2, 'middle', 100)
     const noRawResult = runEcon(noRaw)
     const citySnapNo = noRawResult.monthlyHoldingResourceRevenue[city2]
     expect(citySnapNo!.byResource.beer ?? 0).toBe(0)
@@ -147,8 +155,8 @@ describe('runResourceEconomySystem — production & market', () => {
       state = withProvince(state, 'pr-0' as ProvinceId, {})
       const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
       state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
-      state = withEmployedPop(state, hd, 'peasants', 50) // 一定の供給
-      state = withEmployedPop(state, hd, 'townsmen', popSize) // 需要のみ増やす (workshop 無)
+      state = withEmployedPop(state, hd, 'lower', 50) // 一定の供給
+      state = withEmployedPop(state, hd, 'middle', popSize) // 需要のみ増やす (workshop 無)
       const result = runEcon(state)
       return result.marketResourcePrices['sr-0:grain']!.lastPrice
     }
@@ -160,7 +168,7 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm').state
-    state = withEmployedPop(state, hd, 'peasants', 100)
+    state = withEmployedPop(state, hd, 'lower', 100)
     const cfg: SimulationConfig = { ...defaultConfig, marketResourcePriceHistoryLimit: 3 }
     for (let i = 0; i < 6; i++) {
       state = runEcon(state, cfg)
@@ -175,8 +183,8 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY).state
-    state = withEmployedPop(state, hd, 'peasants', 500) // 大供給
-    state = withEmployedPop(state, hd, 'townsmen', 1) // 極小の food 需要
+    state = withEmployedPop(state, hd, 'lower', 500) // 大供給
+    state = withEmployedPop(state, hd, 'middle', 1) // 極小の food 需要
     const result = runEcon(state)
     const ps = result.marketResourcePrices['sr-0:grain']!
     const last = ps.history[ps.history.length - 1]!
@@ -199,7 +207,7 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withHolding(state, city, 'pr-0' as ProvinceId, { kind: 'city' })
     const a = withAsset(state, city, 'workshop')
     state = a.state
-    state = withEmployedPop(state, city, 'townsmen', 100)
+    state = withEmployedPop(state, city, 'middle', 100)
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[city]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
@@ -218,8 +226,9 @@ describe('runResourceEconomySystem — production & market', () => {
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     const a = withAsset(state, hd, 'farm', 1, undefined, GRAIN_ONLY)
     state = a.state
-    state = withEmployedPop(state, hd, 'peasants', 50) // 供給
-    state = withEmployedPop(state, hd, 'townsmen', 400) // food 需要のみ
+    state = withEmployedPop(state, hd, 'lower', 50) // 供給
+    // upper はどの asset にも雇用されない (§13.4) ため純粋な需要源にできる。
+    state = withEmployedPop(state, hd, 'upper', 400) // food 需要のみ
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[hd]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
@@ -238,7 +247,7 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm').state
-    state = withEmployedPop(state, hd, 'peasants', 100, 50)
+    state = withEmployedPop(state, hd, 'lower', 100, 50)
     // food 系チャネルを 0 にし、processed 正チャネルだけ巨大にして単離する。
     const cfg: SimulationConfig = {
       ...defaultConfig,
@@ -252,10 +261,10 @@ describe('runResourceEconomySystem — production & market', () => {
       processedGoodsShortageUnrestGain: 0,
       processedGoodsFulfillmentWealthGain: 50, // 巨大: ゲートが無ければ wealth が跳ねる
       processedGoodsFulfillmentUnrestReduction: 0,
-      // peasants が processed を需要しないことを保証
+      // lower (旧 peasants) が processed を需要しないことを保証
       popProcessedGoodsDemandPerSizeByClass: {
         ...defaultConfig.popProcessedGoodsDemandPerSizeByClass,
-        peasants: 0,
+        lower: 0,
       },
     }
     const result = runEcon(state, cfg)
@@ -269,7 +278,7 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm').state
-    state = withEmployedPop(state, hd, 'peasants', 100)
+    state = withEmployedPop(state, hd, 'lower', 100)
     const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('test') })
     const result = runResourceEconomySystem(ctx)
     // RNG state は不変 (system は RNG を消費しない)
@@ -286,7 +295,7 @@ describe('computeAllocatedLaborByAsset — labor conservation', () => {
     state = a1.state
     const a2 = withAsset(state, hd, 'mountain', 1)
     state = a2.state
-    state = withEmployedPop(state, hd, 'peasants', 137)
+    state = withEmployedPop(state, hd, 'lower', 137)
 
     const assets = [state.realEstateAssets[a1.assetId]!, state.realEstateAssets[a2.assetId]!]
     const allocated = computeAllocatedLaborByAsset(state, defaultConfig, hd, assets)
@@ -300,9 +309,9 @@ describe('computeAllocatedLaborByAsset — labor conservation', () => {
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     const a1 = withAsset(state, hd, 'farm')
     state = a1.state
-    // townsmen は受け皿 (workshop) が無いので配分されない。
-    state = withEmployedPop(state, hd, 'peasants', 80)
-    state = withEmployedPop(state, hd, 'townsmen', 40)
+    // upper はどの asset にも雇用されない (§13.4) ので配分されない。
+    state = withEmployedPop(state, hd, 'lower', 80)
+    state = withEmployedPop(state, hd, 'upper', 40)
 
     const assets = [state.realEstateAssets[a1.assetId]!]
     const allocated = computeAllocatedLaborByAsset(state, defaultConfig, hd, assets)
@@ -330,7 +339,7 @@ describe('runResourceEconomySystem — owner asset revenue feeds snapshot (distr
     const owner: AssetOwnerRef = { kind: 'house', id: 'dh-0' as HouseId }
     const a = withAsset(state, hd, 'farm', 1, owner)
     state = a.state
-    state = withEmployedPop(state, hd, 'peasants', 100)
+    state = withEmployedPop(state, hd, 'lower', 100)
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[hd]
     const ar = snap!.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))

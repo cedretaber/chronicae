@@ -131,8 +131,8 @@ export function UnifiedMap() {
 
     return Object.values(provinces).map((prov) => {
       const pops = popGroups ? getProvincePops(world, prov.id) : []
-      const peasants = pops.find((p) => p.class === 'peasants')?.size ?? 0
-      const townsmen = pops.find((p) => p.class === 'townsmen')?.size ?? 0
+      const peasants = pops.find((p) => p.class === 'lower')?.size ?? 0
+      const townsmen = pops.find((p) => p.class === 'middle')?.size ?? 0
       const urbanRatio = peasants + townsmen > 0 ? townsmen / (peasants + townsmen) : 0
       return {
         id: prov.id,

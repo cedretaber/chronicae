@@ -347,9 +347,9 @@ function computeUnrestStats(state: WorldState): {
   for (const pid of provinceIds) {
     const unrest = getProvinceUnrest(state, pid)
     totalUnrest += unrest
-    totalPeasant += getPopUnrestByClass(state, pid, 'peasants')
-    totalTownsmen += getPopUnrestByClass(state, pid, 'townsmen')
-    totalNoble += getPopUnrestByClass(state, pid, 'nobles')
+    totalPeasant += getPopUnrestByClass(state, pid, 'lower')
+    totalTownsmen += getPopUnrestByClass(state, pid, 'middle')
+    totalNoble += getPopUnrestByClass(state, pid, 'upper')
     if (unrest > 50) highUnrestCount++
     count++
   }

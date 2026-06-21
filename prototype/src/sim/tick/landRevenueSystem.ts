@@ -285,7 +285,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const retainedToPop = Math.max(0, provinceTaxable - provinceCollected)
     const retainedRatio = provinceTaxable > 0 ? retainedToPop / provinceTaxable : 0
     const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
-    const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
+    const popClasses: PopClass[] = ['lower', 'middle', 'upper']
 
     // 旧 adjustProvincePopWealthByClass と同一挙動 (class 一致 pop のみ clamp 0..100、不変なら skip)。
     for (const popClass of popClasses) {

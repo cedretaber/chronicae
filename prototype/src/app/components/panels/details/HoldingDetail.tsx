@@ -269,13 +269,13 @@ export function HoldingDetail({
                         )
                       })()}
                       {def.employmentSlots.map((slot) => {
-                        const fill = getFill(slot.popClass)
+                        const fill = getFill(slot.stratum)
                         const pct =
                           fill.cap > 0 ? clamp100((fill.employedSize / fill.cap) * 100) : 0
                         return (
-                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
+                          <div key={slot.stratum} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-gray-500">
-                              {t(`detail.province.${slot.popClass}`)}
+                              {t(`detail.province.${slot.stratum}`)}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div
@@ -413,19 +413,19 @@ export function HoldingDetail({
                         const empSize = getHoldingEmployedPopSize(
                           currentState,
                           holding.id,
-                          slot.popClass,
+                          slot.stratum,
                         )
                         const cap = getHoldingClassCapacity(
                           currentState,
                           defaultConfig,
                           holding.id,
-                          slot.popClass,
+                          slot.stratum,
                         )
                         const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
                         return (
-                          <div key={slot.popClass} className="mt-0.5 flex items-center gap-1.5">
+                          <div key={slot.stratum} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-xs text-gray-500">
-                              {t(`detail.province.${slot.popClass}`)}
+                              {t(`detail.province.${slot.stratum}`)}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div
@@ -849,7 +849,7 @@ export function HoldingDetail({
       {currentState && (
         <>
           <DetailSection title="POP" />
-          {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
+          {(['lower', 'middle', 'upper'] as const).map((popClass) => {
             const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
             const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
             const unempSize = getHoldingUnemployedPopSize(currentState, holding.id, popClass)

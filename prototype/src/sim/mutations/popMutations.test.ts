@@ -11,6 +11,7 @@ function pop(id: PopGroupId, holdingId: HoldingId, popClass: PopClass, size: num
     id,
     holdingId,
     class: popClass,
+    popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
     wealth: 50,
@@ -35,9 +36,9 @@ function makeFixture(): { state: WorldState; provinceId: ProvinceId } {
   state = {
     ...state,
     popGroups: {
-      [peas0]: pop(peas0, h0, 'peasants', 100),
-      [peas1]: pop(peas1, h1, 'peasants', 200),
-      [town0]: pop(town0, h0, 'townsmen', 50),
+      [peas0]: pop(peas0, h0, 'lower', 100),
+      [peas1]: pop(peas1, h1, 'lower', 200),
+      [town0]: pop(town0, h0, 'middle', 50),
     },
     popIndex: { byHolding: { [h0]: [peas0, town0], [h1]: [peas1] } },
   }
@@ -47,7 +48,7 @@ function makeFixture(): { state: WorldState; provinceId: ProvinceId } {
 describe('reduceProvincePopSizeProportional', () => {
   it('reduces each pop by its OWN proportion (no N× over-application across pops)', () => {
     const { state, provinceId } = makeFixture()
-    const result = reduceProvincePopSizeProportional(state, provinceId, 0.1, 'peasants')
+    const result = reduceProvincePopSizeProportional(state, provinceId, 0.1, 'lower')
 
     // Each peasant pop loses 10% of ITS size, independent of the other pop's size.
     expect(result.popGroups[createPopGroupId(0)]!.size).toBe(90) // 100 - 100*0.1
@@ -69,7 +70,7 @@ describe('reduceProvincePopSizeProportional', () => {
     const { state, provinceId } = makeFixture()
     expect(reduceProvincePopSizeProportional(state, provinceId, 0)).toBe(state)
 
-    const wiped = reduceProvincePopSizeProportional(state, provinceId, 1, 'peasants')
+    const wiped = reduceProvincePopSizeProportional(state, provinceId, 1, 'lower')
     expect(wiped.popGroups[createPopGroupId(0)]!.size).toBe(0)
     expect(wiped.popGroups[createPopGroupId(1)]!.size).toBe(0)
   })

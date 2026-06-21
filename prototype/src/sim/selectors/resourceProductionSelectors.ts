@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, ProductionRecipeId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
+import { POP_STRATA } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ResourceKind } from '../types/resource'
@@ -91,7 +92,7 @@ function computeProductionFacilityModifier(
   asset: RealEstateAsset,
 ): number {
   const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-  const primaryClass = def.employmentSlots[0]?.popClass
+  const primaryClass = def.employmentSlots[0]?.stratum
   const modDefs = config.realEstateProductionFacilityModifiers[asset.realEstateKind]
   if (modDefs.length === 0) return 1.0
 
@@ -126,16 +127,17 @@ export function computeAllocatedLaborByAsset(
   assets: RealEstateAsset[],
 ): Map<string, number> {
   const result = new Map<string, number>()
-  const classes: PopClass[] = ['nobles', 'peasants', 'townsmen']
-  for (const popClass of classes) {
-    const employed = getHoldingEmployedPopSize(state, holdingId, popClass)
+  // §13.4 multi-stratum: 各 stratum の employed POP を、その stratum を雇用する asset へ
+  //   stratum 別 capacity 比で按分する。1 asset が複数 stratum を受け取り得る (加算)。
+  for (const stratum of POP_STRATA) {
+    const employed = getHoldingEmployedPopSize(state, holdingId, stratum)
     if (employed <= 0) continue
     const members: { asset: RealEstateAsset; weight: number }[] = []
     let totalWeight = 0
     for (const asset of assets) {
       const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-      if (def.employmentSlots[0]?.popClass !== popClass) continue
-      const weight = getRealEstateAssetClassCapacityContribution(state, asset, popClass, config)
+      if (!def.employmentSlots.some((s) => s.stratum === stratum)) continue
+      const weight = getRealEstateAssetClassCapacityContribution(state, asset, stratum, config)
       members.push({ asset, weight })
       totalWeight += weight
     }

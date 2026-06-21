@@ -19,25 +19,25 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
   nextState = adjustProvincePopWealthByClass(
     nextState,
     provinceId,
-    'peasants',
+    'lower',
     ctx.config.bountifulHarvestPeasantWealthGain,
   )
   nextState = adjustProvincePopUnrestByClass(
     nextState,
     provinceId,
-    'peasants',
+    'lower',
     -ctx.config.bountifulHarvestPeasantUnrestReduction,
   )
   nextState = adjustProvincePopWealthByClass(
     nextState,
     provinceId,
-    'townsmen',
+    'middle',
     ctx.config.bountifulHarvestTownsmanWealthGain,
   )
   nextState = adjustProvincePopUnrestByClass(
     nextState,
     provinceId,
-    'townsmen',
+    'middle',
     -ctx.config.bountifulHarvestTownsmanUnrestReduction,
   )
 

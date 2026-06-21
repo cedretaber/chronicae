@@ -41,7 +41,8 @@ function baseState(
   state.popGroups[pg] = {
     id: pg,
     holdingId: HL1,
-    class: 'peasants',
+    class: 'lower',
+    popType: 'peasants',
     employed: true,
     size,
     wealth: 0,

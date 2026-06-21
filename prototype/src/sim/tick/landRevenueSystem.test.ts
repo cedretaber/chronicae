@@ -47,6 +47,7 @@ function withPopGroup(
     id,
     holdingId,
     class: popClass,
+    popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
     wealth,
@@ -145,7 +146,7 @@ function setupBaseWorld(): {
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   const holdingId = state.provinces[provinceId]!.holdingIds[0]!
-  state = withPopGroup(state, popId, holdingId, 'peasants', 100, 100)
+  state = withPopGroup(state, popId, holdingId, 'lower', 100, 100)
   state = withHoldingResourceRevenue(state, holdingId, GROSS)
   return { state, polityId, houseId, provinceId, holdingId, popId }
 }

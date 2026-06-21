@@ -32,11 +32,11 @@ export function PopGroupDetail({
   const worldState: WorldState | null = currentState ?? null
 
   const classLabel =
-    popGroup.class === 'peasants'
+    popGroup.class === 'lower'
       ? t('detail.province.peasants')
-      : popGroup.class === 'townsmen'
+      : popGroup.class === 'middle'
         ? t('detail.province.townsmen')
-        : popGroup.class === 'nobles'
+        : popGroup.class === 'upper'
           ? t('detail.province.nobles')
           : popGroup.class
 

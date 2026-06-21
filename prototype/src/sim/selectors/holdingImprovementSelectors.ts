@@ -160,7 +160,7 @@ export function computeAssetSlotCapacityTerm(
   const def = REAL_ESTATE_DEFINITIONS[realEstateKind]
   let term = 0
   for (const slot of def.employmentSlots) {
-    if (slot.popClass !== popClass) continue
+    if (slot.stratum !== popClass) continue
     const terrainMult = config.realEstateTerrainCapacityMultiplier[realEstateKind][terrain] ?? 1.0
     let featureProduct = 1.0
     for (const f of features) {
@@ -207,7 +207,7 @@ export function computeHoldingClassCapacity(
     const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
     if (!impDef.employmentSlots) continue
     for (const slot of impDef.employmentSlots) {
-      if (slot.popClass !== popClass) continue
+      if (slot.stratum !== popClass) continue
       let eff = conditionEffectiveness(
         imp.condition,
         config.facilityDisrepairThreshold,

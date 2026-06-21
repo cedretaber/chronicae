@@ -7,6 +7,7 @@ import { getHouseProvinceIdsByPolity } from '../selectors/polityRelations'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
+import { POP_TYPES, getPopStratum } from '../types/popGroup'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export function checkCoreEntities(state: WorldState, errors: SimError[], debug: boolean): void {
@@ -367,11 +368,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      const mergeKey = `${pop.class}|${pop.employed}`
+      const mergeKey = `${pop.class}|${pop.popType}|${pop.employed}`
       if (seen.has(mergeKey)) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} employed=${pop.employed} (popId=${popId as string})`,
+          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} popType=${pop.popType} employed=${pop.employed} (popId=${popId as string})`,
         })
       }
       seen.add(mergeKey)
@@ -403,7 +404,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
   }
 
   // PopGroup field validity checks (§17.2)
-  const VALID_POP_CLASSES = ['peasants', 'townsmen', 'nobles']
+  const VALID_POP_CLASSES = ['lower', 'middle', 'upper']
   for (const popGroupId of Object.keys(state.popGroups).sort() as PopGroupId[]) {
     const pop = state.popGroups[popGroupId]
     if (!pop) continue
@@ -421,6 +422,19 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `PopGroup ${popGroupId} has invalid class '${pop.class}'`,
+      })
+    }
+
+    // 2a. §13.1: popType は valid かつ getPopStratum(popType) === class
+    if (!POP_TYPES.includes(pop.popType)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has invalid popType '${pop.popType}'`,
+      })
+    } else if (getPopStratum(pop.popType) !== pop.class) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} popType '${pop.popType}' (stratum ${getPopStratum(pop.popType)}) does not match class '${pop.class}' (§13.1)`,
       })
     }
 
