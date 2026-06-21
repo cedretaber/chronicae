@@ -6,7 +6,7 @@ import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import type { PopTargetKey, PopMobilitySnapshotEntry, PopMobilityKind } from '../types/popMobility'
-import { getHoldingClassRemainingCapacity } from '../selectors/popSelectors'
+import { getHoldingClassRemainingCapacity, getHoldingTotalPopSize } from '../selectors/popSelectors'
 import {
   computeHoldingPopTypeDemand,
   computeStratumWealthQuantiles,
@@ -56,6 +56,8 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
     )
   }
 
+  // snapshot は jobChange が新規作成し、PopMigrationSystem が read-or-create で引き継ぐ (A3)。
+  //   tick 順 (jobChange → migration) が前提。順序が逆転すると migration entry が握り潰される。
   const snapshot = createMonthlyPopMobilitySnapshot(ws.absoluteWeek)
   const entries: PopMobilitySnapshotEntry[] = []
   const minMove = config.popMobilityMinMoveAmount
@@ -70,7 +72,7 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
     const quantiles = quantilesByState.get(stateId)
 
     let remainingCap = Math.min(
-      sumHoldingPopSize(ws, holdingId) * config.popJobChangeMaxFractionPerHoldingPerMonth,
+      getHoldingTotalPopSize(ws, holdingId) * config.popJobChangeMaxFractionPerHoldingPerMonth,
       config.popJobChangeMaxPerHoldingPerMonthHardCap,
     )
 
@@ -118,15 +120,6 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
   snapshot.topMovements = mergeAndTruncateMovements([], entries, config.popMobilityTopMovementLimit)
   ws.monthlyPopMobility = snapshot
   return { ...ctx, state: ws }
-}
-
-function sumHoldingPopSize(ws: WorldState, holdingId: HoldingId): number {
-  let total = 0
-  for (const pid of ws.popIndex.byHolding[holdingId] ?? []) {
-    const p = ws.popGroups[pid]
-    if (p) total += p.size
-  }
-  return total
 }
 
 function bestJobChangeCandidate(

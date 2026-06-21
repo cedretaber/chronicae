@@ -227,6 +227,16 @@ export function getHoldingPopSizeByClass(
   return getHoldingPopsByClass(state, holdingId, popClass).reduce((sum, p) => sum + p.size, 0)
 }
 
+// v0.56: holding 内の全 PopGroup の size 合計 (転職・移住の人口比 cap / 混雑度に使用)。
+export function getHoldingTotalPopSize(state: WorldState, holdingId: HoldingId): number {
+  let total = 0
+  for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
+    const p = state.popGroups[pid]
+    if (p) total += p.size
+  }
+  return total
+}
+
 export function getHoldingPopsByClassAndEmployment(
   state: WorldState,
   holdingId: HoldingId,

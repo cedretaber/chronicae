@@ -8,7 +8,8 @@ import { POP_STRATA, POP_TYPES_BY_STRATUM } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
   getHoldingClassCapacity,
-  getHoldingClassRemainingCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingTotalPopSize,
 } from '../selectors/popSelectors'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { computeHoldingPopTypeDemand } from '../selectors/popMobilitySelectors'
@@ -34,9 +35,11 @@ const PRESSURE_UNREST_COEF = 0.3
 const PRESSURE_CONGESTION_COEF = 30
 const SHARE_EPS = 1e-9
 
-// 月初に固定する holding 単位の集計 (A1: demand/wealth/unrest は month-start cache、capacity は live)。
+// 月初に固定する holding 単位の集計 (A1: demand/wealth/unrest は month-start cache)。
+//   capacity ceiling は構造由来で月内不変なので cache し、remaining は cache − live employed で求める。
 type HoldingMigrationCache = {
   demand: HoldingDemand
+  capacityByStratum: Record<PopStratum, number>
   avgWealthByPopType: Map<PopType, number>
   avgWealthByStratum: Partial<Record<PopStratum, number>>
   avgUnrest: number
@@ -82,7 +85,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
     const outflowCap = new Map<string, number>()
     const inflowCap = new Map<string, number>()
     for (const hid of holdingIds) {
-      const totalPop = sumHoldingPopSize(ws, hid)
+      const totalPop = getHoldingTotalPopSize(ws, hid)
       outflowCap.set(
         hid,
         Math.min(
@@ -113,14 +116,8 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         if (pressure < config.popMigrationPressureThreshold) continue
 
         const sourcePolity = sourceCache.terminalPolity
-        const stayRemaining = getHoldingClassRemainingCapacity(
-          ws,
-          config,
-          sourceHoldingId,
-          source.class,
-        )
+        const stayRemaining = remainingCapacity(sourceCache, ws, sourceHoldingId, source.class)
         const sourceScore = opportunityScore(
-          ws,
           config,
           source,
           sourceHoldingId,
@@ -136,15 +133,11 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         for (const targetHoldingId of holdingIds) {
           if (targetHoldingId === sourceHoldingId) continue
           if ((inflowCap.get(targetHoldingId) ?? 0) < minMove) continue
-          const remaining = getHoldingClassRemainingCapacity(
-            ws,
-            config,
-            targetHoldingId,
-            source.class,
-          )
+          const targetCache = cacheByHolding.get(targetHoldingId)
+          if (!targetCache) continue
+          const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.class)
           if (remaining <= 0) continue
           const score = opportunityScore(
-            ws,
             config,
             source,
             targetHoldingId,
@@ -231,7 +224,6 @@ function computeMigrationPressure(pop: PopGroup, cache: HoldingMigrationCache): 
 }
 
 function opportunityScore(
-  ws: WorldState,
   config: SimulationConfig,
   source: PopGroup,
   targetHoldingId: HoldingId,
@@ -242,7 +234,7 @@ function opportunityScore(
   const cache = cacheByHolding.get(targetHoldingId)
   if (!cache) return -Infinity
 
-  const capacity = getHoldingClassCapacity(ws, config, targetHoldingId, source.class)
+  const capacity = cache.capacityByStratum[source.class]
   const stratumVacancyScore = clamp(liveRemaining / Math.max(1, capacity), 0, 1)
 
   // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。
@@ -320,14 +312,19 @@ function buildHoldingCache(
   }
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
 
+  // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
+  const capacityByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
   let totalCapacity = 0
   for (const stratum of POP_STRATA) {
-    totalCapacity += getHoldingClassCapacity(state, config, holdingId, stratum)
+    const cap = getHoldingClassCapacity(state, config, holdingId, stratum)
+    capacityByStratum[stratum] = cap
+    totalCapacity += cap
   }
   const congestion = totalSize / Math.max(1, totalCapacity)
 
   return {
     demand,
+    capacityByStratum,
     avgWealthByPopType,
     avgWealthByStratum,
     avgUnrest,
@@ -336,11 +333,15 @@ function buildHoldingCache(
   }
 }
 
-function sumHoldingPopSize(ws: WorldState, holdingId: HoldingId): number {
-  let total = 0
-  for (const pid of ws.popIndex.byHolding[holdingId] ?? []) {
-    const p = ws.popGroups[pid]
-    if (p) total += p.size
-  }
-  return total
+// 月内不変の cache 済 capacity ceiling − live employed = 現在の残 capacity (heavy な再算出を回避)。
+function remainingCapacity(
+  cache: HoldingMigrationCache,
+  ws: WorldState,
+  holdingId: HoldingId,
+  popClass: PopStratum,
+): number {
+  return Math.max(
+    0,
+    cache.capacityByStratum[popClass] - getHoldingEmployedPopSize(ws, holdingId, popClass),
+  )
 }
