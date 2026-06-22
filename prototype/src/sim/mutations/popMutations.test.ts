@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { reduceProvincePopSizeProportional } from './popMutations'
+import {
+  reduceProvincePopSizeProportional,
+  movePopSizeToKeyMut,
+  addToOrCreatePopGroupMut,
+} from './popMutations'
 import { makeEmptyV016State, withProvince, withHolding } from '../testFixtures'
 import { createProvinceId, createHoldingId, createPopGroupId } from '../types/ids'
 import type { ProvinceId, HoldingId, PopGroupId } from '../types/ids'
@@ -75,5 +79,79 @@ describe('reduceProvincePopSizeProportional', () => {
     const wiped = reduceProvincePopSizeProportional(state, provinceId, 1, 'lower')
     expect(wiped.popGroups[createPopGroupId(0)]!.size).toBe(0)
     expect(wiped.popGroups[createPopGroupId(1)]!.size).toBe(0)
+  })
+})
+
+describe('v0.58 money 保存 (mobility/merge)', () => {
+  function moneyFixture(): { state: WorldState; holdingId: HoldingId; srcId: PopGroupId } {
+    const provinceId = createProvinceId('p', 0)
+    const holdingId = createHoldingId(0)
+    const srcId = createPopGroupId(0)
+    let state = makeEmptyV016State()
+    state = withProvince(state, provinceId)
+    state = withHolding(state, holdingId, provinceId)
+    const src: PopGroup = {
+      id: srcId,
+      holdingId,
+      class: 'lower',
+      popType: 'laborers',
+      employed: true,
+      size: 100,
+      wealth: 50,
+      money: 1000,
+      needSatisfaction: 50,
+      unrest: 0,
+      attitudes: {},
+    }
+    state = {
+      ...state,
+      popGroups: { [srcId]: src },
+      popIndex: { byHolding: { [holdingId]: [srcId] } },
+      nextPopGroupId: 1,
+    }
+    return { state, holdingId, srcId }
+  }
+
+  it('movePopSizeToKeyMut: 半分移動で money も半分移送 (total 保存)', () => {
+    const { state, holdingId, srcId } = moneyFixture()
+    movePopSizeToKeyMut(
+      state,
+      srcId,
+      { holdingId, class: 'lower', popType: 'peasants', employed: true },
+      50,
+    )
+    const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
+    expect(total).toBeCloseTo(1000, 6)
+    const moved = Object.values(state.popGroups).find((p) => p.popType === 'peasants')
+    expect(moved?.money).toBeCloseTo(500, 6)
+    expect(state.popGroups[srcId]?.money).toBeCloseTo(500, 6)
+  })
+
+  it('movePopSizeToKeyMut: source 全量移動 (sliver bump) でも total 保存', () => {
+    const { state, holdingId, srcId } = moneyFixture()
+    movePopSizeToKeyMut(
+      state,
+      srcId,
+      { holdingId, class: 'lower', popType: 'peasants', employed: true },
+      100,
+    )
+    const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
+    expect(total).toBeCloseTo(1000, 6)
+    expect(state.popGroups[srcId]).toBeUndefined() // source は drain で除去
+  })
+
+  it('addToOrCreatePopGroupMut: 同 key merge で money は sum (平均でなく)', () => {
+    const { state, holdingId, srcId } = moneyFixture()
+    const incoming: PopGroup = { ...state.popGroups[srcId]!, id: createPopGroupId(99), money: 200 }
+    addToOrCreatePopGroupMut(state, {
+      holdingId,
+      class: 'lower',
+      popType: 'laborers',
+      employed: true,
+      size: 50,
+      inheritFrom: incoming,
+    })
+    // 既存 laborers (money 1000) に incoming 比例分 (money 200) が sum される。
+    expect(state.popGroups[srcId]?.money).toBeCloseTo(1200, 6)
   })
 })

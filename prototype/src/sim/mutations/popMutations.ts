@@ -194,12 +194,21 @@ export function addToOrCreatePopGroupMut(
 
         const sourceWealth = input.inheritFrom?.wealth ?? 50
         const sourceUnrest = input.inheritFrom?.unrest ?? 10
+        const sourceNeedSat = input.inheritFrom?.needSatisfaction ?? 50
         const sourceAttitudes = input.inheritFrom?.attitudes ?? {}
 
         ws.popGroups[popId] = {
           ...existing,
           size: newSize,
           wealth: clamp((existing.wealth * oldSize + sourceWealth * input.size) / newSize, 0, 100),
+          // v0.58: money は extensive → sum (incoming は比例分が inheritFrom.money で渡る)。
+          money: existing.money + (input.inheritFrom?.money ?? 0),
+          // v0.58: needSatisfaction は intensive → size 加重平均。
+          needSatisfaction: clamp(
+            (existing.needSatisfaction * oldSize + sourceNeedSat * input.size) / newSize,
+            0,
+            100,
+          ),
           unrest: clamp((existing.unrest * oldSize + sourceUnrest * input.size) / newSize, 0, 100),
           attitudes: mergeAttitudesWeightedBySize([
             { attitudes: existing.attitudes, size: oldSize },
@@ -336,6 +345,10 @@ export function movePopSizeToKeyMut(
   const incomingWealth = options?.incomingWealthOverride ?? source.wealth
   const incomingUnrest = options?.incomingUnrestOverride ?? source.unrest
 
+  // v0.58: money は extensive。移送 size 比で按分 (per-capita 保存)。
+  //   inheritFrom の { ...source } は source.money を全額コピーするため、必ず比例分で上書きする。
+  const movedMoney = source.size > 0 ? source.money * (actualAmount / source.size) : 0
+
   // §5.2(8-9): target へ merge-or-create。合成 inheritFrom で override を両パスに反映。
   const targetPopId = addToOrCreatePopGroupMut(ws, {
     holdingId: target.holdingId,
@@ -343,7 +356,7 @@ export function movePopSizeToKeyMut(
     popType: target.popType,
     employed: target.employed,
     size: actualAmount,
-    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest },
+    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest, money: movedMoney },
   })
 
   // §5.2(10-12): source から actualAmount を減らす。byHolding も整合。
@@ -354,9 +367,16 @@ export function movePopSizeToKeyMut(
   if (!updatedSource) return targetPopId
   const remainingSize = updatedSource.size - actualAmount
   if (remainingSize <= POP_MOBILITY_SOURCE_FLOOR_DEFAULT) {
+    // ここに来るのは sliver bump で actualAmount=source.size となり movedMoney=全額の場合のみ
+    //   (minSourceSize が実 floor のときは remaining>=floor で else 側)。money は全量移送済み。
     removePopGroupMut(ws, sourcePopId)
   } else {
-    ws.popGroups[sourcePopId] = { ...updatedSource, size: remainingSize }
+    // v0.58: 残量から移送分 money を減算 (per-capita 保存)。
+    ws.popGroups[sourcePopId] = {
+      ...updatedSource,
+      size: remainingSize,
+      money: updatedSource.money - movedMoney,
+    }
   }
 
   return targetPopId
