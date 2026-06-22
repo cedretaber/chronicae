@@ -49,7 +49,7 @@ import {
 } from './shared/widgets'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { PolityLink, HouseLink, PersonLink } from './shared/links'
-import { formatScore, formatPower, formatAmount } from '@/app/utils/format'
+import { formatScore, formatPower } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { getChronicleEntriesForProvince } from '@sim/selectors/chronicleSelectors'
@@ -491,37 +491,7 @@ export function ProvinceDetail({
         </>
       )}
 
-      {currentState?.monthlyPopMobility?.byState[province.stateId] ? (
-        <>
-          <DetailSection title={t('detail.popMobility.section_title')} />
-          <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
-            <div className="flex justify-between">
-              <span>{t('detail.popMobility.job_changed')}</span>
-              <span>
-                {formatAmount(
-                  currentState.monthlyPopMobility.byState[province.stateId]!.jobChanged,
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>{t('detail.popMobility.migrated_in')}</span>
-              <span>
-                {formatAmount(
-                  currentState.monthlyPopMobility.byState[province.stateId]!.migratedIn,
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>{t('detail.popMobility.migrated_out')}</span>
-              <span>
-                {formatAmount(
-                  currentState.monthlyPopMobility.byState[province.stateId]!.migratedOut,
-                )}
-              </span>
-            </div>
-          </div>
-        </>
-      ) : null}
+      {/* v0.56: POP 流動は Holding 詳細 (移住) / POP 詳細 (昇格・降格・転職) に集約。Province には出さない。 */}
 
       <DetailSection title={t('detail.province.revolt_risk')} />
       <div className="text-sm">

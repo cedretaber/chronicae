@@ -260,6 +260,9 @@ export type SimulationConfig = {
   // v0.56 POP 転職・移住 (spec-v056-update.md §15)
   //   common
   popMobilityMinMoveAmount: number
+  // 月次 snapshot に保持する移動レコードの安全上限。per-Holding / per-POP の drill-down UI が
+  //   先月分を完全に再構成できるよう、実質 store-all となる高い値にする (truncate は read-model の
+  //   欠落を生むだけで sim ロジックには無影響)。snapshot は毎月上書きで累積しない。
   popMobilityTopMovementLimit: number
   //   job change (cap は holding 人口比率 + hard cap, C2)
   popJobChangeMaxFractionPerHoldingPerMonth: number
@@ -1731,7 +1734,8 @@ export const defaultConfig: SimulationConfig = {
   popSizeEpsilon: 0.01,
   // v0.56 POP 転職・移住 (§15。初期値。長期 seed 観察で調整)
   popMobilityMinMoveAmount: 0.01,
-  popMobilityTopMovementLimit: 20,
+  // store-all 相当 (実測: tiny ~80, small ~411, standard ~1-2k movements/月)。per-entity UI の完全性確保。
+  popMobilityTopMovementLimit: 4000,
   popJobChangeMaxFractionPerHoldingPerMonth: 0.001,
   popJobChangeMaxPerHoldingPerMonthHardCap: 0.15,
   popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.01 },

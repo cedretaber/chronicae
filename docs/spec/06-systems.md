@@ -178,7 +178,12 @@ EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が rec
 
 - **PopEmploymentNormalizeSystem**: mobility 後に全 holding へ `normalizePopEmploymentMut` を再適用（capacity 整合の保険）。
 
-- **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（上位 N 件、PopJobChange が初期化・PopMigration が append して bounded top-N merge）。Province/Holding detail UI が表示。SimEvent / Chronicle には出さない（月次大量発生のため）。
+- **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（PopJobChange が初期化・PopMigration が append して merge）。各 entry は `kind`（'job_change' | 'migration'）/ `amount` / source・target holding / from・to popType / from・to employed を持つ。**UI 表示（v0.56 UI 改修）**:
+  - **Holding detail** = 移住のみ。topMovements の migration entry をこの holding に出入りする相手 holding 別に集計し「流入元 / 流出先」を表示（相手 holding はクリックで遷移）。
+  - **POP detail** = 階層移動・転職。topMovements の job_change entry のうちこの POP を target/source とするものを相手職種別に集計し、`classifyMobilityKind(from, to)` で昇格/降格/転職に分類して「転入 / 転出」を表示。
+  - **Province detail** には出さない（v0.56 UI 改修で state 集計セクションを撤去。情報は Holding/POP に集約）。
+  - **bound**: 旧 global top-N（20）は per-entity drill-down で大半の小移動を捨てるため（実測 small で月 ~411 件 → 95% 喪失）、`popMobilityTopMovementLimit` を **store-all 相当の高い safety cap（4000）** に引き上げ、先月分を per-Holding / per-POP で完全に再構成できるようにした。snapshot は毎月上書きで累積しないため state 肥大化はしない。
+  - SimEvent / Chronicle には出さない（月次大量発生のため）。
 
 - **IntegrityCheck**: 既存の POP 不変条件（stratum 整合・merge key 一意・byHolding 整合・wealth/unrest clamp）で十分。capacity 整合は normalize が運用上保証し hard invariant にはしない（成長後の一時超過で誤検知を避ける）。
 

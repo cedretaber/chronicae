@@ -640,13 +640,18 @@ detail:
 
   # プロヴィンス詳細
   popMobility:
-    section_title: 'POP 流動 (国・月次)'
-    holding_section_title: 'POP 流動 (この holding)'
-    job_changed: '転職'
-    migrated_in: '流入'
-    migrated_out: '流出'
-    kind_job_change: '転職'
-    kind_migration: '移住'
+    # Holding 詳細 — 移住 (先月)、相手 Holding 別
+    migration_section_title: '移住 (先月)'
+    migration_in_from: '流入元'
+    migration_out_to: '流出先'
+    # POP 詳細 — 階層移動・転職 (先月)、この POP への転入/転出
+    pop_section_title: '階層移動・転職 (先月)'
+    pop_inflow: '転入'
+    pop_outflow: '転出'
+    kind_lateral: '転職'
+    kind_promotion: '昇格'
+    kind_demotion: '降格'
+    none: '先月の移動なし'
   province:
     state: '州域'
     terminal_polity: '最終支配国'

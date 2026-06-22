@@ -1,10 +1,15 @@
 import type { Holding } from '@/sim/types/landContract'
+import type { HoldingId } from '@/sim/types/ids'
 import type { SimulationSession } from '@/sim/types/world'
 import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import {
+  getPolityShortName,
+  getHoldingQualifiedName,
+  getHoldingShortName,
+} from '@/app/hooks/entityNameHelpers'
 import {
   PanelHeader,
   CopyJsonButton,
@@ -56,6 +61,7 @@ export function HoldingDetail({
   onPersonClick,
   onHouseClick,
   onProvinceClick,
+  onHoldingClick,
   onPopGroupClick,
   onRealEstateClick,
 }: {
@@ -65,6 +71,7 @@ export function HoldingDetail({
   onPersonClick: (id: string) => void
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
+  onHoldingClick: (id: string) => void
   onPopGroupClick: (id: string) => void
   onRealEstateClick: (id: string) => void
 }) {
@@ -271,39 +278,65 @@ export function HoldingDetail({
           )
         })()}
 
+      {/* v0.56: 移住 (先月)。相手 Holding 別に流入元・流出先を集計。job_change は POP 詳細に集約。 */}
       {currentState?.monthlyPopMobility
         ? (() => {
-            const moves = currentState.monthlyPopMobility.topMovements.filter(
-              (m) =>
-                (m.sourceHoldingId as string) === (holding.id as string) ||
-                (m.targetHoldingId as string) === (holding.id as string),
+            const inflow = new Map<string, number>()
+            const outflow = new Map<string, number>()
+            for (const m of currentState.monthlyPopMobility.topMovements) {
+              if (m.kind !== 'migration' || !m.targetHoldingId) continue
+              if ((m.targetHoldingId as string) === (holding.id as string)) {
+                const k = m.sourceHoldingId as string
+                inflow.set(k, (inflow.get(k) ?? 0) + m.amount)
+              } else if ((m.sourceHoldingId as string) === (holding.id as string)) {
+                const k = m.targetHoldingId as string
+                outflow.set(k, (outflow.get(k) ?? 0) + m.amount)
+              }
+            }
+            const inRows = [...inflow.entries()].sort((a, b) => b[1] - a[1])
+            const outRows = [...outflow.entries()].sort((a, b) => b[1] - a[1])
+            const isEmpty = inRows.length === 0 && outRows.length === 0
+            const counterpartRow = (counterpartId: string, amount: number, dir: 'in' | 'out') => (
+              <div
+                key={`${dir}-${counterpartId}`}
+                className="flex justify-between rounded bg-gray-700 p-1.5"
+              >
+                <span>
+                  <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
+                    {t(
+                      dir === 'in'
+                        ? 'detail.popMobility.migration_in_from'
+                        : 'detail.popMobility.migration_out_to',
+                    )}
+                  </span>{' '}
+                  <button
+                    className="cursor-pointer text-blue-400 hover:text-blue-300"
+                    onClick={() => onHoldingClick(counterpartId)}
+                  >
+                    {getHoldingShortName(currentState, resolveName, counterpartId as HoldingId)}
+                  </button>
+                </span>
+                <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
+                  {dir === 'in' ? '+' : '−'}
+                  {formatAmount(amount)}
+                </span>
+              </div>
             )
-            if (moves.length === 0) return null
             return (
-              <>
+              <div className="text-sm">
                 <DetailSection
-                  title={t('detail.popMobility.holding_section_title')}
-                  count={moves.length}
+                  title={t('detail.popMobility.migration_section_title')}
+                  count={inRows.length + outRows.length}
                 />
-                <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
-                  {moves.map((m, i) => (
-                    <div key={i} className="flex justify-between rounded bg-gray-700 p-1.5">
-                      <span>
-                        {t(`detail.province.pop_type.${m.fromPopType}`, {
-                          defaultValue: m.fromPopType,
-                        })}{' '}
-                        →{' '}
-                        {t(`detail.province.pop_type.${m.toPopType}`, {
-                          defaultValue: m.toPopType,
-                        })}
-                      </span>
-                      <span>
-                        {t(`detail.popMobility.kind_${m.kind}`)} {formatAmount(m.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
+                {isEmpty ? (
+                  <div className="mt-1 text-xs text-gray-500">{t('detail.popMobility.none')}</div>
+                ) : (
+                  <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
+                    {inRows.map(([hid, amt]) => counterpartRow(hid, amt, 'in'))}
+                    {outRows.map(([hid, amt]) => counterpartRow(hid, amt, 'out'))}
+                  </div>
+                )}
+              </div>
             )
           })()
         : null}

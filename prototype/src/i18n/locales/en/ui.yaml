@@ -537,13 +537,18 @@ detail:
 
   # Province detail
   popMobility:
-    section_title: 'POP Mobility (state, monthly)'
-    holding_section_title: 'POP Mobility (this holding)'
-    job_changed: 'Job changes'
-    migrated_in: 'Migrated in'
-    migrated_out: 'Migrated out'
-    kind_job_change: 'job'
-    kind_migration: 'migration'
+    # Holding detail — migration (last month), grouped by counterpart holding
+    migration_section_title: 'Migration (last month)'
+    migration_in_from: 'In from'
+    migration_out_to: 'Out to'
+    # POP detail — stratum mobility / lateral job change (last month), in/out of this POP
+    pop_section_title: 'Mobility & Job Change (last month)'
+    pop_inflow: 'In'
+    pop_outflow: 'Out'
+    kind_lateral: 'job change'
+    kind_promotion: 'promotion'
+    kind_demotion: 'demotion'
+    none: 'No moves last month'
   province:
     state: 'State'
     terminal_polity: 'Terminal Polity'

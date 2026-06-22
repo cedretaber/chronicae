@@ -1,12 +1,15 @@
-import type { PopGroup } from '@/sim/types/popGroup'
+import type { PopGroup, PopType } from '@/sim/types/popGroup'
+import { getPopStratum } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
-import { CopyJsonButton, AttitudeList } from './shared/widgets'
+import { CopyJsonButton, AttitudeList, DetailSection } from './shared/widgets'
 import { getHoldingClassCapacity } from '@sim/selectors/popSelectors'
+import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
+import { formatAmount } from '@/app/utils/format'
 import { defaultConfig } from '@sim/config/defaultConfig'
 
 export function PopGroupDetail({
@@ -97,6 +100,80 @@ export function PopGroupDetail({
           </div>
         </div>
       )}
+
+      {/* v0.56: 階層移動・転職 (先月)。この POP への転入 (昇格/降格/転職で来た) と転出を相手職種別に集計。 */}
+      {currentState?.monthlyPopMobility &&
+        (() => {
+          const inflow = new Map<PopType, number>() // key: 転入元 popType
+          const outflow = new Map<PopType, number>() // key: 転出先 popType
+          for (const m of currentState.monthlyPopMobility.topMovements) {
+            if (m.kind !== 'job_change') continue
+            if ((m.sourceHoldingId as string) !== (popGroup.holdingId as string)) continue
+            if (m.toPopType === popGroup.popType && m.toEmployed === popGroup.employed) {
+              inflow.set(m.fromPopType, (inflow.get(m.fromPopType) ?? 0) + m.amount)
+            }
+            if (m.fromPopType === popGroup.popType && m.fromEmployed === popGroup.employed) {
+              outflow.set(m.toPopType, (outflow.get(m.toPopType) ?? 0) + m.amount)
+            }
+          }
+          const inRows = [...inflow.entries()].sort((a, b) => b[1] - a[1])
+          const outRows = [...outflow.entries()].sort((a, b) => b[1] - a[1])
+          const isEmpty = inRows.length === 0 && outRows.length === 0
+          const row = (counterpart: PopType, amount: number, dir: 'in' | 'out') => {
+            const kind =
+              dir === 'in'
+                ? classifyMobilityKind(counterpart, popGroup.popType)
+                : classifyMobilityKind(popGroup.popType, counterpart)
+            const tone =
+              kind === 'promotion'
+                ? 'text-emerald-400'
+                : kind === 'demotion'
+                  ? 'text-rose-400'
+                  : 'text-sky-400'
+            return (
+              <div
+                key={`${dir}-${counterpart}`}
+                className="flex justify-between rounded bg-gray-700 p-1.5"
+              >
+                <span>
+                  <span className="text-gray-400">
+                    {t(
+                      dir === 'in'
+                        ? 'detail.popMobility.pop_inflow'
+                        : 'detail.popMobility.pop_outflow',
+                    )}
+                  </span>{' '}
+                  <span className={tone}>{t(`detail.popMobility.kind_${kind}`)}</span>{' '}
+                  {t(`detail.province.pop_type.${counterpart}`, { defaultValue: counterpart })}
+                  <span className="text-gray-500">
+                    {' '}
+                    ({t(`detail.province.${getPopStratum(counterpart)}`)})
+                  </span>
+                </span>
+                <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
+                  {dir === 'in' ? '+' : '−'}
+                  {formatAmount(amount)}
+                </span>
+              </div>
+            )
+          }
+          return (
+            <div className="text-sm">
+              <DetailSection
+                title={t('detail.popMobility.pop_section_title')}
+                count={inRows.length + outRows.length}
+              />
+              {isEmpty ? (
+                <div className="mt-1 text-xs text-gray-500">{t('detail.popMobility.none')}</div>
+              ) : (
+                <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
+                  {inRows.map(([pt, amt]) => row(pt, amt, 'in'))}
+                  {outRows.map(([pt, amt]) => row(pt, amt, 'out'))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.person.attitudes')}:</div>
       <AttitudeList
