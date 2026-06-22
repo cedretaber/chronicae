@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   reduceProvincePopSizeProportional,
   movePopSizeToKeyMut,
+  movePopEmploymentMut,
   addToOrCreatePopGroupMut,
 } from './popMutations'
 import { makeEmptyV016State, withProvince, withHolding } from '../testFixtures'
@@ -138,6 +139,16 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
     const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
     expect(total).toBeCloseTo(1000, 6)
     expect(state.popGroups[srcId]).toBeUndefined() // source は drain で除去
+  })
+
+  it('movePopEmploymentMut: 雇用状態変更で money は比例移送 (複製しない・total 保存)', () => {
+    const { state, srcId } = moneyFixture()
+    movePopEmploymentMut(state, { sourcePopId: srcId, targetEmployed: false, size: 50 })
+    const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
+    expect(total).toBeCloseTo(1000, 6) // 複製されない
+    const moved = Object.values(state.popGroups).find((p) => !p.employed)
+    expect(moved?.money).toBeCloseTo(500, 6)
+    expect(state.popGroups[srcId]?.money).toBeCloseTo(500, 6)
   })
 
   it('addToOrCreatePopGroupMut: 同 key merge で money は sum (平均でなく)', () => {

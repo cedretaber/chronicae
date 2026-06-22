@@ -265,13 +265,17 @@ export function movePopEmploymentMut(
 
   const moveSize = Math.min(input.size, source.size)
 
+  // v0.58: money は extensive。移送 size 比で按分 (per-capita 保存)。inheritFrom の { ...source } は
+  //   source.money を全額コピーするため、必ず比例分で上書きしないと merge で money が複製される。
+  const movedMoney = source.size > 0 ? source.money * (moveSize / source.size) : 0
+
   const targetPopId = addToOrCreatePopGroupMut(ws, {
     holdingId: source.holdingId,
     class: source.class,
     popType: source.popType,
     employed: input.targetEmployed,
     size: moveSize,
-    inheritFrom: source,
+    inheritFrom: { ...source, money: movedMoney },
   })
 
   // Re-read source after mutation (addToOrCreatePopGroupMut may have modified it)
@@ -280,9 +284,15 @@ export function movePopEmploymentMut(
 
   const remainingSize = updatedSource.size - moveSize
   if (remainingSize <= 0.01) {
+    // 残量が sliver。moveSize≈source.size なので movedMoney≈全額。微小残 money は許容 burn。
     removePopGroupMut(ws, input.sourcePopId)
   } else {
-    ws.popGroups[input.sourcePopId] = { ...updatedSource, size: remainingSize }
+    // v0.58: 残量から移送分 money を減算 (per-capita 保存)。
+    ws.popGroups[input.sourcePopId] = {
+      ...updatedSource,
+      size: remainingSize,
+      money: updatedSource.money - movedMoney,
+    }
   }
 
   return targetPopId
