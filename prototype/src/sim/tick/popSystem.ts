@@ -158,10 +158,16 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const finalWealth = clamp(newWealth, 0, 100)
     const finalUnrest = clamp(newUnrest, 0, 100)
 
+    // v0.58: money は extensive。死亡 (size 減) は per-capita 保存のため比例 burn、
+    //   出生 (size 増) は money 据え置き (per-capita 希釈・相続なし)。
+    const newMoney =
+      finalSize < pop.size && pop.size > 0 ? pop.money * (finalSize / pop.size) : pop.money
+
     ws.popGroups[pop.id] = {
       ...pop,
       size: finalSize,
       wealth: finalWealth,
+      money: newMoney,
       unrest: finalUnrest,
     }
   }
