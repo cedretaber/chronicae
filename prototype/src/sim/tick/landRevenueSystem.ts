@@ -1,7 +1,6 @@
 import type { TickContext } from './context'
 import type { ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { governanceCompetence } from '../selectors/abilitySelectors'
 import type { AssetOwnerRef } from '../types/realEstateAsset'
@@ -79,10 +78,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const province = ctx.state.provinces[provinceId]
     if (!province) continue
 
-    let provinceCollected = 0
-    // v0.54 §17.3: retainedRatio 分母を resource snapshot 由来の holding taxable 合計に同期する。
-    let provinceTaxable = 0
-
     for (const holdingId of province.holdingIds) {
       const holding = draft.holdings[holdingId]
       if (!holding) continue
@@ -116,7 +111,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           holdingTaxable += ownerIncome - paid
         }
       }
-      provinceTaxable += holdingTaxable
       if (holdingTaxable <= 0) continue
       const revenueAfterOwnerIncome = holdingTaxable
 
@@ -125,12 +119,10 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
 
       if (!assignmentId) {
         remittanceToTerminal = revenueAfterOwnerIncome
-        provinceCollected += revenueAfterOwnerIncome
       } else {
         const assignment = draft.holdingOfficeAssignments[assignmentId]
         if (!assignment || !assignment.active) {
           remittanceToTerminal = revenueAfterOwnerIncome
-          provinceCollected += revenueAfterOwnerIncome
         } else {
           const recentTaskStatus = getRecentBailiffRevenueTaskStatus(draft, assignmentId)
           const localExtractionRate = getBailiffLocalExtractionRate(draft, ctx.config, assignmentId)
@@ -144,7 +136,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
           const bailiffFee = collected * bailiffFeeRate
           remittanceToTerminal = collected - bailiffFee
-          provinceCollected += collected
 
           if (!isPlaceholderPerson(draft, assignment.holderPersonId) && bailiffFee > 0) {
             const holder = draft.persons[assignment.holderPersonId]
@@ -162,19 +153,21 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           const popIds = draft.popIndex.byHolding[holdingId]
           if (popIds) {
             if (burdenComponents.collectionFrictionBurdenRate > 0) {
+              // v0.58: 苛斂誅求の welfare 圧迫は needSatisfaction を削る (wealth 退役)。
+              //   localExtractionWealthPenalty は係数として流用 (welfare ペナルティ)。
               for (const popId of popIds) {
                 const pop = draft.popGroups[popId]
                 if (!pop) continue
-                const newWealth = clamp(
-                  pop.wealth -
+                const newSat = clamp(
+                  pop.needSatisfaction -
                     burdenComponents.collectionFrictionBurdenRate *
                       ctx.config.localExtractionWealthPenalty *
-                      (pop.wealth / 100),
+                      (pop.needSatisfaction / 100),
                   0,
                   100,
                 )
-                if (newWealth !== pop.wealth) {
-                  draft.popGroups[popId] = { ...pop, wealth: newWealth }
+                if (newSat !== pop.needSatisfaction) {
+                  draft.popGroups[popId] = { ...pop, needSatisfaction: newSat }
                 }
               }
             }
@@ -281,29 +274,9 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       }
     }
 
-    // v0.54 §17.3.1: POP retained = holding taxable (bailiff 徴収前) − bailiff collected。
-    //   owner income は POP の手元に残った富ではないので分子・分母とも taxable から除外済み。
-    //   分母も同一 resource snapshot 由来 (provinceTaxable) に同期 (live 再計算を混ぜない)。
-    const retainedToPop = Math.max(0, provinceTaxable - provinceCollected)
-    const retainedRatio = provinceTaxable > 0 ? retainedToPop / provinceTaxable : 0
-    const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
-    const popClasses: PopClass[] = ['lower', 'middle', 'upper']
-
-    // 旧 adjustProvincePopWealthByClass と同一挙動 (class 一致 pop のみ clamp 0..100、不変なら skip)。
-    for (const popClass of popClasses) {
-      const delta = retainedRatio * retainedWealthGainByClass[popClass]
-      for (const holdingId of province.holdingIds) {
-        const popIds = draft.popIndex.byHolding[holdingId]
-        if (!popIds) continue
-        for (const popGroupId of popIds) {
-          const pop = draft.popGroups[popGroupId]
-          if (!pop || pop.class !== popClass) continue
-          const newWealth = clamp(pop.wealth + delta, 0, 100)
-          if (newWealth === pop.wealth) continue
-          draft.popGroups[popGroupId] = { ...pop, wealth: newWealth }
-        }
-      }
-    }
+    // v0.58: 旧 retainedToPop wealth-gain ループは廃止。POP の所得チャネルは賃金 (ResourceEconomy の
+    //   wage mint) に一本化した。徴税後に POP 手元へ残る分を wealth 指数に足す擬似所得は不要。
+    //   (これに伴い provinceTaxable / provinceCollected の集計も除去した。)
   }
 
   const newPolities = { ...draft.polities }

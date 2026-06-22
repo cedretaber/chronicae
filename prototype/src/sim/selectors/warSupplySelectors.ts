@@ -7,7 +7,7 @@ import { getRoleScore } from './abilitySelectors'
 import type { AppliedRoleKey } from './abilitySelectors'
 import { isEligibleWarPerson } from './warManeuverSelectors'
 import { getPolityWarCandidatePersonIds } from './warManeuverSelectors'
-import { getProvinceAveragePopWealth } from './popSelectors'
+import { getProvinceAveragePopNeedSatisfaction } from './popSelectors'
 import {
   getProvinceDevelopmentFromHoldings,
   getProvincePolityControlFromHoldings,
@@ -124,7 +124,7 @@ export function computeSupplyAccess(
 
   const raw =
     config.warSupplyAccessBase +
-    getProvinceAveragePopWealth(state, provinceId) * config.warSupplyAccessWealthFactor +
+    getProvinceAveragePopNeedSatisfaction(state, provinceId) * config.warSupplyAccessWealthFactor +
     getProvinceDevelopmentFromHoldings(state, provinceId, config) *
       config.warSupplyAccessDevelopmentFactor +
     getProvincePolityControlFromHoldings(state, provinceId) * config.warSupplyAccessControlFactor +
