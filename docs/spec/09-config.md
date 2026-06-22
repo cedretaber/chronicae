@@ -694,10 +694,10 @@
 | **RealEstateAsset（v0.52）** | | |
 | realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
 | ~~realEstateOwnerIncomeRate / realEstateKindIncomeWeight~~ | — | v0.54 廃止（旧 owner income path。owner 収入は per-asset netRevenue から realEstateHoldingDueRate で分配、§6.4.2） |
-| realEstateTerrainCapacityMultiplier | kind × terrain の乗数。例: field={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, pasture={plains:1.0,hills:1.3,mountains:0.8,forest:0.65,wetlands:0.4} | RealEstateAsset の容量に対する terrain 補正 |
-| realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
-| realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
-| developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
+| realEstateTerrainCapacityMultiplier | RealEstateKind × terrain の乗数（v0.55 kind: farm/mountain/woodland/workshop）。例: farm={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, mountain={mountains:1.3,hills:1.0,plains:0.4,forest:0.5,wetlands:0.3}, woodland={forest:1.3,hills:1.0,plains:0.5,mountains:0.6,wetlands:0.4}, workshop={plains:1.0,hills:0.9,forest:0.85,wetlands:0.75,mountains:0.7} | RealEstateAsset の容量に対する terrain 補正（assetTerm に乗算、未定義 → 1.0） |
+| realEstateFeatureCapacityMultiplier | RealEstateKind × feature の乗数（積を clamp 0.75–1.50）。例: farm={major_river:1.1,lake:1.05}, mountain={}, woodland={major_river:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
+| realEstateInfrastructureModifiers | RealEstateKind → [{infraKind, modifierPerLevel}]。farm=[{irrigation:0.15},{storage:0.1}], mountain=[{storage:0.1},{transport:0.1}], woodland=[{storage:0.1},{transport:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
+| developRealEstateProjectBaseCost | {farm:30, mountain:32, woodland:30, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
 | developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上（既存施設の満員度トリガ） |
 | developRealEstateEmploymentSlackThreshold | 5 | holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」（v0.55 §B）。満員でなくても新規開発/レベルアップで idle labor を雇用できるための追加トリガ。capacity pressure は employed/cap が高いほど立つので失業時は逆に立たず検出できない、その穴を埋める。develop_owned_holding 候補生成・develop_real_estate vs インフラのルーティング・house レベルアップ aim の3箇所に効く。スラック駆動かつ空きスロットありなら新規建設（level 1）を優先し空き枠を埋める |
 | developRealEstateEmploymentSlackScore | 15 | 雇用スラック駆動の develop_owned_holding 候補の基準スコア（capacity pressure 駆動の 15 に揃える） |

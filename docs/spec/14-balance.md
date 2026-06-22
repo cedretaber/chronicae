@@ -50,6 +50,10 @@ House / Person の wealth は際限なく蓄積する傾向がある。根本原
 
 ゲーム進行に伴い世界全体の生産力が低下していく傾向が観測されている。POP wealth 安定化で部分的に緩和されたが、Holding 改善の完了率が低いことと合わせ、経済が縮小再生産に陥る可能性が残る。
 
+### 14.1.5 地形 per-labor 生産ボーナスの将来課題（未実装）
+
+現状、terrain / feature が生産に効くのは **asset の雇用容量（capacity）経由のみ**（`realEstateTerrainCapacityMultiplier` 等、§6.3c / §9）であり、**1 労働あたり産出（`baseOutputPerLabor`）は地形非依存**。`ProductionRecipe` には `terrainOutputModifier`（地形 → per-labor 産出倍率）/ recipe 単位 `allowedTerrains` / `allowedFeatures` の型枠が用意されているが v0.55/56 では未配線（型のみ・enforce しない）。「水辺の漁場は高効率」「平原の穀物は高効率」のような地形特化を per-labor 生産性として表現したい場合に、これらを生産式へ配線する余地がある。同様に fishing_hut の水辺 feature ゲート（現状は内陸 farm でも採用可）も、配線するならこの将来枠で扱う。バランス確定後の検討事項。
+
 ---
 
 ## 14.2 Project バランス
