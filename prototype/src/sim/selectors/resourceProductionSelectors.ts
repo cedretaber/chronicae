@@ -176,8 +176,6 @@ export type AssetRecipePotential = {
   potentialInputs: Partial<Record<ResourceKind, number>>
   // category 単位の解決内訳 (§12.4 Liebig / §12.5 pro-rate 用)。
   inputCategories: ResolvedInputCategory[]
-  // §14.3 laborTypeFulfillmentModifier (outputModifier, floor..1)。観察用に持ち回る (snapshot 記録)。
-  laborTypeFulfillment: number
 }
 
 const basePriceLookup = (r: ResourceKind): number => RESOURCE_PRICE_DEFINITIONS[r].basePrice
@@ -331,8 +329,6 @@ export function computeAssetRecipePotentials(
       potentialOutputs,
       potentialInputs,
       inputCategories,
-      // v0.57: 労働構成の生産性 proxy (effectiveLabor × throughput)。observation/snapshot 用。
-      laborTypeFulfillment: labor.effectiveLaborMult * labor.throughputMult,
     })
   }
   return results

@@ -58,6 +58,7 @@ import {
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 
 export function HoldingDetail({
   holding,
@@ -199,8 +200,24 @@ export function HoldingDetail({
                   const minInputFulfill = inputRecipes.length
                     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
                     : null
-                  // v0.57: 労働充足は不動産単位で全レシピ同一なので asset 値をそのまま使う。
-                  const assetLaborFulfill = breakdown[0]?.laborTypeFulfillment ?? null
+                  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+                  let facEmployed = 0
+                  let facCapacity = 0
+                  for (const slot of REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                    .employmentSlots) {
+                    facEmployed += getHoldingEmployedPopSizeByType(
+                      currentState,
+                      holding.id,
+                      slot.popType,
+                    )
+                    facCapacity += getHoldingPopTypeCapacity(
+                      currentState,
+                      defaultConfig,
+                      holding.id,
+                      slot.popType,
+                    )
+                  }
+                  const facilityFill = facCapacity > 0 ? facEmployed / facCapacity : null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -283,10 +300,10 @@ export function HoldingDetail({
                               compact
                             />
                           )}
-                          {assetLaborFulfill !== null && (
+                          {facilityFill !== null && (
                             <FulfillmentBar
-                              label={t('detail.realEstate.labor_type_fulfillment')}
-                              value={assetLaborFulfill}
+                              label={t('detail.realEstate.employment_fill')}
+                              value={facilityFill}
                               compact
                             />
                           )}

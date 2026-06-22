@@ -118,6 +118,17 @@ export function RealEstateDetail({
       fill,
     }
   })
+  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+  const facilityFill = ((): number | null => {
+    if (!currentState) return null
+    let emp = 0
+    let cap = 0
+    for (const slot of def.employmentSlots) {
+      emp += getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
+      cap += getHoldingPopTypeCapacity(currentState, defaultConfig, asset.holdingId, slot.popType)
+    }
+    return cap > 0 ? emp / cap : null
+  })()
 
   // per-asset の月次産出・収支 (snapshot がある場合)。
   const revenueSnapshot = currentState?.monthlyHoldingResourceRevenue[asset.holdingId]
@@ -128,12 +139,10 @@ export function RealEstateDetail({
     .sort((a, b) => b.netRevenue - a.netRevenue || (a.recipeId < b.recipeId ? -1 : 1))
 
   // 入力充足はレシピごとに異なるため施設要約はボトルネック (最低レシピ) を取る (原材料を持つレシピのみ)。
-  //   労働充足 (v0.57) は不動産単位で全レシピ同一なので asset 値をそのまま使う (レシピ別表示はしない)。
   const inputRecipes = recipeBreakdown.filter((b) => Object.keys(b.inputs).length > 0)
   const minInputFulfill = inputRecipes.length
     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
     : null
-  const assetLaborFulfill = recipeBreakdown[0]?.laborTypeFulfillment ?? null
 
   // 資源の市場価格 (holding → province.stateId が StateRegion 市場)。基準価格比でレシピの黒字/赤字理由を示す。
   const holding = currentState?.holdings[asset.holdingId]
@@ -392,18 +401,18 @@ export function RealEstateDetail({
               </span>
             </div>
           </div>
-          {(minInputFulfill !== null || assetLaborFulfill !== null) && (
+          {(minInputFulfill !== null || facilityFill !== null) && (
             <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-1 text-xs">
+              {facilityFill !== null && (
+                <FulfillmentBar
+                  label={t('detail.realEstate.employment_fill')}
+                  value={facilityFill}
+                />
+              )}
               {minInputFulfill !== null && (
                 <FulfillmentBar
                   label={t('detail.realEstate.input_fulfillment_min')}
                   value={minInputFulfill}
-                />
-              )}
-              {assetLaborFulfill !== null && (
-                <FulfillmentBar
-                  label={t('detail.realEstate.labor_type_fulfillment')}
-                  value={assetLaborFulfill}
                 />
               )}
             </div>
