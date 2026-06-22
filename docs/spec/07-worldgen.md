@@ -33,15 +33,11 @@ config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInh
 
 各 **Holding** に PopStratum（lower / middle / upper）ごとの POP を生成する。POP サイズは stratum capacity に基づく。
 
-**v0.55**: 旧 3 class（peasants/townsmen/nobles）を **PopStratum × PopType** へ置換。各 stratum capacity を **PopType 比率**で分割し、PopType ごとに別 PopGroup を生成する（merge key に popType が入るため別管理、§13.3）。holding kind で比率を補正してよい（manor は peasants/freeholders/ministeriales 多め、city は laborers/artisans/masters/merchants/scribes/patricians 多め）。初期 PopType 分布:
+**v0.55（v0.57.1 で置換済み）**: 旧 3 class（peasants/townsmen/nobles）を **PopStratum × PopType** へ置換。各 stratum capacity を **PopType 比率**で分割し、PopType ごとに別 PopGroup を生成する（merge key に popType が入るため別管理、§13.3）。v0.55 では初期 PopType 分布を全 holding 共通の固定比率（`WORLDGEN_POP_TYPE_DISTRIBUTION`: lower peasants 55% / laborers 15% / artisans 15% / scribes 5% / soldiers 10%、middle freeholders 30% / masters 20% / merchants 20% / bureaucrats 10% / ministeriales 20%、upper nobles 60% / patricians 40%）で与えていた。
 
-```text
-lower:   peasants 55% / laborers 15% / artisans 15% / scribes 5% / soldiers 10%
-middle:  freeholders 30% / masters 20% / merchants 20% / bureaucrats 10% / ministeriales 20%
-upper:   nobles 60% / patricians 40%
-```
-
-holding あたりの PopGroup 数が増える（最大 ~12 type × employed/unemployed）。POP の転職・移住が無いため初期比率が極端に偏らないよう配慮する（soft modifier 方針のため局所的 type 不足は効率低下に留まり hard 失業にはならない、§14.3）。
+> **v0.57.1 で置換**: 固定職能分布は廃止し、**施設駆動の PopType ハード枠に比例した seed** に変更した（§6.x.v0.57「worldgen 初期配置も PopType 駆動」）。holding ごとに `computeHoldingAllPopTypeCapacities` で PopType 別容量を求め、`size = cap × fillRatio`（`fillRatio` は holding 単位 1 回抽選の 0.70–0.95）で seed する。**cap=0 の PopType は seed しない**（施設に枠の無い職能を播かないことで初期の構造的失業を解消）。雇用枠を持つ施設が無い holding のみ、ghost holding 回避のため最低限の小作農（unemployed）を 1 つ seed。wealth/unrest は従来どおり stratum 単位で抽選し同 stratum の全 PopType に適用（RNG draw 順不変）。
+>
+> なお v0.56 で転職・移住が、v0.57 で PopType 単位ハード枠（soft modifier 廃止）が入ったため、**現在は局所的な PopType 不足は hard 失業を生む**（旧記述「soft modifier 方針のため hard 失業にはならない」は無効）。初期比率が施設構成と一致するため初期失業は最小化される。
 
 **size の初期値**（class capacity ベース）:
 ```ts
@@ -55,13 +51,18 @@ const upperCap  = getHoldingClassCapacity(state, config, holdingId, 'upper')
 
 const fillRatio = rng.nextFloat(initialPopFillRatioMin, initialPopFillRatioMax) / 100
 
-// v0.55: 各 stratum の size を PopType 比率で分割し PopType ごとに PopGroup 生成
+// v0.55（v0.57.1 で置換）: 各 stratum の size を固定 PopType 比率で分割していた。
+//   現行 v0.57.1 は PopType 別容量で直接 seed する:
+//     for popType of POP_TYPES:
+//       cap = computeHoldingAllPopTypeCapacities(...)[popType]
+//       if cap <= 0: continue           // 枠の無い職能は播かない
+//       groups[popType].size = cap * fillRatio   // fillRatio<1 ⇒ size ≤ cap ⇒ employed:true 成立
 lowerGroups[t].size  = max(minPopSizeByClass.lower,  lowerCap  * fillRatio * lowerRatio[t])
 middleGroups[t].size = max(minPopSizeByClass.middle, middleCap * fillRatio * middleRatio[t])
 upperGroups[t].size  = max(minPopSizeByClass.upper,  upperCap  * fillRatio * upperRatio[t])
 ```
 
-全 POP は `employed: true` で生成する。worldgen では未就業（`employed: false`）POP を生成しない。
+POP は原則 `employed: true` で生成する（`size = cap × fillRatio ≤ cap` のため）。**例外（v0.57.1）**: 雇用枠を持つ施設が無い holding には、ghost holding 回避のため最低限の小作農を 1 つだけ `employed: false` で seed する。
 
 **wealth の初期値**（PopStratum ごとに差をつける）:
 ```ts

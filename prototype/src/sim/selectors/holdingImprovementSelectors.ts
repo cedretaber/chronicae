@@ -4,7 +4,8 @@ import type { HoldingId } from '../types/ids'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopClass } from '../types/popGroup'
+import type { PopClass, PopType } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
@@ -144,10 +145,29 @@ export function computeSlotOveruseModifier(
 // v0.52: capacity = (asset_term + infra_term) × weight
 // asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod × landQuality
 // infra_term = Σ(slot.capacityPerLevel × imp.level × conditionEffectiveness)
-// v0.54: 単一 asset・単一 class の slot 容量項 (capacityPerLevel × level × terrainMult ×
-//   featureMult × infraMod の slot 合計)。computeHoldingClassCapacity と
-//   getRealEstateAssetClassCapacityContribution が共有する (式の二重持ちを排除)。
-//   overuseMod / landQuality / weight など holding 共通項は呼び出し側で掛ける。
+// v0.57 §雇用細分化: slot は PopType キー。stratum 集計 (computeHoldingClassCapacity) は
+//   getPopStratum(slot.popType) で、PopType 別容量 (computeHoldingPopTypeCapacity) は slot.popType で
+//   フィルタする。per-slot の terrain/feature/infra 乗数は asset 共通なので一度だけ計算する。
+
+// asset 共通の容量乗数 (terrainMult × featureMult × infraMod)。slot 非依存。
+function assetCapacityMultiplier(
+  realEstateKind: RealEstateKind,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+): number {
+  const terrainMult = config.realEstateTerrainCapacityMultiplier[realEstateKind][terrain] ?? 1.0
+  let featureProduct = 1.0
+  for (const f of features) {
+    featureProduct *= config.realEstateFeatureCapacityMultiplier[realEstateKind][f] ?? 1.0
+  }
+  const featureMult = clamp(featureProduct, 0.75, 1.5)
+  const infraMod = computeInfrastructureModifier(realEstateKind, improvements, config)
+  return terrainMult * featureMult * infraMod
+}
+
+// v0.54: 単一 asset・単一 stratum の slot 容量項。overuseMod / landQuality / weight は呼び出し側。
 export function computeAssetSlotCapacityTerm(
   realEstateKind: RealEstateKind,
   level: number,
@@ -158,19 +178,65 @@ export function computeAssetSlotCapacityTerm(
   config: SimulationConfig,
 ): number {
   const def = REAL_ESTATE_DEFINITIONS[realEstateKind]
-  let term = 0
+  let perLevel = 0
   for (const slot of def.employmentSlots) {
-    if (slot.stratum !== popClass) continue
-    const terrainMult = config.realEstateTerrainCapacityMultiplier[realEstateKind][terrain] ?? 1.0
-    let featureProduct = 1.0
-    for (const f of features) {
-      featureProduct *= config.realEstateFeatureCapacityMultiplier[realEstateKind][f] ?? 1.0
-    }
-    const featureMult = clamp(featureProduct, 0.75, 1.5)
-    const infraMod = computeInfrastructureModifier(realEstateKind, improvements, config)
-    term += slot.capacityPerLevel * level * terrainMult * featureMult * infraMod
+    if (getPopStratum(slot.popType) !== popClass) continue
+    perLevel += slot.capacityPerLevel
   }
-  return term
+  if (perLevel <= 0) return 0
+  return (
+    perLevel *
+    level *
+    assetCapacityMultiplier(realEstateKind, terrain, features, improvements, config)
+  )
+}
+
+// v0.57: 単一 asset・単一 PopType の slot 容量項。
+export function computeAssetPopTypeCapacityTerm(
+  realEstateKind: RealEstateKind,
+  level: number,
+  popType: PopType,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+): number {
+  const def = REAL_ESTATE_DEFINITIONS[realEstateKind]
+  let perLevel = 0
+  for (const slot of def.employmentSlots) {
+    if (slot.popType !== popType) continue
+    perLevel += slot.capacityPerLevel
+  }
+  if (perLevel <= 0) return 0
+  return (
+    perLevel *
+    level *
+    assetCapacityMultiplier(realEstateKind, terrain, features, improvements, config)
+  )
+}
+
+// improvement establishment の単一 PopType 容量項 (condition effectiveness 込み)。
+function improvementPopTypeCapacityTerm(
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+  match: (popType: PopType) => boolean,
+): number {
+  let infraTerm = 0
+  for (const imp of improvements) {
+    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+    if (!impDef.employmentSlots) continue
+    for (const slot of impDef.employmentSlots) {
+      if (!match(slot.popType)) continue
+      let eff = conditionEffectiveness(
+        imp.condition,
+        config.facilityDisrepairThreshold,
+        config.facilityDisrepairMinEffectiveness,
+      )
+      if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
+      infraTerm += slot.capacityPerLevel * imp.level * eff
+    }
+  }
+  return infraTerm
 }
 
 export function computeHoldingClassCapacity(
@@ -202,23 +268,97 @@ export function computeHoldingClassCapacity(
   const overuseMod = slotOveruseModifier ?? 1.0
   assetTerm = assetTerm * overuseMod * landQuality
 
-  let infraTerm = 0
-  for (const imp of improvements) {
-    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
-    if (!impDef.employmentSlots) continue
-    for (const slot of impDef.employmentSlots) {
-      if (slot.stratum !== popClass) continue
-      let eff = conditionEffectiveness(
-        imp.condition,
-        config.facilityDisrepairThreshold,
-        config.facilityDisrepairMinEffectiveness,
+  const infraTerm = improvementPopTypeCapacityTerm(
+    improvements,
+    config,
+    (popType) => getPopStratum(popType) === popClass,
+  )
+
+  return (assetTerm + infraTerm) * weight
+}
+
+// v0.57 §雇用細分化: holding の単一 PopType 雇用容量。computeHoldingClassCapacity の PopType 版。
+//   asset 生産容量 (施設構成比で展開) + improvement establishment を PopType 単位で合算。
+export function computeHoldingPopTypeCapacity(
+  _holdingKind: HoldingKind,
+  weight: number,
+  landQuality: number,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+  popType: PopType,
+  assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
+  slotOveruseModifier?: number,
+): number {
+  let assetTerm = 0
+  if (assets && assets.length > 0) {
+    for (const asset of assets) {
+      assetTerm += computeAssetPopTypeCapacityTerm(
+        asset.realEstateKind,
+        asset.level,
+        popType,
+        terrain,
+        features,
+        improvements,
+        config,
       )
-      if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
-      infraTerm += slot.capacityPerLevel * imp.level * eff
+    }
+  }
+  const overuseMod = slotOveruseModifier ?? 1.0
+  assetTerm = assetTerm * overuseMod * landQuality
+
+  const infraTerm = improvementPopTypeCapacityTerm(improvements, config, (pt) => pt === popType)
+
+  return (assetTerm + infraTerm) * weight
+}
+
+// v0.57 §雇用細分化: holding の全 PopType 雇用容量を 1 パスで計算する (per-PopType 個別呼び出しの
+//   12x コストを避ける)。demand/rebalance が利用する。値は computeHoldingPopTypeCapacity と一致する。
+export function computeHoldingAllPopTypeCapacities(
+  weight: number,
+  landQuality: number,
+  terrain: ProvinceTerrain,
+  features: readonly ProvinceFeature[],
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
+  config: SimulationConfig,
+  assets: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
+  slotOveruseModifier?: number,
+): Partial<Record<PopType, number>> {
+  const result: Partial<Record<PopType, number>> = {}
+  const overuseMod = slotOveruseModifier ?? 1.0
+
+  for (const asset of assets) {
+    const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+    const mult = assetCapacityMultiplier(
+      asset.realEstateKind,
+      terrain,
+      features,
+      improvements,
+      config,
+    )
+    for (const slot of def.employmentSlots) {
+      const add = slot.capacityPerLevel * asset.level * mult * overuseMod * landQuality * weight
+      result[slot.popType] = (result[slot.popType] ?? 0) + add
     }
   }
 
-  return (assetTerm + infraTerm) * weight
+  for (const imp of improvements) {
+    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+    if (!impDef.employmentSlots) continue
+    let eff = conditionEffectiveness(
+      imp.condition,
+      config.facilityDisrepairThreshold,
+      config.facilityDisrepairMinEffectiveness,
+    )
+    if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
+    for (const slot of impDef.employmentSlots) {
+      const add = slot.capacityPerLevel * imp.level * eff * weight
+      result[slot.popType] = (result[slot.popType] ?? 0) + add
+    }
+  }
+
+  return result
 }
 
 // v0.33 §9.1: state 非依存の建設可否判定。worldgen 初期生成からも呼ぶ。

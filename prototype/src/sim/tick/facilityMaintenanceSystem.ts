@@ -6,7 +6,12 @@ import type { HoldingImprovement } from '../types/holdingImprovement'
 import type { HoldingImprovementId, EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import {
+  getHoldingEmployedPopSizeByType,
+  getHoldingPopTypeCapacity,
+} from '../selectors/popSelectors'
 import { getActiveBailiff } from '../selectors/bailiffSelectors'
+import { clamp } from '../utils/math'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { removeCrisisMut } from '../mutations/crisisMutations'
 import { spawnDisrepairCrisisMut, cancelActiveResponseProjectMut } from './crisisSystem'
@@ -133,6 +138,23 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
 
   let mutated = false
 
+  // v0.57 §雇用細分化: 改善の労働者 (維持役) による減衰緩和の coverage を holding 単位で memo 化。
+  //   coverage = employed laborers / laborer capacity (0..1)。holding ごとに 1 度だけ算出し
+  //   (改善ループ中の condition 減衰に依存しない・perf も改善)、同 holding の全改善で共有する。
+  const maintenanceCoverageByHolding = new Map<string, number>()
+  const getMaintenanceCoverage = (holdingId: HoldingImprovement['holdingId']): number => {
+    const key = holdingId as string
+    const cached = maintenanceCoverageByHolding.get(key)
+    if (cached !== undefined) return cached
+    const laborerCap = getHoldingPopTypeCapacity(ws, config, holdingId, 'laborers')
+    const coverage =
+      laborerCap > 0
+        ? clamp(getHoldingEmployedPopSizeByType(ws, holdingId, 'laborers') / laborerCap, 0, 1)
+        : 0
+    maintenanceCoverageByHolding.set(key, coverage)
+    return coverage
+  }
+
   // §2.1 減衰 → §2.2 閾値発火 → §2.3 破壊。走査は sort で順序固定 (採番決定性, §13-M_det)。
   for (const impIdStr of Object.keys(ws.holdingImprovements).sort()) {
     const impId = impIdStr as HoldingImprovementId
@@ -141,7 +163,9 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
 
     // §2.1 condition 減衰 (level 比例)。必ず per-object spread で書く (Record clone だけでは
     //   オブジェクト本体が共有参照のまま → 前 tick state 破壊 → bit-identical 違反)。
-    const decay = config.facilityConditionDecayPerCyclePerLevel * imp.level
+    const maintenanceFactor =
+      1 - config.facilityMaintenanceDecayReductionMax * getMaintenanceCoverage(imp.holdingId)
+    const decay = config.facilityConditionDecayPerCyclePerLevel * imp.level * maintenanceFactor
     const newCondition = Math.max(0, imp.condition - decay)
     if (newCondition !== imp.condition) {
       ws.holdingImprovements[impId] = { ...imp, condition: newCondition }

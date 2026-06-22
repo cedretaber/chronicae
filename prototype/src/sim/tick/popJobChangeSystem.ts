@@ -6,10 +6,13 @@ import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import type { PopTargetKey, PopMobilitySnapshotEntry, PopMobilityKind } from '../types/popMobility'
-import { getHoldingClassRemainingCapacity, getHoldingTotalPopSize } from '../selectors/popSelectors'
+import {
+  getHoldingPopTypeRemainingCapacity,
+  getHoldingTotalPopSize,
+} from '../selectors/popSelectors'
 import {
   computeHoldingPopTypeDemand,
-  computeStratumWealthQuantiles,
+  computePopTypeWealthQuantiles,
 } from '../selectors/popMobilitySelectors'
 import { allowedTargetsFor, classifyMobilityKind } from '../config/popMobilityDefinitions'
 import { movePopSizeToKeyMut } from '../mutations/popMutations'
@@ -19,7 +22,7 @@ import {
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
 
-type WealthQuantiles = ReturnType<typeof computeStratumWealthQuantiles>
+type WealthQuantiles = ReturnType<typeof computePopTypeWealthQuantiles>
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 
 type JobChangeCandidate = {
@@ -52,7 +55,7 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
   for (const stateId of Object.keys(ctx.state.states).sort()) {
     quantilesByState.set(
       stateId,
-      computeStratumWealthQuantiles(ctx.state, stateId as StateRegionId),
+      computePopTypeWealthQuantiles(ctx.state, stateId as StateRegionId),
     )
   }
 
@@ -211,7 +214,7 @@ function evaluateCandidate(
     if (!(sourceSurplus > 0 || !source.employed)) return undefined
     const increasesHeadcount = !source.employed // same stratum, target employed → only unemployed→employed grows headcount
     const remainingCap = increasesHeadcount
-      ? getHoldingClassRemainingCapacity(ws, config, holdingId, targetStratum)
+      ? getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
       : Infinity
     if (increasesHeadcount && remainingCap <= 0) return undefined
     const maxAmount = Math.min(movableBySize, targetShortage, remainingCap, movableByRate)
@@ -220,12 +223,12 @@ function evaluateCandidate(
 
   if (kind === 'promotion') {
     if (targetShortage <= 0) return undefined
-    const q = quantiles?.[source.class]
+    const q = quantiles?.[source.popType]
     if (!q) return undefined
     if (!(source.wealth >= q.p75 && source.wealth > q.median + config.popPromotionEpsilon)) {
       return undefined
     }
-    const remainingCap = getHoldingClassRemainingCapacity(ws, config, holdingId, targetStratum)
+    const remainingCap = getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
     if (remainingCap <= 0) return undefined
     const cost = config.popPromotionWealthCostByTargetStratum[targetStratum] ?? 0
     const incomingWealthOverride = clamp(source.wealth - cost, 0, 100)
@@ -234,7 +237,7 @@ function evaluateCandidate(
   }
 
   // demotion
-  const q = quantiles?.[source.class]
+  const q = quantiles?.[source.popType]
   const demotionWealthOk =
     !source.employed ||
     (q !== undefined &&
@@ -248,7 +251,7 @@ function evaluateCandidate(
   let targetEmployed = false
   let remainingCap = Infinity
   if (source.employed) {
-    remainingCap = getHoldingClassRemainingCapacity(ws, config, holdingId, targetStratum)
+    remainingCap = getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
     targetEmployed = remainingCap > 0
   }
   const increasesHeadcount = targetEmployed // cross-stratum + employed target

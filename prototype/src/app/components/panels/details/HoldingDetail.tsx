@@ -51,11 +51,14 @@ import {
   getHoldingEmployedPopSize,
   getHoldingUnemployedPopSize,
   getHoldingClassCapacity,
+  getHoldingEmployedPopSizeByType,
+  getHoldingPopTypeCapacity,
   getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
+import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 
 export function HoldingDetail({
   holding,
@@ -197,9 +200,24 @@ export function HoldingDetail({
                   const minInputFulfill = inputRecipes.length
                     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
                     : null
-                  const minLaborFulfill = breakdown.length
-                    ? Math.min(...breakdown.map((b) => b.laborTypeFulfillment))
-                    : null
+                  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+                  let facEmployed = 0
+                  let facCapacity = 0
+                  for (const slot of REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+                    .employmentSlots) {
+                    facEmployed += getHoldingEmployedPopSizeByType(
+                      currentState,
+                      holding.id,
+                      slot.popType,
+                    )
+                    facCapacity += getHoldingPopTypeCapacity(
+                      currentState,
+                      defaultConfig,
+                      holding.id,
+                      slot.popType,
+                    )
+                  }
+                  const facilityFill = facCapacity > 0 ? facEmployed / facCapacity : null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -282,10 +300,10 @@ export function HoldingDetail({
                               compact
                             />
                           )}
-                          {minLaborFulfill !== null && (
+                          {facilityFill !== null && (
                             <FulfillmentBar
-                              label={t('detail.realEstate.labor_type_fulfillment_min')}
-                              value={minLaborFulfill}
+                              label={t('detail.realEstate.employment_fill')}
+                              value={facilityFill}
                               compact
                             />
                           )}
@@ -452,22 +470,24 @@ export function HoldingDetail({
                     </div>
                     {impDef.employmentSlots &&
                       impDef.employmentSlots.map((slot) => {
-                        const empSize = getHoldingEmployedPopSize(
+                        const empSize = getHoldingEmployedPopSizeByType(
                           currentState,
                           holding.id,
-                          slot.stratum,
+                          slot.popType,
                         )
-                        const cap = getHoldingClassCapacity(
+                        const cap = getHoldingPopTypeCapacity(
                           currentState,
                           defaultConfig,
                           holding.id,
-                          slot.stratum,
+                          slot.popType,
                         )
                         const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
                         return (
-                          <div key={slot.stratum} className="mt-0.5 flex items-center gap-1.5">
+                          <div key={slot.popType} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-xs text-gray-500">
-                              {t(`detail.province.${slot.stratum}`)}
+                              {t(`detail.province.pop_type.${slot.popType}`, {
+                                defaultValue: slot.popType,
+                              })}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div

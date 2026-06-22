@@ -192,7 +192,7 @@ v0.54 で Victoria 3 型の抽象市場、**v0.55 で 21 ResourceKind の商品�
 - **価格に応じた需要弾力性**: 現状 buyOrders は price 非依存（POP size × wealth 由来の購買力 + NeedTier 飽和曲線のみ）。安値→数量増の弾力性を導入。食料は現実でも非弾力（エンゲルの法則）なので luxury / processed 優先。
 - **shortage の蓄積・回復**: 現状は月次で当月 severity を即時適用。Victoria 3 のように継続で penalty 蓄積・解消後に徐々回復。
 - **PopGroup.cash / wage / consumer spending**: 現状 consumerCost は POP 側では観察値のみ（cash から引かない）。cash 導入で consumerCost を実コスト化し marketValueDelta の解釈を整理。
-- **POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。v0.55 の RecipeLaborDemand は soft modifier に留め、これらを v0.56 以降で hard 化する前提。
+- ~~**POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。~~ → **v0.56/v0.57 で実装済み**: 転職・移住は §6.3b（lateral/promotion/demotion + 同一 StateRegion 移住）、PopType 別 employment の hard enforcement と `maxRatioTo` 実効化（同数上限）は §6.x.v0.57。残る将来枠は state を跨ぐ大規模移住（§13「大規模移住」）と PopGroup.cash/wage（上記）。
 - **Project 追加予算要求 / 動的 deadline 延長 / ProjectMaterialPurchaseSnapshot**（draft §20–§22）: v0.55 ドラフト spec には設計があるが**未実装**。資材価格高騰時の安全網（budget top-up）と debug 用 read-model を将来追加。
 - **steel / lumber などの中間財**: InputCategory（metal / construction_wood）に高効率代替材として追加（§6.4）。
 

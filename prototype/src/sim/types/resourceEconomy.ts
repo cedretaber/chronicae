@@ -45,12 +45,10 @@ export type RecipeProductionBreakdown = {
   grossRevenue: number
   inputCost: number
   netRevenue: number
-  // v0.56 観察用充足率 (recipe 単位)。asset 集約 (slotCount 加重平均) は一次生産=1 が混ざり鈍るため、
-  //   UI はレシピ別に提示し、施設/カード要約は min (ボトルネック) を取る。
-  //   inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。input 無し recipe は 1。
-  //   laborTypeFulfillment: §14.3 laborTypeFulfillmentModifier (floor..1)。
+  // v0.56 観察用充足率 (recipe 単位)。inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。
+  //   input 無し recipe は 1。UI はレシピ別に提示し、施設/カード要約は min (ボトルネック) を取る。
+  //   (v0.57: laborTypeFulfillment は撤去。労働は施設全体の雇用充足率を UI 側で直接算出する。)
   inputFulfillment: number
-  laborTypeFulfillment: number
 }
 
 // §16.4 RealEstateProductionResult: asset 単位の結果。
@@ -67,10 +65,8 @@ export type RealEstateProductionResult = {
   // v0.55 観察用充足率 (asset の recipe を slotCount 加重平均)。分配・生産計算には使わず UI/digest 専用。
   //   inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。入力がどれだけ市場供給で満たされたか。
   //     これ自体が低いほど産出ペナルティ大 (floor 付き modifier 経由)。input 無し raw recipe は 1。
-  //   laborTypeFulfillment: §14.3 laborTypeFulfillmentModifier (outputModifier, floor..1)。PopType 構成と
-  //     理想労働構成の一致度を産出効率係数として表したもの。
+  //   (v0.57: laborTypeFulfillment は撤去。労働は施設全体の雇用充足率を UI 側で直接算出する。)
   inputFulfillment: number
-  laborTypeFulfillment: number
 }
 
 // §16.3 HoldingResourceRevenueSnapshot: holding 単位の月次 snapshot。

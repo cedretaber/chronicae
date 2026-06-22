@@ -13,7 +13,10 @@ import {
   getActiveSeizureForAsset,
   getSeizurePrescriptionRemainingYears,
 } from '@sim/selectors/realEstateSeizureSelectors'
-import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
+import {
+  getHoldingEmployedPopSizeByType,
+  getHoldingPopTypeCapacity,
+} from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
@@ -100,21 +103,32 @@ export function RealEstateDetail({
   const capacitySlots = def.employmentSlots.map((slot) => {
     let fill: number | null = null
     if (currentState) {
-      const employed = getHoldingEmployedPopSize(currentState, asset.holdingId, slot.stratum)
-      const cap = getHoldingClassCapacity(
+      const employed = getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
+      const cap = getHoldingPopTypeCapacity(
         currentState,
         defaultConfig,
         asset.holdingId,
-        slot.stratum,
+        slot.popType,
       )
       fill = cap > 0 ? employed / cap : null
     }
     return {
-      stratum: slot.stratum,
+      popType: slot.popType,
       capacity: slot.capacityPerLevel * asset.level,
       fill,
     }
   })
+  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+  const facilityFill = ((): number | null => {
+    if (!currentState) return null
+    let emp = 0
+    let cap = 0
+    for (const slot of def.employmentSlots) {
+      emp += getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
+      cap += getHoldingPopTypeCapacity(currentState, defaultConfig, asset.holdingId, slot.popType)
+    }
+    return cap > 0 ? emp / cap : null
+  })()
 
   // per-asset の月次産出・収支 (snapshot がある場合)。
   const revenueSnapshot = currentState?.monthlyHoldingResourceRevenue[asset.holdingId]
@@ -124,14 +138,10 @@ export function RealEstateDetail({
     .filter((b) => Object.values(b.outputs).some((v) => (v ?? 0) > 0) || b.grossRevenue > 0)
     .sort((a, b) => b.netRevenue - a.netRevenue || (a.recipeId < b.recipeId ? -1 : 1))
 
-  // 施設要約はボトルネック (最低レシピ) を取る。asset 平均は一次生産=1 が混ざり鈍るため使わない。
-  //   入力充足は原材料を持つレシピのみ対象 (raw は常に 1)。労働充足は全レシピ対象。
+  // 入力充足はレシピごとに異なるため施設要約はボトルネック (最低レシピ) を取る (原材料を持つレシピのみ)。
   const inputRecipes = recipeBreakdown.filter((b) => Object.keys(b.inputs).length > 0)
   const minInputFulfill = inputRecipes.length
     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
-    : null
-  const minLaborFulfill = recipeBreakdown.length
-    ? Math.min(...recipeBreakdown.map((b) => b.laborTypeFulfillment))
     : null
 
   // 資源の市場価格 (holding → province.stateId が StateRegion 市場)。基準価格比でレシピの黒字/赤字理由を示す。
@@ -270,9 +280,11 @@ export function RealEstateDetail({
                   ? 'bg-amber-500'
                   : 'bg-rose-500'
           return (
-            <div key={slot.stratum} className="flex flex-col gap-0.5">
+            <div key={slot.popType} className="flex flex-col gap-0.5">
               <div className="flex justify-between">
-                <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
+                <span className="text-gray-400">
+                  {t(`detail.province.pop_type.${slot.popType}`, { defaultValue: slot.popType })}:
+                </span>
                 <span className="text-gray-300">
                   {formatPopCount(slot.capacity)}
                   {slot.fill !== null && (
@@ -356,7 +368,7 @@ export function RealEstateDetail({
                         </span>
                       )}
                     </div>
-                    {/* レシピ単位の充足率。入力充足は原材料を持つレシピのみ (raw は常に 100%)。 */}
+                    {/* レシピ単位の充足率は入力のみ (労働充足は不動産単位なので施設合計に集約)。 */}
                     {inRows.length > 0 && (
                       <FulfillmentBar
                         label={t('detail.realEstate.input_fulfillment')}
@@ -364,11 +376,6 @@ export function RealEstateDetail({
                         compact
                       />
                     )}
-                    <FulfillmentBar
-                      label={t('detail.realEstate.labor_type_fulfillment')}
-                      value={b.laborTypeFulfillment}
-                      compact
-                    />
                   </div>
                 )
               })}
@@ -394,18 +401,18 @@ export function RealEstateDetail({
               </span>
             </div>
           </div>
-          {(minInputFulfill !== null || minLaborFulfill !== null) && (
+          {(minInputFulfill !== null || facilityFill !== null) && (
             <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-1 text-xs">
+              {facilityFill !== null && (
+                <FulfillmentBar
+                  label={t('detail.realEstate.employment_fill')}
+                  value={facilityFill}
+                />
+              )}
               {minInputFulfill !== null && (
                 <FulfillmentBar
                   label={t('detail.realEstate.input_fulfillment_min')}
                   value={minInputFulfill}
-                />
-              )}
-              {minLaborFulfill !== null && (
-                <FulfillmentBar
-                  label={t('detail.realEstate.labor_type_fulfillment_min')}
-                  value={minLaborFulfill}
                 />
               )}
             </div>

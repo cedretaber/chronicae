@@ -9,7 +9,7 @@ import type { ResourceKind } from '../types/resource'
 import type { InputCategory } from '../types/inputCategory'
 import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
 import type { PopType, PopStratum } from '../types/popGroup'
-import { POP_TYPES_BY_STRATUM } from '../types/popGroup'
+import { POP_TYPES_BY_STRATUM, getPopStratum } from '../types/popGroup'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import {
   PRODUCTION_RECIPE_DEFINITIONS,
@@ -98,7 +98,8 @@ function computeProductionFacilityModifier(
   asset: RealEstateAsset,
 ): number {
   const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-  const primaryClass = def.employmentSlots[0]?.stratum
+  const primaryPopType = def.employmentSlots[0]?.popType
+  const primaryClass = primaryPopType ? getPopStratum(primaryPopType) : undefined
   const modDefs = config.realEstateProductionFacilityModifiers[asset.realEstateKind]
   if (modDefs.length === 0) return 1.0
 
@@ -142,7 +143,7 @@ export function computeAllocatedLaborByAsset(
     let totalWeight = 0
     for (const asset of assets) {
       const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-      if (!def.employmentSlots.some((s) => s.stratum === stratum)) continue
+      if (!def.employmentSlots.some((s) => getPopStratum(s.popType) === stratum)) continue
       const weight = getRealEstateAssetClassCapacityContribution(state, asset, stratum, config)
       members.push({ asset, weight })
       totalWeight += weight
@@ -175,8 +176,6 @@ export type AssetRecipePotential = {
   potentialInputs: Partial<Record<ResourceKind, number>>
   // category 単位の解決内訳 (§12.4 Liebig / §12.5 pro-rate 用)。
   inputCategories: ResolvedInputCategory[]
-  // §14.3 laborTypeFulfillmentModifier (outputModifier, floor..1)。観察用に持ち回る (snapshot 記録)。
-  laborTypeFulfillment: number
 }
 
 const basePriceLookup = (r: ResourceKind): number => RESOURCE_PRICE_DEFINITIONS[r].basePrice
@@ -198,17 +197,25 @@ export function computeAssetPopTypeShares(
     sizeByType[p.popType] = (sizeByType[p.popType] ?? 0) + p.size
     sizeByStratum[p.class] += p.size
   }
+  // v0.57: slot は PopType キーなので、まず stratum ごとに slot 容量を集約する
+  //   (stratum 別 weight = その stratum に属する slot.capacityPerLevel の合計)。
+  const weightByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  for (const slot of def.employmentSlots) {
+    weightByStratum[getPopStratum(slot.popType)] += slot.capacityPerLevel
+  }
   const shares: Partial<Record<PopType, number>> = {}
   let presentWeight = 0
-  for (const slot of def.employmentSlots) {
-    if (sizeByStratum[slot.stratum] > 0) presentWeight += slot.capacityPerLevel
+  for (const stratum of POP_STRATA) {
+    if (weightByStratum[stratum] > 0 && sizeByStratum[stratum] > 0) {
+      presentWeight += weightByStratum[stratum]
+    }
   }
   if (presentWeight <= 0) return shares
-  for (const slot of def.employmentSlots) {
-    const stratumSize = sizeByStratum[slot.stratum]
-    if (stratumSize <= 0) continue
-    const stratumWeight = slot.capacityPerLevel / presentWeight
-    for (const t of POP_TYPES_BY_STRATUM[slot.stratum]) {
+  for (const stratum of POP_STRATA) {
+    const stratumSize = sizeByStratum[stratum]
+    if (stratumSize <= 0 || weightByStratum[stratum] <= 0) continue
+    const stratumWeight = weightByStratum[stratum] / presentWeight
+    for (const t of POP_TYPES_BY_STRATUM[stratum]) {
       const sz = sizeByType[t] ?? 0
       if (sz <= 0) continue
       shares[t] = (shares[t] ?? 0) + stratumWeight * (sz / stratumSize)
@@ -217,33 +224,31 @@ export function computeAssetPopTypeShares(
   return shares
 }
 
-// §14.3: 理想労働構成と実構成から output 効率 modifier と input 軽減 multiplier を算出する。
-//   weightedCoverage = Σ_t min(actualShare_t, idealShare_t) (ヒストグラム交差, 簡約形)。
-//   outputModifier = floor + (1-floor) × weightedCoverage。
-//   inputEfficiencyMultiplier = 1 - Σ_admin (inputEfficiencyBonus × coverage)、下限 0.5。
-export function computeLaborModifiers(
+// v0.57 §雇用細分化: 実 PopType 構成から生産効果を算出する。
+//   effectiveLaborMult = Σ_t actualShare_t × directOutputPower_t
+//     (熟練=1.5 で産出増、書記/治安役=0 で直接産出なし)。
+//   throughputMult = 1 + Σ_throughput (throughputBonus × coverage)、coverage = min(actual/ideal, 1)。
+//     書記が揃うほど「同原材料で産出が増える」(入力据え置き・産出のみ乗算)。
+//   ハード枠が構成を強制するため旧 soft fulfillment (floor) は撤去。
+export function computeLaborProduction(
   profile: RecipeLaborDemand[],
   actualShares: Partial<Record<PopType, number>>,
-  floor: number,
-): { outputModifier: number; inputEfficiencyMultiplier: number } {
+): { effectiveLaborMult: number; throughputMult: number } {
+  if (profile.length === 0) return { effectiveLaborMult: 1, throughputMult: 1 }
   let totalIdeal = 0
   for (const d of profile) totalIdeal += d.idealWeight
-  if (totalIdeal <= 0) return { outputModifier: 1, inputEfficiencyMultiplier: 1 }
-  let weightedCoverage = 0
-  let inputReduction = 0
+  let effectiveLaborMult = 0
+  let throughputBonus = 0
   for (const d of profile) {
-    const idealShare = d.idealWeight / totalIdeal
     const actual = actualShares[d.popType] ?? 0
-    weightedCoverage += Math.min(actual, idealShare)
-    if (d.role === 'administrative_support' && d.inputEfficiencyBonus) {
+    effectiveLaborMult += actual * (d.directOutputPower ?? 1)
+    if (d.throughputBonus) {
+      const idealShare = totalIdeal > 0 ? d.idealWeight / totalIdeal : 0
       const coverage = idealShare > 0 ? Math.min(actual / idealShare, 1) : 0
-      inputReduction += d.inputEfficiencyBonus * coverage
+      throughputBonus += d.throughputBonus * coverage
     }
   }
-  return {
-    outputModifier: floor + (1 - floor) * weightedCoverage,
-    inputEfficiencyMultiplier: Math.max(0.5, 1 - inputReduction),
-  }
+  return { effectiveLaborMult, throughputMult: 1 + throughputBonus }
 }
 
 export function computeAssetRecipePotentials(
@@ -279,20 +284,19 @@ export function computeAssetRecipePotentials(
       totalSlots,
       recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
     )
-    // §14.3 laborTypeFulfillmentModifier (output 効率) と inputEfficiency (input 軽減) を算出。
+    // v0.57 §雇用細分化: 熟練倍率で重み付けした effectiveLabor と書記 throughput を算出。
     const profile = RECIPE_LABOR_PROFILES[recipeId] ?? []
-    const labor = computeLaborModifiers(
-      profile,
-      actualPopTypeShares,
-      config.laborTypeFulfillmentFloor,
-    )
-    const potential =
+    const labor = computeLaborProduction(profile, actualPopTypeShares)
+    // basePotential = throughput 適用前の産出 (入力計算の基準)。
+    const basePotential =
       recipeLabor *
+      labor.effectiveLaborMult *
       recipe.baseOutputPerLabor *
       scaleMult *
       facilityMod *
-      controlMod *
-      labor.outputModifier
+      controlMod
+    // 産出は throughput で増やす (同原材料で +最大50%)。
+    const potential = basePotential * labor.throughputMult
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
@@ -300,12 +304,12 @@ export function computeAssetRecipePotentials(
     }
 
     // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
-    //   §14.3 inputEfficiency: admin role coverage で input requirement を軽減する (output 倍率とは別経路)。
+    //   v0.57: 入力は throughput 適用前の basePotential で計算する (入力据え置きで産出のみ増える)。
     const potentialInputs: Partial<Record<ResourceKind, number>> = {}
     const inputCategories: ResolvedInputCategory[] = []
     if (recipe.inputs) {
       for (const req of recipe.inputs) {
-        const desiredAmount = req.amountPerOutput * potential * labor.inputEfficiencyMultiplier
+        const desiredAmount = req.amountPerOutput * basePotential
         const contributions = INPUT_CATEGORY_CONTRIBUTIONS[req.category]
         const shares = resolveCategoryShares(contributions, priceLookup, beta)
         const resources: { resource: ResourceKind; buyOrders: number; share: number }[] = []
@@ -325,7 +329,6 @@ export function computeAssetRecipePotentials(
       potentialOutputs,
       potentialInputs,
       inputCategories,
-      laborTypeFulfillment: labor.outputModifier,
     })
   }
   return results

@@ -8,14 +8,6 @@ import type { PopMobilityKind } from '../types/popMobility'
 
 const STRATUM_ORDER: Record<PopStratum, number> = { lower: 0, middle: 1, upper: 2 }
 
-// §4.3: source/target の stratum 順序で kind を導出。
-export function classifyMobilityKind(from: PopType, to: PopType): PopMobilityKind {
-  const sf = STRATUM_ORDER[getPopStratum(from)]
-  const st = STRATUM_ORDER[getPopStratum(to)]
-  if (st === sf) return 'lateral'
-  return st > sf ? 'promotion' : 'demotion'
-}
-
 // §4.2 lateral: 同一 stratum 内の職種変更 (双方向)。
 const LATERAL_PAIRS: ReadonlyArray<readonly [PopType, PopType]> = [
   ['laborers', 'peasants'],
@@ -53,6 +45,31 @@ const DEMOTION_PAIRS: ReadonlyArray<readonly [PopType, PopType]> = [
   ['nobles', 'ministeriales'],
   ['patricians', 'merchants'],
 ]
+
+// §4.3: kind は stratum 順序ではなく **エッジの所属 (lateral/promotion/demotion pair)** から判定する。
+//   POP の「移動」は PopType (Class) 単位で見るのが正であり、stratum は集計・社会構造の記述専用 (v0.57.1)。
+//   lateral pair は双方向、promotion/demotion pair は有向。
+const KIND_BY_EDGE: Readonly<Record<string, PopMobilityKind>> = (() => {
+  const m: Record<string, PopMobilityKind> = {}
+  for (const [a, b] of LATERAL_PAIRS) {
+    m[`${a}:${b}`] = 'lateral'
+    m[`${b}:${a}`] = 'lateral'
+  }
+  for (const [from, to] of PROMOTION_PAIRS) m[`${from}:${to}`] = 'promotion'
+  for (const [from, to] of DEMOTION_PAIRS) m[`${from}:${to}`] = 'demotion'
+  return m
+})()
+
+export function classifyMobilityKind(from: PopType, to: PopType): PopMobilityKind {
+  const k = KIND_BY_EDGE[`${from}:${to}`]
+  if (k) return k
+  // 定義済みエッジ以外 (allowedTargetsFor 経由なら到達しない防御的フォールバック) は
+  //   stratum 順序で導出する。stratum はここでも判定の主体ではなく最終手段。
+  const sf = STRATUM_ORDER[getPopStratum(from)]
+  const st = STRATUM_ORDER[getPopStratum(to)]
+  if (st === sf) return 'lateral'
+  return st > sf ? 'promotion' : 'demotion'
+}
 
 // source PopType → 許可 target PopType[] の index (決定論: source 昇順・target 挿入順)。
 //   lateral は双方向に展開。

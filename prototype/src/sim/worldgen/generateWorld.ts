@@ -25,27 +25,9 @@ import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import type { Person } from '../types/person'
-import type { PopGroup, PopStratum, PopType } from '../types/popGroup'
-import { POP_TYPES_BY_STRATUM } from '../types/popGroup'
+import type { PopGroup, PopStratum } from '../types/popGroup'
+import { POP_TYPES, getPopStratum } from '../types/popGroup'
 
-// v0.55 §23.3: PopStratum 内の PopType 分布 (各 stratum で合計 1.0)。worldgen 初期生成専用。
-const WORLDGEN_POP_TYPE_DISTRIBUTION: Record<PopType, number> = {
-  // lower
-  peasants: 0.55,
-  laborers: 0.15,
-  artisans: 0.15,
-  scribes: 0.05,
-  soldiers: 0.1,
-  // middle
-  freeholders: 0.3,
-  masters: 0.2,
-  merchants: 0.2,
-  bureaucrats: 0.1,
-  ministeriales: 0.2,
-  // upper
-  nobles: 0.6,
-  patricians: 0.4,
-}
 import type { StateRegion } from '../types/stateRegion'
 import type { HouseShare, HouseShareIndex } from '../types/office'
 import type { HouseShareId, LandContractId } from '../types/ids'
@@ -94,7 +76,7 @@ import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScoreFromAbilities } from '../selectors/abilitySelectors'
 import {
-  computeHoldingClassCapacity,
+  computeHoldingAllPopTypeCapacities,
   canBuildHoldingImprovementPure,
 } from '../selectors/holdingImprovementSelectors'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
@@ -1641,39 +1623,15 @@ export function generateWorld(
         usedSlots <= slotCap
           ? 1.0
           : Math.max(defaultConfig.minSlotOveruseModifier, slotCap / usedSlots)
-      const agriCap = computeHoldingClassCapacity(
-        holding.kind,
+      // v0.57 §雇用細分化: 初期配置を施設駆動の PopType ハード枠に比例させる (旧: stratum 容量を
+      //   全 holding 共通の固定職能分布で分割 → 施設に枠の無い PopType を播いて初期失業が出ていた)。
+      const popTypeCaps = computeHoldingAllPopTypeCapacities(
         holding.weight,
         holding.landQuality,
         province.terrain,
         province.features,
         seedImprovements,
         defaultConfig,
-        'lower',
-        seedAssets,
-        overuseMod,
-      )
-      const urbanCap = computeHoldingClassCapacity(
-        holding.kind,
-        holding.weight,
-        holding.landQuality,
-        province.terrain,
-        province.features,
-        seedImprovements,
-        defaultConfig,
-        'middle',
-        seedAssets,
-        overuseMod,
-      )
-      const eliteCap = computeHoldingClassCapacity(
-        holding.kind,
-        holding.weight,
-        holding.landQuality,
-        province.terrain,
-        province.features,
-        seedImprovements,
-        defaultConfig,
-        'upper',
         seedAssets,
         overuseMod,
       )
@@ -1693,32 +1651,50 @@ export function generateWorld(
       const { value: upperUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
       rng = rp9
 
-      // v0.55 §23.3: PopStratum 容量 × fillRatio を stratum total とし、PopType 分布で分割する。
-      //   wealth/unrest は stratum 単位で抽選し同 stratum の全 PopType に適用する (RNG 消費を抑制)。
-      const strataGen: { stratum: PopStratum; cap: number; wealth: number; unrest: number }[] = [
-        { stratum: 'lower', cap: agriCap, wealth: lowerWealth, unrest: lowerUnrest },
-        { stratum: 'middle', cap: urbanCap, wealth: middleWealth, unrest: middleUnrest },
-        { stratum: 'upper', cap: eliteCap, wealth: upperWealth, unrest: upperUnrest },
-      ]
+      // wealth/unrest は stratum 単位で抽選し同 stratum の全 PopType に適用する (RNG 消費を抑制)。
+      const stratumWealthUnrest: Record<PopStratum, { wealth: number; unrest: number }> = {
+        lower: { wealth: lowerWealth, unrest: lowerUnrest },
+        middle: { wealth: middleWealth, unrest: middleUnrest },
+        upper: { wealth: upperWealth, unrest: upperUnrest },
+      }
+      // 各 PopType を「その holding の施設が要求する枠容量 × fillRatio」で播く。枠の無い PopType
+      //   (cap=0) は播かない (初期失業を生まない)。fillRatio<1 なので size≤cap で employed=true が成立。
       const holdingPopIds: PopGroupId[] = []
-      for (const sg of strataGen) {
-        const stratumSize = Math.max(minPopSizeByClass[sg.stratum], sg.cap * fillRatio)
-        for (const popType of POP_TYPES_BY_STRATUM[sg.stratum]) {
-          const ratio = WORLDGEN_POP_TYPE_DISTRIBUTION[popType]
-          const id = newPopGroupId(`pop-${holdingId as string}-${popType}`)
-          popGroupsRecord[id] = {
-            id,
-            holdingId,
-            class: sg.stratum,
-            popType,
-            employed: true,
-            size: stratumSize * ratio,
-            wealth: sg.wealth,
-            unrest: sg.unrest,
-            attitudes: {},
-          }
-          holdingPopIds.push(id)
+      for (const popType of POP_TYPES) {
+        const cap = popTypeCaps[popType] ?? 0
+        if (cap <= 0) continue
+        const stratum = getPopStratum(popType)
+        const wu = stratumWealthUnrest[stratum]
+        const id = newPopGroupId(`pop-${holdingId as string}-${popType}`)
+        popGroupsRecord[id] = {
+          id,
+          holdingId,
+          class: stratum,
+          popType,
+          employed: true,
+          size: cap * fillRatio,
+          wealth: wu.wealth,
+          unrest: wu.unrest,
+          attitudes: {},
         }
+        holdingPopIds.push(id)
+      }
+      // セーフティ: 雇用枠を持つ施設が無い holding は無人になる。最低限の小作農を播いて
+      //   ghost holding を避ける (旧 minPopSizeByClass の役割を holding 単位で代替)。
+      if (holdingPopIds.length === 0) {
+        const id = newPopGroupId(`pop-${holdingId as string}-peasants`)
+        popGroupsRecord[id] = {
+          id,
+          holdingId,
+          class: 'lower',
+          popType: 'peasants',
+          employed: false,
+          size: minPopSizeByClass.lower,
+          wealth: lowerWealth,
+          unrest: lowerUnrest,
+          attitudes: {},
+        }
+        holdingPopIds.push(id)
       }
       popIndexByHolding[holdingId] = holdingPopIds
     }
