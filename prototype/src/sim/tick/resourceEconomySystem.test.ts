@@ -144,6 +144,45 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap!.totalNetRevenue).toBeGreaterThan(0)
   })
 
+  it('v0.58: 賃金 carve で雇用 POP の money が増え、carve==mint (minted 合計 == wageShare)', () => {
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'farm').state
+    state = withEmployedPop(state, hd, 'lower', 100) // money 初期 0
+
+    const result = runEcon(state)
+    const snap = result.monthlyHoldingResourceRevenue[hd]!
+    const ar = snap.assetResults[0]!
+    expect(ar.wageShare).toBeGreaterThan(0)
+    // wageShare = max(0, netRevenue) × wageRate。
+    expect(ar.wageShare).toBeCloseTo(
+      Math.max(0, ar.netRevenue) * defaultConfig.wageShareOfNetRevenue,
+      6,
+    )
+    // carve==mint: この holding の全 POP に増えた money の合計が wageShare と一致 (初期 money=0)。
+    const mintedTotal = Object.values(result.popGroups)
+      .filter((p) => p.holdingId === hd)
+      .reduce((a, p) => a + p.money, 0)
+    expect(mintedTotal).toBeCloseTo(ar.wageShare, 6)
+  })
+
+  it('v0.58: wageShareOfNetRevenue=0 では money が mint されず wageShare=0', () => {
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'farm').state
+    state = withEmployedPop(state, hd, 'lower', 100)
+
+    const result = runEcon(state, { ...defaultConfig, wageShareOfNetRevenue: 0 })
+    const snap = result.monthlyHoldingResourceRevenue[hd]!
+    expect(snap.assetResults[0]!.wageShare).toBe(0)
+    const mintedTotal = Object.values(result.popGroups)
+      .filter((p) => p.holdingId === hd)
+      .reduce((a, p) => a + p.money, 0)
+    expect(mintedTotal).toBe(0)
+  })
+
   it('干魃 Crisis (v0.55 §B): active な holding の食料 (grain) 産出を severity 倍率で減衰させる', () => {
     function grainOutput(withCrisis: boolean): number {
       let state = makeEmptyV016State()

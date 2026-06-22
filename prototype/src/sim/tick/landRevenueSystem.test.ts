@@ -114,6 +114,7 @@ function withHoldingResourceRevenue(
             grossRevenue: totalNet,
             inputCost: 0,
             netRevenue: totalNet,
+            wageShare: 0,
             inputFulfillment: 1,
           },
         ],
@@ -350,7 +351,7 @@ function withOwnedAssetSnapshot(
   holdingId: HoldingId,
   owner: AssetOwnerRef,
   net: number,
-  opts: { seized?: boolean } = {},
+  opts: { seized?: boolean; wageShare?: number } = {},
 ): { state: WorldState; assetId: RealEstateAssetId } {
   const assetId = ('re-owned-' + (holdingId as string)) as RealEstateAssetId
   const asset: RealEstateAsset = {
@@ -388,6 +389,7 @@ function withOwnedAssetSnapshot(
             grossRevenue: net,
             inputCost: 0,
             netRevenue: net,
+            wageShare: opts.wageShare ?? 0,
             inputFulfillment: 1,
           },
         ],
@@ -428,6 +430,23 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
     expect(houseAfter - houseBefore).toBeCloseTo(NET * (1 - DUE_RATE), 3)
     // holding due (= NET * DUE_RATE) は bailiff/chain 経由で treasury に流れる (>0)
     expect(result.state.polities[base.polityId]!.treasury).toBeGreaterThan(0)
+  })
+
+  it('v0.58: wageShare は positiveNet から控除される (owner income = (net − wageShare) × (1 − dueRate))', () => {
+    const base = setupBaseWorld()
+    const WAGE = 30
+    const { state } = withOwnedAssetSnapshot(
+      base.state,
+      base.holdingId,
+      { kind: 'house', id: base.houseId },
+      NET,
+      { wageShare: WAGE },
+    )
+    const houseBefore = state.houses[base.houseId]!.wealth
+    const result = runLandRevenueSystem(makeCtx(state))
+    const houseAfter = result.state.houses[base.houseId]!.wealth
+    // positiveNet = NET − WAGE = 70 → ownerIncome = 70 × (1 − dueRate)。
+    expect(houseAfter - houseBefore).toBeCloseTo((NET - WAGE) * (1 - DUE_RATE), 3)
   })
 
   it('person owner receives ownerIncome into Person.wealth', () => {

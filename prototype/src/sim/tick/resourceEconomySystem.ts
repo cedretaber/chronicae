@@ -23,7 +23,10 @@ import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
+  computeAssetPopTypeShares,
 } from '../selectors/resourceProductionSelectors'
+import { WAGE_ROLE_BY_POP_TYPE } from '../config/popWageDefinitions'
+import type { PopType } from '../types/popGroup'
 import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
 import {
@@ -325,6 +328,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
+          wageShare: 0, // v0.58: 最終 pass の賃金 carve で確定
           inputFulfillment: 0, // 集計中は Σ(slotCount × value)、後で正規化
         }
         assetResultByAsset.set(assetKey, assetResult)
@@ -462,6 +466,64 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
           newPopGroups[popId] = { ...pop, wealth: newWealth, unrest: newUnrest }
         }
+      }
+    }
+  }
+
+  // ─── v0.58: 賃金 carve (最終 pass) ───
+  //   全 market 清算・snapshot 確定後に、各 asset の netRevenue から wageShare を切り出し、
+  //   雇用 PopType の PopGroup へ contribShare × roleWeight 正規化比で money を mint する。
+  //   landRevenueSystem は positiveNet = max(0, netRevenue − wageShare) で控除する (carve==mint)。
+  //   タイミング: 今 tick の賃金は newPopGroups に積まれ「次 tick から使える」(§3.3 tick 内循環の解消)。
+  //   shares は state (start-of-tick・本 system 中不変) を参照、mint 先は newPopGroups。RNG 非消費。
+  //   carve==mint 不変条件: 分配不能 (雇用 PopType 不在 = presentWeight 0) のときは wageShare=0 で
+  //   owner からも引かない (advisor: owner から carve したのに mint 先がないと money が消える)。
+  const wageRate = config.wageShareOfNetRevenue
+  if (wageRate > 0) {
+    for (const holdingId of (Object.keys(snapshots) as HoldingId[]).sort()) {
+      const snap = snapshots[holdingId]
+      if (!snap) continue
+      for (const ar of snap.assetResults) {
+        const carveBudget = Math.max(0, ar.netRevenue) * wageRate
+        if (carveBudget <= 0) {
+          ar.wageShare = 0
+          continue
+        }
+        const asset = state.realEstateAssets[ar.assetId]
+        if (!asset) {
+          ar.wageShare = 0
+          continue
+        }
+        const shares = computeAssetPopTypeShares(state, asset)
+        // 役割重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
+        let weightSum = 0
+        const weighted: { popType: PopType; w: number }[] = []
+        for (const t of (Object.keys(shares) as PopType[]).sort()) {
+          const s = shares[t] ?? 0
+          if (s <= 0) continue
+          const w = s * config.wageRoleWeightByRole[WAGE_ROLE_BY_POP_TYPE[t]]
+          if (w <= 0) continue
+          weighted.push({ popType: t, w })
+          weightSum += w
+        }
+        if (weightSum <= 0) {
+          ar.wageShare = 0 // 分配先なし → owner から carve しない
+          continue
+        }
+        // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
+        let minted = 0
+        const popIdsHere = state.popIndex.byHolding[holdingId] ?? []
+        for (const { popType, w } of weighted) {
+          const amount = carveBudget * (w / weightSum)
+          for (const pid of popIdsHere) {
+            const pop = newPopGroups[pid]
+            if (!pop || pop.popType !== popType || !pop.employed) continue
+            newPopGroups[pid] = { ...pop, money: pop.money + amount }
+            minted += amount
+            break
+          }
+        }
+        ar.wageShare = minted
       }
     }
   }

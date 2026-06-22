@@ -233,6 +233,10 @@ export type SimulationConfig = {
   securityUnrestReductionAtFull: number
   securityFullCoverageRatio: number
   retainedWealthGainByClass: Record<PopStratum, number>
+  // v0.58: 賃金 = max(0, asset netRevenue) × wageShareOfNetRevenue を雇用 POP へ役割重み付き配分。
+  //   残り (1 − wageShareOfNetRevenue) が owner 取り分 (税/国庫含む)。労使ゼロサムの山分け。
+  wageShareOfNetRevenue: number
+  wageRoleWeightByRole: Record<'primary' | 'skilled' | 'throughput', number>
   overExtractionThreshold: number
   overExtractionWealthSafeThreshold: number
   overExtractionUnrestSafeThreshold: number
@@ -1701,6 +1705,8 @@ export const defaultConfig: SimulationConfig = {
   securityUnrestReductionAtFull: 2.0,
   securityFullCoverageRatio: 0.1,
   retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
+  wageShareOfNetRevenue: 0.3,
+  wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,
   overExtractionUnrestSafeThreshold: 45,
