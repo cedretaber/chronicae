@@ -503,6 +503,23 @@
 | initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
 | initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
 | popSizeEpsilon | 0.01 | 未就業（employed=false）POP がこのサイズ以下で削除 |
+| **POP 転職・移住（v0.56、§6.3b）** | | |
+| popMobilityMinMoveAmount | 0.01 | これ未満の移動は行わない（snapshot を微小移動で汚さない） |
+| popMobilityTopMovementLimit | 4000 | snapshot topMovements の上限件数。**store-all 相当の高い safety cap**（draft 初期値 20 から引き上げ — per-Holding/per-POP の drill-down 再構成のため。毎月上書きで累積しない） |
+| popJobChangeMaxFractionPerHoldingPerMonth | 0.001 | holding 月次転職 cap の人口比（C2）。`totalPop × これ` を hard cap で頭打ち |
+| popJobChangeMaxPerHoldingPerMonthHardCap | 0.15 | holding 月次転職総量の絶対上限 |
+| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.01 } | kind 別の source.size に対する 1 回あたり移動率 |
+| popPromotionEpsilon | 1 | promotion 相対 gate（C3）の不発ガード（`> median + これ`）。分布が潰れていると発火しない |
+| popDemotionEpsilon | 1 | demotion 相対 gate の不発ガード（`< median − これ`） |
+| popPromotionWealthCostByTargetStratum | { middle: 5, upper: 10 } | promotion で移動 cohort の incoming wealth から引く昇格コスト（source pool は下げない） |
+| popMigrationMaxOutflowFractionPerHoldingPerMonth | 0.001 | holding 月次流出 cap の人口比（C2） |
+| popMigrationMaxInflowFractionPerHoldingPerMonth | 0.001 | holding 月次流入 cap の人口比 |
+| popMigrationMaxOutflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流出の絶対上限 |
+| popMigrationMaxInflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流入の絶対上限 |
+| popMigrationMonthlyRateByStratum | { lower: 0.01, middle: 0.005, upper: 0.002 } | stratum 別の source.size に対する 1 回あたり移住率 |
+| popMigrationPressureThreshold | 35 | この migration pressure 以上の POP のみ移住 source 候補 |
+| popMigrationScoreGapThreshold | 20 | 最良 target の opportunity score が source-stay score をこの差以上で上回れば移住 |
+| popMigrationCrossPolityScorePenalty | 15 | terminal polity 跨ぎ移住の score 減点（禁止ではなく減点） |
 | **Houseless Person** | | |
 | houselessPersonsPerHolding | 0.5 | holdings 数あたりの無家人物 target 比率 |
 | houselessMaleRatio | 0.75 | 無家人物生成時の男性比率 |

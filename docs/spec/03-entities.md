@@ -310,6 +310,22 @@ type HoldingResourceRevenueSnapshot = {
   assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/grossRevenue/inputCost/netRevenue
                                                //   + recipeBreakdown (v0.56 read-model: recipe 別 outputs/inputs/収支/充足率。UI 用・非参照)
 }
+
+// v0.56 POP 転職・移住 read-model（latest のみ毎月上書き。履歴は持たない。§6.3b）
+type PopMobilitySnapshotEntry = {
+  kind: 'job_change' | 'migration'
+  amount: number
+  sourceHoldingId: HoldingId
+  targetHoldingId?: HoldingId       // job_change は source と同一 holding のため省略可
+  fromPopType: PopType; toPopType: PopType
+  fromEmployed: boolean; toEmployed: boolean
+}
+type MonthlyPopMobilitySnapshot = {
+  week: number
+  jobChangedTotal: number; migratedTotal: number
+  byState: Record<StateRegionId, { jobChanged: number; migratedIn: number; migratedOut: number }>
+  topMovements: PopMobilitySnapshotEntry[]   // amount 降順上位 N（N = popMobilityTopMovementLimit）
+}
 ```
 
 ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。旧 `minMultiplier`/`maxMultiplier`/`elasticity` フィールドは型から削除済み）。
@@ -323,6 +339,8 @@ nextRealEstateAssetId: number
 // v0.54 資源経済 read-model（next*Id 不要）
 marketResourcePrices: Record<string, MarketResourcePriceState>            // key = `${marketKey}:${resource}`
 monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
+// v0.56 POP 転職・移住 read-model（optional・latest のみ毎月上書き。0 件の月も zero snapshot で上書き）
+monthlyPopMobility?: MonthlyPopMobilitySnapshot
 ```
 
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス
