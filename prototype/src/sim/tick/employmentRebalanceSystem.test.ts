@@ -44,6 +44,8 @@ function setupFarmHolding(pops: { popType: PopType; size: number }[]): {
       employed: false,
       size: p.size,
       wealth: 50,
+      money: 0,
+      needSatisfaction: 50,
       unrest: 10,
       attitudes: {},
     }

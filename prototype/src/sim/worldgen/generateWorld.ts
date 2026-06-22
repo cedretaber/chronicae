@@ -83,6 +83,41 @@ import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
 import type { WorldPreset, WorldPresetName } from './worldPresets'
 import type { NamePoolService } from '../namegen/namePoolTypes'
 import { seedInitialDecisions } from './generateWorldSeeding'
+import type { PopType } from '../types/popGroup'
+import type { ResourceKind } from '../types/resource'
+import {
+  NEED_CATEGORIES,
+  NEED_CATEGORY_TIER,
+  NEED_CATEGORY_CONTRIBUTIONS,
+} from '../types/needCategory'
+import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
+import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+
+// v0.58: worldgen 初期 money 概算用。essential tier の need を「最も効率の良い (安い) 資源」で
+//   満たした場合の 1 pop・1 ヶ月あたりコストを basePrice で概算する (RNG 不使用・balance-defer)。
+function estimateMonthlyEssentialCostPerPop(popType: PopType): number {
+  const profile = POP_NEED_PROFILES[popType]
+  let cost = 0
+  for (const category of NEED_CATEGORIES) {
+    if (NEED_CATEGORY_TIER[category] !== 'essential') continue
+    const amountPerPop = profile[category]
+    if (amountPerPop <= 0) continue
+    // 同 category 内で price/contributionValue が最小 (= need 1 単位を最安で満たす) 資源を採用。
+    let bestUnitValue = Infinity
+    for (const [resource, contributionValue] of Object.entries(
+      NEED_CATEGORY_CONTRIBUTIONS[category],
+    )) {
+      if (!contributionValue || contributionValue <= 0) continue
+      const def = RESOURCE_PRICE_DEFINITIONS[resource as ResourceKind]
+      if (!def) continue
+      const unitValue = def.basePrice / contributionValue
+      if (unitValue < bestUnitValue) bestUnitValue = unitValue
+    }
+    if (!Number.isFinite(bestUnitValue)) continue
+    cost += amountPerPop * bestUnitValue
+  }
+  return cost
+}
 export function generateWorld(
   seedText: string,
   presetName?: WorldPresetName,
@@ -1674,6 +1709,12 @@ export function generateWorld(
           employed: true,
           size: cap * fillRatio,
           wealth: wu.wealth,
+          money:
+            estimateMonthlyEssentialCostPerPop(popType) *
+            (cap * fillRatio) *
+            defaultConfig.worldgenPopMoneyMonthsOfEssential *
+            defaultConfig.worldgenPopMoneyStratumMultiplier[stratum],
+          needSatisfaction: 60,
           unrest: wu.unrest,
           attitudes: {},
         }
@@ -1691,6 +1732,12 @@ export function generateWorld(
           employed: false,
           size: minPopSizeByClass.lower,
           wealth: lowerWealth,
+          money:
+            estimateMonthlyEssentialCostPerPop('peasants') *
+            minPopSizeByClass.lower *
+            defaultConfig.worldgenPopMoneyMonthsOfEssential *
+            defaultConfig.worldgenPopMoneyStratumMultiplier.lower,
+          needSatisfaction: 60,
           unrest: lowerUnrest,
           attitudes: {},
         }

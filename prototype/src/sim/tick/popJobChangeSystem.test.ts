@@ -67,7 +67,7 @@ function mk(
   size: number,
   wealth: number,
 ): Omit<PopGroup, 'id' | 'holdingId' | 'attitudes'> {
-  return { class: cls, popType, employed, size, wealth, unrest: 10 }
+  return { class: cls, popType, employed, size, wealth, money: 0, needSatisfaction: 50, unrest: 10 }
 }
 
 describe('PopJobChangeSystem', () => {
@@ -86,6 +86,8 @@ describe('PopJobChangeSystem', () => {
       employed: true,
       size: capLower, // fully fills lower capacity → zero remaining capacity
       wealth: 50,
+      money: 0,
+      needSatisfaction: 50,
       unrest: 10,
       attitudes: {},
     }
@@ -116,6 +118,8 @@ describe('PopJobChangeSystem', () => {
       employed: true,
       size: capLower,
       wealth: 50,
+      money: 0,
+      needSatisfaction: 50,
       unrest: 10,
       attitudes: {},
     }

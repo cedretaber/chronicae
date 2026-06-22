@@ -462,6 +462,14 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
 
+    // 5b. v0.58: money は非負・有限
+    if (!Number.isFinite(pop.money) || pop.money < 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has invalid money ${pop.money}`,
+      })
+    }
+
     // 6. unrest in [0, 100]
     if (pop.unrest < 0 || pop.unrest > 100) {
       errors.push({

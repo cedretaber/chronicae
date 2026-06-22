@@ -32,6 +32,8 @@ function withPop(
     employed,
     size,
     wealth: 50,
+    money: 0,
+    needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
   }

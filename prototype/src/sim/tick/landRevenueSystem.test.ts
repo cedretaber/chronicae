@@ -51,6 +51,8 @@ function withPopGroup(
     employed: true,
     size,
     wealth,
+    money: 0,
+    needSatisfaction: 50,
     unrest,
     attitudes: {},
   }

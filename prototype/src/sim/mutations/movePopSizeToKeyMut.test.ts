@@ -21,7 +21,19 @@ function mkPop(
   wealth = 50,
   unrest = 10,
 ): PopGroup {
-  return { id, holdingId, class: cls, popType, employed, size, wealth, unrest, attitudes: {} }
+  return {
+    id,
+    holdingId,
+    class: cls,
+    popType,
+    employed,
+    size,
+    wealth,
+    money: 0,
+    needSatisfaction: 50,
+    unrest,
+    attitudes: {},
+  }
 }
 
 function stateWithPops(pops: PopGroup[]): WorldState {

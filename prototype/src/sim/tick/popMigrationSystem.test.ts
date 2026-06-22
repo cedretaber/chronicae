@@ -34,6 +34,8 @@ function mkPop(
     employed,
     size,
     wealth,
+    money: 0,
+    needSatisfaction: 50,
     unrest: 10,
     attitudes: {},
   }

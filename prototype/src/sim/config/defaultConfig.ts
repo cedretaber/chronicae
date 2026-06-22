@@ -260,6 +260,9 @@ export type SimulationConfig = {
   // v0.24 Initial POP generation
   initialPopFillRatioMin: number
   initialPopFillRatioMax: number
+  // v0.58 POP 初期 money (worldgen)。essential N ヶ月分相当 × stratum 倍率。
+  worldgenPopMoneyMonthsOfEssential: number
+  worldgenPopMoneyStratumMultiplier: Record<PopStratum, number>
   // v0.24 POP epsilon
   popSizeEpsilon: number
   // v0.56 POP 転職・移住 (spec-v056-update.md §15)
@@ -1738,6 +1741,8 @@ export const defaultConfig: SimulationConfig = {
   // v0.24 Initial POP generation
   initialPopFillRatioMin: 70,
   initialPopFillRatioMax: 95,
+  worldgenPopMoneyMonthsOfEssential: 4,
+  worldgenPopMoneyStratumMultiplier: { lower: 1.0, middle: 1.5, upper: 3.0 },
   // v0.24 POP epsilon
   popSizeEpsilon: 0.01,
   // v0.56 POP 転職・移住 (§15。初期値。長期 seed 観察で調整)

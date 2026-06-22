@@ -82,6 +82,8 @@ function withPopGroup(
     popType: 'peasants',
     employed: true,
     wealth: 50,
+    money: 0,
+    needSatisfaction: 50,
     attitudes: {},
     ...overrides,
   }

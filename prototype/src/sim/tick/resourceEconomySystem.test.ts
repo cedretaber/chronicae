@@ -80,6 +80,7 @@ function withEmployedPop(
   wealth = 50,
   employed = true,
   popType?: PopType, // v0.57: 施設固有の職能を雇用したい場合に上書き (省略時は stratum 代表)。
+  money = 0,
 ): WorldState {
   const id = ('pg-' + popCounter++) as PopGroupId
   const pop: PopGroup = {
@@ -90,6 +91,8 @@ function withEmployedPop(
     employed,
     size,
     wealth,
+    money,
+    needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
   }

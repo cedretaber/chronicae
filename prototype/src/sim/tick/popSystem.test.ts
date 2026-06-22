@@ -21,6 +21,7 @@ function withPop(
   popClass: PopStratum,
   size: number,
   employed: boolean,
+  money = 0,
 ): WorldState {
   const id = ('pg-' + counter++) as PopGroupId
   const pop: PopGroup = {
@@ -31,6 +32,8 @@ function withPop(
     employed,
     size,
     wealth: 50,
+    money,
+    needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
   }

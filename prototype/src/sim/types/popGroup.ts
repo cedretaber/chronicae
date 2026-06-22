@@ -33,7 +33,9 @@ export type PopGroup = {
   popType: PopType
   employed: boolean
   size: number
-  wealth: number
+  wealth: number // v0.58 P2 で退役予定（移行期間中は併存）
+  money: number // v0.58: 財産 stock（extensive・merge=sum・size 移動=比例）。≥0
+  needSatisfaction: number // v0.58: need 充足度 0-100（intensive）。P2 で unrest 駆動に使用
   unrest: number
   attitudes: AttitudeMap
 }

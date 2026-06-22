@@ -15,6 +15,8 @@ function pop(id: PopGroupId, holdingId: HoldingId, popClass: PopClass, size: num
     employed: true,
     size,
     wealth: 50,
+    money: 0,
+    needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
   }

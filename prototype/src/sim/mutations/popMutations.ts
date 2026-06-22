@@ -223,6 +223,8 @@ export function addToOrCreatePopGroupMut(
     employed: input.employed,
     size: input.size,
     wealth: input.inheritFrom?.wealth ?? 50,
+    money: input.inheritFrom?.money ?? 0, // v0.58: extensive。create 時は incoming 比例分（Task 1.3 で比例移送制御）
+    needSatisfaction: input.inheritFrom?.needSatisfaction ?? 50,
     unrest: input.inheritFrom?.unrest ?? 10,
     attitudes: input.inheritFrom ? { ...input.inheritFrom.attitudes } : {},
   }
