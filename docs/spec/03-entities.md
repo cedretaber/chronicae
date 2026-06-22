@@ -308,6 +308,7 @@ type HoldingResourceRevenueSnapshot = {
   totalNetRevenue: number               // = Σ max(0, asset netRevenue)（観察用集計。分配の課税基盤は per-asset で算出）
   byResource: Partial<Record<ResourceKind, number>>
   assetResults: RealEstateProductionResult[]   // per-asset の outputs/inputs/grossRevenue/inputCost/netRevenue
+                                               //   + recipeBreakdown (v0.56 read-model: recipe 別 outputs/inputs/収支。UI 用・非参照)
 }
 ```
 
