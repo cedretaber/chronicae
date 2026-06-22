@@ -14,7 +14,7 @@ import {
   getSeizurePrescriptionRemainingYears,
 } from '@sim/selectors/realEstateSeizureSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
-import { formatAmount } from '@/app/utils/format'
+import { formatAmount, formatPopCount } from '@/app/utils/format'
 
 // v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
 //   詳細はこちらに集約する (カードクリックで開く)。
@@ -184,7 +184,7 @@ export function RealEstateDetail({
           <div key={slot.stratum} className="flex justify-between">
             <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
             <span className="text-gray-300">
-              {slot.capacity.toFixed(0)}
+              {formatPopCount(slot.capacity)}
               {slot.fill !== null && (
                 <span className="ml-1 text-gray-500">
                   ({t('detail.realEstate.employment_fulfillment')} {(slot.fill * 100).toFixed(0)}%)

@@ -20,6 +20,7 @@ import type { ProvinceId, StateRegionId } from '@sim/types/ids'
 import { getStatePopulation, getStateAverageUnrest } from '@sim/selectors/stateRegionSelectors'
 import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
 import { getProvincePops, getProvinceUnrest } from '@sim/selectors/popSelectors'
+import { formatPopCount } from '@/app/utils/format'
 import stateMapBackground from '@/assets/map/state-map-background.png'
 import provinceUrbanIcon from '@/assets/map/province-urban.png'
 import provinceRuralIcon from '@/assets/map/province-rural.png'
@@ -542,7 +543,7 @@ export function UnifiedMap() {
                         strokeWidth={2}
                         paintOrder="stroke"
                       >
-                        {label.provinceCount} prov · pop {label.population}
+                        {label.provinceCount} prov · pop {formatPopCount(label.population)}
                       </text>
                       <text
                         textAnchor="middle"
@@ -590,7 +591,7 @@ export function UnifiedMap() {
                 <div className="text-gray-400">{stateName}</div>
                 {polityName && <div>Polity: {polityName}</div>}
                 <div>
-                  Pop: {Math.round(totalPop)} · Unrest: {unrest.toFixed(0)}
+                  Pop: {formatPopCount(totalPop)} · Unrest: {unrest.toFixed(0)}
                 </div>
                 <div>Holdings: {prov.holdingIds.length}</div>
               </div>

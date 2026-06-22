@@ -60,6 +60,28 @@ export function formatPower(value: number | undefined | null): string {
   return value.toFixed(1)
 }
 
+// v0.56 UI: POP の「size」は抽象単位。規模感を出すため UI 上は一律 ×POP_DISPLAY_SCALE で表示する。
+// これは純粋な表示スケールで sim 値・balance には一切影響しない。対象は頭数・雇用枠・流動量のみで、
+// wealth / unrest / 比率(%) / money / 資源 / manpower はスケールしない (それらは別単位/示強量)。
+export const POP_DISPLAY_SCALE = 100
+
+// 頭数・雇用枠 (size / capacity / employed / unemployed / population): 整数・千区切り。
+export function formatPopCount(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return dash
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
+    value * POP_DISPLAY_SCALE,
+  )
+}
+
+// 流動量 (移住・昇格・降格・転職): 小さい値の比較のため小数1桁を残す。
+export function formatPopFlow(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return dash
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value * POP_DISPLAY_SCALE)
+}
+
 const POLITY_RANK_FALLBACK: Record<number, string> = {
   1: 'Empire',
   2: 'Kingdom',

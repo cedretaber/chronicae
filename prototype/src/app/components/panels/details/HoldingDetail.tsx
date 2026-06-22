@@ -42,7 +42,7 @@ import {
   getActiveDefaultForContract,
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
-import { formatAmount } from '@/app/utils/format'
+import { formatAmount, formatPopCount, formatPopFlow } from '@/app/utils/format'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import {
   getHoldingEmployedPopSize,
@@ -318,7 +318,7 @@ export function HoldingDetail({
                 </span>
                 <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
                   {dir === 'in' ? '+' : '−'}
-                  {formatAmount(amount)}
+                  {formatPopFlow(amount)}
                 </span>
               </div>
             )
@@ -420,7 +420,7 @@ export function HoldingDetail({
                               />
                             </div>
                             <span className="w-16 text-right text-xs text-gray-400">
-                              {empSize.toFixed(0)}/{cap.toFixed(0)}
+                              {formatPopCount(empSize)}/{formatPopCount(cap)}
                             </span>
                           </div>
                         )
@@ -847,7 +847,7 @@ export function HoldingDetail({
                   <div className="flex justify-between">
                     <span>{t('detail.province.pop_employed')}:</span>
                     <span>
-                      {empSize.toFixed(1)} / {cap.toFixed(1)}
+                      {formatPopCount(empSize)} / {formatPopCount(cap)}
                     </span>
                   </div>
                   {unempSize > 0 && (
@@ -855,7 +855,7 @@ export function HoldingDetail({
                       <span className="text-yellow-400">
                         {t('detail.province.pop_unemployed')}:
                       </span>
-                      <span className="text-yellow-400">{unempSize.toFixed(1)}</span>
+                      <span className="text-yellow-400">{formatPopCount(unempSize)}</span>
                     </div>
                   )}
                 </div>
@@ -891,7 +891,7 @@ export function HoldingDetail({
                   </button>
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.province.size')}:</span>
-                    <span>{pop.size.toFixed(1)}</span>
+                    <span>{formatPopCount(pop.size)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.province.wealth')}:</span>

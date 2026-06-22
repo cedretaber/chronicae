@@ -9,7 +9,7 @@ import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList, DetailSection } from './shared/widgets'
 import { getHoldingClassCapacity } from '@sim/selectors/popSelectors'
 import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
-import { formatAmount } from '@/app/utils/format'
+import { formatPopCount, formatPopFlow } from '@/app/utils/format'
 import { defaultConfig } from '@sim/config/defaultConfig'
 
 export function PopGroupDetail({
@@ -70,7 +70,7 @@ export function PopGroupDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.size')}:</span>
-          <span>{popGroup.size.toFixed(1)}</span>
+          <span>{formatPopCount(popGroup.size)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.wealth')}:</span>
@@ -89,13 +89,15 @@ export function PopGroupDetail({
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.province.capacity')}:</span>
             <span>
-              {popGroup.size.toFixed(1)} /{' '}
-              {getHoldingClassCapacity(
-                currentState,
-                defaultConfig,
-                popGroup.holdingId,
-                popGroup.class,
-              ).toFixed(1)}
+              {formatPopCount(popGroup.size)} /{' '}
+              {formatPopCount(
+                getHoldingClassCapacity(
+                  currentState,
+                  defaultConfig,
+                  popGroup.holdingId,
+                  popGroup.class,
+                ),
+              )}
             </span>
           </div>
         </div>
@@ -152,7 +154,7 @@ export function PopGroupDetail({
                 </span>
                 <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
                   {dir === 'in' ? '+' : '−'}
-                  {formatAmount(amount)}
+                  {formatPopFlow(amount)}
                 </span>
               </div>
             )
