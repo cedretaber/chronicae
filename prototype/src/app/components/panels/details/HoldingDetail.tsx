@@ -291,7 +291,7 @@ export function HoldingDetail({
               popType: PopType,
               amount: number,
             ) => {
-              const key = `${counterpartId} ${popType}`
+              const key = `${counterpartId} ${popType}`
               const existing = map.get(key)
               if (existing) existing.amount += amount
               else map.set(key, { counterpartId, popType, amount })
