@@ -53,6 +53,8 @@ function collectPopStats(state: WorldState) {
   let totalPop = 0
   let totalMoney = 0
   let totalUnrest = 0
+  let totalSat = 0
+  const satByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
 
   for (const province of Object.values(state.provinces)) {
     if (!province) continue
@@ -87,6 +89,8 @@ function collectPopStats(state: WorldState) {
     totalPop += pop.size
     totalMoney += pop.money
     totalUnrest += pop.unrest * pop.size
+    totalSat += pop.needSatisfaction * pop.size
+    satByStratum[pop.class] += pop.needSatisfaction * pop.size
   }
 
   const totalCapacity = POP_STRATA.reduce((acc, s) => acc + byStratum[s].capacity, 0)
@@ -100,6 +104,8 @@ function collectPopStats(state: WorldState) {
     totalUnemployed,
     avgMoney: totalPop > 0 ? totalMoney / totalPop : 0,
     avgUnrest: totalPop > 0 ? totalUnrest / totalPop : 0,
+    avgSat: totalPop > 0 ? totalSat / totalPop : 0,
+    satByStratum,
     byStratum,
     moneyByStratum,
     empByType,
@@ -158,12 +164,13 @@ function printFinalBreakdown(state: WorldState): void {
     const d = stats.byStratum[stratum]
     const empRate = d.pop > 0 ? ((d.employed / d.pop) * 100).toFixed(1) : '0.0'
     const avgMoney = d.pop > 0 ? d.moneySum / d.pop : 0
+    const avgSat = d.pop > 0 ? stats.satByStratum[stratum] / d.pop : 0
     console.log(
       `  ${stratum.padEnd(7)}: pop=${Math.round(d.pop).toString().padStart(7)}, ` +
         `cap=${Math.round(d.capacity).toString().padStart(7)}, ` +
         `emp=${Math.round(d.employed).toString().padStart(7)}, ` +
         `unemp=${Math.round(d.unemployed).toString().padStart(7)}, ` +
-        `empRate=${empRate}%, avgMoney=${avgMoney.toFixed(1)}`,
+        `empRate=${empRate}%, avgMoney=${avgMoney.toFixed(1)}, needSat=${avgSat.toFixed(1)}`,
     )
   }
 
@@ -221,6 +228,7 @@ function main() {
   let seed = '1'
   let years = 20
   let preset = 'small'
+  let configOverrides: Record<string, unknown> = {}
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--seed' && args[i + 1]) {
@@ -232,8 +240,14 @@ function main() {
     } else if (args[i] === '--preset' && args[i + 1]) {
       i++
       preset = args[i]!
+    } else if (args[i] === '--config' && args[i + 1]) {
+      i++
+      const parsed: unknown = JSON.parse(args[i]!)
+      if (parsed && typeof parsed === 'object') configOverrides = parsed as Record<string, unknown>
     }
   }
+
+  const config = { ...defaultConfig, ...configOverrides }
 
   const namePoolPath = path.resolve(process.cwd(), 'src/sim/namegen/namePools.yaml')
   const poolData = YAML.parse(fs.readFileSync(namePoolPath, 'utf8')) as NamePoolData
@@ -256,7 +270,7 @@ function main() {
 
   const totalWeeks = years * 48
   for (let w = 0; w < totalWeeks; w++) {
-    const result = tick({ state, rng, config: defaultConfig })
+    const result = tick({ state, rng, config })
     state = result.state
     rng = result.rng
     if (state.currentWeekOfYear === 48) {

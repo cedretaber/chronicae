@@ -80,7 +80,9 @@ export function computePopNeedDemand(
     const amountPerPop = profile[category]
     if (amountPerPop <= 0) continue
     const tier = NEED_CATEGORY_TIER[category]
-    const desiredValue = amountPerPop * pop.size // v0.58: full desired（予算制約は呼び出し側）
+    // v0.58 balance: essential tier は popEssentialNeedScale で一律スケール（過少消費の調整ダイヤル）。
+    const tierScale = tier === 'essential' ? config.popEssentialNeedScale : 1
+    const desiredValue = amountPerPop * pop.size * tierScale // v0.58: full desired（予算制約は呼び出し側）
     if (desiredValue <= 0) continue
     const shares = resolveCategoryShares(NEED_CATEGORY_CONTRIBUTIONS[category], priceLookup, beta)
     const resources = shares.map((s) => ({

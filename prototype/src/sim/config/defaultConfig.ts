@@ -1467,6 +1467,10 @@ export type SimulationConfig = {
   // v0.58 §6.3c.5: needSatisfaction = Σ tier重み × (afford × market-fill) の加重平均×100 を平滑化。
   needSatisfactionTierWeight: Record<NeedTier, number>
   needSatisfactionSmoothing: number // 0..1（新値の重み。1=平滑なし）
+  // v0.58 balance: essential tier の消費 desire 全体スケール。賃金(粗利の wageShareOfNetRevenue)
+  //   が essential desire の ~15% しか賄えず全 POP が貧困床に貼り付く過少消費を是正する調整ダイヤル。
+  //   POP_NEED_PROFILES の PopType 間比率は保ったまま essential 量を一律倍する (1.0=従来)。
+  popEssentialNeedScale: number
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -1697,7 +1701,7 @@ export const defaultConfig: SimulationConfig = {
   unrestNaturalDecayRate: 0.05,
   securityUnrestReductionAtFull: 2.0,
   securityFullCoverageRatio: 0.1,
-  wageShareOfNetRevenue: 0.3,
+  wageShareOfNetRevenue: 0.5,
   wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
   overExtractionThreshold: 0.95,
   overExtractionNeedSatisfactionSafeThreshold: 55,
@@ -3062,6 +3066,7 @@ export const defaultConfig: SimulationConfig = {
   recipeSwitchIntervalWeeks: 12,
   needSatisfactionTierWeight: { essential: 0.6, ordinary: 0.3, luxury: 0.1 },
   needSatisfactionSmoothing: 0.5,
+  popEssentialNeedScale: 0.5,
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,
