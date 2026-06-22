@@ -178,13 +178,15 @@ type PopGroup = {
   popType: PopType           // v0.55 追加
   employed: boolean          // v0.52 で PopOccupation を廃止
   size: number       // 抽象人口規模（実人数ではない）
-  wealth: number     // 0..100（豊かさ指数。金額ではない）
+  wealth: number     // 0..100（豊かさ指数。金額ではない。v0.58 Phase 2 で退役予定）
+  money: number      // v0.58: 財産 stock（extensive・金額・≥0）。賃金で増え消費で減る source/sink
+  needSatisfaction: number // v0.58: need 充足度 0..100（intensive）。Phase 2 で unrest 駆動
   unrest: number     // 0..100
   attitudes: AttitudeMap  // 対 Polity などへの態度
 }
 ```
 
-不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。
+不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6 資源経済）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。`wealth`（0..100 指数）は Phase 1 では併存、Phase 2 で予算制約消費＋`needSatisfaction` へ完全移行し退役する。
 
 | PopStratum | PopType | 意味 |
 |---|---|---|
