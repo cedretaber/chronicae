@@ -18,6 +18,7 @@ import {
   EntityChronicleSection,
   RightHolderLine,
   DetailSection,
+  FulfillmentBar,
 } from './shared/widgets'
 import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingImage } from '@/app/utils/assetHash'
@@ -253,15 +254,28 @@ export function HoldingDetail({
                         </div>
                       ) : null}
                       {ar ? (
-                        <div className="mt-1 flex justify-between border-t border-gray-600/50 pt-0.5 text-[11px]">
-                          <span className="text-gray-500">
-                            {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
-                          </span>
-                          <span
-                            className={ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-                          >
-                            {formatAmount(ar.netRevenue)}
-                          </span>
+                        <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-0.5 text-[11px]">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">
+                              {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
+                            </span>
+                            <span
+                              className={ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                            >
+                              {formatAmount(ar.netRevenue)}
+                            </span>
+                          </div>
+                          {/* その不動産全体の充足率 (asset 単位・slotCount 加重)。一覧で供給/労働の詰まりを把握する。 */}
+                          <FulfillmentBar
+                            label={t('detail.realEstate.input_fulfillment')}
+                            value={ar.inputFulfillment}
+                            compact
+                          />
+                          <FulfillmentBar
+                            label={t('detail.realEstate.labor_type_fulfillment')}
+                            value={ar.laborTypeFulfillment}
+                            compact
+                          />
                         </div>
                       ) : null}
                     </div>

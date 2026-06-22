@@ -34,6 +34,43 @@ export function PanelHeader({
 // 冷色アクセント (鋼青) を細い左罫のアンカーにする (= 「計器」面の構造マーカー)。tone='alert'
 // は危機など警告節用に赤系。count を渡すと見出し右に件数を添える。
 //   従来バラついていた `text-sm font-semibold text-gray-300` / `font-medium` などをこれに統一する。
+// 充足率 (0..1) のラベル + バー。緑(≥0.8)/琥珀(≥0.4)/薔薇(<0.4) で充足度を可視化 (雇用枠バーと同配色)。
+//   compact: ラベル・バー・% を 1 行に並べる (カード一覧の要約用)。default: ラベル+% を上段、バーを下段。
+export function FulfillmentBar({
+  label,
+  value,
+  compact = false,
+}: {
+  label: ReactNode
+  value: number
+  compact?: boolean
+}) {
+  const pct = Math.min(100, Math.max(0, value * 100))
+  const color = value >= 0.8 ? 'bg-emerald-500' : value >= 0.4 ? 'bg-amber-500' : 'bg-rose-500'
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="shrink-0 text-gray-500">{label}</span>
+        <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+          <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className="shrink-0 text-right text-gray-400 tabular-nums">{pct.toFixed(0)}%</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex justify-between">
+        <span className="text-gray-500">{label}:</span>
+        <span className="text-gray-300">{pct.toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded bg-gray-600">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 export function DetailSection({
   title,
   count,

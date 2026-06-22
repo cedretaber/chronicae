@@ -2,7 +2,7 @@ import type { RealEstateAsset } from '@/sim/types/realEstateAsset'
 import type { SimulationSession } from '@/sim/types/world'
 import type { ProductionRecipeId } from '@/sim/types/ids'
 import { useTranslation } from 'react-i18next'
-import { PanelHeader, DetailSection } from './shared/widgets'
+import { PanelHeader, DetailSection, FulfillmentBar } from './shared/widgets'
 import { PersonLink, HouseLink, PolityLink } from './shared/links'
 import type { ClickHandler } from './shared/helpers'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
@@ -56,23 +56,6 @@ function ResourcePrice({
       @{info.price.toFixed(1)}
       {arrow}
     </span>
-  )
-}
-
-// 充足率 (0..1) のラベル + バー。緑(≥0.8)/琥珀(≥0.4)/薔薇(<0.4) で充足度を可視化。雇用枠バーと同配色。
-function FulfillmentBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.min(100, Math.max(0, value * 100))
-  const color = value >= 0.8 ? 'bg-emerald-500' : value >= 0.4 ? 'bg-amber-500' : 'bg-rose-500'
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex justify-between">
-        <span className="text-gray-500">{label}:</span>
-        <span className="text-gray-300">{pct.toFixed(0)}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded bg-gray-600">
-        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
   )
 }
 
