@@ -15,6 +15,9 @@ import {
 } from '@sim/selectors/realEstateSeizureSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
+import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
+import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
+import type { ResourceKind } from '@sim/types/resource'
 
 // レシピ構成 ■ 積み上げバーの色パレット (recipe 出現順で固定割当・index cycle)。farm=10 / workshop=8 が最多。
 const RECIPE_COLORS = [
@@ -32,6 +35,46 @@ const RECIPE_COLORS = [
 
 // 資源量の簡易フォーマット。小さい値 (<10) は小数1桁、それ以上は整数。
 const fmtQty = (n: number): string => (n >= 10 ? n.toFixed(0) : n.toFixed(1))
+
+// 資源の現在市場価格を chip に併記する。基準価格比 ±5% 超で色付け:
+//   input は高値=不利(赤)/安値=有利(緑)、output は高値=有利(緑)/安値=不利(赤)。これでレシピの黒字/赤字理由が読める。
+function ResourcePrice({
+  info,
+  role,
+}: {
+  info: { price: number; base: number } | null
+  role: 'input' | 'output'
+}) {
+  if (!info || info.base <= 0) return null
+  const dev = info.price / info.base - 1
+  const favorable = role === 'output' ? dev : -dev // 価格が自分に有利な方向か
+  const tone =
+    Math.abs(dev) < 0.05 ? 'text-gray-500' : favorable > 0 ? 'text-emerald-400' : 'text-rose-400'
+  const arrow = Math.abs(dev) < 0.05 ? '' : dev > 0 ? '▲' : '▼'
+  return (
+    <span className={`ml-0.5 ${tone}`}>
+      @{info.price.toFixed(1)}
+      {arrow}
+    </span>
+  )
+}
+
+// 充足率 (0..1) のラベル + バー。緑(≥0.8)/琥珀(≥0.4)/薔薇(<0.4) で充足度を可視化。雇用枠バーと同配色。
+function FulfillmentBar({ label, value }: { label: string; value: number }) {
+  const pct = Math.min(100, Math.max(0, value * 100))
+  const color = value >= 0.8 ? 'bg-emerald-500' : value >= 0.4 ? 'bg-amber-500' : 'bg-rose-500'
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex justify-between">
+        <span className="text-gray-500">{label}:</span>
+        <span className="text-gray-300">{pct.toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded bg-gray-600">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
 
 // v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
 //   詳細はこちらに集約する (カードクリックで開く)。
@@ -97,6 +140,19 @@ export function RealEstateDetail({
   const recipeBreakdown = (assetResult?.recipeBreakdown ?? [])
     .filter((b) => Object.values(b.outputs).some((v) => (v ?? 0) > 0) || b.grossRevenue > 0)
     .sort((a, b) => b.netRevenue - a.netRevenue || (a.recipeId < b.recipeId ? -1 : 1))
+
+  // 資源の市場価格 (holding → province.stateId が StateRegion 市場)。基準価格比でレシピの黒字/赤字理由を示す。
+  const holding = currentState?.holdings[asset.holdingId]
+  const province = holding ? currentState?.provinces[holding.provinceId] : undefined
+  const stateId = province?.stateId
+  const priceOf = (res: string): { price: number; base: number } | null => {
+    if (!currentState || !stateId) return null
+    const ps =
+      currentState.marketResourcePrices[marketResourcePriceKey(stateId, res as ResourceKind)]
+    const base = RESOURCE_PRICE_DEFINITIONS[res as ResourceKind]?.basePrice
+    if (!ps || base === undefined) return null
+    return { price: ps.lastPrice, base }
+  }
 
   const seizure = currentState ? getActiveSeizureForAsset(currentState, asset.id) : null
 
@@ -283,6 +339,7 @@ export function RealEstateDetail({
                         <span key={`in-${res}`} className="text-amber-300">
                           {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}
                           <span className="text-amber-400/60"> {fmtQty(amount)}</span>
+                          <ResourcePrice info={priceOf(res)} role="input" />
                         </span>
                       ))}
                       {inRows.length > 0 && <span className="text-gray-500">→</span>}
@@ -292,6 +349,7 @@ export function RealEstateDetail({
                         <span key={`out-${res}`} className="text-emerald-300">
                           {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}
                           <span className="text-emerald-400/60"> {fmtQty(amount)}</span>
+                          <ResourcePrice info={priceOf(res)} role="output" />
                         </span>
                       ))}
                     </div>
@@ -330,21 +388,15 @@ export function RealEstateDetail({
               </span>
             </div>
           </div>
-          <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-500">{t('detail.realEstate.input_fulfillment')}:</span>
-              <span className="text-gray-300">
-                {(assetResult.inputFulfillment * 100).toFixed(0)}%
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">
-                {t('detail.realEstate.labor_type_fulfillment')}:
-              </span>
-              <span className="text-gray-300">
-                {(assetResult.laborTypeFulfillment * 100).toFixed(0)}%
-              </span>
-            </div>
+          <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-1 text-xs">
+            <FulfillmentBar
+              label={t('detail.realEstate.input_fulfillment')}
+              value={assetResult.inputFulfillment}
+            />
+            <FulfillmentBar
+              label={t('detail.realEstate.labor_type_fulfillment')}
+              value={assetResult.laborTypeFulfillment}
+            />
           </div>
         </>
       )}
