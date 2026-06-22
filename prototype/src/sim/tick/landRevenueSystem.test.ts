@@ -114,6 +114,7 @@ function withHoldingResourceRevenue(
             inputCost: 0,
             netRevenue: totalNet,
             wageShare: 0,
+            ownerDividendShare: 0,
             inputFulfillment: 1,
           },
         ],
@@ -338,7 +339,7 @@ function withOwnedAssetSnapshot(
   holdingId: HoldingId,
   owner: AssetOwnerRef,
   net: number,
-  opts: { seized?: boolean; wageShare?: number } = {},
+  opts: { seized?: boolean; wageShare?: number; ownerDividendShare?: number } = {},
 ): { state: WorldState; assetId: RealEstateAssetId } {
   const assetId = ('re-owned-' + (holdingId as string)) as RealEstateAssetId
   const asset: RealEstateAsset = {
@@ -377,6 +378,7 @@ function withOwnedAssetSnapshot(
             inputCost: 0,
             netRevenue: net,
             wageShare: opts.wageShare ?? 0,
+            ownerDividendShare: opts.ownerDividendShare ?? 0,
             inputFulfillment: 1,
           },
         ],

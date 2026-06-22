@@ -89,9 +89,9 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       let holdingTaxable = 0
       if (snapshot) {
         for (const ar of snapshot.assetResults) {
-          // v0.58: 賃金 carve 後が owner/税/国庫の原資 (positiveNet を 1 箇所変えるだけで
-          //   owner income / holdingDue / taxable / 代官 / treasury すべてが wageShare 分縮む)。
-          const positiveNet = Math.max(0, ar.netRevenue - ar.wageShare)
+          // v0.58: 賃金 carve ＋ upper 配当 carve 後が owner/税/国庫の原資 (positiveNet を 1 箇所変える
+          //   だけで owner income / holdingDue / taxable / 代官 / treasury すべてが carve 分縮む)。
+          const positiveNet = Math.max(0, ar.netRevenue - ar.wageShare - ar.ownerDividendShare)
           if (positiveNet <= 0) continue
           const asset = draft.realEstateAssets[ar.assetId]
           if (!asset || !asset.owner) {

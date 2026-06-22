@@ -49,6 +49,8 @@ function collectPopStats(state: WorldState) {
   }
   const empByType = new Map<PopType, number>()
   const unempByType = new Map<PopType, number>()
+  // per-popType per-capita money (employed のみ): money sum / size sum。
+  const moneyByType = new Map<PopType, { money: number; size: number }>()
 
   let totalPop = 0
   let totalMoney = 0
@@ -78,6 +80,10 @@ function collectPopStats(state: WorldState) {
     if (pop.employed) {
       s.employed += pop.size
       empByType.set(pop.popType, (empByType.get(pop.popType) ?? 0) + pop.size)
+      const mt = moneyByType.get(pop.popType) ?? { money: 0, size: 0 }
+      mt.money += pop.money
+      mt.size += pop.size
+      moneyByType.set(pop.popType, mt)
     } else {
       s.unemployed += pop.size
       unempByType.set(pop.popType, (unempByType.get(pop.popType) ?? 0) + pop.size)
@@ -110,6 +116,7 @@ function collectPopStats(state: WorldState) {
     moneyByStratum,
     empByType,
     unempByType,
+    moneyByType,
   }
 }
 
@@ -195,9 +202,12 @@ function printFinalBreakdown(state: WorldState): void {
     const emp = stats.empByType.get(popType) ?? 0
     const unemp = stats.unempByType.get(popType) ?? 0
     if (emp + unemp < 0.5) continue
+    const mt = stats.moneyByType.get(popType)
+    const pcMoney = mt && mt.size > 0 ? mt.money / mt.size : 0
     console.log(
       `  ${popType.padEnd(13)}(${getPopStratum(popType).padEnd(6)}): ` +
-        `emp=${Math.round(emp).toString().padStart(7)}, unemp=${Math.round(unemp).toString().padStart(7)}`,
+        `emp=${Math.round(emp).toString().padStart(7)}, unemp=${Math.round(unemp).toString().padStart(7)}, ` +
+        `pcMoney(emp)=${pcMoney.toFixed(2)}`,
     )
   }
 

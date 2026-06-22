@@ -193,8 +193,10 @@ v0.54 で Victoria 3 型の抽象市場、**v0.55 で 21 ResourceKind の商品�
 - **shortage の蓄積・回復**: 現状は月次で当月 severity を即時適用。Victoria 3 のように継続で penalty 蓄積・解消後に徐々回復。
 - ~~**PopGroup.cash / wage / consumer spending**~~ → **v0.58 で実装済み**（§6.3c.5）: `PopGroup.money` 導入で賃金 mint・予算制約消費の実コスト burn・needSatisfaction を実装。残る将来枠は下記「v0.58 貨幣経済の残存拡張」。
 - **v0.58 貨幣経済の残存拡張**:
-  - **動的賃金率（労働需給連動）**: 現状 `wageShareOfNetRevenue` は static 0.3。労働者不足の施設は賃金率が上がる（労働市場の需給で wageRate が変動）と、労働移動と待遇改善の創発が見込める。第一導入では複雑すぎるため見送った（設計対話で確認済）。
-  - **過少消費の構造調整（balance）**: 現キャリブレーションでは owner が net の 70% を POP economy 外（house/treasury）へ抜くため POP の購買力が不足し needSatisfaction が広範に低い。wageRate・消費プロファイル（`POP_NEED_PROFILES`）・worldgen money seed・税率の総合調整を balance フェーズで行う。
+  - **動的賃金率（労働需給連動）**: 現状 `wageShareOfNetRevenue` は static 0.5。労働者不足の施設は賃金率が上がる（労働市場の需給で wageRate が変動）と、労働移動と待遇改善の創発が見込める。第一導入では複雑すぎるため見送った（設計対話で確認済）。
+  - ~~**過少消費の構造調整（balance）**~~ → **v0.58 balance で是正済**（§6.3c.5）: essential 消費 desire 半減（`popEssentialNeedScale` 0.5）＋ 賃金率 0.3→0.5 で needSatisfaction 中央値 ~5→~45。残る微調整（富格差の厚み・seed・税率）は今後の balance フェーズ。
+  - ~~**upper(支配者層)が賃金経路に乗らず現金ゼロ**~~ → **v0.58 balance で配当チャネル実装済**（§6.3c.5）: `upperDividendShareOfNetRevenue`(0.03) で holding 純収益の固定割合を**雇用枠に就いた upper POP**へ配当。失業 upper は没落（既存降格）。
+  - **Project 資金集めフェーズ（POP 資金調達・将来構想）**: 現状 Project は Polity が事前に与えた予算で進行する。将来は Project 進行中に**資金集めフェーズ**を設け、その調達対象に **upper POP が溜め込んだ money** を含める。「国でも現地貴族の協力なしには大規模 Project（土地開発・建設）を進められない」状況を表現し、**POP を富ませることが土地開発を促進する**正のループを作る。この経路が入れば `upperDividendShareOfNetRevenue` を 0.03→0.1 程度へ引き上げ、死蔵していた upper money を現地設備投資へ還流させられる（現状 0.03 は死蔵が大きくならない控えめ値）。さらに **POP 主導 Project**（POP が自ら開発を起こす）も検討候補。
   - **施設別の富格差可視化**: per-capita money の分布（蓄財層/枯渇層）を UI/Chronicle に提示。
   - **完全保存市場（Model B）**: 現状は source/sink（賃金 mint・消費 burn、抽象市場は非保存）。将来、POP の支払いが producer 収入へ還流する完全保存モデルへ移行する選択肢。
 - ~~**POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。~~ → **v0.56/v0.57 で実装済み**: 転職・移住は §6.3b（lateral/promotion/demotion + 同一 StateRegion 移住）、PopType 別 employment の hard enforcement と `maxRatioTo` 実効化（同数上限）は §6.x.v0.57。残る将来枠は state を跨ぐ大規模移住（§13「大規模移住」）と PopGroup.cash/wage（上記）。

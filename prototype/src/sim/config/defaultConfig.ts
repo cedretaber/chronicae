@@ -235,6 +235,12 @@ export type SimulationConfig = {
   // v0.58: 賃金 = max(0, asset netRevenue) × wageShareOfNetRevenue を雇用 POP へ役割重み付き配分。
   //   残り (1 − wageShareOfNetRevenue) が owner 取り分 (税/国庫含む)。労使ゼロサムの山分け。
   wageShareOfNetRevenue: number
+  // v0.58 balance: 上流階層(nobles/patricians)は「給料」ではなく所有者・支配者としての**配当**を
+  //   受ける。holding 純収益の固定割合 = max(0, netRevenue) × upperDividendShareOfNetRevenue を
+  //   **雇用枠に就いている upper POP にのみ** size 比例で分配する(失業 upper=没落→配当ゼロ→money 枯渇→
+  //   既存降格で下位転落)。賃金とは別 carve で、owner 取り分はさらにこの分縮む。
+  //   制約: wageShareOfNetRevenue + upperDividendShareOfNetRevenue < 1。
+  upperDividendShareOfNetRevenue: number
   wageRoleWeightByRole: Record<'primary' | 'skilled' | 'throughput', number>
   overExtractionThreshold: number
   // v0.58: townsmen 反乱の welfare 判定を needSatisfaction へ (wealth から移行)。
@@ -1702,6 +1708,7 @@ export const defaultConfig: SimulationConfig = {
   securityUnrestReductionAtFull: 2.0,
   securityFullCoverageRatio: 0.1,
   wageShareOfNetRevenue: 0.5,
+  upperDividendShareOfNetRevenue: 0.03,
   wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
   overExtractionThreshold: 0.95,
   overExtractionNeedSatisfactionSafeThreshold: 55,
