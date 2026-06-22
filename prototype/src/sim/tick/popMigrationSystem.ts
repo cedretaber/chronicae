@@ -4,7 +4,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, PolityId } from '../types/ids'
 import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
-import { POP_STRATA, POP_TYPES_BY_STRATUM } from '../types/popGroup'
+import { POP_STRATA, POP_TYPES } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
   getHoldingAllPopTypeCapacities,
@@ -237,17 +237,14 @@ function opportunityScore(
   const capacity = cache.capacityByType[source.popType] ?? 0
   const stratumVacancyScore = clamp(liveRemaining / Math.max(1, capacity), 0, 1)
 
-  // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。
+  // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。idealShare/currentShare とも
+  //   holding 全体で正規化する (v0.57.1: stratum 内正規化を廃止。移動の判断を Class 単位に統一)。
   const demand = cache.demand
   const idealShare = demand.idealShareByType[source.popType] ?? 0
-  let totalCurrentInStratum = 0
-  for (const t of POP_TYPES_BY_STRATUM[source.class]) {
-    totalCurrentInStratum += demand.currentEmployedByType[t] ?? 0
-  }
+  let totalCurrent = 0
+  for (const t of POP_TYPES) totalCurrent += demand.currentEmployedByType[t] ?? 0
   const currentShare =
-    totalCurrentInStratum > 0
-      ? (demand.currentEmployedByType[source.popType] ?? 0) / totalCurrentInStratum
-      : 0
+    totalCurrent > 0 ? (demand.currentEmployedByType[source.popType] ?? 0) / totalCurrent : 0
   const popTypeDemandScore = clamp(
     Math.max(0, idealShare - currentShare) / Math.max(idealShare, SHARE_EPS),
     0,

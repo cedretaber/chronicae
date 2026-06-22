@@ -18,8 +18,9 @@ export type PopTargetKey = {
 }
 
 // §2.3 holding 単位の PopType 雇用需要 (read-model)。
-//   idealShareByType: stratum 内で正規化した recipe 理想構成比 (Σ_{stratum 内} = 1)。B2 の移住 score で使用。
-//   desiredEmployedByType: stratum capacity × idealShare。即時雇用を意味しない推定値。
+//   idealShareByType: holding 全体で正規化した施設駆動の理想構成比 (Σ_{全 PopType} = 1)。B2 の移住
+//     score で使用 (v0.57.1: stratum 内正規化から holding 全体へ。移動の判断を Class 単位に統一)。
+//   desiredEmployedByType: 施設駆動の PopType 雇用容量。即時雇用を意味しない推定値。
 export type HoldingPopTypeDemand = {
   holdingId: HoldingId
   idealShareByType: Partial<Record<PopType, number>>

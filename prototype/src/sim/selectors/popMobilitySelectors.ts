@@ -1,13 +1,14 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, StateRegionId } from '../types/ids'
-import type { PopType, PopStratum } from '../types/popGroup'
-import { POP_STRATA, POP_TYPES, getPopStratum } from '../types/popGroup'
+import type { PopType } from '../types/popGroup'
+import { POP_TYPES } from '../types/popGroup'
 import type { HoldingPopTypeDemand } from '../types/popMobility'
 import { getHoldingAllPopTypeCapacities } from './popSelectors'
 
 // v0.57 §雇用細分化: holding 単位の PopType 雇用需要 read-model。
-//   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = stratum 内で正規化した容量比。
+//   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = holding 全体で正規化した容量比
+//   (v0.57.1: stratum 内正規化から holding 全体へ。移動の判断を Class 単位に統一)。
 //   current は employed POP 集計。shortage/surplus は転職・移住スコア・rebalance 順序付け用。
 export function computeHoldingPopTypeDemand(
   state: WorldState,
@@ -26,17 +27,16 @@ export function computeHoldingPopTypeDemand(
   // desired = 施設駆動の PopType 雇用容量 (1 パス計算)。
   const capByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
 
-  // stratum 合計で正規化して idealShare を求める (移住 opportunity score 用)。
-  const stratumTotal: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
-  for (const t of POP_TYPES) stratumTotal[getPopStratum(t)] += capByType[t] ?? 0
+  // holding 全体の容量合計で正規化して idealShare を求める (移住 opportunity score 用)。
+  let totalCap = 0
+  for (const t of POP_TYPES) totalCap += capByType[t] ?? 0
 
   const idealShareByType: Partial<Record<PopType, number>> = {}
   const desiredEmployedByType: Partial<Record<PopType, number>> = {}
   for (const t of POP_TYPES) {
     const cap = capByType[t] ?? 0
     desiredEmployedByType[t] = cap
-    const st = stratumTotal[getPopStratum(t)]
-    idealShareByType[t] = st > 0 ? cap / st : 0
+    idealShareByType[t] = totalCap > 0 ? cap / totalCap : 0
   }
 
   // §6.4: shortage / surplus。
@@ -61,8 +61,9 @@ export function computeHoldingPopTypeDemand(
   }
 }
 
-// v0.56 §6.5: promotion/demotion の相対 gate 用。StateRegion × stratum・size 加重の wealth 分位。
-//   該当 stratum の POP がいなければ undefined (その stratum では昇格/転落を発火させない)。
+// v0.56 §6.5 / v0.57.1: promotion/demotion の相対 gate 用。StateRegion × **PopType**・size 加重の
+//   wealth 分位。比較母集団を stratum プールから「同じ職能」へ変更 (移動の判断を Class 単位に統一)。
+//   該当 PopType の POP がいなければ undefined (その職能では昇格/転落を発火させない)。
 function weightedWealthQuantile(items: { wealth: number; size: number }[], q: number): number {
   const sorted = [...items].sort((a, b) => a.wealth - b.wealth)
   let total = 0
@@ -79,20 +80,12 @@ function weightedWealthQuantile(items: { wealth: number; size: number }[], q: nu
   return last ? last.wealth : 0
 }
 
-export function computeStratumWealthQuantiles(
+export function computePopTypeWealthQuantiles(
   state: WorldState,
   stateRegionId: StateRegionId,
-): Record<PopStratum, { p25: number; median: number; p75: number } | undefined> {
-  const buckets: Record<PopStratum, { wealth: number; size: number }[]> = {
-    lower: [],
-    middle: [],
-    upper: [],
-  }
-  const result: Record<PopStratum, { p25: number; median: number; p75: number } | undefined> = {
-    lower: undefined,
-    middle: undefined,
-    upper: undefined,
-  }
+): Partial<Record<PopType, { p25: number; median: number; p75: number }>> {
+  const buckets = new Map<PopType, { wealth: number; size: number }[]>()
+  const result: Partial<Record<PopType, { p25: number; median: number; p75: number }>> = {}
 
   const region = state.states[stateRegionId]
   if (!region) return result
@@ -105,15 +98,17 @@ export function computeStratumWealthQuantiles(
       for (const pid of popIds) {
         const p = state.popGroups[pid]
         if (!p) continue
-        buckets[p.class].push({ wealth: p.wealth, size: p.size })
+        const arr = buckets.get(p.popType)
+        if (arr) arr.push({ wealth: p.wealth, size: p.size })
+        else buckets.set(p.popType, [{ wealth: p.wealth, size: p.size }])
       }
     }
   }
 
-  for (const stratum of POP_STRATA) {
-    const arr = buckets[stratum]
-    if (arr.length === 0) continue
-    result[stratum] = {
+  for (const popType of POP_TYPES) {
+    const arr = buckets.get(popType)
+    if (!arr || arr.length === 0) continue
+    result[popType] = {
       p25: weightedWealthQuantile(arr, 0.25),
       median: weightedWealthQuantile(arr, 0.5),
       p75: weightedWealthQuantile(arr, 0.75),

@@ -12,7 +12,7 @@ import {
 } from '../selectors/popSelectors'
 import {
   computeHoldingPopTypeDemand,
-  computeStratumWealthQuantiles,
+  computePopTypeWealthQuantiles,
 } from '../selectors/popMobilitySelectors'
 import { allowedTargetsFor, classifyMobilityKind } from '../config/popMobilityDefinitions'
 import { movePopSizeToKeyMut } from '../mutations/popMutations'
@@ -22,7 +22,7 @@ import {
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
 
-type WealthQuantiles = ReturnType<typeof computeStratumWealthQuantiles>
+type WealthQuantiles = ReturnType<typeof computePopTypeWealthQuantiles>
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 
 type JobChangeCandidate = {
@@ -55,7 +55,7 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
   for (const stateId of Object.keys(ctx.state.states).sort()) {
     quantilesByState.set(
       stateId,
-      computeStratumWealthQuantiles(ctx.state, stateId as StateRegionId),
+      computePopTypeWealthQuantiles(ctx.state, stateId as StateRegionId),
     )
   }
 
@@ -223,7 +223,7 @@ function evaluateCandidate(
 
   if (kind === 'promotion') {
     if (targetShortage <= 0) return undefined
-    const q = quantiles?.[source.class]
+    const q = quantiles?.[source.popType]
     if (!q) return undefined
     if (!(source.wealth >= q.p75 && source.wealth > q.median + config.popPromotionEpsilon)) {
       return undefined
@@ -237,7 +237,7 @@ function evaluateCandidate(
   }
 
   // demotion
-  const q = quantiles?.[source.class]
+  const q = quantiles?.[source.popType]
   const demotionWealthOk =
     !source.employed ||
     (q !== undefined &&
