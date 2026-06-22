@@ -348,6 +348,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         grossRevenue: recipeGross,
         inputCost: recipeInputCost,
         netRevenue: recipeNet,
+        inputFulfillment: recipeInputFulfillment,
+        laborTypeFulfillment: rec.laborTypeFulfillment,
       })
       // 充足率の slotCount 加重和を貯める (正規化は snapshot 組み立て時)。
       assetResult.inputFulfillment += recipeInputFulfillment * rec.slotCount

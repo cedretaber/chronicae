@@ -191,6 +191,15 @@ export function HoldingDetail({
                   // v0.55: カードは要約のみ (種別・所有者・押領・月次純益)。レシピ構成/雇用枠/産出内訳の
                   //   詳細はクリックで開く RealEstateDetail パネルに集約する。
                   const ar = assetResultById.get(asset.id)
+                  // 充足率はボトルネック (最低レシピ) を要約に出す。asset 平均は一次生産=1 が混ざり鈍るため不採用。
+                  const breakdown = ar?.recipeBreakdown ?? []
+                  const inputRecipes = breakdown.filter((b) => Object.keys(b.inputs).length > 0)
+                  const minInputFulfill = inputRecipes.length
+                    ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
+                    : null
+                  const minLaborFulfill = breakdown.length
+                    ? Math.min(...breakdown.map((b) => b.laborTypeFulfillment))
+                    : null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -265,17 +274,21 @@ export function HoldingDetail({
                               {formatAmount(ar.netRevenue)}
                             </span>
                           </div>
-                          {/* その不動産全体の充足率 (asset 単位・slotCount 加重)。一覧で供給/労働の詰まりを把握する。 */}
-                          <FulfillmentBar
-                            label={t('detail.realEstate.input_fulfillment')}
-                            value={ar.inputFulfillment}
-                            compact
-                          />
-                          <FulfillmentBar
-                            label={t('detail.realEstate.labor_type_fulfillment')}
-                            value={ar.laborTypeFulfillment}
-                            compact
-                          />
+                          {/* ボトルネック (最低レシピ) の充足率。一覧で供給/労働の詰まりを把握する。 */}
+                          {minInputFulfill !== null && (
+                            <FulfillmentBar
+                              label={t('detail.realEstate.input_fulfillment_min')}
+                              value={minInputFulfill}
+                              compact
+                            />
+                          )}
+                          {minLaborFulfill !== null && (
+                            <FulfillmentBar
+                              label={t('detail.realEstate.labor_type_fulfillment_min')}
+                              value={minLaborFulfill}
+                              compact
+                            />
+                          )}
                         </div>
                       ) : null}
                     </div>

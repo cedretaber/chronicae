@@ -809,6 +809,9 @@ detail:
     employment_fulfillment: '雇用充足率'
     input_fulfillment: '入力資源充足率'
     labor_type_fulfillment: '労働タイプ充足率'
+    # v0.56 ボトルネック (最低レシピ) 要約
+    input_fulfillment_min: '入力資源充足率(最低)'
+    labor_type_fulfillment_min: '労働タイプ充足率(最低)'
     # v0.55 資源名 (21 種)
     resource_grain: '穀物'
     resource_fish: '魚'

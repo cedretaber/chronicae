@@ -45,6 +45,12 @@ export type RecipeProductionBreakdown = {
   grossRevenue: number
   inputCost: number
   netRevenue: number
+  // v0.56 観察用充足率 (recipe 単位)。asset 集約 (slotCount 加重平均) は一次生産=1 が混ざり鈍るため、
+  //   UI はレシピ別に提示し、施設/カード要約は min (ボトルネック) を取る。
+  //   inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。input 無し recipe は 1。
+  //   laborTypeFulfillment: §14.3 laborTypeFulfillmentModifier (floor..1)。
+  inputFulfillment: number
+  laborTypeFulfillment: number
 }
 
 // §16.4 RealEstateProductionResult: asset 単位の結果。
