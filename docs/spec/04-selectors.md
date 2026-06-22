@@ -90,17 +90,18 @@ function getHoldingTotalPopSize(state: WorldState, holdingId: HoldingId): number
 転職・移住スコアの read-model。詳細は §6.3b。
 
 ```ts
-// holding 単位の PopType 雇用需要。capacity=live・idealShare=recipe 由来・current=employed 集計。
-//   desired = stratum capacity × idealShare、shortage/surplus = max(0, desired−current) / max(0, current−desired)。
-//   idealShare は holding の RealEstateAsset.recipeSlots × RECIPE_LABOR_PROFILES を slot 加重集約し
-//   stratum 内で正規化（recipe demand 無しの stratum は current 構成を維持、current も無ければ均等配分）。
+// holding 単位の PopType 雇用需要。capacity=live・current=employed 集計。
+//   desired = 施設駆動の PopType 雇用容量（v0.57: getHoldingAllPopTypeCapacities。recipe 集計は廃止）。
+//   shortage/surplus = max(0, desired−current) / max(0, current−desired)。
+//   idealShare は holding 全体の容量合計で正規化（v0.57.1: stratum 内正規化を廃止。移動判断を Class 単位に統一）。
 //   返り値の idealShareByType は移住 score の構成ミスマッチ（B2）でも参照。強制変換はしない。
 function computeHoldingPopTypeDemand(state: WorldState, config: SimulationConfig, holdingId: HoldingId): HoldingPopTypeDemand
 
-// promotion/demotion の相対 wealth gate（C3）用。StateRegion × stratum・size 加重の wealth 分位。
-//   当該 StateRegion 内全 holding の同一 stratum POP を母集団に p25/median/p75 を size 加重で算出。
-//   該当 stratum の POP が無ければ undefined（その stratum では昇格/転落を発火させない）。月初に 1 回 cache。
-function computeStratumWealthQuantiles(state: WorldState, stateRegionId: StateRegionId): Record<PopStratum, { p25: number; median: number; p75: number } | undefined>
+// promotion/demotion の相対 wealth gate（C3）用。StateRegion × PopType・size 加重の wealth 分位
+//   （v0.57.1: 比較母集団を stratum プールから同じ職能へ。移動判断を Class 単位に統一）。
+//   当該 StateRegion 内全 holding の同一 PopType POP を母集団に p25/median/p75 を size 加重で算出。
+//   該当 PopType の POP が無ければ undefined（その職能では昇格/転落を発火させない）。月初に 1 回 cache。
+function computePopTypeWealthQuantiles(state: WorldState, stateRegionId: StateRegionId): Partial<Record<PopType, { p25: number; median: number; p75: number }>>
 ```
 
 #### Province POP セレクター（Holding POP から集計）

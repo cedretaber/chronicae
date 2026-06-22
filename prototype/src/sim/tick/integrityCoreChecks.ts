@@ -358,7 +358,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     }
   }
 
-  // PopGroup merge key uniqueness: no duplicate (holdingId, class, employed) combinations
+  // PopGroup merge key uniqueness: no duplicate (holdingId, class, popType, employed) combinations
   for (const holdingIdStr of Object.keys(state.popIndex.byHolding).sort()) {
     const holdingId = holdingIdStr as HoldingId
     const popIds = state.popIndex.byHolding[holdingId]

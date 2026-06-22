@@ -160,7 +160,9 @@ for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
 
 再就業時の wealth / unrest / attitudes は移動元と移動先の人口加重平均で統合される。
 
-> **v0.56 拡張**: Holding 単位の Phase1/Phase2 コアを `normalizePopEmploymentMut(ws, config, holdingId)` に抽出し、本体はこの helper を全 holding に適用する薄い形になった（mobility 後の `PopEmploymentNormalizeSystem` でも再利用）。さらに **再就業 Phase2 を demand-aware 化**: 空き枠を `computeHoldingPopTypeDemand` の `shortageByType` が大きい PopType から優先して埋める（shortage 降順→PopGroupId 昇順で決定論）。これにより「popType 盲目に再就業 → 翌月 lateral で是正」の遠回りを避け、recipe 理想構成への収束を速める。
+> **v0.56 拡張**: Holding 単位の Phase1/Phase2 コアを `normalizePopEmploymentMut(ws, config, holdingId)` に抽出し、本体はこの helper を全 holding に適用する薄い形になった（mobility 後の `PopEmploymentNormalizeSystem` でも再利用）。
+>
+> **v0.57 で上書き（重要）**: 上記の §6.3 Phase1/Phase2 擬似コード（class capacity 単位）と、v0.56 の「再就業 Phase2 を demand-aware 化（同一 stratum 内で `shortageByType` が大きい PopType を跨いで優先充足）」は、**v0.57 で stratum 単位から PopType 単位ハード枠へ再設計され置換された**（§6.x.v0.57）。現行 `normalizePopEmploymentMut` は PopType ごとに独立処理し、Phase1 で各 PopType の容量超過を強制失業、Phase2 で空き枠を**同一 PopType の未就業のみ**で補充する（処理順は 非 maxRatioTo → maxRatioTo）。stratum を跨ぐ shortage 優先の再就業は行わない。helper 抽出・全 holding 再適用・mobility 後の再利用という構造は不変。
 
 ### 6.3b POP 転職・移住システム（v0.56、4週ごと）
 
