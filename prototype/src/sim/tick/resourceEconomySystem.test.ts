@@ -154,12 +154,12 @@ describe('runResourceEconomySystem — production & market', () => {
     const snap = result.monthlyHoldingResourceRevenue[hd]!
     const ar = snap.assetResults[0]!
     expect(ar.wageShare).toBeGreaterThan(0)
-    // wageShare = max(0, netRevenue) × wageRate。
-    expect(ar.wageShare).toBeCloseTo(
-      Math.max(0, ar.netRevenue) * defaultConfig.wageShareOfNetRevenue,
-      6,
-    )
+    // wageShare は生産賃金 (max(0, netRevenue) × wageRate) に加え、施設(manor_house)労働者の俸給
+    //   supplement を含む (v0.58 balance)。manor は manor_house を自動生成するため supplement>0。
+    const prodWageOnly = Math.max(0, ar.netRevenue) * defaultConfig.wageShareOfNetRevenue
+    expect(ar.wageShare).toBeGreaterThan(prodWageOnly) // 施設俸給分が上乗せされている
     // carve==mint: この holding の全 POP に増えた money の合計が wageShare と一致 (初期 money=0)。
+    //   生産賃金 + 施設俸給の総 mint == 総 wageShare (asset 1 つなので全 supplement がこの asset に按分)。
     const mintedTotal = Object.values(result.popGroups)
       .filter((p) => p.holdingId === hd)
       .reduce((a, p) => a + p.money, 0)

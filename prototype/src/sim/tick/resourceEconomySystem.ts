@@ -26,7 +26,10 @@ import {
   computeAssetPopTypeShares,
 } from '../selectors/resourceProductionSelectors'
 import { WAGE_ROLE_BY_POP_TYPE } from '../config/popWageDefinitions'
-import type { PopType } from '../types/popGroup'
+import type { PopType, PopStratum } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
 import {
@@ -539,6 +542,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       const popIdsHere = state.popIndex.byHolding[holdingId] ?? []
 
       // ─── 賃金 carve (lower/middle): asset 単位 ───
+      //   prodWageByPop に POP 別の生産賃金を記録し、後段の施設俸給 supplement の按分基準に使う。
+      const prodWageByPop = new Map<PopGroupId, number>()
       if (wageRate > 0) {
         for (const ar of snap.assetResults) {
           const carveBudget = Math.max(0, ar.netRevenue) * wageRate
@@ -575,11 +580,62 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               const pop = newPopGroups[pid]
               if (!pop || pop.popType !== popType || !pop.employed) continue
               newPopGroups[pid] = { ...pop, money: pop.money + amount }
+              prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
               minted += amount
               break
             }
           }
           ar.wageShare = minted
+        }
+
+        // ─── v0.58 balance: 施設(improvement)労働者の俸給 supplement (holding 収入から) ───
+        //   施設は収益を生まないので、施設労働者の給料は holding 収入(owner 取り分)から確保する。
+        //   生産者の賃金を希釈しないよう、給与水準は「生産 asset の労働者のみで算出した per-capita」と同等にする。
+        //   stratum 単位で facCap/prodCap(雇用枠容量比、level 込み)を求め、各 POP の生産賃金にこの比を掛けた額を
+        //   施設俸給として mint する(= 同 per-capita で施設分の頭数に支払うのと等価。slot 充足率に依らず成立)。
+        //   prodCap=0 の stratum(upper)は生産賃金ゼロ→対象外(upper は別途配当)。supplement は wageShare に
+        //   合算して landRevenue が控除する(施設俸給も労働コスト)。determinism: byHolding/slot は固定順、RNG 非消費。
+        if (prodWageByPop.size > 0) {
+          const prodCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          const facCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          for (const aid of state.realEstateAssetIndex.byHolding[holdingId as string] ?? []) {
+            const asset = state.realEstateAssets[aid]
+            if (!asset) continue
+            for (const slot of REAL_ESTATE_DEFINITIONS[asset.realEstateKind].employmentSlots) {
+              prodCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * asset.level
+            }
+          }
+          for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
+            const imp = state.holdingImprovements[impId]
+            if (!imp) continue
+            const slots = IMPROVEMENT_DEFINITIONS[imp.kind].employmentSlots
+            if (!slots) continue
+            for (const slot of slots) {
+              facCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * imp.level
+            }
+          }
+          let supplementTotal = 0
+          for (const [pid, prodWage] of prodWageByPop) {
+            const pop = newPopGroups[pid]
+            if (!pop) continue
+            const pc = prodCap[pop.class]
+            const fc = facCap[pop.class]
+            if (pc <= 0 || fc <= 0) continue
+            const supplement = prodWage * (fc / pc)
+            if (supplement <= 0) continue
+            newPopGroups[pid] = { ...pop, money: pop.money + supplement }
+            supplementTotal += supplement
+          }
+          // supplement 総額を asset へ max(0,netRevenue) 比で按分し wageShare に加算(landRevenue 控除)。
+          if (supplementTotal > 0) {
+            let netSum = 0
+            for (const ar of snap.assetResults) netSum += Math.max(0, ar.netRevenue)
+            if (netSum > 0) {
+              for (const ar of snap.assetResults) {
+                ar.wageShare += supplementTotal * (Math.max(0, ar.netRevenue) / netSum)
+              }
+            }
+          }
         }
       }
 

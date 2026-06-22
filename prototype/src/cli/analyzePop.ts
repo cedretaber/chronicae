@@ -120,6 +120,25 @@ function collectPopStats(state: WorldState) {
   }
 }
 
+// v0.58: money/wealth が「どこに死蔵されるか」を見るため 4 プールの総額を集計する。
+//   全て netRevenue 分配由来で同一単位。POP=消費で burn される / House・Person・Polity=owner income/税の蓄積先。
+function collectMoneyPools(state: WorldState): {
+  popMoney: number
+  houseWealth: number
+  personWealth: number
+  treasury: number
+} {
+  let popMoney = 0
+  for (const p of Object.values(state.popGroups)) if (p) popMoney += p.money
+  let houseWealth = 0
+  for (const h of Object.values(state.houses)) if (h && h.active) houseWealth += h.wealth
+  let personWealth = 0
+  for (const p of Object.values(state.persons)) if (p && p.alive) personWealth += p.wealth
+  let treasury = 0
+  for (const pol of Object.values(state.polities)) if (pol) treasury += pol.treasury
+  return { popMoney, houseWealth, personWealth, treasury }
+}
+
 function formatRow(
   year: number,
   stats: ReturnType<typeof collectPopStats>,
@@ -278,6 +297,7 @@ function main() {
   printHeader()
   console.log(formatRow(state.currentYear, collectPopStats(state), state))
 
+  const poolHistory: { year: number; pools: ReturnType<typeof collectMoneyPools> }[] = []
   const totalWeeks = years * 48
   for (let w = 0; w < totalWeeks; w++) {
     const result = tick({ state, rng, config })
@@ -285,10 +305,38 @@ function main() {
     rng = result.rng
     if (state.currentWeekOfYear === 48) {
       console.log(formatRow(state.currentYear, collectPopStats(state), state))
+      if (state.currentYear % 10 === 0)
+        poolHistory.push({ year: state.currentYear, pools: collectMoneyPools(state) })
     }
   }
 
   printFinalBreakdown(state)
+
+  console.log('')
+  console.log('=== Money/Wealth pools over time (death-hoard check) ===')
+  console.log(
+    [
+      'Year'.padStart(5),
+      'POP.money'.padStart(11),
+      'House.wealth'.padStart(13),
+      'Person.wealth'.padStart(14),
+      'Treasury'.padStart(11),
+      'TOTAL'.padStart(12),
+    ].join(' | '),
+  )
+  for (const { year, pools } of poolHistory) {
+    const total = pools.popMoney + pools.houseWealth + pools.personWealth + pools.treasury
+    console.log(
+      [
+        String(year).padStart(5),
+        pools.popMoney.toFixed(0).padStart(11),
+        pools.houseWealth.toFixed(0).padStart(13),
+        pools.personWealth.toFixed(0).padStart(14),
+        pools.treasury.toFixed(0).padStart(11),
+        total.toFixed(0).padStart(12),
+      ].join(' | '),
+    )
+  }
 }
 
 try {
