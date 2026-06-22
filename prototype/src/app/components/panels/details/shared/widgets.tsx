@@ -4,6 +4,7 @@ export {
   PanelHeader,
   DetailSection,
   DetailSubSection,
+  FulfillmentBar,
   CollapsibleSection,
   EntityChronicleSection,
   WatchButton,

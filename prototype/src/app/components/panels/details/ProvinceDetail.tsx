@@ -49,7 +49,7 @@ import {
 } from './shared/widgets'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { PolityLink, HouseLink, PersonLink } from './shared/links'
-import { formatScore, formatPower } from '@/app/utils/format'
+import { formatScore, formatPower, formatPopCount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { getChronicleEntriesForProvince } from '@sim/selectors/chronicleSelectors'
@@ -391,12 +391,12 @@ export function ProvinceDetail({
                         <span className="text-gray-300">{t(`detail.province.${popClass}`)}</span>
                         <div className="ml-2">
                           <span>
-                            {t('detail.province.pop_employed')}: {empSize.toFixed(1)} /{' '}
-                            {cap.toFixed(1)}
+                            {t('detail.province.pop_employed')}: {formatPopCount(empSize)} /{' '}
+                            {formatPopCount(cap)}
                           </span>
                           {unempSize > 0 && (
                             <span className="ml-2 text-yellow-400">
-                              {t('detail.province.pop_unemployed')}: {unempSize.toFixed(1)}
+                              {t('detail.province.pop_unemployed')}: {formatPopCount(unempSize)}
                             </span>
                           )}
                         </div>
@@ -413,11 +413,11 @@ export function ProvinceDetail({
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.carrying_capacity')}:</span>
-          <span>{carryingCapacity.toFixed(0)}</span>
+          <span>{formatPopCount(carryingCapacity)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.population')}:</span>
-          <span>{totalPopulation.toFixed(1)}</span>
+          <span>{formatPopCount(totalPopulation)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.pop_pressure')}:</span>
@@ -474,7 +474,7 @@ export function ProvinceDetail({
               </button>
               <div className="flex justify-between">
                 <span className="text-gray-400">{t('detail.province.size')}:</span>
-                <span>{pop.size.toFixed(1)}</span>
+                <span>{formatPopCount(pop.size)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">{t('detail.province.wealth')}:</span>
@@ -490,6 +490,8 @@ export function ProvinceDetail({
           ))}
         </>
       )}
+
+      {/* v0.56: POP 流動は Holding 詳細 (移住) / POP 詳細 (昇格・降格・転職) に集約。Province には出さない。 */}
 
       <DetailSection title={t('detail.province.revolt_risk')} />
       <div className="text-sm">

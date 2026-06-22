@@ -273,6 +273,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
                 onProvinceClick={onProvinceClick}
+                onHoldingClick={onHoldingClick}
                 onPopGroupClick={onPopGroupClick}
                 onRealEstateClick={onRealEstateClick}
               />

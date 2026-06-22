@@ -639,6 +639,19 @@ detail:
       commitment: '確約'
 
   # プロヴィンス詳細
+  popMobility:
+    # Holding 詳細 — 移住 (先月)、相手 Holding 別
+    migration_section_title: '移住 (先月)'
+    migration_in_from: '流入元'
+    migration_out_to: '流出先'
+    # POP 詳細 — 階層移動・転職 (先月)、この POP への転入/転出
+    pop_section_title: '階層移動・転職 (先月)'
+    pop_inflow: '転入'
+    pop_outflow: '転出'
+    kind_lateral: '転職'
+    kind_promotion: '昇格'
+    kind_demotion: '降格'
+    none: '先月の移動なし'
   province:
     state: '州域'
     terminal_polity: '最終支配国'
@@ -796,6 +809,9 @@ detail:
     employment_fulfillment: '雇用充足率'
     input_fulfillment: '入力資源充足率'
     labor_type_fulfillment: '労働タイプ充足率'
+    # v0.56 ボトルネック (最低レシピ) 要約
+    input_fulfillment_min: '入力資源充足率(最低)'
+    labor_type_fulfillment_min: '労働タイプ充足率(最低)'
     # v0.55 資源名 (21 種)
     resource_grain: '穀物'
     resource_fish: '魚'
@@ -824,6 +840,11 @@ detail:
     recipe_composition: 'レシピ構成'
     employment_capacity: '雇用枠'
     no_recipe: 'レシピ未設定'
+    # v0.56 レシピ別 産出・収支
+    recipe_production: 'レシピ別 産出・収支'
+    no_production: '産出なし'
+    processing: '加工'
+    facility_total: '施設合計'
     # v0.55 生産レシピ名 (23 種)
     recipe:
       grain_field: '麦畑'

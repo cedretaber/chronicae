@@ -1,0 +1,347 @@
+import { clamp } from '../utils/math'
+import type { TickContext } from './context'
+import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
+import type { HoldingId, PolityId } from '../types/ids'
+import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
+import { POP_STRATA, POP_TYPES_BY_STRATUM } from '../types/popGroup'
+import type { PopMobilitySnapshotEntry } from '../types/popMobility'
+import {
+  getHoldingClassCapacity,
+  getHoldingEmployedPopSize,
+  getHoldingTotalPopSize,
+} from '../selectors/popSelectors'
+import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import { computeHoldingPopTypeDemand } from '../selectors/popMobilitySelectors'
+import { movePopSizeToKeyMut } from '../mutations/popMutations'
+import {
+  createMonthlyPopMobilitySnapshot,
+  ensureByState,
+  mergeAndTruncateMovements,
+} from './popMobilitySnapshot'
+
+type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
+
+// §8.7 opportunity score の重み (formula 定数。config には出さない)。
+const W_VACANCY = 45
+const W_POP_TYPE_DEMAND = 25
+const W_TARGET_WEALTH = 15
+const W_LOW_UNREST = 15
+// §8.5 pressure 係数。
+const PRESSURE_UNEMPLOYED = 40
+const PRESSURE_WEALTH_REF = 50
+const PRESSURE_WEALTH_COEF = 0.6
+const PRESSURE_UNREST_COEF = 0.3
+const PRESSURE_CONGESTION_COEF = 30
+const SHARE_EPS = 1e-9
+
+// 月初に固定する holding 単位の集計 (A1: demand/wealth/unrest は month-start cache)。
+//   capacity ceiling は構造由来で月内不変なので cache し、remaining は cache − live employed で求める。
+type HoldingMigrationCache = {
+  demand: HoldingDemand
+  capacityByStratum: Record<PopStratum, number>
+  avgWealthByPopType: Map<PopType, number>
+  avgWealthByStratum: Partial<Record<PopStratum, number>>
+  avgUnrest: number
+  congestion: number
+  terminalPolity: PolityId | undefined
+}
+
+// v0.56 §8: 同一 StateRegion 内で条件の良い holding へ少しずつ移住する。
+export function runPopMigrationSystem(ctx: TickContext): TickContext {
+  const config = ctx.config
+  const ws: WorldState = {
+    ...ctx.state,
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
+    nextPopGroupId: ctx.state.nextPopGroupId,
+  }
+
+  const minMove = config.popMobilityMinMoveAmount
+  const eps = config.popSizeEpsilon
+
+  // 月初 cache を全 holding 分構築 (mutation 前の state)。
+  const cacheByHolding = new Map<string, HoldingMigrationCache>()
+  for (const holdingId of Object.keys(ctx.state.holdings) as HoldingId[]) {
+    cacheByHolding.set(holdingId, buildHoldingCache(ctx.state, config, holdingId))
+  }
+
+  // jobChange が書いた snapshot を引き継ぎ migration entry を足す (A3)。無ければ新規。
+  const snapshot = ws.monthlyPopMobility ?? createMonthlyPopMobilitySnapshot(ws.absoluteWeek)
+  const migrationEntries: PopMobilitySnapshotEntry[] = []
+
+  for (const stateId of Object.keys(ctx.state.states).sort()) {
+    const region = ctx.state.states[stateId as keyof typeof ctx.state.states]
+    if (!region) continue
+    const holdingIds: HoldingId[] = []
+    for (const provinceId of region.provinceIds) {
+      const province = ws.provinces[provinceId]
+      if (!province) continue
+      for (const hid of province.holdingIds) holdingIds.push(hid)
+    }
+    holdingIds.sort()
+    if (holdingIds.length < 2) continue
+
+    const outflowCap = new Map<string, number>()
+    const inflowCap = new Map<string, number>()
+    for (const hid of holdingIds) {
+      const totalPop = getHoldingTotalPopSize(ws, hid)
+      outflowCap.set(
+        hid,
+        Math.min(
+          totalPop * config.popMigrationMaxOutflowFractionPerHoldingPerMonth,
+          config.popMigrationMaxOutflowPerHoldingPerMonthHardCap,
+        ),
+      )
+      inflowCap.set(
+        hid,
+        Math.min(
+          totalPop * config.popMigrationMaxInflowFractionPerHoldingPerMonth,
+          config.popMigrationMaxInflowPerHoldingPerMonthHardCap,
+        ),
+      )
+    }
+
+    for (const sourceHoldingId of holdingIds) {
+      const sourceCache = cacheByHolding.get(sourceHoldingId)
+      if (!sourceCache) continue
+
+      for (const sourcePid of [...(ws.popIndex.byHolding[sourceHoldingId] ?? [])].sort()) {
+        if ((outflowCap.get(sourceHoldingId) ?? 0) < minMove) break
+        const source = ws.popGroups[sourcePid]
+        if (!source) continue
+        if (source.size - eps < minMove) continue
+
+        const pressure = computeMigrationPressure(source, sourceCache)
+        if (pressure < config.popMigrationPressureThreshold) continue
+
+        const sourcePolity = sourceCache.terminalPolity
+        const stayRemaining = remainingCapacity(sourceCache, ws, sourceHoldingId, source.class)
+        const sourceScore = opportunityScore(
+          config,
+          source,
+          sourceHoldingId,
+          sourcePolity,
+          cacheByHolding,
+          stayRemaining,
+        )
+
+        // 最良 target を探す (空き capacity / inflow cap がある同一 region 内 holding)。
+        let bestHolding: HoldingId | undefined
+        let bestScore = -Infinity
+        let bestRemaining = 0
+        for (const targetHoldingId of holdingIds) {
+          if (targetHoldingId === sourceHoldingId) continue
+          if ((inflowCap.get(targetHoldingId) ?? 0) < minMove) continue
+          const targetCache = cacheByHolding.get(targetHoldingId)
+          if (!targetCache) continue
+          const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.class)
+          if (remaining <= 0) continue
+          const score = opportunityScore(
+            config,
+            source,
+            targetHoldingId,
+            sourcePolity,
+            cacheByHolding,
+            remaining,
+          )
+          if (
+            score > bestScore ||
+            (score === bestScore &&
+              bestHolding !== undefined &&
+              (targetHoldingId as string) < (bestHolding as string))
+          ) {
+            bestScore = score
+            bestHolding = targetHoldingId
+            bestRemaining = remaining
+          }
+        }
+
+        if (bestHolding === undefined) continue
+        if (bestScore <= sourceScore + config.popMigrationScoreGapThreshold) continue
+
+        const rate = config.popMigrationMonthlyRateByStratum[source.class]
+        const amount = Math.min(
+          source.size - eps,
+          bestRemaining,
+          source.size * rate,
+          outflowCap.get(sourceHoldingId) ?? 0,
+          inflowCap.get(bestHolding) ?? 0,
+        )
+        if (amount < minMove) continue
+
+        const moved = movePopSizeToKeyMut(
+          ws,
+          source.id,
+          {
+            holdingId: bestHolding,
+            class: source.class,
+            popType: source.popType,
+            employed: true,
+          },
+          amount,
+          { minSourceSize: eps },
+        )
+        if (moved === undefined) continue
+
+        outflowCap.set(sourceHoldingId, (outflowCap.get(sourceHoldingId) ?? 0) - amount)
+        inflowCap.set(bestHolding, (inflowCap.get(bestHolding) ?? 0) - amount)
+
+        migrationEntries.push({
+          kind: 'migration',
+          amount,
+          sourceHoldingId,
+          targetHoldingId: bestHolding,
+          fromPopType: source.popType,
+          toPopType: source.popType,
+          fromEmployed: source.employed,
+          toEmployed: true,
+        })
+        snapshot.migratedTotal += amount
+        // 同一 StateRegion 内移動だが将来拡張のため source/target 両方を記録 (§8.12)。
+        ensureByState(snapshot, region.id).migratedOut += amount
+        ensureByState(snapshot, region.id).migratedIn += amount
+      }
+    }
+  }
+
+  snapshot.topMovements = mergeAndTruncateMovements(
+    snapshot.topMovements,
+    migrationEntries,
+    config.popMobilityTopMovementLimit,
+  )
+  ws.monthlyPopMobility = snapshot
+  return { ...ctx, state: ws }
+}
+
+function computeMigrationPressure(pop: PopGroup, cache: HoldingMigrationCache): number {
+  return (
+    (pop.employed ? 0 : PRESSURE_UNEMPLOYED) +
+    Math.max(0, PRESSURE_WEALTH_REF - pop.wealth) * PRESSURE_WEALTH_COEF +
+    pop.unrest * PRESSURE_UNREST_COEF +
+    Math.max(0, cache.congestion - 1.0) * PRESSURE_CONGESTION_COEF
+  )
+}
+
+function opportunityScore(
+  config: SimulationConfig,
+  source: PopGroup,
+  targetHoldingId: HoldingId,
+  sourcePolity: PolityId | undefined,
+  cacheByHolding: Map<string, HoldingMigrationCache>,
+  liveRemaining: number,
+): number {
+  const cache = cacheByHolding.get(targetHoldingId)
+  if (!cache) return -Infinity
+
+  const capacity = cache.capacityByStratum[source.class]
+  const stratumVacancyScore = clamp(liveRemaining / Math.max(1, capacity), 0, 1)
+
+  // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。
+  const demand = cache.demand
+  const idealShare = demand.idealShareByType[source.popType] ?? 0
+  let totalCurrentInStratum = 0
+  for (const t of POP_TYPES_BY_STRATUM[source.class]) {
+    totalCurrentInStratum += demand.currentEmployedByType[t] ?? 0
+  }
+  const currentShare =
+    totalCurrentInStratum > 0
+      ? (demand.currentEmployedByType[source.popType] ?? 0) / totalCurrentInStratum
+      : 0
+  const popTypeDemandScore = clamp(
+    Math.max(0, idealShare - currentShare) / Math.max(idealShare, SHARE_EPS),
+    0,
+    1,
+  )
+
+  const wByType = cache.avgWealthByPopType.get(source.popType)
+  const wByStratum = cache.avgWealthByStratum[source.class]
+  const targetWealthScore =
+    wByType !== undefined
+      ? clamp(wByType / 100, 0, 1)
+      : wByStratum !== undefined
+        ? clamp(wByStratum / 100, 0, 1)
+        : 0.5
+
+  const lowUnrestScore = clamp(1 - cache.avgUnrest / 100, 0, 1)
+  const crossPolityPenalty =
+    cache.terminalPolity !== sourcePolity ? config.popMigrationCrossPolityScorePenalty : 0
+
+  return (
+    stratumVacancyScore * W_VACANCY +
+    popTypeDemandScore * W_POP_TYPE_DEMAND +
+    targetWealthScore * W_TARGET_WEALTH +
+    lowUnrestScore * W_LOW_UNREST -
+    crossPolityPenalty
+  )
+}
+
+function buildHoldingCache(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): HoldingMigrationCache {
+  const demand = computeHoldingPopTypeDemand(state, config, holdingId)
+
+  // size 加重平均 wealth (popType 別・stratum 別) と平均 unrest。
+  const wealthSumByType = new Map<PopType, number>()
+  const sizeByType = new Map<PopType, number>()
+  const wealthSumByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  const sizeByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  let unrestSum = 0
+  let totalSize = 0
+  for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
+    const p = state.popGroups[pid]
+    if (!p) continue
+    wealthSumByType.set(p.popType, (wealthSumByType.get(p.popType) ?? 0) + p.wealth * p.size)
+    sizeByType.set(p.popType, (sizeByType.get(p.popType) ?? 0) + p.size)
+    wealthSumByStratum[p.class] += p.wealth * p.size
+    sizeByStratum[p.class] += p.size
+    unrestSum += p.unrest * p.size
+    totalSize += p.size
+  }
+  const avgWealthByPopType = new Map<PopType, number>()
+  for (const [t, sz] of sizeByType) {
+    if (sz > 0) avgWealthByPopType.set(t, (wealthSumByType.get(t) ?? 0) / sz)
+  }
+  const avgWealthByStratum: Partial<Record<PopStratum, number>> = {}
+  for (const stratum of POP_STRATA) {
+    if (sizeByStratum[stratum] > 0) {
+      avgWealthByStratum[stratum] = wealthSumByStratum[stratum] / sizeByStratum[stratum]
+    }
+  }
+  const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
+
+  // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
+  const capacityByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  let totalCapacity = 0
+  for (const stratum of POP_STRATA) {
+    const cap = getHoldingClassCapacity(state, config, holdingId, stratum)
+    capacityByStratum[stratum] = cap
+    totalCapacity += cap
+  }
+  const congestion = totalSize / Math.max(1, totalCapacity)
+
+  return {
+    demand,
+    capacityByStratum,
+    avgWealthByPopType,
+    avgWealthByStratum,
+    avgUnrest,
+    congestion,
+    terminalPolity: getHoldingTerminalPolityId(state, holdingId),
+  }
+}
+
+// 月内不変の cache 済 capacity ceiling − live employed = 現在の残 capacity (heavy な再算出を回避)。
+function remainingCapacity(
+  cache: HoldingMigrationCache,
+  ws: WorldState,
+  holdingId: HoldingId,
+  popClass: PopStratum,
+): number {
+  return Math.max(
+    0,
+    cache.capacityByStratum[popClass] - getHoldingEmployedPopSize(ws, holdingId, popClass),
+  )
+}

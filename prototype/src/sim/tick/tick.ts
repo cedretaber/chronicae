@@ -64,6 +64,9 @@ import { runGovernanceSystem } from './governanceSystem'
 import { runIntegritySystem } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
 import { runEmploymentRebalanceSystem } from './employmentRebalanceSystem'
+import { runPopJobChangeSystem } from './popJobChangeSystem'
+import { runPopMigrationSystem } from './popMigrationSystem'
+import { runPopEmploymentNormalizeSystem } from './popEmploymentNormalizeSystem'
 import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPersonGrowthSystem } from './personGrowthSystem'
@@ -142,6 +145,27 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runEmploymentRebalanceSystem,
+  },
+  // v0.56 §7: recipe 労働需要に追随する転職 (ResourceEconomy より前・EmploymentRebalance より後)。
+  {
+    name: 'popJobChangeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPopJobChangeSystem,
+  },
+  // v0.56 §8: StateRegion 内で条件の良い holding へ移住。
+  {
+    name: 'popMigrationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPopMigrationSystem,
+  },
+  // v0.56 §9: mobility 後の capacity 整合 (保険)。
+  {
+    name: 'popEmploymentNormalizeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPopEmploymentNormalizeSystem,
   },
   // v0.54: 資源生産・市場・売却益を月次 snapshot に出力 (landRevenue が同月直後に読む)。
   {

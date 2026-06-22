@@ -536,6 +536,19 @@ detail:
       commitment: 'Commitment'
 
   # Province detail
+  popMobility:
+    # Holding detail — migration (last month), grouped by counterpart holding
+    migration_section_title: 'Migration (last month)'
+    migration_in_from: 'In from'
+    migration_out_to: 'Out to'
+    # POP detail — stratum mobility / lateral job change (last month), in/out of this POP
+    pop_section_title: 'Mobility & Job Change (last month)'
+    pop_inflow: 'In'
+    pop_outflow: 'Out'
+    kind_lateral: 'job change'
+    kind_promotion: 'promotion'
+    kind_demotion: 'demotion'
+    none: 'No moves last month'
   province:
     state: 'State'
     terminal_polity: 'Terminal Polity'
@@ -693,6 +706,9 @@ detail:
     employment_fulfillment: 'Employment fill'
     input_fulfillment: 'Input fulfillment'
     labor_type_fulfillment: 'Labor-type fulfillment'
+    # v0.56 bottleneck (worst recipe) summary
+    input_fulfillment_min: 'Input fulfillment (worst)'
+    labor_type_fulfillment_min: 'Labor-type fulfillment (worst)'
     # v0.55 resource names (21 kinds)
     resource_grain: 'Grain'
     resource_fish: 'Fish'
@@ -721,6 +737,11 @@ detail:
     recipe_composition: 'Recipe composition'
     employment_capacity: 'Employment capacity'
     no_recipe: 'No recipe assigned'
+    # v0.56 production by recipe
+    recipe_production: 'Production by recipe'
+    no_production: 'No production'
+    processing: 'Processing'
+    facility_total: 'Facility total'
     # v0.55 production recipe names (23 kinds)
     recipe:
       grain_field: 'Grain field'

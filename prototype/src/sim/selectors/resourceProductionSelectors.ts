@@ -184,7 +184,7 @@ const basePriceLookup = (r: ResourceKind): number => RESOURCE_PRICE_DEFINITIONS[
 // §14.3: asset の実 PopType 構成 (actualShare_t) を近似する。
 //   asset の employmentSlot stratum weight で、各 stratum 内の holding employed PopType 比率を加重し、
 //   present stratum の weight 合計で正規化する (空 stratum の労働は不在として扱う)。
-function computeAssetPopTypeShares(
+export function computeAssetPopTypeShares(
   state: WorldState,
   asset: RealEstateAsset,
 ): Partial<Record<PopType, number>> {
@@ -221,7 +221,7 @@ function computeAssetPopTypeShares(
 //   weightedCoverage = Σ_t min(actualShare_t, idealShare_t) (ヒストグラム交差, 簡約形)。
 //   outputModifier = floor + (1-floor) × weightedCoverage。
 //   inputEfficiencyMultiplier = 1 - Σ_admin (inputEfficiencyBonus × coverage)、下限 0.5。
-function computeLaborModifiers(
+export function computeLaborModifiers(
   profile: RecipeLaborDemand[],
   actualShares: Partial<Record<PopType, number>>,
   floor: number,

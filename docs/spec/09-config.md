@@ -503,6 +503,23 @@
 | initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
 | initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
 | popSizeEpsilon | 0.01 | 未就業（employed=false）POP がこのサイズ以下で削除 |
+| **POP 転職・移住（v0.56、§6.3b）** | | |
+| popMobilityMinMoveAmount | 0.01 | これ未満の移動は行わない（snapshot を微小移動で汚さない） |
+| popMobilityTopMovementLimit | 4000 | snapshot topMovements の上限件数。**store-all 相当の高い safety cap**（draft 初期値 20 から引き上げ — per-Holding/per-POP の drill-down 再構成のため。毎月上書きで累積しない） |
+| popJobChangeMaxFractionPerHoldingPerMonth | 0.001 | holding 月次転職 cap の人口比（C2）。`totalPop × これ` を hard cap で頭打ち |
+| popJobChangeMaxPerHoldingPerMonthHardCap | 0.15 | holding 月次転職総量の絶対上限 |
+| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.01 } | kind 別の source.size に対する 1 回あたり移動率 |
+| popPromotionEpsilon | 1 | promotion 相対 gate（C3）の不発ガード（`> median + これ`）。分布が潰れていると発火しない |
+| popDemotionEpsilon | 1 | demotion 相対 gate の不発ガード（`< median − これ`） |
+| popPromotionWealthCostByTargetStratum | { middle: 5, upper: 10 } | promotion で移動 cohort の incoming wealth から引く昇格コスト（source pool は下げない） |
+| popMigrationMaxOutflowFractionPerHoldingPerMonth | 0.001 | holding 月次流出 cap の人口比（C2） |
+| popMigrationMaxInflowFractionPerHoldingPerMonth | 0.001 | holding 月次流入 cap の人口比 |
+| popMigrationMaxOutflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流出の絶対上限 |
+| popMigrationMaxInflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流入の絶対上限 |
+| popMigrationMonthlyRateByStratum | { lower: 0.01, middle: 0.005, upper: 0.002 } | stratum 別の source.size に対する 1 回あたり移住率 |
+| popMigrationPressureThreshold | 35 | この migration pressure 以上の POP のみ移住 source 候補 |
+| popMigrationScoreGapThreshold | 20 | 最良 target の opportunity score が source-stay score をこの差以上で上回れば移住 |
+| popMigrationCrossPolityScorePenalty | 15 | terminal polity 跨ぎ移住の score 減点（禁止ではなく減点） |
 | **Houseless Person** | | |
 | houselessPersonsPerHolding | 0.5 | holdings 数あたりの無家人物 target 比率 |
 | houselessMaleRatio | 0.75 | 無家人物生成時の男性比率 |
@@ -694,10 +711,10 @@
 | **RealEstateAsset（v0.52）** | | |
 | realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
 | ~~realEstateOwnerIncomeRate / realEstateKindIncomeWeight~~ | — | v0.54 廃止（旧 owner income path。owner 収入は per-asset netRevenue から realEstateHoldingDueRate で分配、§6.4.2） |
-| realEstateTerrainCapacityMultiplier | kind × terrain の乗数。例: field={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, pasture={plains:1.0,hills:1.3,mountains:0.8,forest:0.65,wetlands:0.4} | RealEstateAsset の容量に対する terrain 補正 |
-| realEstateFeatureCapacityMultiplier | kind × feature の乗数。例: field={major_river:1.1,lake:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
-| realEstateInfrastructureModifiers | kind → [{infraKind, modifierPerLevel}]。field=[{irrigation:0.15},{storage:0.1}], pasture=[{irrigation:0.1},{storage:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
-| developRealEstateProjectBaseCost | {field:30, pasture:28, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
+| realEstateTerrainCapacityMultiplier | RealEstateKind × terrain の乗数（v0.55 kind: farm/mountain/woodland/workshop）。例: farm={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, mountain={mountains:1.3,hills:1.0,plains:0.4,forest:0.5,wetlands:0.3}, woodland={forest:1.3,hills:1.0,plains:0.5,mountains:0.6,wetlands:0.4}, workshop={plains:1.0,hills:0.9,forest:0.85,wetlands:0.75,mountains:0.7} | RealEstateAsset の容量に対する terrain 補正（assetTerm に乗算、未定義 → 1.0） |
+| realEstateFeatureCapacityMultiplier | RealEstateKind × feature の乗数（積を clamp 0.75–1.50）。例: farm={major_river:1.1,lake:1.05}, mountain={}, woodland={major_river:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |
+| realEstateInfrastructureModifiers | RealEstateKind → [{infraKind, modifierPerLevel}]。farm=[{irrigation:0.15},{storage:0.1}], mountain=[{storage:0.1},{transport:0.1}], woodland=[{storage:0.1},{transport:0.1}], workshop=[{workshop:0.15},{market:0.1}] | HoldingImprovement レベルによる RealEstateAsset 容量補正 |
+| developRealEstateProjectBaseCost | {farm:30, mountain:32, woodland:30, workshop:35} | RealEstateKind ごとの開発 Project 基礎コスト |
 | developRealEstateCapacityPressureThreshold | 0.8 | employed/capacity 比がこれ以上で develop_real_estate Aim 候補に浮上（既存施設の満員度トリガ） |
 | developRealEstateEmploymentSlackThreshold | 5 | holding 内のいずれかのクラスで失業 POP がこの規模以上なら「雇用スラックあり」（v0.55 §B）。満員でなくても新規開発/レベルアップで idle labor を雇用できるための追加トリガ。capacity pressure は employed/cap が高いほど立つので失業時は逆に立たず検出できない、その穴を埋める。develop_owned_holding 候補生成・develop_real_estate vs インフラのルーティング・house レベルアップ aim の3箇所に効く。スラック駆動かつ空きスロットありなら新規建設（level 1）を優先し空き枠を埋める |
 | developRealEstateEmploymentSlackScore | 15 | 雇用スラック駆動の develop_owned_holding 候補の基準スコア（capacity pressure 駆動の 15 に揃える） |

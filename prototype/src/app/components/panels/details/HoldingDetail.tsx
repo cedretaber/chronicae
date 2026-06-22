@@ -1,16 +1,24 @@
 import type { Holding } from '@/sim/types/landContract'
+import type { HoldingId } from '@/sim/types/ids'
+import type { PopType } from '@/sim/types/popGroup'
+import { getPopStratum } from '@/sim/types/popGroup'
 import type { SimulationSession } from '@/sim/types/world'
 import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import {
+  getPolityShortName,
+  getHoldingQualifiedName,
+  getHoldingShortName,
+} from '@/app/hooks/entityNameHelpers'
 import {
   PanelHeader,
   CopyJsonButton,
   EntityChronicleSection,
   RightHolderLine,
   DetailSection,
+  FulfillmentBar,
 } from './shared/widgets'
 import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingImage } from '@/app/utils/assetHash'
@@ -37,7 +45,7 @@ import {
   getActiveDefaultForContract,
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
-import { formatAmount } from '@/app/utils/format'
+import { formatAmount, formatPopCount, formatPopFlow } from '@/app/utils/format'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import {
   getHoldingEmployedPopSize,
@@ -56,6 +64,7 @@ export function HoldingDetail({
   onPersonClick,
   onHouseClick,
   onProvinceClick,
+  onHoldingClick,
   onPopGroupClick,
   onRealEstateClick,
 }: {
@@ -65,6 +74,7 @@ export function HoldingDetail({
   onPersonClick: (id: string) => void
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
+  onHoldingClick: (id: string) => void
   onPopGroupClick: (id: string) => void
   onRealEstateClick: (id: string) => void
 }) {
@@ -181,6 +191,15 @@ export function HoldingDetail({
                   // v0.55: カードは要約のみ (種別・所有者・押領・月次純益)。レシピ構成/雇用枠/産出内訳の
                   //   詳細はクリックで開く RealEstateDetail パネルに集約する。
                   const ar = assetResultById.get(asset.id)
+                  // 充足率はボトルネック (最低レシピ) を要約に出す。asset 平均は一次生産=1 が混ざり鈍るため不採用。
+                  const breakdown = ar?.recipeBreakdown ?? []
+                  const inputRecipes = breakdown.filter((b) => Object.keys(b.inputs).length > 0)
+                  const minInputFulfill = inputRecipes.length
+                    ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
+                    : null
+                  const minLaborFulfill = breakdown.length
+                    ? Math.min(...breakdown.map((b) => b.laborTypeFulfillment))
+                    : null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -244,15 +263,32 @@ export function HoldingDetail({
                         </div>
                       ) : null}
                       {ar ? (
-                        <div className="mt-1 flex justify-between border-t border-gray-600/50 pt-0.5 text-[11px]">
-                          <span className="text-gray-500">
-                            {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
-                          </span>
-                          <span
-                            className={ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-                          >
-                            {formatAmount(ar.netRevenue)}
-                          </span>
+                        <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-0.5 text-[11px]">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">
+                              {t('detail.realEstate.net_revenue', { defaultValue: '純益' })}:
+                            </span>
+                            <span
+                              className={ar.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                            >
+                              {formatAmount(ar.netRevenue)}
+                            </span>
+                          </div>
+                          {/* ボトルネック (最低レシピ) の充足率。一覧で供給/労働の詰まりを把握する。 */}
+                          {minInputFulfill !== null && (
+                            <FulfillmentBar
+                              label={t('detail.realEstate.input_fulfillment_min')}
+                              value={minInputFulfill}
+                              compact
+                            />
+                          )}
+                          {minLaborFulfill !== null && (
+                            <FulfillmentBar
+                              label={t('detail.realEstate.labor_type_fulfillment_min')}
+                              value={minLaborFulfill}
+                              compact
+                            />
+                          )}
                         </div>
                       ) : null}
                     </div>
@@ -270,6 +306,96 @@ export function HoldingDetail({
             </div>
           )
         })()}
+
+      {/* v0.56: 移住 (先月)。相手 Holding 別に流入元・流出先を集計。job_change は POP 詳細に集約。 */}
+      {currentState?.monthlyPopMobility
+        ? (() => {
+            // 相手 holding × popType 単位で集計（移住は class/popType を保持する）。
+            type MigrationFlow = { counterpartId: string; popType: PopType; amount: number }
+            const accumulate = (
+              map: Map<string, MigrationFlow>,
+              counterpartId: string,
+              popType: PopType,
+              amount: number,
+            ) => {
+              const key = `${counterpartId} ${popType}`
+              const existing = map.get(key)
+              if (existing) existing.amount += amount
+              else map.set(key, { counterpartId, popType, amount })
+            }
+            const inflow = new Map<string, MigrationFlow>()
+            const outflow = new Map<string, MigrationFlow>()
+            for (const m of currentState.monthlyPopMobility.topMovements) {
+              if (m.kind !== 'migration' || !m.targetHoldingId) continue
+              if ((m.targetHoldingId as string) === (holding.id as string)) {
+                accumulate(inflow, m.sourceHoldingId, m.fromPopType, m.amount)
+              } else if ((m.sourceHoldingId as string) === (holding.id as string)) {
+                accumulate(outflow, m.targetHoldingId, m.toPopType, m.amount)
+              }
+            }
+            const inRows = [...inflow.values()].sort((a, b) => b.amount - a.amount)
+            const outRows = [...outflow.values()].sort((a, b) => b.amount - a.amount)
+            const isEmpty = inRows.length === 0 && outRows.length === 0
+            const counterpartRow = (flow: MigrationFlow, dir: 'in' | 'out') => {
+              const tone = dir === 'in' ? 'text-emerald-400' : 'text-amber-400'
+              return (
+                <div
+                  key={`${dir}-${flow.counterpartId}-${flow.popType}`}
+                  className="flex justify-between rounded bg-gray-700 p-1.5"
+                >
+                  <span>
+                    <span className={tone}>
+                      {t(
+                        dir === 'in'
+                          ? 'detail.popMobility.migration_in_from'
+                          : 'detail.popMobility.migration_out_to',
+                      )}
+                    </span>{' '}
+                    <button
+                      className="cursor-pointer text-blue-400 hover:text-blue-300"
+                      onClick={() => onHoldingClick(flow.counterpartId)}
+                    >
+                      {getHoldingShortName(
+                        currentState,
+                        resolveName,
+                        flow.counterpartId as HoldingId,
+                      )}
+                    </button>{' '}
+                    <span className="text-gray-400">
+                      {t(`detail.province.pop_type.${flow.popType}`, {
+                        defaultValue: flow.popType,
+                      })}
+                    </span>
+                    <span className="text-gray-500">
+                      {' '}
+                      ({t(`detail.province.${getPopStratum(flow.popType)}`)})
+                    </span>
+                  </span>
+                  <span className={tone}>
+                    {dir === 'in' ? '+' : '−'}
+                    {formatPopFlow(flow.amount)}
+                  </span>
+                </div>
+              )
+            }
+            return (
+              <div className="text-sm">
+                <DetailSection
+                  title={t('detail.popMobility.migration_section_title')}
+                  count={inRows.length + outRows.length}
+                />
+                {isEmpty ? (
+                  <div className="mt-1 text-xs text-gray-500">{t('detail.popMobility.none')}</div>
+                ) : (
+                  <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
+                    {inRows.map((flow) => counterpartRow(flow, 'in'))}
+                    {outRows.map((flow) => counterpartRow(flow, 'out'))}
+                  </div>
+                )}
+              </div>
+            )
+          })()
+        : null}
 
       {/* Infrastructure */}
       {currentState &&
@@ -350,7 +476,7 @@ export function HoldingDetail({
                               />
                             </div>
                             <span className="w-16 text-right text-xs text-gray-400">
-                              {empSize.toFixed(0)}/{cap.toFixed(0)}
+                              {formatPopCount(empSize)}/{formatPopCount(cap)}
                             </span>
                           </div>
                         )
@@ -777,7 +903,7 @@ export function HoldingDetail({
                   <div className="flex justify-between">
                     <span>{t('detail.province.pop_employed')}:</span>
                     <span>
-                      {empSize.toFixed(1)} / {cap.toFixed(1)}
+                      {formatPopCount(empSize)} / {formatPopCount(cap)}
                     </span>
                   </div>
                   {unempSize > 0 && (
@@ -785,7 +911,7 @@ export function HoldingDetail({
                       <span className="text-yellow-400">
                         {t('detail.province.pop_unemployed')}:
                       </span>
-                      <span className="text-yellow-400">{unempSize.toFixed(1)}</span>
+                      <span className="text-yellow-400">{formatPopCount(unempSize)}</span>
                     </div>
                   )}
                 </div>
@@ -821,7 +947,7 @@ export function HoldingDetail({
                   </button>
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.province.size')}:</span>
-                    <span>{pop.size.toFixed(1)}</span>
+                    <span>{formatPopCount(pop.size)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.province.wealth')}:</span>

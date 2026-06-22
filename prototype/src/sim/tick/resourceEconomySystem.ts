@@ -324,6 +324,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           holdingId: rec.holdingId,
           outputs: {},
           inputs: {},
+          recipeBreakdown: [],
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
@@ -339,6 +340,17 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       assetResult.grossRevenue += recipeGross
       assetResult.inputCost += recipeInputCost
       assetResult.netRevenue += recipeNet
+      // v0.56 read-model: recipe 別内訳を保持 (rec は asset×recipeId で一意・出現順は決定的)。
+      assetResult.recipeBreakdown.push({
+        recipeId: rec.recipeId,
+        outputs: recipeOutputs,
+        inputs: recipeInputs,
+        grossRevenue: recipeGross,
+        inputCost: recipeInputCost,
+        netRevenue: recipeNet,
+        inputFulfillment: recipeInputFulfillment,
+        laborTypeFulfillment: rec.laborTypeFulfillment,
+      })
       // 充足率の slotCount 加重和を貯める (正規化は snapshot 組み立て時)。
       assetResult.inputFulfillment += recipeInputFulfillment * rec.slotCount
       assetResult.laborTypeFulfillment += rec.laborTypeFulfillment * rec.slotCount
