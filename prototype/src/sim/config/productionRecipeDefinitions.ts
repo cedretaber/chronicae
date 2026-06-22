@@ -15,11 +15,11 @@ export type RecipeLaborRole =
 export type RecipeLaborDemand = {
   popType: PopType
   role: RecipeLaborRole
-  idealWeight: number
-  directOutputPower?: number // §14.3 (v0.55 簡約形では未使用)
-  inputEfficiencyBonus?: number // §14.3 admin role の input 軽減
-  throughputBonus?: number // §14.4 将来用 metadata (未使用)
-  maxRatioTo?: { popType: PopType; ratio: number } // §14.4 将来用 metadata (hard enforce しない)
+  idealWeight: number // 施設の雇用比率 (throughput coverage の正規化にも使う)
+  directOutputPower?: number // v0.57: 労働あたり産出倍率 (一次=1.0 / 熟練=1.5 / 非生産=0)。既定 1.0
+  throughputBonus?: number // v0.57: 書記のスループット (同原材料で産出 +最大 throughputBonus)
+  inputEfficiencyBonus?: number // (deprecated v0.57: throughput へ移行。未使用)
+  maxRatioTo?: { popType: PopType; ratio: number } // 同数上限 (rebalance がハード適用)
 }
 
 // §8.1 ProductionRecipe: 不動産が採用する生産レシピ。
@@ -379,50 +379,66 @@ export function getAllowedRecipeIdsForKind(kind: RealEstateKind): readonly Produ
   return ALLOWED_RECIPE_IDS_BY_KIND[kind]
 }
 
-// §14.2 / §14.3: recipe ごとの理想労働構成。spec は workshop 例のみ提示のため、recipe の性質
-//   (一次生産 / 農村加工 / 都市工房) ごとに §13.2 PopType 分類と整合する profile を割り当てる。
-//   v0.55 では soft modifier (floor 0.70) なので構成ズレは効率低下に留まる。
-const FARM_FIELD_LABOR: RecipeLaborDemand[] = [
-  { popType: 'peasants', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
-  { popType: 'freeholders', role: 'supervisor', idealWeight: 1, directOutputPower: 1.3 },
-]
-const FARM_CRAFT_LABOR: RecipeLaborDemand[] = [
-  { popType: 'peasants', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
-  { popType: 'artisans', role: 'supervisor', idealWeight: 1, directOutputPower: 1.2 },
+// v0.57 §雇用細分化: 施設駆動の労働構成 (recipe は同 RealEstateKind 内で共通 profile)。
+//   idealWeight = 施設の雇用比率。directOutputPower = 労働あたり産出倍率
+//     (一次生産者=1.0 / 熟練=1.5 / 非生産=0)。throughputBonus = 書記のスループット
+//     (同原材料で産出を最大 +50%)。maxRatioTo = 同数上限 (rebalance がハード適用)。
+//   §雇用細分化: 生産式は directOutputPower で effectiveLabor を重み付けし、throughputBonus で
+//     産出のみ (入力据え置き) を増やす。旧 soft fulfillment (floor 0.70) は撤去。
+const SKILLED_POWER = 1.5
+const SCRIBE_THROUGHPUT = 0.5
+
+const FARM_LABOR: RecipeLaborDemand[] = [
+  { popType: 'peasants', role: 'primary_producer', idealWeight: 7, directOutputPower: 1.0 },
+  {
+    popType: 'freeholders',
+    role: 'supervisor',
+    idealWeight: 3,
+    directOutputPower: SKILLED_POWER,
+    maxRatioTo: { popType: 'peasants', ratio: 1 },
+  },
 ]
 const EXTRACTION_LABOR: RecipeLaborDemand[] = [
-  { popType: 'laborers', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
-  { popType: 'freeholders', role: 'supervisor', idealWeight: 1, directOutputPower: 1.3 },
+  { popType: 'laborers', role: 'primary_producer', idealWeight: 8, directOutputPower: 1.0 },
+  {
+    popType: 'scribes',
+    role: 'administrative_support',
+    idealWeight: 1,
+    directOutputPower: 0,
+    throughputBonus: SCRIBE_THROUGHPUT,
+  },
+  // 家士は治安役 (Phase 3 で unrest 低減)。生産には寄与しない。
+  { popType: 'ministeriales', role: 'auxiliary_labor', idealWeight: 1, directOutputPower: 0 },
 ]
 const WORKSHOP_LABOR: RecipeLaborDemand[] = [
-  { popType: 'artisans', role: 'primary_producer', idealWeight: 3, directOutputPower: 1.0 },
+  { popType: 'artisans', role: 'primary_producer', idealWeight: 6, directOutputPower: 1.0 },
   {
     popType: 'masters',
     role: 'supervisor',
-    idealWeight: 1,
-    directOutputPower: 1.5,
-    maxRatioTo: { popType: 'artisans', ratio: 1 / 3 },
+    idealWeight: 3,
+    directOutputPower: SKILLED_POWER,
+    maxRatioTo: { popType: 'artisans', ratio: 1 },
   },
   {
     popType: 'scribes',
     role: 'administrative_support',
     idealWeight: 1,
-    inputEfficiencyBonus: 0.1,
-    maxRatioTo: { popType: 'artisans', ratio: 1 / 3 },
+    directOutputPower: 0,
+    throughputBonus: SCRIBE_THROUGHPUT,
   },
 ]
 
 export const RECIPE_LABOR_PROFILES: Record<ProductionRecipeId, RecipeLaborDemand[]> = {
-  [GRAIN_FIELD]: FARM_FIELD_LABOR,
-  [FLAX_FIELD]: FARM_FIELD_LABOR,
-  [SHEEP_PASTURE]: FARM_FIELD_LABOR,
-  [CATTLE_PASTURE]: FARM_FIELD_LABOR,
-  [ORCHARD]: FARM_FIELD_LABOR,
-  [VINEYARD]: FARM_FIELD_LABOR,
-  [DYE_GARDEN]: FARM_FIELD_LABOR,
-  [FISHING_HUT]: FARM_FIELD_LABOR,
-  [FARM_BREWERY]: FARM_CRAFT_LABOR,
-  [FARM_WEAVING_SHED]: FARM_CRAFT_LABOR,
+  [GRAIN_FIELD]: FARM_LABOR,
+  [FLAX_FIELD]: FARM_LABOR,
+  [SHEEP_PASTURE]: FARM_LABOR,
+  [CATTLE_PASTURE]: FARM_LABOR,
+  [ORCHARD]: FARM_LABOR,
+  [VINEYARD]: FARM_LABOR,
+  [DYE_GARDEN]: FARM_LABOR,
+  [FISHING_HUT]: FARM_LABOR,
+  [FARM_BREWERY]: FARM_LABOR,
+  [FARM_WEAVING_SHED]: FARM_LABOR,
   [IRON_MINE]: EXTRACTION_LABOR,
   [GEM_MINE]: EXTRACTION_LABOR,
   [QUARRY]: EXTRACTION_LABOR,

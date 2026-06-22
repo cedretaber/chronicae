@@ -51,6 +51,8 @@ import {
   getHoldingEmployedPopSize,
   getHoldingUnemployedPopSize,
   getHoldingClassCapacity,
+  getHoldingEmployedPopSizeByType,
+  getHoldingPopTypeCapacity,
   getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
@@ -452,22 +454,24 @@ export function HoldingDetail({
                     </div>
                     {impDef.employmentSlots &&
                       impDef.employmentSlots.map((slot) => {
-                        const empSize = getHoldingEmployedPopSize(
+                        const empSize = getHoldingEmployedPopSizeByType(
                           currentState,
                           holding.id,
-                          slot.stratum,
+                          slot.popType,
                         )
-                        const cap = getHoldingClassCapacity(
+                        const cap = getHoldingPopTypeCapacity(
                           currentState,
                           defaultConfig,
                           holding.id,
-                          slot.stratum,
+                          slot.popType,
                         )
                         const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
                         return (
-                          <div key={slot.stratum} className="mt-0.5 flex items-center gap-1.5">
+                          <div key={slot.popType} className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-xs text-gray-500">
-                              {t(`detail.province.${slot.stratum}`)}
+                              {t(`detail.province.pop_type.${slot.popType}`, {
+                                defaultValue: slot.popType,
+                              })}
                             </span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
                               <div

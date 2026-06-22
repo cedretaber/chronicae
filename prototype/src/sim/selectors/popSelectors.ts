@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId, StateRegionId } from '../types/ids'
-import type { PopGroup, PopClass } from '../types/popGroup'
+import type { PopGroup, PopClass, PopType } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -10,6 +10,8 @@ import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import {
   computeHoldingClassCapacity,
+  computeHoldingPopTypeCapacity,
+  computeHoldingAllPopTypeCapacities,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 
@@ -270,16 +272,17 @@ export function getHoldingUnemployedPopSize(
   )
 }
 
-export function getHoldingClassCapacity(
+// holding の容量計算に必要な入力 (holding/province 属性・improvements・assets・overuseMod) を 1 度だけ収集する。
+//   getHoldingClassCapacity / getHoldingPopTypeCapacity / getHoldingAllPopTypeCapacities が共有する。
+function collectHoldingCapacityInputs(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-  popClass: PopClass,
-): number {
+) {
   const holding = state.holdings[holdingId]
-  if (!holding) return 0
+  if (!holding) return null
   const province = state.provinces[holding.provinceId]
-  if (!province) return 0
+  if (!province) return null
 
   const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
   const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
@@ -295,10 +298,21 @@ export function getHoldingClassCapacity(
     if (asset) assets.push({ realEstateKind: asset.realEstateKind, level: asset.level })
   }
 
-  const usedSlots = assets.length
   const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
-  const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
+  const overuseMod = computeSlotOveruseModifier(assets.length, slotCap, config)
 
+  return { holding, province, improvements, assets, overuseMod }
+}
+
+export function getHoldingClassCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  const inputs = collectHoldingCapacityInputs(state, config, holdingId)
+  if (!inputs) return 0
+  const { holding, province, improvements, assets, overuseMod } = inputs
   return computeHoldingClassCapacity(
     holding.kind,
     holding.weight,
@@ -322,6 +336,85 @@ export function getHoldingClassRemainingCapacity(
   const capacity = getHoldingClassCapacity(state, config, holdingId, popClass)
   const used = getHoldingEmployedPopSize(state, holdingId, popClass)
   return Math.max(0, capacity - used)
+}
+
+// v0.57 §雇用細分化: holding × PopType の雇用 helper 群。
+//   class 版 (getHoldingClassCapacity 等) の PopType 粒度版。施設駆動のハード枠を表現する。
+export function getHoldingPopsByTypeAndEmployment(
+  state: WorldState,
+  holdingId: HoldingId,
+  popType: PopType,
+  employed: boolean,
+): PopGroup[] {
+  return getHoldingPops(state, holdingId).filter(
+    (p) => p.popType === popType && p.employed === employed,
+  )
+}
+
+export function getHoldingEmployedPopSizeByType(
+  state: WorldState,
+  holdingId: HoldingId,
+  popType: PopType,
+): number {
+  return getHoldingPopsByTypeAndEmployment(state, holdingId, popType, true).reduce(
+    (sum, p) => sum + p.size,
+    0,
+  )
+}
+
+export function getHoldingPopTypeCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popType: PopType,
+): number {
+  const inputs = collectHoldingCapacityInputs(state, config, holdingId)
+  if (!inputs) return 0
+  const { holding, province, improvements, assets, overuseMod } = inputs
+  return computeHoldingPopTypeCapacity(
+    holding.kind,
+    holding.weight,
+    holding.landQuality,
+    province.terrain,
+    province.features,
+    improvements,
+    config,
+    popType,
+    assets,
+    overuseMod,
+  )
+}
+
+export function getHoldingPopTypeRemainingCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popType: PopType,
+): number {
+  const capacity = getHoldingPopTypeCapacity(state, config, holdingId, popType)
+  const used = getHoldingEmployedPopSizeByType(state, holdingId, popType)
+  return Math.max(0, capacity - used)
+}
+
+// v0.57: holding の全 PopType 容量を 1 パスで取得 (demand/rebalance の per-PopType ループ用)。
+export function getHoldingAllPopTypeCapacities(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): Partial<Record<PopType, number>> {
+  const inputs = collectHoldingCapacityInputs(state, config, holdingId)
+  if (!inputs) return {}
+  const { holding, province, improvements, assets, overuseMod } = inputs
+  return computeHoldingAllPopTypeCapacities(
+    holding.weight,
+    holding.landQuality,
+    province.terrain,
+    province.features,
+    improvements,
+    config,
+    assets,
+    overuseMod,
+  )
 }
 
 export function hasCapacityPressure(

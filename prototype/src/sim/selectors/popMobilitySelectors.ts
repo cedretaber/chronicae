@@ -1,15 +1,14 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { HoldingId, StateRegionId, ProductionRecipeId } from '../types/ids'
+import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopType, PopStratum } from '../types/popGroup'
-import { POP_STRATA, POP_TYPES, POP_TYPES_BY_STRATUM } from '../types/popGroup'
+import { POP_STRATA, POP_TYPES, getPopStratum } from '../types/popGroup'
 import type { HoldingPopTypeDemand } from '../types/popMobility'
-import { getHoldingClassCapacity } from './popSelectors'
-import { RECIPE_LABOR_PROFILES } from '../config/productionRecipeDefinitions'
+import { getHoldingAllPopTypeCapacities } from './popSelectors'
 
-// v0.56 §6: holding 単位の PopType 雇用需要 read-model。
-//   capacity は live (現在値)、idealShare は recipe 由来、current は employed POP 集計。
-//   desired = stratum capacity × idealShare。shortage/surplus は転職・移住スコア用 (強制変換はしない)。
+// v0.57 §雇用細分化: holding 単位の PopType 雇用需要 read-model。
+//   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = stratum 内で正規化した容量比。
+//   current は employed POP 集計。shortage/surplus は転職・移住スコア・rebalance 順序付け用。
 export function computeHoldingPopTypeDemand(
   state: WorldState,
   config: SimulationConfig,
@@ -24,56 +23,20 @@ export function computeHoldingPopTypeDemand(
     currentEmployedByType[p.popType] = (currentEmployedByType[p.popType] ?? 0) + p.size
   }
 
-  // §6.3: holding の RealEstateAsset の recipeSlots から recipe 理想 weight を slot 加重で集約。
-  const accumulatedWeight: Partial<Record<PopType, number>> = {}
-  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-  for (const aId of assetIds) {
-    const asset = state.realEstateAssets[aId]
-    if (!asset) continue
-    for (const recipeId of Object.keys(asset.recipeSlots) as ProductionRecipeId[]) {
-      const slots = asset.recipeSlots[recipeId] ?? 0
-      if (slots <= 0) continue
-      const profile = RECIPE_LABOR_PROFILES[recipeId]
-      if (!profile) continue
-      for (const d of profile) {
-        accumulatedWeight[d.popType] = (accumulatedWeight[d.popType] ?? 0) + d.idealWeight * slots
-      }
-    }
-  }
+  // desired = 施設駆動の PopType 雇用容量 (1 パス計算)。
+  const capByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
 
-  // stratum ごとに idealShare を正規化し capacity を掛けて desired を求める。
+  // stratum 合計で正規化して idealShare を求める (移住 opportunity score 用)。
+  const stratumTotal: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  for (const t of POP_TYPES) stratumTotal[getPopStratum(t)] += capByType[t] ?? 0
+
   const idealShareByType: Partial<Record<PopType, number>> = {}
   const desiredEmployedByType: Partial<Record<PopType, number>> = {}
-  for (const stratum of POP_STRATA) {
-    const types = POP_TYPES_BY_STRATUM[stratum]
-    const capacity = getHoldingClassCapacity(state, config, holdingId, stratum)
-    let totalWeight = 0
-    for (const t of types) totalWeight += accumulatedWeight[t] ?? 0
-
-    if (totalWeight > 0) {
-      for (const t of types) {
-        const share = (accumulatedWeight[t] ?? 0) / totalWeight
-        idealShareByType[t] = share
-        desiredEmployedByType[t] = capacity * share
-      }
-    } else {
-      // §6.3 fallback: recipe demand 無し → 既存 current 構成を維持。current も無ければ均等配分。
-      let curTotal = 0
-      for (const t of types) curTotal += currentEmployedByType[t] ?? 0
-      if (curTotal > 0) {
-        for (const t of types) {
-          const share = (currentEmployedByType[t] ?? 0) / curTotal
-          idealShareByType[t] = share
-          desiredEmployedByType[t] = capacity * share
-        }
-      } else {
-        const even = types.length > 0 ? 1 / types.length : 0
-        for (const t of types) {
-          idealShareByType[t] = even
-          desiredEmployedByType[t] = capacity * even
-        }
-      }
-    }
+  for (const t of POP_TYPES) {
+    const cap = capByType[t] ?? 0
+    desiredEmployedByType[t] = cap
+    const st = stratumTotal[getPopStratum(t)]
+    idealShareByType[t] = st > 0 ? cap / st : 0
   }
 
   // §6.4: shortage / surplus。

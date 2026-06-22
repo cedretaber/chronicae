@@ -7,8 +7,8 @@ import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { POP_STRATA, POP_TYPES_BY_STRATUM } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
-  getHoldingClassCapacity,
-  getHoldingEmployedPopSize,
+  getHoldingAllPopTypeCapacities,
+  getHoldingEmployedPopSizeByType,
   getHoldingTotalPopSize,
 } from '../selectors/popSelectors'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
@@ -39,7 +39,7 @@ const SHARE_EPS = 1e-9
 //   capacity ceiling は構造由来で月内不変なので cache し、remaining は cache − live employed で求める。
 type HoldingMigrationCache = {
   demand: HoldingDemand
-  capacityByStratum: Record<PopStratum, number>
+  capacityByType: Partial<Record<PopType, number>>
   avgWealthByPopType: Map<PopType, number>
   avgWealthByStratum: Partial<Record<PopStratum, number>>
   avgUnrest: number
@@ -116,7 +116,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         if (pressure < config.popMigrationPressureThreshold) continue
 
         const sourcePolity = sourceCache.terminalPolity
-        const stayRemaining = remainingCapacity(sourceCache, ws, sourceHoldingId, source.class)
+        const stayRemaining = remainingCapacity(sourceCache, ws, sourceHoldingId, source.popType)
         const sourceScore = opportunityScore(
           config,
           source,
@@ -135,7 +135,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           if ((inflowCap.get(targetHoldingId) ?? 0) < minMove) continue
           const targetCache = cacheByHolding.get(targetHoldingId)
           if (!targetCache) continue
-          const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.class)
+          const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.popType)
           if (remaining <= 0) continue
           const score = opportunityScore(
             config,
@@ -234,7 +234,7 @@ function opportunityScore(
   const cache = cacheByHolding.get(targetHoldingId)
   if (!cache) return -Infinity
 
-  const capacity = cache.capacityByStratum[source.class]
+  const capacity = cache.capacityByType[source.popType] ?? 0
   const stratumVacancyScore = clamp(liveRemaining / Math.max(1, capacity), 0, 1)
 
   // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。
@@ -313,18 +313,14 @@ function buildHoldingCache(
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
 
   // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
-  const capacityByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  const capacityByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
   let totalCapacity = 0
-  for (const stratum of POP_STRATA) {
-    const cap = getHoldingClassCapacity(state, config, holdingId, stratum)
-    capacityByStratum[stratum] = cap
-    totalCapacity += cap
-  }
+  for (const t of Object.keys(capacityByType) as PopType[]) totalCapacity += capacityByType[t] ?? 0
   const congestion = totalSize / Math.max(1, totalCapacity)
 
   return {
     demand,
-    capacityByStratum,
+    capacityByType,
     avgWealthByPopType,
     avgWealthByStratum,
     avgUnrest,
@@ -338,10 +334,10 @@ function remainingCapacity(
   cache: HoldingMigrationCache,
   ws: WorldState,
   holdingId: HoldingId,
-  popClass: PopStratum,
+  popType: PopType,
 ): number {
   return Math.max(
     0,
-    cache.capacityByStratum[popClass] - getHoldingEmployedPopSize(ws, holdingId, popClass),
+    (cache.capacityByType[popType] ?? 0) - getHoldingEmployedPopSizeByType(ws, holdingId, popType),
   )
 }

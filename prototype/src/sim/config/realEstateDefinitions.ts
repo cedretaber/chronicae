@@ -1,13 +1,17 @@
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopStratum } from '../types/popGroup'
+import type { PopType } from '../types/popGroup'
 
-// v0.55 §13.4: multi-stratum employment。1 kind が複数 stratum を同時雇用する。
-//   capacityPerLevel は per-stratum (base capacity × stratum weight) を事前計算した値。
+// v0.57 §雇用細分化: employment slot を PopType 単位で持つ (施設駆動の職能構成)。
+//   capacityPerLevel は施設容量 × その PopType の構成比を事前計算した値。
+//   stratum は getPopStratum(popType) で導出 (容量セレクタが stratum 集計に使う)。
+//   maxRatioTo: 熟練職 (親方/自作農) の「同数上限」。主要職能の実雇用数 × ratio を雇用上限とする
+//     (主要職能が労働力不足で埋まらないとき補助職能を実数までキャップする動的制限 §雇用細分化)。
 export type RealEstateEmploymentSlot = {
-  stratum: PopStratum
+  popType: PopType
   capacityPerLevel: number
+  maxRatioTo?: { popType: PopType; ratio: number }
 }
 
 export type RealEstateInfrastructureModifier = {
@@ -25,21 +29,25 @@ export type RealEstateDefinition = {
   developmentScorePerLevel: number
 }
 
-// v0.55 §23.1a: 4 kind 定義。allowedTerrains が RealEstateKind 単位の terrain gate
+// v0.57 §雇用細分化: 4 kind 定義。employmentSlots は施設駆動の PopType 構成 (比率を容量へ展開)。
+//   slot[0] は primary producer (production の primaryClass 導出に使う)。
+//   allowedTerrains が RealEstateKind 単位の terrain gate
 //   (recipe 側 terrain gate §8.1 は型のみで enforce しないのと混同しない)。
-//   employmentSlots の popClass は Phase 1 では旧 PopClass を維持 (Phase 3 で PopStratum 化)。
 export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinition> = {
-  // capacityPerLevel = base (§23.1a) × stratum weight (§13.4)。
   farm: {
     realEstateKind: 'farm',
     // v0.55: 一次産業 (農園/鉱山/林地) は荘園 holding のみ。都市は工房専業とする。
     allowedHoldingKinds: ['manor'],
     allowedTerrains: ['plains', 'wetlands', 'hills', 'forest'],
     maxLevelByHoldingKind: { manor: 3 },
-    // base 50 × (lower 0.80 / middle 0.20)
+    // 農園: 小作農:自作農 = 7:3 (total 50)。自作農は小作農と同数まで。
     employmentSlots: [
-      { stratum: 'lower', capacityPerLevel: 40 },
-      { stratum: 'middle', capacityPerLevel: 10 },
+      { popType: 'peasants', capacityPerLevel: 35 },
+      {
+        popType: 'freeholders',
+        capacityPerLevel: 15,
+        maxRatioTo: { popType: 'peasants', ratio: 1 },
+      },
     ],
     developmentScorePerLevel: 3,
   },
@@ -48,10 +56,11 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     allowedHoldingKinds: ['manor'],
     allowedTerrains: ['mountains', 'hills'],
     maxLevelByHoldingKind: { manor: 3 },
-    // base 35 × (lower 0.90 / middle 0.10)
+    // 鉱山: 労働者:書記:家士 = 8:1:1 (total 35)。
     employmentSlots: [
-      { stratum: 'lower', capacityPerLevel: 31.5 },
-      { stratum: 'middle', capacityPerLevel: 3.5 },
+      { popType: 'laborers', capacityPerLevel: 28 },
+      { popType: 'scribes', capacityPerLevel: 3.5 },
+      { popType: 'ministeriales', capacityPerLevel: 3.5 },
     ],
     developmentScorePerLevel: 3,
   },
@@ -60,10 +69,11 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     allowedHoldingKinds: ['manor'],
     allowedTerrains: ['forest', 'hills'],
     maxLevelByHoldingKind: { manor: 3 },
-    // base 40 × (lower 0.85 / middle 0.15)
+    // 山林: 労働者:書記:家士 = 8:1:1 (total 40)。
     employmentSlots: [
-      { stratum: 'lower', capacityPerLevel: 34 },
-      { stratum: 'middle', capacityPerLevel: 6 },
+      { popType: 'laborers', capacityPerLevel: 32 },
+      { popType: 'scribes', capacityPerLevel: 4 },
+      { popType: 'ministeriales', capacityPerLevel: 4 },
     ],
     developmentScorePerLevel: 3,
   },
@@ -71,11 +81,25 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     realEstateKind: 'workshop',
     allowedHoldingKinds: ['city'],
     maxLevelByHoldingKind: { city: 3 },
-    // base 80 × (lower 0.75 / middle 0.25)
+    // 工房: 職人:親方:書記 = 6:3:1 (total 80)。親方は職人と同数まで。
     employmentSlots: [
-      { stratum: 'lower', capacityPerLevel: 60 },
-      { stratum: 'middle', capacityPerLevel: 20 },
+      { popType: 'artisans', capacityPerLevel: 48 },
+      { popType: 'masters', capacityPerLevel: 24, maxRatioTo: { popType: 'artisans', ratio: 1 } },
+      { popType: 'scribes', capacityPerLevel: 8 },
     ],
     developmentScorePerLevel: 4,
   },
 }
+
+// v0.57 §雇用細分化: PopType → 同数上限 (refPopType, ratio) の導出マップ。
+//   熟練職 (親方→職人 / 自作農→小作農) の雇用上限を rebalance が動的に適用する。
+export const POP_TYPE_MAX_RATIO: Partial<Record<PopType, { popType: PopType; ratio: number }>> =
+  (() => {
+    const m: Partial<Record<PopType, { popType: PopType; ratio: number }>> = {}
+    for (const kind of Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]) {
+      for (const slot of REAL_ESTATE_DEFINITIONS[kind].employmentSlots) {
+        if (slot.maxRatioTo) m[slot.popType] = slot.maxRatioTo
+      }
+    }
+    return m
+  })()

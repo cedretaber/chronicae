@@ -79,13 +79,14 @@ function withEmployedPop(
   size: number,
   wealth = 50,
   employed = true,
+  popType?: PopType, // v0.57: 施設固有の職能を雇用したい場合に上書き (省略時は stratum 代表)。
 ): WorldState {
   const id = ('pg-' + popCounter++) as PopGroupId
   const pop: PopGroup = {
     id,
     holdingId,
     class: popClass,
-    popType: REP_POP_TYPE[popClass],
+    popType: popType ?? REP_POP_TYPE[popClass],
     employed,
     size,
     wealth,
@@ -185,7 +186,8 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withAsset(state, manor, 'farm').state
     state = withAsset(state, city, 'workshop').state
     state = withEmployedPop(state, manor, 'lower', 100)
-    state = withEmployedPop(state, city, 'middle', 100)
+    // v0.57: workshop の主要生産者は職人 (artisans)。
+    state = withEmployedPop(state, city, 'lower', 100, 50, true, 'artisans')
 
     const withRaw = runEcon(state)
     const citySnapWith = withRaw.monthlyHoldingResourceRevenue[city]
@@ -198,7 +200,7 @@ describe('runResourceEconomySystem — production & market', () => {
     const city2 = 'hd-city2' as HoldingId
     noRaw = withHolding(noRaw, city2, 'pr-0' as ProvinceId, { kind: 'city' })
     noRaw = withAsset(noRaw, city2, 'workshop').state
-    noRaw = withEmployedPop(noRaw, city2, 'middle', 100)
+    noRaw = withEmployedPop(noRaw, city2, 'lower', 100, 50, true, 'artisans')
     const noRawResult = runEcon(noRaw)
     const citySnapNo = noRawResult.monthlyHoldingResourceRevenue[city2]
     const beerNo = citySnapNo!.byResource.beer ?? 0
@@ -268,7 +270,8 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withHolding(state, city, 'pr-0' as ProvinceId, { kind: 'city' })
     const a = withAsset(state, city, 'workshop')
     state = a.state
-    state = withEmployedPop(state, city, 'middle', 100)
+    // v0.57: workshop の主要生産者は職人 (artisans)。
+    state = withEmployedPop(state, city, 'lower', 100, 50, true, 'artisans')
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[city]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!

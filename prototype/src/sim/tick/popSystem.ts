@@ -1,8 +1,12 @@
 import { clamp } from '../utils/math'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { PopGroupId, ProvinceId } from '../types/ids'
-import { getProvincePopulationPressure } from '../selectors/popSelectors'
+import type { PopGroupId, ProvinceId, HoldingId } from '../types/ids'
+import {
+  getProvincePopulationPressure,
+  getHoldingEmployedPopSizeByType,
+  getHoldingTotalPopSize,
+} from '../selectors/popSelectors'
 import { removePopGroupMut } from '../mutations/popMutations'
 
 // v0.55 POP 再設計: 旧 minSize 底上げ (就業 POP を minPopSizeByClass へ無条件で水増し) は撤廃した。
@@ -65,6 +69,23 @@ export function runPopSystem(ctx: TickContext): TickContext {
     )
   }
 
+  // v0.57 §雇用細分化: holding 単位の治安 unrest 低減を事前計算。
+  //   治安力 = (employed soldiers + ministeriales) / total pop。兵士・家士が多いほど unrest を下げる。
+  const securityUnrestReductionByHolding = new Map<string, number>()
+  for (const holdingId of Object.keys(ws.holdings).sort()) {
+    const hid = holdingId as HoldingId
+    const total = getHoldingTotalPopSize(ws, hid)
+    if (total <= 0) continue
+    const securityPop =
+      getHoldingEmployedPopSizeByType(ws, hid, 'soldiers') +
+      getHoldingEmployedPopSizeByType(ws, hid, 'ministeriales')
+    const coverage = securityPop / total
+    const reduction =
+      ctx.config.securityUnrestReductionAtFull *
+      clamp(coverage / ctx.config.securityFullCoverageRatio, 0, 1)
+    if (reduction > 0) securityUnrestReductionByHolding.set(holdingId, reduction)
+  }
+
   for (const popGroupId of popIdSnapshot) {
     const pop = ws.popGroups[popGroupId]
     if (!pop) continue
@@ -122,6 +143,9 @@ export function runPopSystem(ctx: TickContext): TickContext {
 
     // 5.5. Natural unrest decay
     newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
+
+    // 5.6. v0.57 §雇用細分化: 治安 (兵士・家士) による unrest 低減。
+    newUnrest -= securityUnrestReductionByHolding.get(pop.holdingId) ?? 0
 
     // 6. Unemployed POP penalties
     if (!pop.employed) {

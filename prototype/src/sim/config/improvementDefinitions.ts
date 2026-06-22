@@ -1,10 +1,13 @@
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { PopStratum } from '../types/popGroup'
+import type { PopType } from '../types/popGroup'
 
+// v0.57 §雇用細分化: improvement の establishment (定員) を PopType 単位で持つ。
+//   establishment は holding の生産容量プールとは別の外生的な雇用枠 (管理・治安・維持の人員)。
+//   capacityPerLevel は level あたり establishment 総数 × その PopType の構成比。
 export type ImprovementEmploymentSlot = {
-  stratum: PopStratum
+  popType: PopType
   capacityPerLevel: number
 }
 
@@ -19,20 +22,29 @@ export type ImprovementDefinition = {
 }
 
 export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, ImprovementDefinition> = {
+  // 領主館: 貴族:家士:兵士:労働者 = 1:2:3:4 (total 20/level)。領地の維持・管理。
   manor_house: {
     kind: 'manor_house',
     allowedHoldingKinds: ['manor'],
     capacityRole: 'capacity',
-    employmentSlots: [{ stratum: 'upper', capacityPerLevel: 3 }],
+    employmentSlots: [
+      { popType: 'nobles', capacityPerLevel: 2 },
+      { popType: 'ministeriales', capacityPerLevel: 4 },
+      { popType: 'soldiers', capacityPerLevel: 6 },
+      { popType: 'laborers', capacityPerLevel: 8 },
+    ],
     critical: true,
   },
+  // 市庁舎: 都市貴族:官僚:兵士:労働者 = 1:2:3:4 (total 20/level)。
   town_hall: {
     kind: 'town_hall',
     allowedHoldingKinds: ['city'],
     capacityRole: 'capacity',
     employmentSlots: [
-      { stratum: 'middle', capacityPerLevel: 10 },
-      { stratum: 'upper', capacityPerLevel: 3 },
+      { popType: 'patricians', capacityPerLevel: 2 },
+      { popType: 'bureaucrats', capacityPerLevel: 4 },
+      { popType: 'soldiers', capacityPerLevel: 6 },
+      { popType: 'laborers', capacityPerLevel: 8 },
     ],
     critical: true,
   },
@@ -53,11 +65,16 @@ export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, Improvement
     allowedHoldingKinds: ['city'],
     capacityRole: 'production_quality',
   },
+  // 倉庫: 労働者:商人:書記 = 8:1:1 (total 20/level)。
   storage_infrastructure: {
     kind: 'storage_infrastructure',
     allowedHoldingKinds: ['manor', 'city'],
     capacityRole: 'capacity',
-    employmentSlots: [{ stratum: 'middle', capacityPerLevel: 20 }],
+    employmentSlots: [
+      { popType: 'laborers', capacityPerLevel: 16 },
+      { popType: 'merchants', capacityPerLevel: 2 },
+      { popType: 'scribes', capacityPerLevel: 2 },
+    ],
   },
   transport_infrastructure: {
     kind: 'transport_infrastructure',

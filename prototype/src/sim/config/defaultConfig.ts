@@ -227,6 +227,11 @@ export type SimulationConfig = {
   prosperityWealthThreshold: number
   prosperityUnrestReduction: number
   unrestNaturalDecayRate: number
+  // v0.57 §雇用細分化: 治安 (兵士・家士) による holding 単位の月次 unrest 低減。
+  //   securityCoverage = (employed soldiers+ministeriales) / total holding pop。
+  //   reduction = securityUnrestReductionAtFull × clamp(coverage / securityFullCoverageRatio, 0, 1)。
+  securityUnrestReductionAtFull: number
+  securityFullCoverageRatio: number
   retainedWealthGainByClass: Record<PopStratum, number>
   overExtractionThreshold: number
   overExtractionWealthSafeThreshold: number
@@ -326,6 +331,9 @@ export type SimulationConfig = {
   // v0.48.1 設備維持管理 (§9)。condition 駆動の減衰→機能不全→修理→破壊ライフサイクル。
   facilityMaintenanceEnabled: boolean // kill-switch
   facilityConditionDecayPerCyclePerLevel: number // 維持サイクル(4週)ごとの減衰 = これ × level
+  // v0.57 §雇用細分化: 改善の労働者 (維持役) による condition 減衰の緩和率上限 (0..1)。
+  //   maintenanceCoverage = employed laborers / laborer capacity at holding。減衰 ×(1 - max×coverage)。
+  facilityMaintenanceDecayReductionMax: number
   facilityDisrepairThreshold: number // これ未満で機能不全 (生産低下 + disrepair Crisis 発火)
   facilityDisrepairMinEffectiveness: number // 生産 effectiveness の下限 (condition 0 時)
   criticalInfraMinEffectiveness: number // critical infrastructure (manor_house/town_hall) の conditionEffectiveness 下限
@@ -1443,8 +1451,6 @@ export type SimulationConfig = {
   inputResourceChoiceBeta: number
   // v0.55 §5.4: NeedCategory → ResourceKind 比率配分の鋭さ。
   needResourceChoiceBeta: number
-  // v0.55 §14.3: laborTypeFulfillmentModifier の下限 (PopType 構成が理想から外れても最低稼働率)。
-  laborTypeFulfillmentFloor: number
   // v0.55 §12.4/§12.5 (抽象市場改訂): input shortage 時の output 下限。supply 0 でも
   //   inputShortageModifier = floor + (1-floor) × inputFulfillmentScale 倍は生産する (完全停止を防ぐ)。
   inputShortageOutputFloor: number
@@ -1689,6 +1695,8 @@ export const defaultConfig: SimulationConfig = {
   prosperityWealthThreshold: 70,
   prosperityUnrestReduction: 0.01,
   unrestNaturalDecayRate: 0.05,
+  securityUnrestReductionAtFull: 2.0,
+  securityFullCoverageRatio: 0.1,
   retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,
@@ -1815,6 +1823,7 @@ export const defaultConfig: SimulationConfig = {
   // 閾値 50 から 0 まで同程度。維持を放置した L1 設備は ~9 年弱で全壊する目安。
   facilityMaintenanceEnabled: true,
   facilityConditionDecayPerCyclePerLevel: 0.9,
+  facilityMaintenanceDecayReductionMax: 0.5,
   facilityDisrepairThreshold: 50,
   facilityDisrepairMinEffectiveness: 0,
   criticalInfraMinEffectiveness: 0.5,
@@ -3045,7 +3054,6 @@ export const defaultConfig: SimulationConfig = {
   marketPriceSmoothingCurrentWeight: 0.25,
   inputResourceChoiceBeta: 2,
   needResourceChoiceBeta: 2,
-  laborTypeFulfillmentFloor: 0.7,
   // §12.4/§12.5 (抽象市場改訂): supply 0 でも potential の 25% は生産する。希少 input は market price で
   //   購入扱い (高価 input × 低 output → 低利益/赤字) となり、price シグナルと recipe 転換動機が残る。
   inputShortageOutputFloor: 0.25,

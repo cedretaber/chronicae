@@ -13,7 +13,10 @@ import {
   getActiveSeizureForAsset,
   getSeizurePrescriptionRemainingYears,
 } from '@sim/selectors/realEstateSeizureSelectors'
-import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
+import {
+  getHoldingEmployedPopSizeByType,
+  getHoldingPopTypeCapacity,
+} from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
@@ -100,17 +103,17 @@ export function RealEstateDetail({
   const capacitySlots = def.employmentSlots.map((slot) => {
     let fill: number | null = null
     if (currentState) {
-      const employed = getHoldingEmployedPopSize(currentState, asset.holdingId, slot.stratum)
-      const cap = getHoldingClassCapacity(
+      const employed = getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
+      const cap = getHoldingPopTypeCapacity(
         currentState,
         defaultConfig,
         asset.holdingId,
-        slot.stratum,
+        slot.popType,
       )
       fill = cap > 0 ? employed / cap : null
     }
     return {
-      stratum: slot.stratum,
+      popType: slot.popType,
       capacity: slot.capacityPerLevel * asset.level,
       fill,
     }
@@ -270,9 +273,11 @@ export function RealEstateDetail({
                   ? 'bg-amber-500'
                   : 'bg-rose-500'
           return (
-            <div key={slot.stratum} className="flex flex-col gap-0.5">
+            <div key={slot.popType} className="flex flex-col gap-0.5">
               <div className="flex justify-between">
-                <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
+                <span className="text-gray-400">
+                  {t(`detail.province.pop_type.${slot.popType}`, { defaultValue: slot.popType })}:
+                </span>
                 <span className="text-gray-300">
                   {formatPopCount(slot.capacity)}
                   {slot.fill !== null && (
