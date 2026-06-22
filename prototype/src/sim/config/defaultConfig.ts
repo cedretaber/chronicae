@@ -1473,6 +1473,9 @@ export type SimulationConfig = {
   // v0.55 §16.2: NeedTier ごとの shortage penalty (weekly wealth/unrest delta 係数)。
   needShortageWealthPenaltyByTier: Record<NeedTier, number>
   needShortageUnrestPenaltyByTier: Record<NeedTier, number>
+  // v0.58 §6.3c.5: needSatisfaction = Σ tier重み × (afford × market-fill) の加重平均×100 を平滑化。
+  needSatisfactionTierWeight: Record<NeedTier, number>
+  needSatisfactionSmoothing: number // 0..1（新値の重み。1=平滑なし）
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -3074,6 +3077,8 @@ export const defaultConfig: SimulationConfig = {
   needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
   needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },
   needShortageUnrestPenaltyByTier: { essential: 0.4, ordinary: 0.1, luxury: 0.02 },
+  needSatisfactionTierWeight: { essential: 0.6, ordinary: 0.3, luxury: 0.1 },
+  needSatisfactionSmoothing: 0.5,
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,

@@ -260,7 +260,8 @@ describe('runResourceEconomySystem — production & market', () => {
       // 供給は lower POP のみ (一定)。需要側は未就業 middle POP にする — farm は middle も雇用するため、
       //   就業させると grain を生産してしまい「需要のみ増やす」意図が崩れる (v0.55 grain 出力2倍で顕在化)。
       state = withEmployedPop(state, hd, 'lower', 10) // 一定の供給
-      state = withEmployedPop(state, hd, 'middle', popSize, 50, false) // 未就業=需要のみ
+      // v0.58: 需要は money 制約されるため、afford=1 となる潤沢な money を与えて需要を size に比例させる。
+      state = withEmployedPop(state, hd, 'middle', popSize, 50, false, undefined, popSize * 1000) // 未就業=需要のみ
       const result = runEcon(state)
       return result.marketResourcePrices['sr-0:grain']!.lastPrice
     }
@@ -332,7 +333,8 @@ describe('runResourceEconomySystem — production & market', () => {
     state = a.state
     state = withEmployedPop(state, hd, 'lower', 50) // 供給
     // upper はどの asset にも雇用されない (§13.4) ため純粋な需要源にできる。
-    state = withEmployedPop(state, hd, 'upper', 400) // food 需要のみ
+    // v0.58: money 制約があるため afford=1 となる潤沢な money を与える。
+    state = withEmployedPop(state, hd, 'upper', 400, 50, true, undefined, 400000) // food 需要のみ
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[hd]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!
@@ -345,23 +347,40 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(ar.netRevenue).toBeGreaterThan(0)
   })
 
-  it('essential need 全面 shortage は wealth を下げ unrest を上げる (§16.2)', () => {
-    // 生産 asset の無い市場 → POP の essential need (staple/protein/drink/clothing) が全て未充足。
-    //   §16 shortage penalty で wealth-/unrest+。
+  it('v0.58: money 潤沢でも市場欠乏なら needSatisfaction が下がる (afford=1, fill 低)', () => {
+    // 生産 asset の無い市場 → POP の essential need が市場で満たせない (marketFill=0)。
+    //   money は潤沢 (afford=1) でも fill が 0 なので needSatisfaction が初期 (50) を下回る。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
-    state = withEmployedPop(state, hd, 'lower', 100, 50)
+    state = withEmployedPop(state, hd, 'lower', 100, 50, true, undefined, 100000) // money 潤沢
     const result = runEcon(state)
     const popId = state.popIndex.byHolding[hd]![0]!
     const pop = result.popGroups[popId]!
-    expect(pop.wealth).toBeLessThan(50)
-    expect(pop.unrest).toBeGreaterThan(0)
+    expect(pop.needSatisfaction).toBeLessThan(50)
+  })
+
+  it('v0.58: money 不足の POP は essential を買い切れず needSatisfaction が下がる (market 潤沢でも)', () => {
+    // grain 専業 farm + 潤沢 money の就業 POP で market を満たす (fill 高)。
+    //   別に「未就業・money 極小」の貧困 POP を置く — 賃金を得ないため money が枯れ、afford 低で
+    //   needSatisfaction が初期 (50) を下回り、money をほぼ使い切る (負にならない)。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'farm', 3).state // 大供給で market 潤沢
+    state = withEmployedPop(state, hd, 'lower', 100, 50, true, undefined, 100000) // 供給+潤沢 money
+    // 消費専用の貧困 POP (未就業=賃金なし・money 極小・upper はどの asset にも雇用されない)。
+    state = withEmployedPop(state, hd, 'upper', 50, 50, false, undefined, 1)
+    const result = runEcon(state)
+    const poor = Object.values(result.popGroups).find((p) => p.class === 'upper')!
+    expect(poor.needSatisfaction).toBeLessThan(50) // 買えないので低下
+    expect(poor.money).toBeLessThan(1) // money をほぼ使い切る
+    expect(poor.money).toBeGreaterThanOrEqual(0) // 負にならない
   })
 
   it('需要 0 の NeedCategory は wellbeing 集計に含めない (§16.1)', () => {
-    // 貧困 lower pop (wealth 0) は luxury tier の purchasingPowerFactor が floor 0 → 需要 0。
-    //   luxury 供給がゼロでも luxury shortage では penalty を受けない (essential のみ対象)。
+    // v0.58: lower pop は POP_NEED_PROFILES の luxury_* が 0 のため luxury カテゴリを需要しない
+    //   (旧 purchasingPowerFactor の floor 0 ではなく profile=0 が理由)。essential のみ需要する。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
