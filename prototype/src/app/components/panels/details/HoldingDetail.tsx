@@ -199,9 +199,8 @@ export function HoldingDetail({
                   const minInputFulfill = inputRecipes.length
                     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
                     : null
-                  const minLaborFulfill = breakdown.length
-                    ? Math.min(...breakdown.map((b) => b.laborTypeFulfillment))
-                    : null
+                  // v0.57: 労働充足は不動産単位で全レシピ同一なので asset 値をそのまま使う。
+                  const assetLaborFulfill = breakdown[0]?.laborTypeFulfillment ?? null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -284,10 +283,10 @@ export function HoldingDetail({
                               compact
                             />
                           )}
-                          {minLaborFulfill !== null && (
+                          {assetLaborFulfill !== null && (
                             <FulfillmentBar
-                              label={t('detail.realEstate.labor_type_fulfillment_min')}
-                              value={minLaborFulfill}
+                              label={t('detail.realEstate.labor_type_fulfillment')}
+                              value={assetLaborFulfill}
                               compact
                             />
                           )}

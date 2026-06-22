@@ -127,15 +127,13 @@ export function RealEstateDetail({
     .filter((b) => Object.values(b.outputs).some((v) => (v ?? 0) > 0) || b.grossRevenue > 0)
     .sort((a, b) => b.netRevenue - a.netRevenue || (a.recipeId < b.recipeId ? -1 : 1))
 
-  // 施設要約はボトルネック (最低レシピ) を取る。asset 平均は一次生産=1 が混ざり鈍るため使わない。
-  //   入力充足は原材料を持つレシピのみ対象 (raw は常に 1)。労働充足は全レシピ対象。
+  // 入力充足はレシピごとに異なるため施設要約はボトルネック (最低レシピ) を取る (原材料を持つレシピのみ)。
+  //   労働充足 (v0.57) は不動産単位で全レシピ同一なので asset 値をそのまま使う (レシピ別表示はしない)。
   const inputRecipes = recipeBreakdown.filter((b) => Object.keys(b.inputs).length > 0)
   const minInputFulfill = inputRecipes.length
     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
     : null
-  const minLaborFulfill = recipeBreakdown.length
-    ? Math.min(...recipeBreakdown.map((b) => b.laborTypeFulfillment))
-    : null
+  const assetLaborFulfill = recipeBreakdown[0]?.laborTypeFulfillment ?? null
 
   // 資源の市場価格 (holding → province.stateId が StateRegion 市場)。基準価格比でレシピの黒字/赤字理由を示す。
   const holding = currentState?.holdings[asset.holdingId]
@@ -361,7 +359,7 @@ export function RealEstateDetail({
                         </span>
                       )}
                     </div>
-                    {/* レシピ単位の充足率。入力充足は原材料を持つレシピのみ (raw は常に 100%)。 */}
+                    {/* レシピ単位の充足率は入力のみ (労働充足は不動産単位なので施設合計に集約)。 */}
                     {inRows.length > 0 && (
                       <FulfillmentBar
                         label={t('detail.realEstate.input_fulfillment')}
@@ -369,11 +367,6 @@ export function RealEstateDetail({
                         compact
                       />
                     )}
-                    <FulfillmentBar
-                      label={t('detail.realEstate.labor_type_fulfillment')}
-                      value={b.laborTypeFulfillment}
-                      compact
-                    />
                   </div>
                 )
               })}
@@ -399,7 +392,7 @@ export function RealEstateDetail({
               </span>
             </div>
           </div>
-          {(minInputFulfill !== null || minLaborFulfill !== null) && (
+          {(minInputFulfill !== null || assetLaborFulfill !== null) && (
             <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-1 text-xs">
               {minInputFulfill !== null && (
                 <FulfillmentBar
@@ -407,10 +400,10 @@ export function RealEstateDetail({
                   value={minInputFulfill}
                 />
               )}
-              {minLaborFulfill !== null && (
+              {assetLaborFulfill !== null && (
                 <FulfillmentBar
-                  label={t('detail.realEstate.labor_type_fulfillment_min')}
-                  value={minLaborFulfill}
+                  label={t('detail.realEstate.labor_type_fulfillment')}
+                  value={assetLaborFulfill}
                 />
               )}
             </div>
