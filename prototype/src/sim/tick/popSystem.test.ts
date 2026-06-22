@@ -31,7 +31,6 @@ function withPop(
     popType: REP_POP_TYPE[popClass],
     employed,
     size,
-    wealth: 50,
     money,
     needSatisfaction: 50,
     unrest: 0,

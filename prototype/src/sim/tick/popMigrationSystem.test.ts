@@ -24,7 +24,7 @@ function mkPop(
   popType: PopType,
   employed: boolean,
   size: number,
-  wealth: number,
+  needSatisfaction: number, // v0.58: 旧 wealth 引数を needSatisfaction(移住圧の welfare 指標) へ転用。
 ): PopGroup {
   return {
     id,
@@ -33,9 +33,8 @@ function mkPop(
     popType,
     employed,
     size,
-    wealth,
     money: 0,
-    needSatisfaction: 50,
+    needSatisfaction,
     unrest: 10,
     attitudes: {},
   }

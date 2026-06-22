@@ -454,11 +454,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
 
-    // 5. wealth in [0, 100]
-    if (pop.wealth < 0 || pop.wealth > 100) {
+    // 5. v0.58: needSatisfaction in [0, 100]（wealth 指数は退役）
+    if (pop.needSatisfaction < 0 || pop.needSatisfaction > 100) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `PopGroup ${popGroupId} has wealth ${pop.wealth} outside [0, 100]`,
+        message: `PopGroup ${popGroupId} has needSatisfaction ${pop.needSatisfaction} outside [0, 100]`,
       })
     }
 

@@ -11,8 +11,8 @@ import { createPopGroupId } from '../types/ids'
 //   (popMutations は config 非依存のため literal。systems は options.minSourceSize で明示渡し)。
 const POP_MOBILITY_SOURCE_FLOOR_DEFAULT = 0.01
 
-// Adjust wealth of pops of a specific class in a province by delta (clamped 0..100)
-export function adjustProvincePopWealthByClass(
+// v0.58: 特定 class の POP の welfare(needSatisfaction) を delta だけ動かす (clamp 0..100)。
+export function adjustProvincePopNeedSatisfactionByClass(
   state: WorldState,
   provinceId: ProvinceId,
   popClass: PopClass,
@@ -28,12 +28,12 @@ export function adjustProvincePopWealthByClass(
     for (const popGroupId of popIds) {
       const pop = state.popGroups[popGroupId]
       if (!pop || pop.class !== popClass) continue
-      const newWealth = clamp(pop.wealth + delta, 0, 100)
-      if (newWealth === pop.wealth) continue
+      const newSat = clamp(pop.needSatisfaction + delta, 0, 100)
+      if (newSat === pop.needSatisfaction) continue
       if (!newPopGroups) {
         newPopGroups = { ...state.popGroups }
       }
-      newPopGroups[popGroupId] = { ...pop, wealth: newWealth }
+      newPopGroups[popGroupId] = { ...pop, needSatisfaction: newSat }
     }
   }
 
@@ -192,7 +192,6 @@ export function addToOrCreatePopGroupMut(
         const newSize = oldSize + input.size
         if (newSize <= 0) return existing.id
 
-        const sourceWealth = input.inheritFrom?.wealth ?? 50
         const sourceUnrest = input.inheritFrom?.unrest ?? 10
         const sourceNeedSat = input.inheritFrom?.needSatisfaction ?? 50
         const sourceAttitudes = input.inheritFrom?.attitudes ?? {}
@@ -200,7 +199,6 @@ export function addToOrCreatePopGroupMut(
         ws.popGroups[popId] = {
           ...existing,
           size: newSize,
-          wealth: clamp((existing.wealth * oldSize + sourceWealth * input.size) / newSize, 0, 100),
           // v0.58: money は extensive → sum (incoming は比例分が inheritFrom.money で渡る)。
           money: existing.money + (input.inheritFrom?.money ?? 0),
           // v0.58: needSatisfaction は intensive → size 加重平均。
@@ -231,7 +229,6 @@ export function addToOrCreatePopGroupMut(
     popType: input.popType,
     employed: input.employed,
     size: input.size,
-    wealth: input.inheritFrom?.wealth ?? 50,
     money: input.inheritFrom?.money ?? 0, // v0.58: extensive。create 時は incoming 比例分（Task 1.3 で比例移送制御）
     needSatisfaction: input.inheritFrom?.needSatisfaction ?? 50,
     unrest: input.inheritFrom?.unrest ?? 10,
@@ -310,7 +307,6 @@ export function movePopSizeToKeyMut(
   amount: number,
   options?: {
     minSourceSize?: number
-    incomingWealthOverride?: number
     incomingUnrestOverride?: number
     // v0.58: 昇格コスト等。移送する money から per-capita コスト × 移動 size を差し引いて burn する
     //   (source は movedMoney 全額を失い、target は残差を受け取る。差額は source/sink の sink)。
@@ -354,8 +350,7 @@ export function movePopSizeToKeyMut(
     actualAmount = source.size
   }
 
-  // §5.2(7): incoming cohort の wealth/unrest (override 優先)。
-  const incomingWealth = options?.incomingWealthOverride ?? source.wealth
+  // §5.2(7): incoming cohort の unrest (override 優先)。
   const incomingUnrest = options?.incomingUnrestOverride ?? source.unrest
 
   // v0.58: money は extensive。移送 size 比で按分 (per-capita 保存)。
@@ -373,7 +368,7 @@ export function movePopSizeToKeyMut(
     popType: target.popType,
     employed: target.employed,
     size: actualAmount,
-    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest, money: targetMoney },
+    inheritFrom: { ...source, unrest: incomingUnrest, money: targetMoney },
   })
 
   // §5.2(10-12): source から actualAmount を減らす。byHolding も整合。
@@ -406,8 +401,9 @@ export function movePopSizeToKeyMut(
 // 1 回だけ適用するこの族を使う。1 tick 1 draft の mutable 規約に従い ws を直接書き換える。
 // ---------------------------------------------------------------------------
 
-// holding 内の (optionally class 指定) POP の wealth を delta だけ動かす (clamp 0..100)。
-export function adjustHoldingPopWealthMut(
+// v0.58: holding 内の (optionally class 指定) POP の welfare(needSatisfaction) を delta だけ動かす
+//   (clamp 0..100)。crisis/warSupply の welfare 影響に使う。
+export function adjustHoldingPopNeedSatisfactionMut(
   ws: WorldState,
   holdingId: HoldingId,
   delta: number,
@@ -419,9 +415,9 @@ export function adjustHoldingPopWealthMut(
     const pop = ws.popGroups[popId]
     if (!pop) continue
     if (popClass !== undefined && pop.class !== popClass) continue
-    const newWealth = clamp(pop.wealth + delta, 0, 100)
-    if (newWealth === pop.wealth) continue
-    ws.popGroups[popId] = { ...pop, wealth: newWealth }
+    const newSat = clamp(pop.needSatisfaction + delta, 0, 100)
+    if (newSat === pop.needSatisfaction) continue
+    ws.popGroups[popId] = { ...pop, needSatisfaction: newSat }
   }
 }
 
@@ -496,18 +492,21 @@ export function mergeCompatiblePopsMut(ws: WorldState): void {
     const totalSize = allPops.reduce((sum, { pop }) => sum + pop.size, 0)
     if (totalSize <= 0) continue
 
-    // Population-weighted averages
-    let weightedWealth = 0
+    // Population-weighted averages (intensive)。v0.58: money は extensive → sum。
+    let weightedNeedSat = 0
     let weightedUnrest = 0
+    let totalMoney = 0
     for (const { pop } of allPops) {
-      weightedWealth += pop.wealth * pop.size
+      weightedNeedSat += pop.needSatisfaction * pop.size
       weightedUnrest += pop.unrest * pop.size
+      totalMoney += pop.money
     }
 
     ws.popGroups[keepId] = {
       ...keepPop,
       size: totalSize,
-      wealth: clamp(weightedWealth / totalSize, 0, 100),
+      money: totalMoney,
+      needSatisfaction: clamp(weightedNeedSat / totalSize, 0, 100),
       unrest: clamp(weightedUnrest / totalSize, 0, 100),
       attitudes: mergeAttitudesWeightedBySize(allPops.map(({ pop }) => pop)),
     }

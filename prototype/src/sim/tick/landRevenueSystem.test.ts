@@ -40,7 +40,7 @@ function withPopGroup(
   holdingId: HoldingId,
   popClass: PopClass,
   size: number,
-  wealth: number,
+  needSatisfaction: number, // v0.58: 旧 wealth 引数を needSatisfaction(welfare) へ転用。
   unrest: number = 0,
 ): WorldState {
   const pop: PopGroup = {
@@ -50,9 +50,8 @@ function withPopGroup(
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
-    wealth,
     money: 0,
-    needSatisfaction: 50,
+    needSatisfaction,
     unrest,
     attitudes: {},
   }
@@ -289,19 +288,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     expect(popAfter.unrest).toBeGreaterThan(0)
   })
 
-  it('retainedToPop is based on provinceCollected, not gross', () => {
-    const base = setupWithNormalBailiff()
-    const popId = base.popId
-    const newPopGroups = {
-      ...base.state.popGroups,
-      [popId]: { ...base.state.popGroups[popId]!, wealth: 50 },
-    }
-    const state = { ...base.state, popGroups: newPopGroups }
-    const result = runLandRevenueSystem(makeCtx(state))
-    const popAfter = result.state.popGroups[popId]!
-    expect(popAfter.wealth).toBeGreaterThan(0)
-    expect(popAfter.wealth).toBeLessThan(100)
-  })
+  // v0.58: retainedToPop wealth-gain は廃止 (所得は賃金へ一本化) のため当該テストは削除。
 
   it('POP→Bailiff attitude is set for normal bailiff', () => {
     const { state, popId, bailiffPersonId } = setupWithNormalBailiff()

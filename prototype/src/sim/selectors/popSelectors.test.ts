@@ -31,7 +31,6 @@ function withPop(
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed,
     size,
-    wealth: 50,
     money: 0,
     needSatisfaction: 50,
     unrest: 0,

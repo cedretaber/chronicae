@@ -77,7 +77,7 @@ function withEmployedPop(
   holdingId: HoldingId,
   popClass: PopClass,
   size: number,
-  wealth = 50,
+  needSatisfaction = 50, // v0.58: 旧 wealth 引数を needSatisfaction(welfare) へ転用。
   employed = true,
   popType?: PopType, // v0.57: 施設固有の職能を雇用したい場合に上書き (省略時は stratum 代表)。
   money = 0,
@@ -90,9 +90,8 @@ function withEmployedPop(
     popType: popType ?? REP_POP_TYPE[popClass],
     employed,
     size,
-    wealth,
     money,
-    needSatisfaction: 50,
+    needSatisfaction,
     unrest: 0,
     attitudes: {},
   }

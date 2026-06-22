@@ -35,13 +35,14 @@ function weightedQuantile(items: { value: number; weight: number }[], q: number)
 function collectPopStats(state: WorldState) {
   const byStratum: Record<
     PopStratum,
-    { pop: number; capacity: number; employed: number; unemployed: number; wealthSum: number }
+    { pop: number; capacity: number; employed: number; unemployed: number; moneySum: number }
   > = {
-    lower: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
-    middle: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
-    upper: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealthSum: 0 },
+    lower: { pop: 0, capacity: 0, employed: 0, unemployed: 0, moneySum: 0 },
+    middle: { pop: 0, capacity: 0, employed: 0, unemployed: 0, moneySum: 0 },
+    upper: { pop: 0, capacity: 0, employed: 0, unemployed: 0, moneySum: 0 },
   }
-  const wealthByStratum: Record<PopStratum, { value: number; weight: number }[]> = {
+  // v0.58: per-capita money 分布 (value = money/size, weight = size)。
+  const moneyByStratum: Record<PopStratum, { value: number; weight: number }[]> = {
     lower: [],
     middle: [],
     upper: [],
@@ -50,7 +51,7 @@ function collectPopStats(state: WorldState) {
   const unempByType = new Map<PopType, number>()
 
   let totalPop = 0
-  let totalWealth = 0
+  let totalMoney = 0
   let totalUnrest = 0
 
   for (const province of Object.values(state.provinces)) {
@@ -71,7 +72,7 @@ function collectPopStats(state: WorldState) {
     if (!pop) continue
     const s = byStratum[pop.class]
     s.pop += pop.size
-    s.wealthSum += pop.wealth * pop.size
+    s.moneySum += pop.money
     if (pop.employed) {
       s.employed += pop.size
       empByType.set(pop.popType, (empByType.get(pop.popType) ?? 0) + pop.size)
@@ -79,9 +80,12 @@ function collectPopStats(state: WorldState) {
       s.unemployed += pop.size
       unempByType.set(pop.popType, (unempByType.get(pop.popType) ?? 0) + pop.size)
     }
-    wealthByStratum[pop.class].push({ value: pop.wealth, weight: pop.size })
+    moneyByStratum[pop.class].push({
+      value: pop.size > 0 ? pop.money / pop.size : 0,
+      weight: pop.size,
+    })
     totalPop += pop.size
-    totalWealth += pop.wealth * pop.size
+    totalMoney += pop.money
     totalUnrest += pop.unrest * pop.size
   }
 
@@ -94,10 +98,10 @@ function collectPopStats(state: WorldState) {
     totalCapacity,
     totalEmployed,
     totalUnemployed,
-    avgWealth: totalPop > 0 ? totalWealth / totalPop : 0,
+    avgMoney: totalPop > 0 ? totalMoney / totalPop : 0,
     avgUnrest: totalPop > 0 ? totalUnrest / totalPop : 0,
     byStratum,
-    wealthByStratum,
+    moneyByStratum,
     empByType,
     unempByType,
   }
@@ -116,7 +120,7 @@ function formatRow(
     (stats.totalCapacity > 0 ? stats.totalPop / stats.totalCapacity : 0).toFixed(2).padStart(5),
     (stats.totalPop > 0 ? (stats.totalEmployed / stats.totalPop) * 100 : 0).toFixed(0).padStart(4) +
       '%',
-    stats.avgWealth.toFixed(1).padStart(6),
+    stats.avgMoney.toFixed(1).padStart(8),
     stats.avgUnrest.toFixed(1).padStart(6),
     Math.round(stats.byStratum.lower.pop).toString().padStart(7),
     Math.round(stats.byStratum.middle.pop).toString().padStart(7),
@@ -133,7 +137,7 @@ function printHeader(): void {
     'TotCap'.padStart(7),
     'Fill'.padStart(5),
     'EmpRt'.padStart(5),
-    'Wealth'.padStart(6),
+    'Money'.padStart(8),
     'Unrest'.padStart(6),
     'Lower'.padStart(7),
     'Middle'.padStart(7),
@@ -153,31 +157,28 @@ function printFinalBreakdown(state: WorldState): void {
   for (const stratum of POP_STRATA) {
     const d = stats.byStratum[stratum]
     const empRate = d.pop > 0 ? ((d.employed / d.pop) * 100).toFixed(1) : '0.0'
-    const avgWealth = d.pop > 0 ? d.wealthSum / d.pop : 0
+    const avgMoney = d.pop > 0 ? d.moneySum / d.pop : 0
     console.log(
       `  ${stratum.padEnd(7)}: pop=${Math.round(d.pop).toString().padStart(7)}, ` +
         `cap=${Math.round(d.capacity).toString().padStart(7)}, ` +
         `emp=${Math.round(d.employed).toString().padStart(7)}, ` +
         `unemp=${Math.round(d.unemployed).toString().padStart(7)}, ` +
-        `empRate=${empRate}%, avgWealth=${avgWealth.toFixed(1)}`,
+        `empRate=${empRate}%, avgMoney=${avgMoney.toFixed(1)}`,
     )
   }
 
   console.log('')
-  console.log('=== Wealth distribution by Stratum (size-weighted) ===')
+  console.log('=== Per-capita money distribution by Stratum (size-weighted) ===')
   for (const stratum of POP_STRATA) {
-    const arr = stats.wealthByStratum[stratum]
+    const arr = stats.moneyByStratum[stratum]
     if (arr.length === 0) {
       console.log(`  ${stratum.padEnd(7)}: (no pops)`)
       continue
     }
-    const ge60 = arr.filter((x) => x.value >= 60).reduce((a, b) => a + b.weight, 0)
-    const total = arr.reduce((a, b) => a + b.weight, 0)
     console.log(
-      `  ${stratum.padEnd(7)}: p25=${weightedQuantile(arr, 0.25).toFixed(0).padStart(3)}, ` +
-        `median=${weightedQuantile(arr, 0.5).toFixed(0).padStart(3)}, ` +
-        `p75=${weightedQuantile(arr, 0.75).toFixed(0).padStart(3)}, ` +
-        `wealth>=60: ${((100 * ge60) / total).toFixed(1)}% of pop`,
+      `  ${stratum.padEnd(7)}: p25=${weightedQuantile(arr, 0.25).toFixed(1).padStart(8)}, ` +
+        `median=${weightedQuantile(arr, 0.5).toFixed(1).padStart(8)}, ` +
+        `p75=${weightedQuantile(arr, 0.75).toFixed(1).padStart(8)}`,
     )
   }
 

@@ -4,7 +4,7 @@ import { randomFloat } from '../rng/rng'
 import type { ProvinceId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import {
-  adjustProvincePopWealthByClass,
+  adjustProvincePopNeedSatisfactionByClass,
   adjustProvincePopUnrestByClass,
 } from '../mutations/popMutations'
 import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
@@ -16,7 +16,7 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
   if (!province) return ctx
 
   let nextState = ctx.state
-  nextState = adjustProvincePopWealthByClass(
+  nextState = adjustProvincePopNeedSatisfactionByClass(
     nextState,
     provinceId,
     'lower',
@@ -28,7 +28,7 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
     'lower',
     -ctx.config.bountifulHarvestPeasantUnrestReduction,
   )
-  nextState = adjustProvincePopWealthByClass(
+  nextState = adjustProvincePopNeedSatisfactionByClass(
     nextState,
     provinceId,
     'middle',

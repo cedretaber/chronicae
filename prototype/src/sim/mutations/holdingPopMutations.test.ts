@@ -3,7 +3,7 @@ import { makeEmptyV016State } from '../testFixtures'
 import type { HoldingId, HouseId } from '../types/ids'
 import {
   addToOrCreatePopGroupMut,
-  adjustHoldingPopWealthMut,
+  adjustHoldingPopNeedSatisfactionMut,
   adjustHoldingPopUnrestMut,
   reduceHoldingPopSizeProportionalMut,
 } from './popMutations'
@@ -29,23 +29,23 @@ function setup() {
     employed: true,
     size: 100,
   })
-  ws.popGroups[p1] = { ...ws.popGroups[p1]!, wealth: 50, unrest: 10 }
-  ws.popGroups[p2] = { ...ws.popGroups[p2]!, wealth: 50, unrest: 10 }
+  ws.popGroups[p1] = { ...ws.popGroups[p1]!, needSatisfaction: 50, unrest: 10 }
+  ws.popGroups[p2] = { ...ws.popGroups[p2]!, needSatisfaction: 50, unrest: 10 }
   return { ws, p1, p2 }
 }
 
 describe('holding-scoped pop/attitude mutable helpers', () => {
-  it('adjustHoldingPopWealthMut は対象 holding の POP のみ変える (province 多重しない)', () => {
+  it('adjustHoldingPopNeedSatisfactionMut は対象 holding の POP のみ変える (province 多重しない)', () => {
     const { ws, p1, p2 } = setup()
-    adjustHoldingPopWealthMut(ws, H1, -8)
-    expect(ws.popGroups[p1]!.wealth).toBe(42)
-    expect(ws.popGroups[p2]!.wealth).toBe(50) // 別 holding は不変
+    adjustHoldingPopNeedSatisfactionMut(ws, H1, -8)
+    expect(ws.popGroups[p1]!.needSatisfaction).toBe(42)
+    expect(ws.popGroups[p2]!.needSatisfaction).toBe(50) // 別 holding は不変
   })
 
-  it('wealth / unrest は [0,100] に clamp される', () => {
+  it('needSatisfaction / unrest は [0,100] に clamp される', () => {
     const { ws, p1 } = setup()
-    adjustHoldingPopWealthMut(ws, H1, -999)
-    expect(ws.popGroups[p1]!.wealth).toBe(0)
+    adjustHoldingPopNeedSatisfactionMut(ws, H1, -999)
+    expect(ws.popGroups[p1]!.needSatisfaction).toBe(0)
     adjustHoldingPopUnrestMut(ws, H1, 999)
     expect(ws.popGroups[p1]!.unrest).toBe(100)
   })
@@ -59,8 +59,8 @@ describe('holding-scoped pop/attitude mutable helpers', () => {
 
   it('class フィルタが効く (非該当 class は不変)', () => {
     const { ws, p1 } = setup()
-    adjustHoldingPopWealthMut(ws, H1, -8, 'upper')
-    expect(ws.popGroups[p1]!.wealth).toBe(50) // commoner なので noble 指定では不変
+    adjustHoldingPopNeedSatisfactionMut(ws, H1, -8, 'upper')
+    expect(ws.popGroups[p1]!.needSatisfaction).toBe(50) // commoner なので noble 指定では不変
   })
 
   it('adjustHoldingPopAttitudeMut は対象 holding の POP attitude を動かす', () => {

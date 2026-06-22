@@ -380,7 +380,8 @@ function computeEconomyStats(
   state: WorldState,
   config: typeof defaultConfig,
 ): {
-  avgPopWealth: number
+  avgPopNeedSatisfaction: number
+  avgPopMoney: number
   resource: Record<
     ResourceKind,
     {
@@ -396,15 +397,18 @@ function computeEconomyStats(
   totalHoldingDue: number
   totalOwnerIncome: number
 } {
-  // POP wealth (size 加重平均)
-  let wealthSum = 0
+  // v0.58: POP welfare(needSatisfaction, size 加重平均) と money 合計。
+  let satSum = 0
   let sizeSum = 0
+  let moneySum = 0
   for (const pop of Object.values(state.popGroups)) {
     if (!pop) continue
-    wealthSum += pop.wealth * pop.size
+    satSum += pop.needSatisfaction * pop.size
     sizeSum += pop.size
+    moneySum += pop.money
   }
-  const avgPopWealth = sizeSum > 0 ? wealthSum / sizeSum : 0
+  const avgPopNeedSatisfaction = sizeSum > 0 ? satSum / sizeSum : 0
+  const avgPopMoney = sizeSum > 0 ? moneySum / sizeSum : 0
 
   // 資源価格・充足率・shortage (market ごとの lastPrice / 直近 history)
   const resource = {} as Record<
@@ -474,7 +478,8 @@ function computeEconomyStats(
   }
 
   return {
-    avgPopWealth,
+    avgPopNeedSatisfaction,
+    avgPopMoney,
     resource,
     marketValueDelta,
     ownedRevenueRatio: allNet > 0 ? ownedNet / allNet : 0,
@@ -865,8 +870,10 @@ async function main(): Promise<void> {
         )
         const econ = computeEconomyStats(result.state, config)
         console.log(
-          '  Economy: popWealth=' +
-            econ.avgPopWealth.toFixed(1) +
+          '  Economy: popNeedSat=' +
+            econ.avgPopNeedSatisfaction.toFixed(1) +
+            ' popMoney=' +
+            econ.avgPopMoney.toFixed(1) +
             // v0.55 Phase 1 暫定表示: grain(staple)/timber(raw)/tools(processed) を代表に。
             //   Phase 8 で NeedCategory 集約表示へ置換する。
             ' | grain p/base=' +

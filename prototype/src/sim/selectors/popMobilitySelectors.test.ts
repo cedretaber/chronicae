@@ -34,7 +34,6 @@ function setupPops(specs: PopSpec[]): { state: WorldState; holdingId: HoldingId 
       popType: spec.popType,
       employed: spec.employed ?? true,
       size: spec.size,
-      wealth: 50,
       money: spec.perCapMoney * spec.size,
       needSatisfaction: 50,
       unrest: 10,

@@ -18,7 +18,7 @@ function mkPop(
   popType: PopType,
   employed: boolean,
   size: number,
-  wealth = 50,
+  money = 0,
   unrest = 10,
 ): PopGroup {
   return {
@@ -28,8 +28,7 @@ function mkPop(
     popType,
     employed,
     size,
-    wealth,
-    money: 0,
+    money,
     needSatisfaction: 50,
     unrest,
     attitudes: {},
@@ -88,12 +87,12 @@ describe('movePopSizeToKeyMut', () => {
     expect(state.popGroups[src]!.size).toBe(90)
   })
 
-  it('merges into existing target key with population-weighted wealth/unrest (no duplicate key)', () => {
+  it('merges into existing target key: money は sum・unrest は人口加重平均 (no duplicate key)', () => {
     const src = createPopGroupId(1)
     const tgt = createPopGroupId(2)
     const state = stateWithPops([
-      mkPop(src, H0, 'lower', 'laborers', true, 50, 20, 0),
-      mkPop(tgt, H0, 'lower', 'artisans', true, 100, 80, 20),
+      mkPop(src, H0, 'lower', 'laborers', true, 50, 20, 0), // money 20
+      mkPop(tgt, H0, 'lower', 'artisans', true, 100, 80, 20), // money 80
     ])
 
     const tid = movePopSizeToKeyMut(
@@ -105,7 +104,8 @@ describe('movePopSizeToKeyMut', () => {
 
     expect(tid).toBe(tgt) // merged into existing, not a new pop
     expect(state.popGroups[tgt]!.size).toBe(150)
-    expect(state.popGroups[tgt]!.wealth).toBeCloseTo((80 * 100 + 20 * 50) / 150) // 60
+    // v0.58: money は extensive → sum (src 全量 20 が移送され 80+20=100)。
+    expect(state.popGroups[tgt]!.money).toBeCloseTo(100)
     expect(state.popGroups[tgt]!.unrest).toBeCloseTo((20 * 100 + 0 * 50) / 150) // ~13.33
 
     const artisans = state.popIndex.byHolding[H0]!.filter(
@@ -114,20 +114,22 @@ describe('movePopSizeToKeyMut', () => {
     expect(artisans.length).toBe(1)
   })
 
-  it('applies incoming wealth override only to the moved cohort (promotion cost)', () => {
+  it('v0.58: moneyCostPerCapita で移送 money からコストを burn する (昇格コスト)', () => {
     const src = createPopGroupId(1)
-    const state = stateWithPops([mkPop(src, H0, 'lower', 'peasants', true, 50, 70, 5)])
+    const state = stateWithPops([mkPop(src, H0, 'lower', 'peasants', true, 50, 70, 5)]) // money 70
 
     const tid = movePopSizeToKeyMut(
       state,
       src,
       { holdingId: H0, class: 'middle', popType: 'freeholders', employed: true },
       10,
-      { incomingWealthOverride: 65 },
+      { moneyCostPerCapita: 0.5 },
     )
 
-    expect(state.popGroups[tid!]!.wealth).toBe(65)
-    expect(state.popGroups[src]!.wealth).toBe(70) // source pool wealth unchanged
+    // movedMoney = 70 × (10/50) = 14。cost = 0.5 × 10 = 5。target = 14 − 5 = 9。
+    expect(state.popGroups[tid!]!.money).toBeCloseTo(9)
+    // source は movedMoney 全額 (14) を失う → 70 − 14 = 56 (差額 5 が burn された)。
+    expect(state.popGroups[src]!.money).toBeCloseTo(56)
   })
 
   it('keeps the source at the provided minSourceSize floor', () => {

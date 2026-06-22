@@ -1678,19 +1678,16 @@ export function generateWorld(
       )
       const fillRatio = fillPct / 100
 
-      const { value: lowerWealth, rng: rp4 } = randomInt(rf1, 35, 60)
-      const { value: middleWealth, rng: rp5 } = randomInt(rp4, 45, 70)
-      const { value: upperWealth, rng: rp6 } = randomInt(rp5, 50, 80)
-      const { value: lowerUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
+      // v0.58: wealth 指数は退役。unrest のみ stratum 単位で抽選する (RNG 消費を抑制)。
+      const { value: lowerUnrest, rng: rp7 } = randomInt(rf1, 10, 30)
       const { value: middleUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
       const { value: upperUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
       rng = rp9
 
-      // wealth/unrest は stratum 単位で抽選し同 stratum の全 PopType に適用する (RNG 消費を抑制)。
-      const stratumWealthUnrest: Record<PopStratum, { wealth: number; unrest: number }> = {
-        lower: { wealth: lowerWealth, unrest: lowerUnrest },
-        middle: { wealth: middleWealth, unrest: middleUnrest },
-        upper: { wealth: upperWealth, unrest: upperUnrest },
+      const stratumUnrest: Record<PopStratum, number> = {
+        lower: lowerUnrest,
+        middle: middleUnrest,
+        upper: upperUnrest,
       }
       // 各 PopType を「その holding の施設が要求する枠容量 × fillRatio」で播く。枠の無い PopType
       //   (cap=0) は播かない (初期失業を生まない)。fillRatio<1 なので size≤cap で employed=true が成立。
@@ -1699,7 +1696,6 @@ export function generateWorld(
         const cap = popTypeCaps[popType] ?? 0
         if (cap <= 0) continue
         const stratum = getPopStratum(popType)
-        const wu = stratumWealthUnrest[stratum]
         const id = newPopGroupId(`pop-${holdingId as string}-${popType}`)
         popGroupsRecord[id] = {
           id,
@@ -1708,14 +1704,13 @@ export function generateWorld(
           popType,
           employed: true,
           size: cap * fillRatio,
-          wealth: wu.wealth,
           money:
             estimateMonthlyEssentialCostPerPop(popType) *
             (cap * fillRatio) *
             defaultConfig.worldgenPopMoneyMonthsOfEssential *
             defaultConfig.worldgenPopMoneyStratumMultiplier[stratum],
           needSatisfaction: 60,
-          unrest: wu.unrest,
+          unrest: stratumUnrest[stratum],
           attitudes: {},
         }
         holdingPopIds.push(id)
@@ -1731,7 +1726,6 @@ export function generateWorld(
           popType: 'peasants',
           employed: false,
           size: minPopSizeByClass.lower,
-          wealth: lowerWealth,
           money:
             estimateMonthlyEssentialCostPerPop('peasants') *
             minPopSizeByClass.lower *

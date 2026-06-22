@@ -72,7 +72,6 @@ function mk(
     popType,
     employed,
     size,
-    wealth: 50,
     money: perCapMoney * size,
     needSatisfaction: 50,
     unrest: 10,
@@ -94,7 +93,6 @@ describe('PopJobChangeSystem', () => {
       popType: 'laborers',
       employed: true,
       size: capLower, // fully fills lower capacity → zero remaining capacity
-      wealth: 50,
       money: 0,
       needSatisfaction: 50,
       unrest: 10,
@@ -126,7 +124,6 @@ describe('PopJobChangeSystem', () => {
       popType: 'laborers',
       employed: true,
       size: capLower,
-      wealth: 50,
       money: 0,
       needSatisfaction: 50,
       unrest: 10,
