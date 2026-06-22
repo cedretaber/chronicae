@@ -16,6 +16,20 @@ import {
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
 
+// レシピ構成 ■ 積み上げバーの色パレット (recipe 出現順で固定割当・index cycle)。farm=10 / workshop=8 が最多。
+const RECIPE_COLORS = [
+  'bg-emerald-500',
+  'bg-sky-500',
+  'bg-amber-500',
+  'bg-rose-500',
+  'bg-violet-500',
+  'bg-teal-500',
+  'bg-orange-500',
+  'bg-pink-500',
+  'bg-lime-500',
+  'bg-indigo-500',
+]
+
 // v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
 //   詳細はこちらに集約する (カードクリックで開く)。
 export function RealEstateDetail({
@@ -155,23 +169,37 @@ export function RealEstateDetail({
       {recipeEntries.length === 0 ? (
         <div className="text-xs text-gray-500 italic">{t('detail.realEstate.no_recipe')}</div>
       ) : (
-        <div className="flex flex-col gap-1">
-          {recipeEntries.map(([recipeId, slots]) => {
-            const pct = totalSlots > 0 ? (slots / totalSlots) * 100 : 0
-            return (
-              <div key={recipeId} className="flex items-center gap-1.5 text-xs">
-                <span className="w-24 shrink-0 text-gray-300">
-                  {t(`detail.realEstate.recipe.${recipeId}`, { defaultValue: recipeId })}
-                </span>
-                <div className="h-2 flex-1 overflow-hidden rounded bg-gray-600">
-                  <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
+        <div className="flex flex-col gap-1.5">
+          {/* slot を ■ で積み上げた構成バー (slotCount は ~20 で level 非依存)。色は recipe 順で固定割当。 */}
+          <div className="flex flex-wrap gap-0.5">
+            {recipeEntries.flatMap(([recipeId, slots], i) =>
+              Array.from({ length: slots }, (_, j) => (
+                <span
+                  key={`${recipeId}-${j}`}
+                  className={`inline-block h-3 w-3 rounded-sm ${RECIPE_COLORS[i % RECIPE_COLORS.length]}`}
+                />
+              )),
+            )}
+          </div>
+          {/* 凡例: 色 + レシピ名 + slot 数 (割合) */}
+          <div className="flex flex-col gap-0.5">
+            {recipeEntries.map(([recipeId, slots], i) => {
+              const pct = totalSlots > 0 ? (slots / totalSlots) * 100 : 0
+              return (
+                <div key={recipeId} className="flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${RECIPE_COLORS[i % RECIPE_COLORS.length]}`}
+                  />
+                  <span className="flex-1 text-gray-300">
+                    {t(`detail.realEstate.recipe.${recipeId}`, { defaultValue: recipeId })}
+                  </span>
+                  <span className="shrink-0 text-right text-gray-400">
+                    {slots} ({pct.toFixed(0)}%)
+                  </span>
                 </div>
-                <span className="w-20 shrink-0 text-right text-gray-400">
-                  {slots} ({pct.toFixed(0)}%)
-                </span>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -179,20 +207,40 @@ export function RealEstateDetail({
         title={t('detail.realEstate.employment_capacity')}
         count={capacitySlots.length}
       />
-      <div className="flex flex-col gap-0.5 text-xs">
-        {capacitySlots.map((slot) => (
-          <div key={slot.stratum} className="flex justify-between">
-            <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
-            <span className="text-gray-300">
-              {formatPopCount(slot.capacity)}
-              {slot.fill !== null && (
-                <span className="ml-1 text-gray-500">
-                  ({t('detail.realEstate.employment_fulfillment')} {(slot.fill * 100).toFixed(0)}%)
+      <div className="flex flex-col gap-1 text-xs">
+        {capacitySlots.map((slot) => {
+          const fillPct = slot.fill !== null ? Math.min(100, slot.fill * 100) : null
+          const barColor =
+            slot.fill === null
+              ? 'bg-gray-500'
+              : slot.fill >= 0.8
+                ? 'bg-emerald-500'
+                : slot.fill >= 0.4
+                  ? 'bg-amber-500'
+                  : 'bg-rose-500'
+          return (
+            <div key={slot.stratum} className="flex flex-col gap-0.5">
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t(`detail.province.${slot.stratum}`)}:</span>
+                <span className="text-gray-300">
+                  {formatPopCount(slot.capacity)}
+                  {slot.fill !== null && (
+                    <span className="ml-1 text-gray-500">
+                      ({t('detail.realEstate.employment_fulfillment')}{' '}
+                      {(slot.fill * 100).toFixed(0)}
+                      %)
+                    </span>
+                  )}
                 </span>
+              </div>
+              {fillPct !== null && (
+                <div className="h-1.5 overflow-hidden rounded bg-gray-600">
+                  <div className={`h-full ${barColor}`} style={{ width: `${fillPct}%` }} />
+                </div>
               )}
-            </span>
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
 
       {assetResult && (
