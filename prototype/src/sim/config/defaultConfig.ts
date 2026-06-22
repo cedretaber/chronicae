@@ -241,6 +241,13 @@ export type SimulationConfig = {
   //   既存降格で下位転落)。賃金とは別 carve で、owner 取り分はさらにこの分縮む。
   //   制約: wageShareOfNetRevenue + upperDividendShareOfNetRevenue < 1。
   upperDividendShareOfNetRevenue: number
+  // v0.58 balance: POP 資産課税。lower/middle の money 死蔵(mint>goods で消費しきれず貯まる分)を
+  //   削るための sink。per-capita floor 超過分に月次率で課税し、land 税と同じ holding 収入へ合流させる
+  //   (代官が徴収=localExtractionRate×collectionEfficiency で代官能力が効く・手数料も共通・chain で treasury へ)。
+  //   floor 以下の貧困層は非課税(累進)・upper は除外(死蔵は将来 Project 出資で使う)。史実の間接税/賦課が
+  //   持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの(§13)。
+  popWealthTaxRate: number // 月次・per-capita floor 超過分への課税率
+  popWealthTaxFloorPerCapita: number // この per-capita money 以下は非課税(貧困層の生活防衛バッファ)
   wageRoleWeightByRole: Record<'primary' | 'skilled' | 'throughput', number>
   overExtractionThreshold: number
   // v0.58: townsmen 反乱の welfare 判定を needSatisfaction へ (wealth から移行)。
@@ -1709,6 +1716,8 @@ export const defaultConfig: SimulationConfig = {
   securityFullCoverageRatio: 0.1,
   wageShareOfNetRevenue: 0.5,
   upperDividendShareOfNetRevenue: 0.03,
+  popWealthTaxRate: 0.03,
+  popWealthTaxFloorPerCapita: 2.0,
   wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
   overExtractionThreshold: 0.95,
   overExtractionNeedSatisfactionSafeThreshold: 55,

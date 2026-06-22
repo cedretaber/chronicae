@@ -198,7 +198,8 @@ v0.54 で Victoria 3 型の抽象市場、**v0.55 で 21 ResourceKind の商品�
   - ~~**upper(支配者層)が賃金経路に乗らず現金ゼロ**~~ → **v0.58 balance で配当チャネル実装済**（§6.3c.5）: `upperDividendShareOfNetRevenue`(0.03) で holding 純収益の固定割合を**雇用枠に就いた upper POP**へ配当。失業 upper は没落（既存降格）。
   - **Project 資金集めフェーズ（POP 資金調達・将来構想）**: 現状 Project は Polity が事前に与えた予算で進行する。将来は Project 進行中に**資金集めフェーズ**を設け、その調達対象に **upper POP が溜め込んだ money** を含める。「国でも現地貴族の協力なしには大規模 Project（土地開発・建設）を進められない」状況を表現し、**POP を富ませることが土地開発を促進する**正のループを作る。この経路が入れば `upperDividendShareOfNetRevenue` を 0.03→0.1 程度へ引き上げ、死蔵していた upper money を現地設備投資へ還流させられる（現状 0.03 は死蔵が大きくならない控えめ値）。さらに **POP 主導 Project**（POP が自ら開発を起こす）も検討候補。
   - **施設別の富格差可視化**: per-capita money の分布（蓄財層/枯渇層）を UI/Chronicle に提示。
-  - **完全保存市場（Model B）**: 現状は source/sink（賃金 mint・消費 burn、抽象市場は非保存）。将来、POP の支払いが producer 収入へ還流する完全保存モデルへ移行する選択肢。
+  - **国の制度による課税方式の多様化（将来構想）**: v0.58 で **POP 資産課税**（`popWealthTaxRate`・lower/middle の money 死蔵を削る sink、land 税と同じ holding 収入に合流＝代官徴収・手数料・chain 共通、§6.3c.5）を導入。これは史実の間接税/賦課が持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの。将来は **「国の制度(institution)」という仕組み**を作り、国ごとに課税方式を変えられるようにする: 人頭税(flat・逆進)か資産税(累進)か、課税対象を庶民中心か富裕層中心か、間接税(消費課税)か直接税か、など。これにより国ごとの統治の個性（重商主義的な都市国家 vs 農本主義的な王国など）を表現する。
+  - **完全保存市場（Model B）**: 現状は source/sink（賃金 mint・消費 burn・徴税効率ロス、抽象市場は非保存）。将来、POP の支払いが producer 収入へ還流する完全保存モデルへ移行する選択肢。
 - ~~**POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。~~ → **v0.56/v0.57 で実装済み**: 転職・移住は §6.3b（lateral/promotion/demotion + 同一 StateRegion 移住）、PopType 別 employment の hard enforcement と `maxRatioTo` 実効化（同数上限）は §6.x.v0.57。残る将来枠は state を跨ぐ大規模移住（§13「大規模移住」）と PopGroup.cash/wage（上記）。
 - **Project 追加予算要求 / 動的 deadline 延長 / ProjectMaterialPurchaseSnapshot**（draft §20–§22）: v0.55 ドラフト spec には設計があるが**未実装**。資材価格高騰時の安全網（budget top-up）と debug 用 read-model を将来追加。
 - **steel / lumber などの中間財**: InputCategory（metal / construction_wood）に高効率代替材として追加（§6.4）。

@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { ProvinceId, PolityId, PersonId } from '../types/ids'
+import type { ProvinceId, PolityId, PersonId, PopGroupId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { governanceCompetence } from '../selectors/abilitySelectors'
@@ -111,8 +111,34 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           holdingTaxable += ownerIncome - paid
         }
       }
+      // v0.58: POP 資産課税 — lower/middle の money(per-capita floor 超過分)に月次課税し、land 税と同じ
+      //   holding 収入(holdingTaxable)へ合流させる。実徴収は下の代官 collectionFraction(能力反映)で割引き、
+      //   POP からの burn は「実際に徴収された分」だけにする(uncollected は POP 手元に残し money を消さない)。
+      //   upper は除外(死蔵は将来 Project 出資)・floor 以下の貧困層は非課税(累進)。
+      const popTaxRate = ctx.config.popWealthTaxRate
+      const popTaxByPop = new Map<PopGroupId, number>()
+      if (popTaxRate > 0) {
+        const popTaxFloor = ctx.config.popWealthTaxFloorPerCapita
+        const taxPopIds = draft.popIndex.byHolding[holdingId]
+        if (taxPopIds) {
+          for (const popId of taxPopIds) {
+            const pop = draft.popGroups[popId]
+            if (!pop || pop.class === 'upper' || pop.size <= 0) continue
+            const taxable = Math.max(0, pop.money - popTaxFloor * pop.size)
+            if (taxable <= 0) continue
+            const nominal = taxable * popTaxRate
+            popTaxByPop.set(popId, nominal)
+            holdingTaxable += nominal
+          }
+        }
+      }
+
       if (holdingTaxable <= 0) continue
       const revenueAfterOwnerIncome = holdingTaxable
+      // POP 資産税の **納税額** に使う徴収率 = localExtractionRate (代官が取り立てる割合)。
+      //   collectionEfficiency(不正・賄賂で消える分)は掛けない — 納税額 と 徴税額(treasury 到達分)の
+      //   ズレ=徴税ロスは意図された挙動(POP は払うが treasury には届かず消える)。代官不在/非 active は 1。
+      let popTaxLevyFraction = 1
 
       const assignmentId = draft.holdingOfficeIndex.byHolding[holdingId]
       let remittanceToTerminal: number
@@ -132,6 +158,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
             assignmentId,
             recentTaskStatus,
           )
+          popTaxLevyFraction = localExtractionRate
           const collected = revenueAfterOwnerIncome * localExtractionRate * collectionEfficiency
           const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
           const bailiffFee = collected * bailiffFeeRate
@@ -251,6 +278,20 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               totalBurdenRate: burdenComponents.totalBurdenRate.toFixed(3),
             })
           }
+        }
+      }
+
+      // v0.58: POP 資産税の burn (納税額) — nominal × popTaxLevyFraction(localExtractionRate) を POP.money から引く。
+      //   このうち treasury へ届く徴税額は holdingTaxable 経由で collected(×collectionEfficiency)→bailiffFee/
+      //   remittance→chain→treasury に流れる。差分(徴税効率ロス=不正・賄賂)は世界から消滅(意図的 sink・
+      //   抽象市場の mint と source/sink で総量均衡)。代官の取り立てが緩い(extraction 低)ほど POP の納税額も減る。
+      if (popTaxByPop.size > 0 && popTaxLevyFraction > 0) {
+        for (const [popId, nominal] of popTaxByPop) {
+          const pop = draft.popGroups[popId]
+          if (!pop) continue
+          const burn = nominal * popTaxLevyFraction
+          if (burn <= 0) continue
+          draft.popGroups[popId] = { ...pop, money: Math.max(0, pop.money - burn) }
         }
       }
 
