@@ -30,6 +30,9 @@ const RECIPE_COLORS = [
   'bg-indigo-500',
 ]
 
+// 資源量の簡易フォーマット。小さい値 (<10) は小数1桁、それ以上は整数。
+const fmtQty = (n: number): string => (n >= 10 ? n.toFixed(0) : n.toFixed(1))
+
 // v0.55 不動産詳細パネル。HoldingDetail のカードは要約のみとし、レシピ構成・雇用枠・産出/収支の
 //   詳細はこちらに集約する (カードクリックで開く)。
 export function RealEstateDetail({
@@ -90,11 +93,10 @@ export function RealEstateDetail({
   // per-asset の月次産出・収支 (snapshot がある場合)。
   const revenueSnapshot = currentState?.monthlyHoldingResourceRevenue[asset.holdingId]
   const assetResult = revenueSnapshot?.assetResults.find((ar) => ar.assetId === asset.id)
-  const outputs = assetResult
-    ? Object.entries(assetResult.outputs).filter(
-        (e): e is [string, number] => e[1] !== undefined && e[1] > 0,
-      )
-    : []
+  // v0.56: recipe 別内訳 (産出のあるもののみ・純益降順、同点は recipeId)。
+  const recipeBreakdown = (assetResult?.recipeBreakdown ?? [])
+    .filter((b) => Object.values(b.outputs).some((v) => (v ?? 0) > 0) || b.grossRevenue > 0)
+    .sort((a, b) => b.netRevenue - a.netRevenue || (a.recipeId < b.recipeId ? -1 : 1))
 
   const seizure = currentState ? getActiveSeizureForAsset(currentState, asset.id) : null
 
@@ -245,20 +247,72 @@ export function RealEstateDetail({
 
       {assetResult && (
         <>
-          <DetailSection title={t('detail.realEstate.output')} count={outputs.length} />
-          {outputs.length > 0 && (
-            <div className="flex flex-col gap-0.5 text-xs">
-              {outputs.map(([res, amount]) => (
-                <div key={res} className="flex justify-between">
-                  <span className="text-gray-400">
-                    {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}:
-                  </span>
-                  <span className="text-gray-300">{amount.toFixed(0)}</span>
-                </div>
-              ))}
+          {/* v0.56 レシピ別: 原材料(数量) → ⚙ → 産出(数量) + レシピ毎の売上・原価・純益。 */}
+          <DetailSection
+            title={t('detail.realEstate.recipe_production')}
+            count={recipeBreakdown.length}
+          />
+          {recipeBreakdown.length === 0 ? (
+            <div className="text-xs text-gray-500 italic">
+              {t('detail.realEstate.no_production')}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5 text-xs">
+              {recipeBreakdown.map((b) => {
+                const inRows = Object.entries(b.inputs).filter(
+                  (e): e is [string, number] => e[1] !== undefined && e[1] > 0,
+                )
+                const outRows = Object.entries(b.outputs).filter(
+                  (e): e is [string, number] => e[1] !== undefined && e[1] > 0,
+                )
+                return (
+                  <div
+                    key={b.recipeId}
+                    className="flex flex-col gap-1 rounded bg-gray-800/40 p-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-200">
+                        {t(`detail.realEstate.recipe.${b.recipeId}`, { defaultValue: b.recipeId })}
+                      </span>
+                      <span className={b.netRevenue >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {formatAmount(b.netRevenue)}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                      {inRows.map(([res, amount]) => (
+                        <span key={`in-${res}`} className="text-amber-300">
+                          {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}
+                          <span className="text-amber-400/60"> {fmtQty(amount)}</span>
+                        </span>
+                      ))}
+                      {inRows.length > 0 && <span className="text-gray-500">→</span>}
+                      <span title={t('detail.realEstate.processing')}>⚙</span>
+                      <span className="text-gray-500">→</span>
+                      {outRows.map(([res, amount]) => (
+                        <span key={`out-${res}`} className="text-emerald-300">
+                          {t(`detail.realEstate.resource_${res}`, { defaultValue: res })}
+                          <span className="text-emerald-400/60"> {fmtQty(amount)}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-gray-500">
+                      <span>
+                        {t('detail.realEstate.gross_revenue')}: {formatAmount(b.grossRevenue)}
+                      </span>
+                      {b.inputCost > 0 && (
+                        <span>
+                          {t('detail.realEstate.input_cost')}: {formatAmount(b.inputCost)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
-          <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-1 text-xs">
+
+          <DetailSection title={t('detail.realEstate.facility_total')} />
+          <div className="flex flex-col gap-0.5 border-t border-gray-600/50 pt-1 text-xs">
             <div className="flex justify-between">
               <span className="text-gray-500">{t('detail.realEstate.gross_revenue')}:</span>
               <span className="text-gray-300">{formatAmount(assetResult.grossRevenue)}</span>

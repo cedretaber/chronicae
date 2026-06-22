@@ -734,6 +734,11 @@ detail:
     recipe_composition: 'Recipe composition'
     employment_capacity: 'Employment capacity'
     no_recipe: 'No recipe assigned'
+    # v0.56 production by recipe
+    recipe_production: 'Production by recipe'
+    no_production: 'No production'
+    processing: 'Processing'
+    facility_total: 'Facility total'
     # v0.55 production recipe names (23 kinds)
     recipe:
       grain_field: 'Grain field'

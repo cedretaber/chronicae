@@ -837,6 +837,11 @@ detail:
     recipe_composition: 'レシピ構成'
     employment_capacity: '雇用枠'
     no_recipe: 'レシピ未設定'
+    # v0.56 レシピ別 産出・収支
+    recipe_production: 'レシピ別 産出・収支'
+    no_production: '産出なし'
+    processing: '加工'
+    facility_total: '施設合計'
     # v0.55 生産レシピ名 (23 種)
     recipe:
       grain_field: '麦畑'
