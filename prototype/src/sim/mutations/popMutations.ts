@@ -312,6 +312,9 @@ export function movePopSizeToKeyMut(
     minSourceSize?: number
     incomingWealthOverride?: number
     incomingUnrestOverride?: number
+    // v0.58: 昇格コスト等。移送する money から per-capita コスト × 移動 size を差し引いて burn する
+    //   (source は movedMoney 全額を失い、target は残差を受け取る。差額は source/sink の sink)。
+    moneyCostPerCapita?: number
   },
 ): PopGroupId | undefined {
   const source = ws.popGroups[sourcePopId]
@@ -358,6 +361,10 @@ export function movePopSizeToKeyMut(
   // v0.58: money は extensive。移送 size 比で按分 (per-capita 保存)。
   //   inheritFrom の { ...source } は source.money を全額コピーするため、必ず比例分で上書きする。
   const movedMoney = source.size > 0 ? source.money * (actualAmount / source.size) : 0
+  // 昇格コスト等の sink: target が受け取る money は movedMoney からコストを引いた残差 (source は movedMoney
+  //   全額を失う = 差額 burn)。
+  const cost = (options?.moneyCostPerCapita ?? 0) * actualAmount
+  const targetMoney = Math.max(0, movedMoney - cost)
 
   // §5.2(8-9): target へ merge-or-create。合成 inheritFrom で override を両パスに反映。
   const targetPopId = addToOrCreatePopGroupMut(ws, {
@@ -366,7 +373,7 @@ export function movePopSizeToKeyMut(
     popType: target.popType,
     employed: target.employed,
     size: actualAmount,
-    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest, money: movedMoney },
+    inheritFrom: { ...source, wealth: incomingWealth, unrest: incomingUnrest, money: targetMoney },
   })
 
   // §5.2(10-12): source から actualAmount を減らす。byHolding も整合。

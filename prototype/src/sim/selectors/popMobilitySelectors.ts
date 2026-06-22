@@ -61,30 +61,32 @@ export function computeHoldingPopTypeDemand(
   }
 }
 
-// v0.56 §6.5 / v0.57.1: promotion/demotion の相対 gate 用。StateRegion × **PopType**・size 加重の
-//   wealth 分位。比較母集団を stratum プールから「同じ職能」へ変更 (移動の判断を Class 単位に統一)。
+// v0.56 §6.5 / v0.57.1 / v0.58: promotion/demotion の相対 gate 用。StateRegion × **PopType**・size 加重の
+//   **per-capita money (money/size)** 分位。v0.58 で wealth 指数から per-capita money へ移行
+//   (extensive total では大集団が常に上位になるため per-capita で比較する)。
+//   比較母集団は「同じ職能」(移動の判断を Class 単位に統一)。
 //   該当 PopType の POP がいなければ undefined (その職能では昇格/転落を発火させない)。
-function weightedWealthQuantile(items: { wealth: number; size: number }[], q: number): number {
-  const sorted = [...items].sort((a, b) => a.wealth - b.wealth)
+function weightedMoneyQuantile(items: { perCapMoney: number; size: number }[], q: number): number {
+  const sorted = [...items].sort((a, b) => a.perCapMoney - b.perCapMoney)
   let total = 0
   for (const it of sorted) total += it.size
   const first = sorted[0]
-  if (total <= 0) return first ? first.wealth : 0
+  if (total <= 0) return first ? first.perCapMoney : 0
   const threshold = q * total
   let cum = 0
   for (const it of sorted) {
     cum += it.size
-    if (cum >= threshold) return it.wealth
+    if (cum >= threshold) return it.perCapMoney
   }
   const last = sorted[sorted.length - 1]
-  return last ? last.wealth : 0
+  return last ? last.perCapMoney : 0
 }
 
-export function computePopTypeWealthQuantiles(
+export function computePopTypeMoneyQuantiles(
   state: WorldState,
   stateRegionId: StateRegionId,
 ): Partial<Record<PopType, { p25: number; median: number; p75: number }>> {
-  const buckets = new Map<PopType, { wealth: number; size: number }[]>()
+  const buckets = new Map<PopType, { perCapMoney: number; size: number }[]>()
   const result: Partial<Record<PopType, { p25: number; median: number; p75: number }>> = {}
 
   const region = state.states[stateRegionId]
@@ -98,9 +100,10 @@ export function computePopTypeWealthQuantiles(
       for (const pid of popIds) {
         const p = state.popGroups[pid]
         if (!p) continue
+        const perCapMoney = p.size > 0 ? p.money / p.size : 0
         const arr = buckets.get(p.popType)
-        if (arr) arr.push({ wealth: p.wealth, size: p.size })
-        else buckets.set(p.popType, [{ wealth: p.wealth, size: p.size }])
+        if (arr) arr.push({ perCapMoney, size: p.size })
+        else buckets.set(p.popType, [{ perCapMoney, size: p.size }])
       }
     }
   }
@@ -109,9 +112,9 @@ export function computePopTypeWealthQuantiles(
     const arr = buckets.get(popType)
     if (!arr || arr.length === 0) continue
     result[popType] = {
-      p25: weightedWealthQuantile(arr, 0.25),
-      median: weightedWealthQuantile(arr, 0.5),
-      p75: weightedWealthQuantile(arr, 0.75),
+      p25: weightedMoneyQuantile(arr, 0.25),
+      median: weightedMoneyQuantile(arr, 0.5),
+      p75: weightedMoneyQuantile(arr, 0.75),
     }
   }
 

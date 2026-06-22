@@ -65,9 +65,18 @@ function mk(
   popType: PopType,
   employed: boolean,
   size: number,
-  wealth: number,
+  perCapMoney: number, // v0.58: 昇格/降格 gate は per-capita money。money = perCapMoney × size で seed。
 ): Omit<PopGroup, 'id' | 'holdingId' | 'attitudes'> {
-  return { class: cls, popType, employed, size, wealth, money: 0, needSatisfaction: 50, unrest: 10 }
+  return {
+    class: cls,
+    popType,
+    employed,
+    size,
+    wealth: 50,
+    money: perCapMoney * size,
+    needSatisfaction: 50,
+    unrest: 10,
+  }
 }
 
 describe('PopJobChangeSystem', () => {

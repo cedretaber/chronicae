@@ -25,23 +25,24 @@ type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 // §8.7 opportunity score の重み (formula 定数。config には出さない)。
 const W_VACANCY = 45
 const W_POP_TYPE_DEMAND = 25
-const W_TARGET_WEALTH = 15
+const W_TARGET_PROSPERITY = 15 // v0.58: 移住先の welfare(needSatisfaction) で加点
 const W_LOW_UNREST = 15
 // §8.5 pressure 係数。
 const PRESSURE_UNEMPLOYED = 40
-const PRESSURE_WEALTH_REF = 50
-const PRESSURE_WEALTH_COEF = 0.6
+// v0.58: 移住圧は welfare(needSatisfaction) 低下で上昇 (wealth から移行)。
+const PRESSURE_SAT_REF = 50
+const PRESSURE_SAT_COEF = 0.6
 const PRESSURE_UNREST_COEF = 0.3
 const PRESSURE_CONGESTION_COEF = 30
 const SHARE_EPS = 1e-9
 
-// 月初に固定する holding 単位の集計 (A1: demand/wealth/unrest は month-start cache)。
+// 月初に固定する holding 単位の集計 (A1: demand/needSatisfaction/unrest は month-start cache)。
 //   capacity ceiling は構造由来で月内不変なので cache し、remaining は cache − live employed で求める。
 type HoldingMigrationCache = {
   demand: HoldingDemand
   capacityByType: Partial<Record<PopType, number>>
-  avgWealthByPopType: Map<PopType, number>
-  avgWealthByStratum: Partial<Record<PopStratum, number>>
+  avgNeedSatByPopType: Map<PopType, number>
+  avgNeedSatByStratum: Partial<Record<PopStratum, number>>
   avgUnrest: number
   congestion: number
   terminalPolity: PolityId | undefined
@@ -217,7 +218,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
 function computeMigrationPressure(pop: PopGroup, cache: HoldingMigrationCache): number {
   return (
     (pop.employed ? 0 : PRESSURE_UNEMPLOYED) +
-    Math.max(0, PRESSURE_WEALTH_REF - pop.wealth) * PRESSURE_WEALTH_COEF +
+    Math.max(0, PRESSURE_SAT_REF - pop.needSatisfaction) * PRESSURE_SAT_COEF +
     pop.unrest * PRESSURE_UNREST_COEF +
     Math.max(0, cache.congestion - 1.0) * PRESSURE_CONGESTION_COEF
   )
@@ -251,13 +252,14 @@ function opportunityScore(
     1,
   )
 
-  const wByType = cache.avgWealthByPopType.get(source.popType)
-  const wByStratum = cache.avgWealthByStratum[source.class]
-  const targetWealthScore =
-    wByType !== undefined
-      ? clamp(wByType / 100, 0, 1)
-      : wByStratum !== undefined
-        ? clamp(wByStratum / 100, 0, 1)
+  // v0.58: 移住先の魅力は welfare(needSatisfaction 0..100) で評価 (wealth から移行)。
+  const sByType = cache.avgNeedSatByPopType.get(source.popType)
+  const sByStratum = cache.avgNeedSatByStratum[source.class]
+  const targetProsperityScore =
+    sByType !== undefined
+      ? clamp(sByType / 100, 0, 1)
+      : sByStratum !== undefined
+        ? clamp(sByStratum / 100, 0, 1)
         : 0.5
 
   const lowUnrestScore = clamp(1 - cache.avgUnrest / 100, 0, 1)
@@ -267,7 +269,7 @@ function opportunityScore(
   return (
     stratumVacancyScore * W_VACANCY +
     popTypeDemandScore * W_POP_TYPE_DEMAND +
-    targetWealthScore * W_TARGET_WEALTH +
+    targetProsperityScore * W_TARGET_PROSPERITY +
     lowUnrestScore * W_LOW_UNREST -
     crossPolityPenalty
   )
@@ -280,31 +282,31 @@ function buildHoldingCache(
 ): HoldingMigrationCache {
   const demand = computeHoldingPopTypeDemand(state, config, holdingId)
 
-  // size 加重平均 wealth (popType 別・stratum 別) と平均 unrest。
-  const wealthSumByType = new Map<PopType, number>()
+  // v0.58: size 加重平均 needSatisfaction (popType 別・stratum 別) と平均 unrest。
+  const satSumByType = new Map<PopType, number>()
   const sizeByType = new Map<PopType, number>()
-  const wealthSumByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+  const satSumByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
   const sizeByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
   let unrestSum = 0
   let totalSize = 0
   for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
     const p = state.popGroups[pid]
     if (!p) continue
-    wealthSumByType.set(p.popType, (wealthSumByType.get(p.popType) ?? 0) + p.wealth * p.size)
+    satSumByType.set(p.popType, (satSumByType.get(p.popType) ?? 0) + p.needSatisfaction * p.size)
     sizeByType.set(p.popType, (sizeByType.get(p.popType) ?? 0) + p.size)
-    wealthSumByStratum[p.class] += p.wealth * p.size
+    satSumByStratum[p.class] += p.needSatisfaction * p.size
     sizeByStratum[p.class] += p.size
     unrestSum += p.unrest * p.size
     totalSize += p.size
   }
-  const avgWealthByPopType = new Map<PopType, number>()
+  const avgNeedSatByPopType = new Map<PopType, number>()
   for (const [t, sz] of sizeByType) {
-    if (sz > 0) avgWealthByPopType.set(t, (wealthSumByType.get(t) ?? 0) / sz)
+    if (sz > 0) avgNeedSatByPopType.set(t, (satSumByType.get(t) ?? 0) / sz)
   }
-  const avgWealthByStratum: Partial<Record<PopStratum, number>> = {}
+  const avgNeedSatByStratum: Partial<Record<PopStratum, number>> = {}
   for (const stratum of POP_STRATA) {
     if (sizeByStratum[stratum] > 0) {
-      avgWealthByStratum[stratum] = wealthSumByStratum[stratum] / sizeByStratum[stratum]
+      avgNeedSatByStratum[stratum] = satSumByStratum[stratum] / sizeByStratum[stratum]
     }
   }
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
@@ -318,8 +320,8 @@ function buildHoldingCache(
   return {
     demand,
     capacityByType,
-    avgWealthByPopType,
-    avgWealthByStratum,
+    avgNeedSatByPopType,
+    avgNeedSatByStratum,
     avgUnrest,
     congestion,
     terminalPolity: getHoldingTerminalPolityId(state, holdingId),
