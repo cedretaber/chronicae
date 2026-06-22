@@ -189,9 +189,14 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 v0.54 で Victoria 3 型の抽象市場、**v0.55 で 21 ResourceKind の商品経済（NeedCategory / InputCategory / DAG 1-pass 清算 / PopType / recipeSlots 自動入れ替え / 建設 Project 資材需要、§6.3c.2 / §6.3d）を導入済み**。以下は v0.56 以降の残存拡張候補:
 
 - **市場間交易による surplus / shortage 緩和**（最優先）: 現状は per-region 市場で在庫も交易も無く、域内需要を超えた sellOrders は安値で全量 revenue 化されるだけ・workshop の無い域は raw を売る相手も processed を作る手段も無い（§14.9 の構造的 floor/ceiling 張り付きの根本原因）。域間で surplus を輸出・shortage を輸入できるようにする。**「市場アクセス」指標**（どれだけ市場に届いているか）を導入し、干魃→飢饉のような holding 単位の供給ショックを state 単位の流通へ接続する構想もここに含む（draft §C）。
-- **価格に応じた需要弾力性**: 現状 buyOrders は price 非依存（POP size × wealth 由来の購買力 + NeedTier 飽和曲線のみ）。安値→数量増の弾力性を導入。食料は現実でも非弾力（エンゲルの法則）なので luxury / processed 優先。
+- **価格に応じた需要弾力性**: 現状 buyOrders は price 非依存（full desired × afford〔予算制約〕のみ）。安値→数量増の弾力性を導入。食料は現実でも非弾力（エンゲルの法則）なので luxury / processed 優先。
 - **shortage の蓄積・回復**: 現状は月次で当月 severity を即時適用。Victoria 3 のように継続で penalty 蓄積・解消後に徐々回復。
-- **PopGroup.cash / wage / consumer spending**: 現状 consumerCost は POP 側では観察値のみ（cash から引かない）。cash 導入で consumerCost を実コスト化し marketValueDelta の解釈を整理。
+- ~~**PopGroup.cash / wage / consumer spending**~~ → **v0.58 で実装済み**（§6.3c.5）: `PopGroup.money` 導入で賃金 mint・予算制約消費の実コスト burn・needSatisfaction を実装。残る将来枠は下記「v0.58 貨幣経済の残存拡張」。
+- **v0.58 貨幣経済の残存拡張**:
+  - **動的賃金率（労働需給連動）**: 現状 `wageShareOfNetRevenue` は static 0.3。労働者不足の施設は賃金率が上がる（労働市場の需給で wageRate が変動）と、労働移動と待遇改善の創発が見込める。第一導入では複雑すぎるため見送った（設計対話で確認済）。
+  - **過少消費の構造調整（balance）**: 現キャリブレーションでは owner が net の 70% を POP economy 外（house/treasury）へ抜くため POP の購買力が不足し needSatisfaction が広範に低い。wageRate・消費プロファイル（`POP_NEED_PROFILES`）・worldgen money seed・税率の総合調整を balance フェーズで行う。
+  - **施設別の富格差可視化**: per-capita money の分布（蓄財層/枯渇層）を UI/Chronicle に提示。
+  - **完全保存市場（Model B）**: 現状は source/sink（賃金 mint・消費 burn、抽象市場は非保存）。将来、POP の支払いが producer 収入へ還流する完全保存モデルへ移行する選択肢。
 - ~~**POP の転職・移住・階層流動**（§27）: PopType 別 employment の hard enforcement、recipe ごとの ratio cap（`maxRatioTo` の実効化）、laborers/peasants→artisans 転職、農村→都市の人口移動。~~ → **v0.56/v0.57 で実装済み**: 転職・移住は §6.3b（lateral/promotion/demotion + 同一 StateRegion 移住）、PopType 別 employment の hard enforcement と `maxRatioTo` 実効化（同数上限）は §6.x.v0.57。残る将来枠は state を跨ぐ大規模移住（§13「大規模移住」）と PopGroup.cash/wage（上記）。
 - **Project 追加予算要求 / 動的 deadline 延長 / ProjectMaterialPurchaseSnapshot**（draft §20–§22）: v0.55 ドラフト spec には設計があるが**未実装**。資材価格高騰時の安全網（budget top-up）と debug 用 read-model を将来追加。
 - **steel / lumber などの中間財**: InputCategory（metal / construction_wood）に高効率代替材として追加（§6.4）。
