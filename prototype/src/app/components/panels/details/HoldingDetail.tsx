@@ -1,5 +1,7 @@
 import type { Holding } from '@/sim/types/landContract'
 import type { HoldingId } from '@/sim/types/ids'
+import type { PopType } from '@/sim/types/popGroup'
+import { getPopStratum } from '@/sim/types/popGroup'
 import type { SimulationSession } from '@/sim/types/world'
 import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
@@ -281,47 +283,74 @@ export function HoldingDetail({
       {/* v0.56: 移住 (先月)。相手 Holding 別に流入元・流出先を集計。job_change は POP 詳細に集約。 */}
       {currentState?.monthlyPopMobility
         ? (() => {
-            const inflow = new Map<string, number>()
-            const outflow = new Map<string, number>()
+            // 相手 holding × popType 単位で集計（移住は class/popType を保持する）。
+            type MigrationFlow = { counterpartId: string; popType: PopType; amount: number }
+            const accumulate = (
+              map: Map<string, MigrationFlow>,
+              counterpartId: string,
+              popType: PopType,
+              amount: number,
+            ) => {
+              const key = `${counterpartId} ${popType}`
+              const existing = map.get(key)
+              if (existing) existing.amount += amount
+              else map.set(key, { counterpartId, popType, amount })
+            }
+            const inflow = new Map<string, MigrationFlow>()
+            const outflow = new Map<string, MigrationFlow>()
             for (const m of currentState.monthlyPopMobility.topMovements) {
               if (m.kind !== 'migration' || !m.targetHoldingId) continue
               if ((m.targetHoldingId as string) === (holding.id as string)) {
-                const k = m.sourceHoldingId as string
-                inflow.set(k, (inflow.get(k) ?? 0) + m.amount)
+                accumulate(inflow, m.sourceHoldingId, m.fromPopType, m.amount)
               } else if ((m.sourceHoldingId as string) === (holding.id as string)) {
-                const k = m.targetHoldingId as string
-                outflow.set(k, (outflow.get(k) ?? 0) + m.amount)
+                accumulate(outflow, m.targetHoldingId, m.toPopType, m.amount)
               }
             }
-            const inRows = [...inflow.entries()].sort((a, b) => b[1] - a[1])
-            const outRows = [...outflow.entries()].sort((a, b) => b[1] - a[1])
+            const inRows = [...inflow.values()].sort((a, b) => b.amount - a.amount)
+            const outRows = [...outflow.values()].sort((a, b) => b.amount - a.amount)
             const isEmpty = inRows.length === 0 && outRows.length === 0
-            const counterpartRow = (counterpartId: string, amount: number, dir: 'in' | 'out') => (
-              <div
-                key={`${dir}-${counterpartId}`}
-                className="flex justify-between rounded bg-gray-700 p-1.5"
-              >
-                <span>
-                  <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
-                    {t(
-                      dir === 'in'
-                        ? 'detail.popMobility.migration_in_from'
-                        : 'detail.popMobility.migration_out_to',
-                    )}
-                  </span>{' '}
-                  <button
-                    className="cursor-pointer text-blue-400 hover:text-blue-300"
-                    onClick={() => onHoldingClick(counterpartId)}
-                  >
-                    {getHoldingShortName(currentState, resolveName, counterpartId as HoldingId)}
-                  </button>
-                </span>
-                <span className={dir === 'in' ? 'text-emerald-400' : 'text-amber-400'}>
-                  {dir === 'in' ? '+' : '−'}
-                  {formatPopFlow(amount)}
-                </span>
-              </div>
-            )
+            const counterpartRow = (flow: MigrationFlow, dir: 'in' | 'out') => {
+              const tone = dir === 'in' ? 'text-emerald-400' : 'text-amber-400'
+              return (
+                <div
+                  key={`${dir}-${flow.counterpartId}-${flow.popType}`}
+                  className="flex justify-between rounded bg-gray-700 p-1.5"
+                >
+                  <span>
+                    <span className={tone}>
+                      {t(
+                        dir === 'in'
+                          ? 'detail.popMobility.migration_in_from'
+                          : 'detail.popMobility.migration_out_to',
+                      )}
+                    </span>{' '}
+                    <button
+                      className="cursor-pointer text-blue-400 hover:text-blue-300"
+                      onClick={() => onHoldingClick(flow.counterpartId)}
+                    >
+                      {getHoldingShortName(
+                        currentState,
+                        resolveName,
+                        flow.counterpartId as HoldingId,
+                      )}
+                    </button>{' '}
+                    <span className="text-gray-400">
+                      {t(`detail.province.pop_type.${flow.popType}`, {
+                        defaultValue: flow.popType,
+                      })}
+                    </span>
+                    <span className="text-gray-500">
+                      {' '}
+                      ({t(`detail.province.${getPopStratum(flow.popType)}`)})
+                    </span>
+                  </span>
+                  <span className={tone}>
+                    {dir === 'in' ? '+' : '−'}
+                    {formatPopFlow(flow.amount)}
+                  </span>
+                </div>
+              )
+            }
             return (
               <div className="text-sm">
                 <DetailSection
@@ -332,8 +361,8 @@ export function HoldingDetail({
                   <div className="mt-1 text-xs text-gray-500">{t('detail.popMobility.none')}</div>
                 ) : (
                   <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
-                    {inRows.map(([hid, amt]) => counterpartRow(hid, amt, 'in'))}
-                    {outRows.map(([hid, amt]) => counterpartRow(hid, amt, 'out'))}
+                    {inRows.map((flow) => counterpartRow(flow, 'in'))}
+                    {outRows.map((flow) => counterpartRow(flow, 'out'))}
                   </div>
                 )}
               </div>
