@@ -1,5 +1,8 @@
 import type { PopGroup, PopType } from '@/sim/types/popGroup'
 import { getPopStratum } from '@/sim/types/popGroup'
+import type { NeedCategory, NeedTier } from '@sim/types/needCategory'
+import { NEED_CATEGORIES, NEED_CATEGORY_TIER } from '@sim/types/needCategory'
+import { clamp100 } from '@sim/utils/math'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
@@ -87,6 +90,54 @@ export function PopGroupDetail({
           </span>
         </div>
       </div>
+
+      {/* v0.59: 需要充足率の内訳 (必需品/日用品/贅沢品 × カテゴリ)。直近経済 tick のキャッシュ。
+          desire を持つカテゴリのみ表示。食料不足を POP 側から確認するためのビュー。 */}
+      {(() => {
+        const sat = popGroup.categorySatisfaction
+        if (!sat) return null
+        const tierOrder: NeedTier[] = ['essential', 'ordinary', 'luxury']
+        const byTier = new Map<NeedTier, NeedCategory[]>()
+        for (const cat of NEED_CATEGORIES) {
+          if (sat[cat] === undefined) continue
+          const tier = NEED_CATEGORY_TIER[cat]
+          const arr = byTier.get(tier) ?? []
+          arr.push(cat)
+          byTier.set(tier, arr)
+        }
+        const tiersToShow = tierOrder.filter((tr) => (byTier.get(tr)?.length ?? 0) > 0)
+        if (tiersToShow.length === 0) return null
+        const barColor = (pct: number) =>
+          pct < 40 ? 'bg-red-600' : pct < 70 ? 'bg-amber-500' : 'bg-emerald-600'
+        return (
+          <div className="text-sm">
+            <DetailSection title={t('detail.popNeed.section_title')} />
+            <div className="mt-1 flex flex-col gap-2 text-xs">
+              {tiersToShow.map((tier) => (
+                <div key={tier} className="flex flex-col gap-0.5">
+                  <span className="font-medium text-gray-400">
+                    {t(`detail.popNeed.tier_${tier}`)}
+                  </span>
+                  {(byTier.get(tier) ?? []).map((cat) => {
+                    const pct = clamp100(sat[cat] ?? 0)
+                    return (
+                      <div key={cat} className="flex items-center gap-1.5 pl-2">
+                        <span className="w-20 shrink-0 text-gray-500">
+                          {t(`detail.popNeed.category_${cat}`)}
+                        </span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
+                          <div className={`h-full ${barColor(pct)}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-8 text-right text-gray-400">{pct.toFixed(0)}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {popGroup.employed && currentState && (
         <div className="text-sm">

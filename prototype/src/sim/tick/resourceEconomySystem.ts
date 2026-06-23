@@ -42,7 +42,7 @@ import {
   computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
-import type { NeedTier } from '../types/needCategory'
+import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
@@ -498,20 +498,32 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       let weightedFulfill = 0
       let weightSum = 0
       let spent = 0
+      // v0.59: 表示用に NeedCategory 別の充足度も同時に算出する (= afford(tier) × カテゴリ market-fill ×100)。
+      //   tier 集計 (fillNum/fillDen) は従来と同順・同演算のまま per-category 分解するだけなので
+      //   needSatisfaction/money はビット同一 (挙動不変)。desire を持つカテゴリのみ key を設定する。
+      const categorySatisfaction: Partial<Record<NeedCategory, number>> = {}
       for (const tier of TIER_PRIORITY) {
+        const afford = affordByTier[tier]
         // placed order の smoothedPrice 評価額で市場充足率 (fulfillmentRatio) を value 加重平均。
         let fillNum = 0
         let fillDen = 0
         for (const cat of needs) {
           if (cat.tier !== tier) continue
+          let catNum = 0
+          let catDen = 0
           for (const res of cat.resources) {
             const v = res.buyOrders * marketPriceLookup(res.resource) // placed value
-            fillNum += v * clamp(fulfillment[res.resource].fulfillmentRatio, 0, 1)
+            const filled = v * clamp(fulfillment[res.resource].fulfillmentRatio, 0, 1)
+            fillNum += filled
             fillDen += v
+            catNum += filled
+            catDen += v
           }
+          const catFill = catDen > 0 ? catNum / catDen : 0
+          categorySatisfaction[cat.category] = clamp100(afford * catFill * 100)
         }
         const marketFill = fillDen > 0 ? fillNum / fillDen : 0
-        const tierFulfillment = affordByTier[tier] * marketFill // afford × fill
+        const tierFulfillment = afford * marketFill // afford × fill
         const w = config.needSatisfactionTierWeight[tier]
         weightedFulfill += tierFulfillment * w
         weightSum += w
@@ -521,7 +533,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       const a = config.needSatisfactionSmoothing
       const newSat = clamp100(pop.needSatisfaction * (1 - a) + instantSat * a)
       const newMoney = Math.max(0, pop.money - spent)
-      newPopGroups[popId] = { ...pop, needSatisfaction: newSat, money: newMoney }
+      newPopGroups[popId] = {
+        ...pop,
+        needSatisfaction: newSat,
+        money: newMoney,
+        categorySatisfaction,
+      }
     }
   }
 

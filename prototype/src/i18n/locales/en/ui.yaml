@@ -558,6 +558,20 @@ detail:
     migration_in: 'In'
     migration_out: 'Out'
     pop_subtotal_note: 'Subtotal of natural + migration (job/employment changes shown above)'
+  popNeed:
+    # POP detail — need satisfaction by tier/category (latest economy tick)
+    section_title: 'Need Satisfaction (this month)'
+    tier_essential: 'Essentials'
+    tier_ordinary: 'Everyday Goods'
+    tier_luxury: 'Luxuries'
+    category_staple_food: 'Staple food'
+    category_protein: 'Protein'
+    category_basic_drink: 'Drink'
+    category_basic_clothing: 'Clothing'
+    category_fine_food: 'Fine food'
+    category_luxury_drink: 'Fine drink'
+    category_luxury_clothing: 'Fine clothing'
+    category_luxury_goods: 'Ornaments'
   province:
     state: 'State'
     terminal_polity: 'Terminal Polity'
