@@ -32,6 +32,7 @@ import {
 } from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { hasCapacityPressure, hasEmploymentSlack } from './popSelectors'
+import { selectProductivityImprovementForBottleneck } from './productivityBottleneckSelectors'
 import { estimateRealEstateSalePrice } from './realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from './realEstateSeizureSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -612,7 +613,17 @@ function pickPolityAim(
         const capacityPressure = hasCapacityPressure(state, config, h.id)
         // v0.55 §B: 失業スラックも拡張トリガにする (失業 POP を新規開発/レベルアップで雇用)。
         const employmentSlack = hasEmploymentSlack(state, config, h.id)
-        if (devDeficit || capacityPressure || employmentSlack) {
+        // v0.59 追補③: 食料束縛で全員就業 (slack 無)・低稼働 (capacityPressure 無)・到達済 (dev≥40) の
+        //   「デッドゾーン」では上記3条件が全偽になり aim が生成されず、ボトルネック資源を生産する holding
+        //   でも灌漑等の production_quality 改良が永遠に建たない。最後の disjunct に置いて `||` で短絡させ、
+        //   他トリガが立つ通常 holding では評価しない (perf)。発火時は buildProjectFieldsForAim の
+        //   ボトルネック分岐が改良 Project を返す。
+        if (
+          devDeficit ||
+          capacityPressure ||
+          employmentSlack ||
+          selectProductivityImprovementForBottleneck(state, config, h.id) !== undefined
+        ) {
           // v0.59: landQuality 廃止に伴い tiebreaker 項 (h.landQuality * 0.3) を除去。
           const score = devDeficit
             ? 20 + (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5

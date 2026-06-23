@@ -287,8 +287,9 @@ function buildProjectFieldsForAim(
       const hasSlack = hasEmploymentSlack(ws, config, holdingId)
 
       // v0.59 追補③: 品薄資源 (市場 shortage または食料 pressure) を生産している holding は、capacity
-      //   増設より production_quality 改良 (例: 灌漑) を優先する。食料束縛 holding は人口が capacity 未満で
-      //   全員就業 (slack 無し) になりうるため hasSlack では gate せず、ボトルネック検出自体をトリガにする。
+      //   増設より production_quality 改良 (例: 灌漑) を優先する。aim 生成 (goalSelectors) もボトルネックを
+      //   トリガにするため、食料束縛で人口が capacity 未満・全員就業 (slack 無し) の holding でもこの分岐に
+      //   到達する。hasSlack では gate しない (slack 無しでも改良する)。
       //   max level 到達で selectProductivityImprovementForBottleneck が undefined を返し自然に打ち止め。
       const prodKind = selectProductivityImprovementForBottleneck(ws, config, holdingId)
       if (prodKind) {
