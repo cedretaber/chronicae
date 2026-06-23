@@ -139,7 +139,9 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 3b. Budget exhausted (develop_holding / handle_crisis — budget 持ち holding Project, v0.48 一般化)
+    // 3b. Budget 枯渇 (budget 持ち 5 種)。v0.60: 即失敗でなく raise_funds へ back-edge し、
+    //   進捗を保ったまま資金集めラウンドへ移す。ラウンド上限到達時のみ budget_exhausted で失敗する
+    //   (終了保証: 最大ラウンド)。次 tick の projectStageSystem.resolveRaiseFunds が集金して final へ戻す。
     if (
       ((project.kind === 'develop_holding' && project.currentStageKey === 'execute_project') ||
         (project.kind === 'develop_real_estate' && project.currentStageKey === 'execute_project') ||
@@ -150,6 +152,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       project.budget.remaining <= 0 &&
       project.progress < project.targetProgress
     ) {
+      const rounds = project.fundingRoundCount ?? 0
+      if (rounds < config.projectMaxFundingRounds) {
+        ws.projects[project.id] = { ...project, currentStageKey: 'raise_funds' }
+        continue
+      }
       ws.projects[project.id] = { ...project, status: 'failed', terminalReason: 'budget_exhausted' }
       emitProjectEvent(
         ws,
