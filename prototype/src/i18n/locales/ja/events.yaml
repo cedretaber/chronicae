@@ -233,6 +233,8 @@ project:
     started: '{{seller}}が{{buyer}}への領地売却を持ちかけた。'
   completed: '{{owner}}がプロジェクトを完了した：{{kind}}。'
   funded: '{{supervisor}}が{{owner}}の{{kind}}のため資金を集めた。'
+  built: '{{supervisor}}の指揮の下、{{owner}}の{{kind}}が完成した。'
+  built_with_patron: '{{supervisor}}の指揮と{{contributor}}の出資により、{{owner}}の{{kind}}が完成した。'
   failed:
     no_supervisor: '{{owner}}のプロジェクト{{kind}}が頓挫した——監督者不在。'
     deadline: '{{owner}}のプロジェクト{{kind}}が頓挫した——期限超過。'

@@ -234,6 +234,8 @@ project:
     started: '{{seller}} moved to sell land to {{buyer}}.'
   completed: '{{owner}} completed a project: {{kind}}.'
   funded: "{{supervisor}} raised funds for {{owner}}'s {{kind}}."
+  built: "{{owner}}'s {{kind}} was completed under {{supervisor}}'s direction."
+  built_with_patron: "{{owner}}'s {{kind}} was completed under {{supervisor}}'s direction, funded by {{contributor}}."
   failed:
     no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."
     deadline: "{{owner}}'s project {{kind}} failed — deadline exceeded."
