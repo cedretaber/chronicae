@@ -1131,6 +1131,9 @@ export type SimulationConfig = {
     Partial<Record<HoldingKind, number>>
   >
   developHoldingTargetDevelopmentThreshold: number
+  // v0.59 追補③: 「品薄資源」とみなす shortageSeverity の下限。これ以上の資源を生産しかつ遊休枠が
+  //   ある holding は capacity でなく production_quality 改良 (例: 灌漑) を優先する。
+  bottleneckShortageSeverityThreshold: number
   developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
   // v0.33: capacity 生成テーブル（§8.3-8.5）。Partial = 未定義は寄与 0 / multiplier 1.0
@@ -2650,6 +2653,7 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: { manor: 3, city: 3 },
   },
   developHoldingTargetDevelopmentThreshold: 40,
+  bottleneckShortageSeverityThreshold: 0.2,
   developHoldingProjectBaseCostByImprovementKind: {
     manor_house: 20,
     town_hall: 20,

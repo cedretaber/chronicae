@@ -3,7 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, ProductionRecipeId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import { POP_STRATA } from '../types/popGroup'
-import type { RealEstateAsset } from '../types/realEstateAsset'
+import type { RealEstateAsset, RealEstateKind } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ResourceKind } from '../types/resource'
 import type { InputCategory } from '../types/inputCategory'
@@ -342,4 +342,32 @@ export function computeAssetRecipePotentials(
     })
   }
   return results
+}
+
+// v0.59 追補③: holding が生産しうる ResourceKind を asset 種別ごとに静的列挙する。
+//   realEstateAssetIndex.byHolding → asset.recipeSlots → recipe.outputs[].resource を集約。
+//   実雇用/市場に依存しない決定的な「この holding の farm は穀物を生産しうる」マップ。RNG 非消費。
+export function getHoldingProducedResourcesByAssetKind(
+  state: WorldState,
+  holdingId: HoldingId,
+): Map<RealEstateKind, Set<ResourceKind>> {
+  const result = new Map<RealEstateKind, Set<ResourceKind>>()
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  for (const assetId of assetIds) {
+    const asset = state.realEstateAssets[assetId]
+    if (!asset) continue
+    let set = result.get(asset.realEstateKind)
+    if (!set) {
+      set = new Set<ResourceKind>()
+      result.set(asset.realEstateKind, set)
+    }
+    for (const recipeId of Object.keys(asset.recipeSlots) as ProductionRecipeId[]) {
+      const slot = asset.recipeSlots[recipeId]
+      if (slot === undefined || slot <= 0) continue
+      const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+      if (!recipe) continue
+      for (const o of recipe.outputs) set.add(o.resource)
+    }
+  }
+  return result
 }

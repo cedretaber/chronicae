@@ -30,7 +30,12 @@ import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import {
+  getSmoothedPriceOrBase,
+  IMPROVEMENT_BOOSTED_REAL_ESTATE_KINDS,
+} from '../config/resourceEconomyDefinitions'
+import { getHoldingProducedResourcesByAssetKind } from '../selectors/resourceProductionSelectors'
+import { getResourceShortageSeverity } from '../selectors/resourceRevenueSelectors'
 import {
   computeProjectMaterialBaseUnits,
   getProjectMaterialRequirements,
@@ -202,6 +207,54 @@ function selectImprovementKind(
   return bestKind
 }
 
+// v0.59 追補③: 「品薄資源 (shortageSeverity≥閾値) を生産し、その生産を boost する buildable な
+//   production_quality 改良がある」場合に、その改良 kind を返す (汎用)。capacity 増設より優先すべき
+//   状況の検出。複数候補は severity 最大 → level 最小 → kind 名昇順で決定的に選ぶ。RNG 非消費。
+export function selectProductivityImprovementForBottleneck(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): HoldingImprovementKind | undefined {
+  const holding = ws.holdings[holdingId]
+  if (!holding) return undefined
+  const province = ws.provinces[holding.provinceId]
+  if (!province) return undefined
+  const stateId = province.stateId
+
+  const producedByKind = getHoldingProducedResourcesByAssetKind(ws, holdingId)
+  if (producedByKind.size === 0) return undefined
+
+  const threshold = config.bottleneckShortageSeverityThreshold
+  let best: { kind: HoldingImprovementKind; severity: number; level: number } | undefined
+  for (const kind of Object.keys(IMPROVEMENT_DEFINITIONS) as HoldingImprovementKind[]) {
+    if (IMPROVEMENT_DEFINITIONS[kind].capacityRole !== 'production_quality') continue
+    if (!canBuildHoldingImprovement(ws, config, holdingId, kind)) continue
+    const boostedKinds = IMPROVEMENT_BOOSTED_REAL_ESTATE_KINDS[kind]
+    if (!boostedKinds) continue
+    // この改良が boost する asset 種別のうち holding に存在するものの産出資源で、品薄度の最大値。
+    let maxSeverity = 0
+    for (const reKind of boostedKinds) {
+      const resources = producedByKind.get(reKind)
+      if (!resources) continue
+      for (const r of resources) {
+        const sev = getResourceShortageSeverity(ws, stateId, r)
+        if (sev > maxSeverity) maxSeverity = sev
+      }
+    }
+    if (maxSeverity < threshold) continue
+    const level = getHoldingImprovementLevel(ws, holdingId, kind)
+    if (
+      !best ||
+      maxSeverity > best.severity ||
+      (maxSeverity === best.severity && level < best.level) ||
+      (maxSeverity === best.severity && level === best.level && kind < best.kind)
+    ) {
+      best = { kind, severity: maxSeverity, level }
+    }
+  }
+  return best?.kind
+}
+
 function selectRealEstateKind(
   ws: WorldState,
   config: SimulationConfig,
@@ -284,6 +337,37 @@ function buildProjectFieldsForAim(
       const hasCapPressure = hasCapacityPressure(ws, config, holdingId)
       // v0.55 §B: 失業スラックがあれば、満員でなくても雇用を生む不動産開発ルートへ (インフラより優先)。
       const hasSlack = hasEmploymentSlack(ws, config, holdingId)
+
+      // v0.59 追補③: 遊休枠があり (= capacity 増設は無駄になりうる) かつ品薄資源を生産している holding は、
+      //   capacity でなく production_quality 改良 (例: 灌漑) を優先する。max level 到達で自然に打ち止め。
+      if (hasSlack) {
+        const prodKind = selectProductivityImprovementForBottleneck(ws, config, holdingId)
+        if (prodKind) {
+          const province = ws.provinces[holding.provinceId]
+          if (province) {
+            const currentLevel = getHoldingImprovementLevel(ws, holdingId, prodKind)
+            const targetLevel = currentLevel + 1
+            const required = computeImprovementProjectCost(config, province, prodKind, targetLevel)
+            const baseProgress = config.developHoldingProjectBaseProgressByImprovementKind[prodKind]
+            const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+            return {
+              // 'kind' を返さない → projectKind 'develop_holding' のまま (既存 improvement パスと同形)。
+              holdingId,
+              improvementKind: prodKind,
+              targetImprovementLevel: targetLevel,
+              currentStageKey: getInitialProjectStageKey('develop_holding'),
+              budget: {
+                required,
+                allocated: 0,
+                remaining: 0,
+                spent: 0,
+                source: { kind: 'owner' },
+              } satisfies ProjectBudget,
+              targetProgress: baseProgress * progMult,
+            }
+          }
+        }
+      }
 
       if (hasCapPressure || hasSlack) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
