@@ -295,3 +295,38 @@ describe('generateWorld', () => {
     })
   })
 })
+
+describe('v0.59 city-per-state 保証', () => {
+  it('全 state が最低1 city holding を持つ (tiny)', () => {
+    for (const seed of ['cs1', 'cs2', 'cs3']) {
+      const { world } = generateWorld(seed)
+      for (const stateId of Object.keys(world.states)) {
+        const region = world.states[stateId as keyof typeof world.states]!
+        let cityCount = 0
+        for (const provId of region.provinceIds) {
+          const prov = world.provinces[provId]!
+          for (const hId of prov.holdingIds) {
+            if (world.holdings[hId]!.kind === 'city') cityCount++
+          }
+        }
+        expect(cityCount).toBeGreaterThanOrEqual(1)
+      }
+    }
+  })
+})
+
+describe('v0.59 manor≥2 保証', () => {
+  it('全 Province が manor を最低2持つ。city があれば holding≥3 (tiny)', () => {
+    for (const seed of ['m1', 'm2', 'm3']) {
+      const { world } = generateWorld(seed)
+      for (const provId of Object.keys(world.provinces)) {
+        const prov = world.provinces[provId as keyof typeof world.provinces]!
+        const kinds = prov.holdingIds.map((h) => world.holdings[h]!.kind)
+        const manor = kinds.filter((k) => k === 'manor').length
+        const city = kinds.filter((k) => k === 'city').length
+        expect(manor).toBeGreaterThanOrEqual(2)
+        if (city > 0) expect(prov.holdingIds.length).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+})

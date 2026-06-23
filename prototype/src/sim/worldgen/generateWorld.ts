@@ -1189,23 +1189,18 @@ export function generateWorld(
   let nextHoldingId = 0
   let nextHoldingOfficeAssignmentId = 0
 
-  // §7.3b city 保証: ワールド全体で最低 minGuaranteedCities 個の city を保証する。
-  // tiny preset は holdingsPerProvince=2 で minHoldingsForCity(3) に届かず通常抽選では city が
-  // 0 になりうるため、抽選とは別にランダムな Province を強制的に city 化する。
-  // この強制は minHoldingsForCity の閾値を上書きする (2-holding Province でも city になりうる)。
-  const minGuaranteedCities = 2
+  // §7.3b / v0.59 city 保証: 各 state に最低1 city を保証する。state ごとに Province を
+  //   1つ強制 city province にする (決定的: provinces 出力順で state ごとに最初に現れる
+  //   Province を選ぶ)。この強制は minHoldingsForCity の閾値を上書きする (2-holding
+  //   Province でも city になりうる)。RNG は消費しない。
   const forcedCityProvinceIds = new Set<string>()
   {
-    const indices = provinces.map((_, idx) => idx)
-    const pick = Math.min(minGuaranteedCities, indices.length)
-    // 部分 Fisher-Yates で重複なくランダム選択 (末尾固定でなくバラけさせ配置の偏りを避ける)
-    for (let k = 0; k < pick; k++) {
-      const { value: j, rng: rPick } = randomInt(rng, k, indices.length - 1)
-      rng = rPick
-      const tmp = indices[k]!
-      indices[k] = indices[j]!
-      indices[j] = tmp
-      forcedCityProvinceIds.add(provinces[indices[k]!]!.id)
+    const seenStates = new Set<string>()
+    for (const province of provinces) {
+      const sid = province.stateId as string
+      if (seenStates.has(sid)) continue
+      seenStates.add(sid)
+      forcedCityProvinceIds.add(province.id)
     }
   }
 
@@ -1238,6 +1233,14 @@ export function generateWorld(
       const { value: cityRoll, rng: r2 } = randomFloat(rng)
       rng = r2
       hasCity = cityRoll < cityProvinceChance
+    }
+
+    // v0.59: 全 Province に manor≥2 を保証する。city があればその上に +1 (city province は
+    //   2 manor + 1 city)。holdingCount を底上げするだけで kind 割当 (最後の holding のみ
+    //   city) は不変。RNG は消費しない。
+    {
+      const minHoldings = 2 + (hasCity ? 1 : 0)
+      if (holdingCount < minHoldings) holdingCount = minHoldings
     }
 
     const holdingControl = controlMap.get(province.id) ?? 0
