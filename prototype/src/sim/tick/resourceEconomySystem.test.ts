@@ -148,16 +148,24 @@ describe('runResourceEconomySystem — production & market', () => {
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
     state = withAsset(state, hd, 'farm').state
-    state = withEmployedPop(state, hd, 'lower', 100) // money 初期 0
+    state = withEmployedPop(state, hd, 'lower', 100) // 生産者 (peasants), money 初期 0
+    // 施設専用 popType (soldiers) を雇用。manor は manor_house を自動生成し soldiers slot を持つため、
+    //   v0.58 では施設俸給がこの soldiers POP **本人**へ mint される (生産者には mint しない)。
+    state = withEmployedPop(state, hd, 'lower', 30, 50, true, 'soldiers')
 
     const result = runEcon(state)
     const snap = result.monthlyHoldingResourceRevenue[hd]!
     const ar = snap.assetResults[0]!
     expect(ar.wageShare).toBeGreaterThan(0)
-    // wageShare は生産賃金 (max(0, netRevenue) × wageRate) に加え、施設(manor_house)労働者の俸給
-    //   supplement を含む (v0.58 balance)。manor は manor_house を自動生成するため supplement>0。
+    // wageShare は生産賃金 (max(0, netRevenue) × wageRate) に加え施設労働者の俸給を含む。
     const prodWageOnly = Math.max(0, ar.netRevenue) * defaultConfig.wageShareOfNetRevenue
     expect(ar.wageShare).toBeGreaterThan(prodWageOnly) // 施設俸給分が上乗せされている
+    // v0.58: 施設専用 popType (soldiers) 本人に施設俸給が mint されている (生産 asset に登場しないため
+    //   従来は収入ゼロだったが、同 stratum の生産 per-capita 相当が本人へ届く)。
+    const soldierPop = Object.values(result.popGroups).find(
+      (p) => p.holdingId === hd && p.popType === 'soldiers',
+    )!
+    expect(soldierPop.money).toBeGreaterThan(0)
     // carve==mint: この holding の全 POP に増えた money の合計が wageShare と一致 (初期 money=0)。
     //   生産賃金 + 施設俸給の総 mint == 総 wageShare (asset 1 つなので全 supplement がこの asset に按分)。
     const mintedTotal = Object.values(result.popGroups)
