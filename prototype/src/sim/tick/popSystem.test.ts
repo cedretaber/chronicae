@@ -109,3 +109,55 @@ describe('v0.58 money 保存 (出生/死亡)', () => {
     expect(pop.money).toBeCloseTo(1000, 6) // money 据え置き (相続なし・希釈)
   })
 })
+
+describe('v0.59 人口変動 read-model (monthlyPopChange)', () => {
+  it('PopSystem が read-model を生成し自然増を natural として累積する', () => {
+    const built = baseState()
+    const holding = built.holding
+    let state = built.state
+    state = withPop(state, holding, 'lower', 10, true, 0)
+    const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
+    const out = runPopSystem(ctx).state
+    const pop = Object.values(out.popGroups).find((p) => p.class === 'lower')!
+    const grown = pop.size - 10
+    expect(grown).toBeGreaterThan(0)
+    const change = out.monthlyPopChange!
+    expect(change.byHolding[holding]?.natural).toBeCloseTo(grown, 6)
+    // 移住は PopSystem 内では発生しないので 0。
+    expect(change.byHolding[holding]?.migrationIn).toBeCloseTo(0)
+    expect(change.byHolding[holding]?.migrationOut).toBeCloseTo(0)
+  })
+
+  it('PopSystem は既存 read-model を毎月リセット生成する (前月分を持ち越さない)', () => {
+    const built = baseState()
+    const holding = built.holding
+    let state = built.state
+    state = withPop(state, holding, 'lower', 10, true, 0)
+    // 前月の残骸を仕込む。
+    state = {
+      ...state,
+      monthlyPopChange: {
+        week: 0,
+        byHolding: { [holding]: { natural: 999, migrationIn: 7, migrationOut: 3 } },
+        byPopGroupKey: {},
+      },
+    }
+    const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
+    const out = runPopSystem(ctx).state
+    const change = out.monthlyPopChange!
+    // 前月の 999/7/3 は消え、当月の自然増のみが残る。
+    expect(change.byHolding[holding]?.migrationIn).toBeCloseTo(0)
+    expect(change.byHolding[holding]?.migrationOut).toBeCloseTo(0)
+    expect(change.byHolding[holding]?.natural).toBeLessThan(999)
+  })
+
+  it('size 減 (人口圧による自然死) は natural が負になる', () => {
+    const built = baseState()
+    const holding = built.holding
+    let state = built.state
+    state = withPop(state, holding, 'lower', 100000, true, 50000)
+    const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
+    const out = runPopSystem(ctx).state
+    expect(out.monthlyPopChange!.byHolding[holding]?.natural).toBeLessThan(0)
+  })
+})

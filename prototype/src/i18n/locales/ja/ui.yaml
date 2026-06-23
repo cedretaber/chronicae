@@ -652,6 +652,15 @@ detail:
     kind_promotion: '昇格'
     kind_demotion: '降格'
     none: '先月の移動なし'
+  popChange:
+    # Holding / POP 詳細 — 先月からの人口変動 (自然増減 + 移住)
+    section_title: '人口変動 (先月)'
+    net: '純変動'
+    natural: '自然増減'
+    migration: '移住'
+    migration_in: '流入'
+    migration_out: '流出'
+    pop_subtotal_note: '自然増減 + 移住の小計 (転職・雇用変動は上記に集約)'
   province:
     state: '州域'
     terminal_polity: '最終支配国'

@@ -45,7 +45,7 @@ import {
   getActiveDefaultForContract,
   getDefaultPrescriptionRemainingYears,
 } from '@sim/selectors/landContractDefaultSelectors'
-import { formatAmount, formatPopCount, formatPopFlow } from '@/app/utils/format'
+import { formatAmount, formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import {
   getHoldingEmployedPopSize,
@@ -54,6 +54,7 @@ import {
   getHoldingEmployedPopSizeByType,
   getHoldingPopTypeCapacity,
   getHoldingPops,
+  getHoldingMonthlyPopChange,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
@@ -936,6 +937,44 @@ export function HoldingDetail({
           })}
         </>
       )}
+
+      {/* v0.59: 先月からの人口変動 (自然増減 + 移住)。holding 合計 = natural + 流入 − 流出。 */}
+      {currentState &&
+        (() => {
+          const change = getHoldingMonthlyPopChange(currentState, holding.id)
+          if (!change) return null
+          const netTone =
+            change.net > 0 ? 'text-emerald-400' : change.net < 0 ? 'text-rose-400' : 'text-gray-300'
+          const naturalTone =
+            change.natural > 0
+              ? 'text-emerald-400'
+              : change.natural < 0
+                ? 'text-rose-400'
+                : 'text-gray-300'
+          return (
+            <div className="text-sm">
+              <DetailSection title={t('detail.popChange.section_title')} />
+              <div className="mt-1 flex flex-col gap-1 text-xs">
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-300">{t('detail.popChange.net')}</span>
+                  <span className={netTone}>{formatPopDelta(change.net)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.natural')}</span>
+                  <span className={naturalTone}>{formatPopDelta(change.natural)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.migration')}</span>
+                  <span>
+                    <span className="text-emerald-400">+{formatPopFlow(change.migrationIn)}</span>
+                    <span className="text-gray-500"> / </span>
+                    <span className="text-amber-400">−{formatPopFlow(change.migrationOut)}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
       {/* Individual POP group list (clickable) */}
       {currentState &&

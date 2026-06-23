@@ -128,6 +128,20 @@ describe('v0.58 money 保存 (crisis 死亡 = 比例 burn)', () => {
     expect(after.money).toBeCloseTo(600) // 1000 * (60/100)
     expect(after.money / after.size).toBeCloseTo(10) // per-capita 不変
   })
+
+  it('v0.59: onReduce が減少した各 pop と除去量を通知する (crisis 死の自然減累積用)', () => {
+    const { state, holdingId } = moneyFixture()
+    const ws: WorldState = {
+      ...state,
+      popGroups: { ...state.popGroups },
+    }
+    const reports: { id: string; removed: number }[] = []
+    reduceHoldingPopSizeProportionalMut(ws, holdingId, 0.4, undefined, (pop, removed) => {
+      reports.push({ id: pop.id, removed })
+    })
+    expect(reports).toHaveLength(1)
+    expect(reports[0]!.removed).toBeCloseTo(40) // 100 * 0.4
+  })
 })
 
 describe('v0.58 money 保存 (mobility/merge)', () => {

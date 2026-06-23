@@ -8,6 +8,7 @@ import {
   getHoldingTotalPopSize,
 } from '../selectors/popSelectors'
 import { removePopGroupMut } from '../mutations/popMutations'
+import { createMonthlyPopChangeSnapshot, accrueNaturalPopChangeMut } from './popChangeSnapshot'
 
 // v0.55 POP 再設計: 旧 minSize 底上げ (就業 POP を minPopSizeByClass へ無条件で水増し) は撤廃した。
 //   雇用 capacity を持たない class (upper) を per-group に minSize へ底上げすると、その超過分が
@@ -56,6 +57,10 @@ export function runPopSystem(ctx: TickContext): TickContext {
     popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
     nextPopGroupId: ctx.state.nextPopGroupId,
   }
+
+  // v0.59: 月次「人口変動」read-model を月初 (PopSystem は月次の最初の人口システム) にリセット生成する。
+  //   以降の自然増減をここで、crisis 死を CrisisSystem が、移住を PopMigrationSystem が in-place 累積。
+  ws.monthlyPopChange = createMonthlyPopChangeSnapshot(ws.absoluteWeek)
 
   // Snapshot POP IDs before loop (決定論的反復順)。v0.55: overflow による新規 POP 生成は廃止。
   const popIdSnapshot = Object.keys(ws.popGroups).sort() as PopGroupId[]
@@ -171,6 +176,16 @@ export function runPopSystem(ctx: TickContext): TickContext {
       money: newMoney,
       unrest: finalUnrest,
     }
+
+    // v0.59: 自然増減を read-model に累積 (正=出生超過, 負=自然死超過)。
+    accrueNaturalPopChangeMut(
+      ws,
+      pop.holdingId,
+      pop.class,
+      pop.popType,
+      pop.employed,
+      finalSize - pop.size,
+    )
   }
 
   return { ...ctx, state: ws }

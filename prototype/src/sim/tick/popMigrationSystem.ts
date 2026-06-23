@@ -19,6 +19,7 @@ import {
   ensureByState,
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
+import { accrueMigrationInPopChangeMut, accrueMigrationOutPopChangeMut } from './popChangeSnapshot'
 
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 
@@ -171,6 +172,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         )
         if (amount < minMove) continue
 
+        const sizeBefore = source.size
         const moved = movePopSizeToKeyMut(
           ws,
           source.id,
@@ -187,6 +189,28 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
 
         outflowCap.set(sourceHoldingId, (outflowCap.get(sourceHoldingId) ?? 0) - amount)
         inflowCap.set(bestHolding, (inflowCap.get(bestHolding) ?? 0) - amount)
+
+        // v0.59: 移住を人口変動 read-model に累積。movePopSizeToKeyMut は source 残量が sliver
+        //   (<= eps) になる場合 source を丸ごと移すため、実移動量は要求 amount を eps だけ超えうる。
+        //   holding 合計 = natural + 流入 − 流出 を厳密に保つため、source の size 差分 (= 実移動量)
+        //   で累積する。流出は source pop の key、流入は target key (target は常に employed:true)。
+        const actualMoved = sizeBefore - (ws.popGroups[source.id]?.size ?? 0)
+        accrueMigrationOutPopChangeMut(
+          ws,
+          sourceHoldingId,
+          source.class,
+          source.popType,
+          source.employed,
+          actualMoved,
+        )
+        accrueMigrationInPopChangeMut(
+          ws,
+          bestHolding,
+          source.class,
+          source.popType,
+          true,
+          actualMoved,
+        )
 
         migrationEntries.push({
           kind: 'migration',

@@ -106,4 +106,56 @@ describe('PopMigrationSystem', () => {
     expect(byState?.migratedOut).toBeGreaterThan(0)
     expect(byState?.migratedIn).toBeGreaterThan(0)
   })
+
+  it('v0.59: 移住を monthlyPopChange に流出元/流入先 holding 単位で累積する', () => {
+    let s = makeEmptyV016State()
+    s = withProvince(s, PA)
+    s = withProvince(s, PB)
+    const hA = s.provinces[PA]!.holdingIds[0]!
+    const hB = s.provinces[PB]!.holdingIds[0]!
+
+    const assetId = createRealEstateAssetId(0)
+    const asset: RealEstateAsset = {
+      id: assetId,
+      holdingId: hB,
+      realEstateKind: 'farm',
+      level: 1,
+      createdWeek: 0,
+      recipeSlots: { [GRAIN_FIELD]: 20 },
+    }
+    const capA = getHoldingClassCapacity(s, defaultConfig, hA, 'lower')
+    const employedA = createPopGroupId(100)
+    const migrant = createPopGroupId(101)
+    const residentB = createPopGroupId(102)
+
+    const state: WorldState = {
+      ...s,
+      realEstateAssets: { [assetId]: asset },
+      realEstateAssetIndex: {
+        ...s.realEstateAssetIndex,
+        byHolding: { ...s.realEstateAssetIndex.byHolding, [hB as string]: [assetId] },
+      },
+      popGroups: {
+        [employedA]: mkPop(employedA, hA, 'laborers', true, capA, 50),
+        [migrant]: mkPop(migrant, hA, 'laborers', false, 1000, 5),
+        [residentB]: mkPop(residentB, hB, 'peasants', true, 50, 50),
+      },
+      popIndex: { byHolding: { [hA]: [employedA, migrant], [hB]: [residentB] } },
+      nextPopGroupId: 1000,
+      // PopSystem が月初に生成する read-model を模す (migration は生成せず in-place 累積のみ)。
+      monthlyPopChange: { week: 0, byHolding: {}, byPopGroupKey: {} },
+    }
+
+    const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
+    const result = runPopMigrationSystem(ctx).state
+
+    const moved = result.monthlyPopMobility!.migratedTotal
+    expect(moved).toBeGreaterThan(0)
+    const change = result.monthlyPopChange!
+    // 流出は source(hA)、流入は target(hB) に同量。
+    expect(change.byHolding[hA]?.migrationOut).toBeCloseTo(moved)
+    expect(change.byHolding[hB]?.migrationIn).toBeCloseTo(moved)
+    expect(change.byHolding[hA]?.migrationIn ?? 0).toBe(0)
+    expect(change.byHolding[hB]?.migrationOut ?? 0).toBe(0)
+  })
 })

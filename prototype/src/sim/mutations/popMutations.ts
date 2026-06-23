@@ -453,6 +453,8 @@ export function reduceHoldingPopSizeProportionalMut(
   holdingId: HoldingId,
   rate: number,
   popClass?: PopClass,
+  // v0.59: 減少した各 pop と除去量を通知 (crisis 死を人口変動 read-model へ自然減として累積するため)。
+  onReduce?: (pop: PopGroup, removed: number) => void,
 ): void {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds) return
@@ -469,6 +471,7 @@ export function reduceHoldingPopSizeProportionalMut(
       size: newSize,
       money: pop.size > 0 ? pop.money * (newSize / pop.size) : pop.money,
     }
+    if (onReduce) onReduce(pop, pop.size - newSize)
   }
 }
 

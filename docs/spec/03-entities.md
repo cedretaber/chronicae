@@ -342,6 +342,13 @@ type MonthlyPopMobilitySnapshot = {
   byState: Record<StateRegionId, { jobChanged: number; migratedIn: number; migratedOut: number }>
   topMovements: PopMobilitySnapshotEntry[]   // amount 降順上位 N（N = popMobilityTopMovementLimit）
 }
+// v0.59 人口変動 read-model: 先月（直近 4 週）の純人口変動を自然増減と移住に分解
+type PopChangeEntry = { natural: number; migrationIn: number; migrationOut: number }  // natural は正=増/負=減
+type MonthlyPopChangeSnapshot = {
+  week: number
+  byHolding: Record<HoldingId, PopChangeEntry>
+  byPopGroupKey: Record<string, PopChangeEntry>  // key = `${holdingId}|${class}|${popType}|${employed}`（popGroupChangeKey）
+}
 ```
 
 ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。旧 `minMultiplier`/`maxMultiplier`/`elasticity` フィールドは型から削除済み）。
@@ -357,6 +364,8 @@ marketResourcePrices: Record<string, MarketResourcePriceState>            // key
 monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
 // v0.56 POP 転職・移住 read-model（optional・latest のみ毎月上書き。0 件の月も zero snapshot で上書き）
 monthlyPopMobility?: MonthlyPopMobilitySnapshot
+// v0.59 POP 人口変動 read-model（optional・PopSystem が月初リセット生成、CrisisSystem/PopMigration が in-place 累積）
+monthlyPopChange?: MonthlyPopChangeSnapshot
 ```
 
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス

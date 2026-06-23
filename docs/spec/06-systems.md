@@ -188,6 +188,11 @@ EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が rec
   - **bound**: 旧 global top-N（20）は per-entity drill-down で大半の小移動を捨てるため（実測 small で月 ~411 件 → 95% 喪失）、`popMobilityTopMovementLimit` を **store-all 相当の高い safety cap（4000）** に引き上げ、先月分を per-Holding / per-POP で完全に再構成できるようにした。snapshot は毎月上書きで累積しないため state 肥大化はしない。
   - SimEvent / Chronicle には出さない（月次大量発生のため）。
 
+- **read-model `WorldState.monthlyPopChange`（v0.59 人口変動）**（optional・latest のみ）: 先月（直近 4 週）の純人口変動を **自然増減 (`natural`) と移住 (`migrationIn`/`migrationOut`) に分解**して holding 単位（`byHolding`）と POP グループ単位（`byPopGroupKey`、key = `${holdingId}|${class}|${popType}|${employed}`）で保持する。
+  - **lifecycle**: `PopSystem`（月次サイクルで最初の人口システム）が月初に **リセット生成**し、自身の自然増減 delta（`finalSize − size`）を `natural` に累積。`CrisisSystem`（週次）が飢饉・疫病・戦災の死を `reduceHoldingPopSizeProportionalMut` の `onReduce` callback 経由で `natural`（負）に累積。`PopMigrationSystem`（同月）が holding 間移動を流出元 `migrationOut` / 流入先 `migrationIn` に累積（`movePopSizeToKeyMut` の sliver bump で実移動量が要求 `amount` を eps だけ超えうるため、source の size 差分＝実移動量で累積し holding 合計の等式を厳密に保つ）。すべて in-place・RNG 不使用で dump-world bit-identical を維持。窓は `monthlyPopMobility` と同じ 4 週に揃う。
+  - **整合**: holding 合計の純変動 = `natural + migrationIn − migrationOut`（転職・雇用調整は holding 内で純ゼロ、epsilon 除去は <0.01 のノイズ）。POP グループ単位では転職・雇用変動でも size が動くため `natural + migration` は size の素の差分とは一致しない（転職分は `monthlyPopMobility` の階層移動セクションに集約）。
+  - **UI 表示（v0.59）**: Holding detail / POP detail に「人口変動 (先月)」セクション。`getHoldingMonthlyPopChange` / `getPopGroupMonthlyPopChange` で取得し、純変動（符号付き `formatPopDelta`）＋自然増減＋移住（流入 / 流出）を表示。POP detail は「自然増減 + 移住の小計」である旨を注記。
+
 - **IntegrityCheck**: 既存の POP 不変条件（stratum 整合・merge key 一意・byHolding 整合・wealth/unrest clamp）で十分。capacity 整合は normalize が運用上保証し hard invariant にはしない（成長後の一時超過で誤検知を避ける）。
 
 > **balance-defer（観測済み・調整保留）**: 実測では POP wealth が経済劣化で ~0 に潰れるため、相対 gate 下でも **promotion は不発・demotion / migration のみ発火**（下方移動偏重）。閾値の妥当性検証は経済 wealth 崩壊の是正待ち。また inflow cap = `pop × fraction` のため空 holding は移民を受け入れられない（将来「空 holding の植民」が必要なら別途設計）。fraction cap 0.001 は中央 holding 人口 ~30 で月 ~0.03 とやや遅い。これらは機能完成後のバランス調整対象。
