@@ -709,7 +709,9 @@
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
 | **RealEstateAsset（v0.52）** | | |
-| realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（これ以上は overuse modifier が適用） |
+| realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（base。v0.59: Province の slot 系 trait〔広闊な地形〕の slotBonus が加算される。`computeSlotCapacity`。これ以上は overuse modifier が適用） |
+| terrainTraitDefinitions | 5 種（fertile_land/rich_fishery/rich_lode/dense_forest/open_terrain） | v0.59 地形特性の定義（適合地形/feature・付与確率・効果〔output 倍率 or slot 加算〕）。output 対象は input を持たない raw 資源に限る。worldgen で確率付与（§6.3c / §7.1） |
+| terrainTraitDensityMultiplier | 1.0 | v0.59 地形特性の付与密度の global 乗数（各 trait の probability に乗算・0..1 clamp）。0 で全 trait 無効。「どのくらいばら撒くか」を一括調整 |
 | ~~realEstateOwnerIncomeRate / realEstateKindIncomeWeight~~ | — | v0.54 廃止（旧 owner income path。owner 収入は per-asset netRevenue から realEstateHoldingDueRate で分配、§6.4.2） |
 | realEstateTerrainCapacityMultiplier | RealEstateKind × terrain の乗数（v0.55 kind: farm/mountain/woodland/workshop）。例: farm={plains:1.3,hills:0.75,wetlands:0.7,forest:0.5,mountains:0.25}, mountain={mountains:1.3,hills:1.0,plains:0.4,forest:0.5,wetlands:0.3}, woodland={forest:1.3,hills:1.0,plains:0.5,mountains:0.6,wetlands:0.4}, workshop={plains:1.0,hills:0.9,forest:0.85,wetlands:0.75,mountains:0.7} | RealEstateAsset の容量に対する terrain 補正（assetTerm に乗算、未定義 → 1.0） |
 | realEstateFeatureCapacityMultiplier | RealEstateKind × feature の乗数（積を clamp 0.75–1.50）。例: farm={major_river:1.1,lake:1.05}, mountain={}, woodland={major_river:1.05}, workshop={coastal:1.05,major_river:1.05} | RealEstateAsset の容量に対する feature 補正 |

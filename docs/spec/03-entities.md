@@ -12,11 +12,26 @@ type Province = {
   neighbors: ProvinceId[]
   terrain: ProvinceTerrain      // 自然地形（5 種・単一）
   features: ProvinceFeature[]   // 地理特徴（複数可・順不同）
+  traits: TerrainTraitKind[]    // 地形特性（v0.59・複数可・付与順=定義順）
   holdingIds: HoldingId[]
 }
 
 type ProvinceTerrain = 'plains' | 'forest' | 'hills' | 'mountains' | 'wetlands'
 type ProvinceFeature = 'coastal' | 'major_river' | 'lake'
+
+// v0.59 地形特性（config 駆動・名前付き）。表示は nameKey 経由（i18n）。
+type TerrainTraitKind =
+  | 'fertile_land' | 'rich_fishery' | 'rich_lode' | 'dense_forest' | 'open_terrain'
+type TerrainTraitEffect =
+  | { kind: 'output'; resources: Partial<Record<ResourceKind, number>> } // raw 産出倍率
+  | { kind: 'slot'; slotBonus: number }                                  // 不動産スロット +N
+type TerrainTraitDefinition = {
+  trait: TerrainTraitKind
+  eligibleTerrains?: ProvinceTerrain[]   // 適合地形（未指定=全地形）
+  eligibleFeatures?: ProvinceFeature[]   // 適合地物（いずれか 1 つを持つことが条件）
+  probability: number                    // 適合 Province での付与確率（× terrainTraitDensityMultiplier）
+  effect: TerrainTraitEffect
+}
 ```
 
 - `stateId`: 所属する StateRegion
@@ -26,6 +41,7 @@ type ProvinceFeature = 'coastal' | 'major_river' | 'lake'
 - Province は polityId / ownerHouseId / houseControl を持たない。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
 - development / polityControl は Province ではなく Holding が持つ。Province レベルの値は selector (`getProvinceDevelopmentFromHoldings` / `getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する
 - 自然地形 `terrain`（5 種・単一）と地理特徴 `features`（3 種・複数可）を持つ。terrain は House seat 選定（`provinceTerrainSettlementSuitability`、§7.4）と Holding Improvement の建設可否・capacity multiplier（§3.1d / §4.2）に消費される。features は Improvement の建設可否（例: 灌漑は `major_river` / `lake` が必要）と capacity multiplier に効く。worldgen 時に確定しゲーム中は不変（§7.1）
+- **`traits`（v0.59 地形特性・複数可）**: terrain/feature に相関した名前付き特性（config `terrainTraitDefinitions` 駆動）。`output` 効果は該当 raw 資源の per-output 産出倍率（§6.3c の生産で乗算・input 据え置き）、`slot` 効果は不動産スロット上限の加算（§6 `computeSlotCapacity`）。worldgen で確率付与（決定的）しゲーム中は不変。付与密度は `terrainTraitDensityMultiplier` で調整可。表示は nameKey 経由（`detail.province.trait_value.*`）
 
 ### 3.1a ProvinceTerrain / ProvinceFeature
 
