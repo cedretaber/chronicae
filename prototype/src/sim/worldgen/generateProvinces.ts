@@ -488,5 +488,33 @@ export function generateProvinces(
     provinces.push(provinceObj)
   }
 
+  // v0.59: 全地形を World 単位で最低1つ保証する。未出現地形があれば、最も冗長な
+  //   (出現数最多の) 地形を持つ Province を1つ選び terrain を上書きする。RNG 不使用・決定的。
+  {
+    const counts = new Map<ProvinceTerrain, number>()
+    for (const k of TERRAIN_KEYS) counts.set(k, 0)
+    for (const p of provinces) counts.set(p.terrain, (counts.get(p.terrain) ?? 0) + 1)
+    for (const missing of TERRAIN_KEYS) {
+      if ((counts.get(missing) ?? 0) > 0) continue
+      // 最多地形を持つ Province のうち最小 index を上書き対象に選ぶ (決定的)。
+      // count<=1 の地形は奪うと別の欠落を生むため対象外。
+      let targetIdx = -1
+      let bestCount = 1
+      for (let i = 0; i < provinces.length; i++) {
+        const t = provinces[i]!.terrain
+        const c = counts.get(t) ?? 0
+        if (c > bestCount) {
+          bestCount = c
+          targetIdx = i
+        }
+      }
+      if (targetIdx < 0) break // 上書きできる冗長地形が無い (Province 数 < 地形数 等)
+      const victim = provinces[targetIdx]!
+      counts.set(victim.terrain, (counts.get(victim.terrain) ?? 0) - 1)
+      provinces[targetIdx] = { ...victim, terrain: missing }
+      counts.set(missing, 1)
+    }
+  }
+
   return { provinces, stateCenters, rng }
 }
