@@ -232,7 +232,7 @@ type RealEstateAsset = {
 - owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
 - `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
 - v0.54: `recipeSlots` は生産内容を RealEstateKind ではなく `ProductionRecipe`（§3.2c）に持たせる仕組み。20 slot=100%、slot は労働配分比率（生産量乗数ではない）。IntegrityCheck で合計=20 / 整数 / recipe 実在 / allowedRealEstateKinds 整合を検査
-- **v0.55 RealEstateKind 再編**（`farm / mountain / woodland / workshop`、`config/realEstateDefinitions.ts` の `REAL_ESTATE_DEFINITIONS`）。RealEstateKind は粗分類で、生産内容は ProductionRecipe が持つ。一次産業（farm/mountain/woodland）は荘園（manor）のみ、工房（workshop）は都市（city）のみに建設可（commit 15c8394）。`allowedTerrains`（farm=plains/wetlands/hills/forest, mountain=mountains/hills, woodland=forest/hills, workshop=制限なし）/ `employmentSlots`（PopStratum weight: farm lower0.80/middle0.20, mountain 0.90/0.10, woodland 0.85/0.15, workshop 0.75/0.25。upper は雇用しない）/ `capacityPerLevel`（farm 50 / mountain 35 / woodland 40 / workshop 80）/ `maxLevelByHoldingKind`（各 3）を定義
+- **v0.55 RealEstateKind 再編**（`farm / mountain / woodland / workshop`、`config/realEstateDefinitions.ts` の `REAL_ESTATE_DEFINITIONS`）。RealEstateKind は粗分類で、生産内容は ProductionRecipe が持つ。一次産業（farm/mountain/woodland）は荘園（manor）のみ、工房（workshop）は都市（city）のみに建設可（commit 15c8394）。`allowedTerrains`（**v0.59: farm=全地形**（plains/wetlands/hills/forest/mountains。山岳は容量倍率 0.25 で「狭く雇用少」を表現＝World 単位地形保証の安全弁を兼ねる）, mountain=mountains/hills, woodland=forest/hills, workshop=制限なし）/ `employmentSlots`（PopStratum weight: farm lower0.80/middle0.20, mountain 0.90/0.10, woodland 0.85/0.15, workshop 0.75/0.25。upper は雇用しない）/ `capacityPerLevel`（farm 50 / mountain 35 / woodland 40 / workshop 80）/ `maxLevelByHoldingKind`（各 3）を定義
 
 ### 3.2c 資源経済の型（v0.55 で 21 資源・需要/投入カテゴリへ拡張）
 

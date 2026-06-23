@@ -12,6 +12,8 @@ StateRegion ごとに dominantTerrain を lazy fill（初回参照時に provinc
 それ以外は provinceTerrainWeights から再抽選する。
 ```
 
+**全地形カバレッジ保証 (v0.59)**: 全 Province の terrain 抽選後、`generateProvinces` の末尾で **World 単位**で全 5 地形（plains/forest/hills/mountains/wetlands）が最低 1 つずつ出現することを保証する。未出現の地形があれば、「出現数最多の地形を持つ最小 index の Province」を 1 つ選んで terrain を上書きする（RNG 不使用・決定的。出現数 ≤1 の地形は奪わない＝別の欠落を生まないため）。Province 数が地形数未満の極小ケースでは欠落が残りうるが、全 preset で発生しない。市場は state 単位で閉じるため、鉱業/林業に恵まれない state は残りうる（将来の交易システムで解消予定）。農園は全地形で建設可能（§7.3d）なので、地形が偏った state でも食料生産は >0 になる。
+
 **features**（terrain 抽選後に coastal → major_river → lake の順で判定、消費順固定）:
 
 ```txt
@@ -149,7 +151,8 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
 
 - `kind`: 基本は `manor`。`minHoldingsForCity` (3) 以上の Holding を持つ Province のみ city 配置の抽選対象となり、確率 `cityProvinceChance` (20%) で最後の Holding が `city` になる。1 Province あたり city は最大 1 つ
-  - **city 保証 (v0.48)**: 上記の抽選とは別に、ワールド全体で最低 `minGuaranteedCities` (2) 個の city を保証する。worldgen は holding 生成前にランダムな Province を 2 つ選び (部分 Fisher-Yates、配置が末尾に偏らないようにする)、それらは強制的に city を 1 つ持つ。**この保証は `minHoldingsForCity` 閾値を上書きする** ため、tiny preset (holdingsPerProvince=2、通常は city が 0 個) でも常に city が 2 つ生成される。強制対象の Province は `holdingCount >= 2` なら最後の Holding のみ city 化し manor が 1 つ以上残る (全 preset で `holdingsPerProvinceMin >= 2`)
+  - **city 保証 (v0.48 → v0.59 で state 単位に格上げ)**: 上記の抽選とは別に、**各 state に最低 1 つの city を保証する**（全 preset）。worldgen は holding 生成前に、provinces 出力順で各 state に最初に現れる Province を 1 つずつ強制 city province にする（決定的・RNG 不使用）。**この保証は `minHoldingsForCity` 閾値を上書きする** ため、tiny preset (holdingsPerProvince=2) でも各 state に city が生成される。強制対象の Province は最後の Holding のみ city 化する。（旧 v0.48: world 全体で `minGuaranteedCities` (2) を Fisher-Yates でランダム選択していたが、state 単位保証に置換）
+  - **manor≥2 保証 (v0.59)**: 全 Province は manor を最低 2 つ持つ（全 preset）。city がある Province は `2 manor + 1 city = 3 holding`。`holdingCount` を `max(holdingCount, 2 + (hasCity ? 1 : 0))` で底上げするだけで kind 割当（最後の holding のみ city）は不変。holding 数が少ない tiny/small で実質的に効く（standard 以上は元々充足）
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: manor = 1.0 (固定、乱数加算なし)、city = 2.0 + randomFloat * 1.0 (= 2.0〜3.0)
 - `landQuality`: 0.6〜1.4 の乱数（terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
