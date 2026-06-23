@@ -307,7 +307,7 @@ POP の財産を 0..100 wealth 指数から具体的な **money 残高(stock)** 
 
 **6.4.2 holding taxable / owner income / holding due（per-asset、v0.54 §17）**
 
-snapshot の `assetResults` を **資産ごとに反復**し、bailiff / chain の課税基盤となる `holdingTaxableRevenueBeforeBailiff` を組み立てる。**v0.58**: `positiveNet = max(0, asset.netRevenue − asset.wageShare)`（賃金 carve 後が owner/税/国庫の原資。`positiveNet` を 1 箇所変えるだけで owner income / holdingDue / taxable / 代官 / treasury すべてが `wageShare` 分縮む。労使ゼロサムの山分け）。赤字資産は 0 寄与で床留め。
+snapshot の `assetResults` を **資産ごとに反復**し、bailiff / chain の課税基盤となる `holdingTaxableRevenueBeforeBailiff` を組み立てる。**v0.58**: `positiveNet = max(0, asset.netRevenue − asset.wageShare − asset.ownerDividendShare)`（賃金 carve ＋ upper 配当 carve 後が owner/税/国庫の原資。`positiveNet` を 1 箇所変えるだけで owner income / holdingDue / taxable / 代官 / treasury すべてが `wageShare + ownerDividendShare` 分縮む。労使ゼロサムの山分け）。赤字資産は 0 寄与で床留め。read-model の owner income 推定（`estimateMonthlyOwnerIncome`、obligation accrual / 不動産売値 / house finance / UI が参照）も同じ carve 後 `positiveNet` を base にする（snapshot 経路）。
 
 ```text
 所有なし asset:        holdingTaxable += positiveNet              （全額）

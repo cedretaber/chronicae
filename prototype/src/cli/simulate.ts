@@ -464,15 +464,17 @@ function computeEconomyStats(
   for (const snap of Object.values(state.monthlyHoldingResourceRevenue)) {
     if (!snap) continue
     for (const ar of snap.assetResults) {
-      const positiveNet = Math.max(0, ar.netRevenue)
-      if (positiveNet <= 0) continue
-      allNet += positiveNet
+      const grossNet = Math.max(0, ar.netRevenue)
+      if (grossNet <= 0) continue
+      allNet += grossNet
       const asset = state.realEstateAssets[ar.assetId]
       if (asset?.owner) {
-        ownedNet += positiveNet
-        const due = positiveNet * config.realEstateHoldingDueRate
+        // v0.58: owner 側の原資は賃金・配当 carve 後 (landRevenueSystem の positiveNet と一致)。
+        const ownerNet = Math.max(0, ar.netRevenue - ar.wageShare - ar.ownerDividendShare)
+        ownedNet += ownerNet
+        const due = ownerNet * config.realEstateHoldingDueRate
         totalHoldingDue += due
-        totalOwnerIncome += positiveNet - due
+        totalOwnerIncome += ownerNet - due
       }
     }
   }

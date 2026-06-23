@@ -103,7 +103,13 @@ export function reduceProvincePopSizeProportional(
       if (!newPopGroups) {
         newPopGroups = { ...state.popGroups }
       }
-      newPopGroups[popGroupId] = { ...pop, size: newSize }
+      // v0.58: money は extensive → 死亡 (size 減) は per-capita 保存のため比例 burn
+      //   (popSystem の自然死亡と同じ規約。これを怠ると crisis 死で生存者の per-capita money が膨らむ)。
+      newPopGroups[popGroupId] = {
+        ...pop,
+        size: newSize,
+        money: pop.size > 0 ? pop.money * (newSize / pop.size) : pop.money,
+      }
     }
   }
 
@@ -456,7 +462,13 @@ export function reduceHoldingPopSizeProportionalMut(
     if (popClass !== undefined && pop.class !== popClass) continue
     const newSize = Math.max(0, pop.size - pop.size * rate)
     if (newSize === pop.size) continue
-    ws.popGroups[popId] = { ...pop, size: newSize }
+    // v0.58: money は extensive → 死亡 (size 減) は per-capita 保存のため比例 burn
+    //   (popSystem の自然死亡と同じ規約。crisis 死で money を据え置くと生存者の per-capita が膨らむ)。
+    ws.popGroups[popId] = {
+      ...pop,
+      size: newSize,
+      money: pop.size > 0 ? pop.money * (newSize / pop.size) : pop.money,
+    }
   }
 }
 

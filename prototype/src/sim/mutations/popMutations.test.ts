@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   reduceProvincePopSizeProportional,
+  reduceHoldingPopSizeProportionalMut,
   movePopSizeToKeyMut,
   movePopEmploymentMut,
   addToOrCreatePopGroupMut,
@@ -11,7 +12,13 @@ import type { ProvinceId, HoldingId, PopGroupId } from '../types/ids'
 import type { PopGroup, PopClass } from '../types/popGroup'
 import type { WorldState } from '../types/world'
 
-function pop(id: PopGroupId, holdingId: HoldingId, popClass: PopClass, size: number): PopGroup {
+function pop(
+  id: PopGroupId,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  size: number,
+  money = 0,
+): PopGroup {
   return {
     id,
     holdingId,
@@ -19,7 +26,7 @@ function pop(id: PopGroupId, holdingId: HoldingId, popClass: PopClass, size: num
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
-    money: 0,
+    money,
     needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
@@ -79,6 +86,47 @@ describe('reduceProvincePopSizeProportional', () => {
     const wiped = reduceProvincePopSizeProportional(state, provinceId, 1, 'lower')
     expect(wiped.popGroups[createPopGroupId(0)]!.size).toBe(0)
     expect(wiped.popGroups[createPopGroupId(1)]!.size).toBe(0)
+  })
+})
+
+// v0.58: crisis 死亡 (size 比例減) は money も per-capita 保存のため比例 burn する
+//   (popSystem の自然死亡と同規約)。怠ると生存者の per-capita money が膨らみ飢饉が報われる。
+describe('v0.58 money 保存 (crisis 死亡 = 比例 burn)', () => {
+  function moneyFixture(): { state: WorldState; provinceId: ProvinceId; holdingId: HoldingId } {
+    const provinceId = createProvinceId('p', 0)
+    const holdingId = createHoldingId(0)
+    const peas = createPopGroupId(0)
+    let state = makeEmptyV016State()
+    state = withProvince(state, provinceId)
+    state = withHolding(state, holdingId, provinceId)
+    state = {
+      ...state,
+      popGroups: { [peas]: pop(peas, holdingId, 'lower', 100, 1000) },
+      popIndex: { byHolding: { [holdingId]: [peas] } },
+    }
+    return { state, provinceId, holdingId }
+  }
+
+  it('reduceProvincePopSizeProportional burns money proportionally (per-capita preserved)', () => {
+    const { state, provinceId } = moneyFixture()
+    const result = reduceProvincePopSizeProportional(state, provinceId, 0.3)
+    const after = result.popGroups[createPopGroupId(0)]!
+    expect(after.size).toBe(70)
+    expect(after.money).toBeCloseTo(700) // 1000 * (70/100)
+    expect(after.money / after.size).toBeCloseTo(10) // per-capita 不変
+  })
+
+  it('reduceHoldingPopSizeProportionalMut burns money proportionally (per-capita preserved)', () => {
+    const { state, holdingId } = moneyFixture()
+    const ws: WorldState = {
+      ...state,
+      popGroups: { ...state.popGroups },
+    }
+    reduceHoldingPopSizeProportionalMut(ws, holdingId, 0.4)
+    const after = ws.popGroups[createPopGroupId(0)]!
+    expect(after.size).toBeCloseTo(60)
+    expect(after.money).toBeCloseTo(600) // 1000 * (60/100)
+    expect(after.money / after.size).toBeCloseTo(10) // per-capita 不変
   })
 })
 
