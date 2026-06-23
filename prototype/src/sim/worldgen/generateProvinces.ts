@@ -8,6 +8,7 @@ import { createProvinceId, createStateRegionId } from '../types/ids'
 import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators'
 import { randomFloat, randomInt } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { poissonDiskSample } from './poissonDisk'
 import { kruskalMST } from './mst'
 import { UnionFind } from './unionFind'
@@ -25,6 +26,50 @@ const TERRAIN_KEYS: readonly ProvinceTerrain[] = [
 ]
 
 const clamp01 = (x: number): number => Math.max(0, Math.min(1, x))
+
+/** Province の features を terrain/位置から決定的に抽選する（coastal→major_river→lake の順で randomFloat 消費）。
+ *  terrain 依存の確率（major_river/lake の terrainDelta）を含むため、terrain 上書き時は再ロールが必要。 */
+function rollProvinceFeatures(
+  rng: RngState,
+  terrain: ProvinceTerrain,
+  x: number,
+  y: number,
+  mapConfig: MapGenerationConfig,
+  config: SimulationConfig,
+): { features: ProvinceFeature[]; rng: RngState } {
+  const features: ProvinceFeature[] = []
+  const marginX = mapConfig.worldMapWidth * config.provinceCoastalEdgeMarginRatio
+  const marginY = mapConfig.worldMapHeight * config.provinceCoastalEdgeMarginRatio
+  const nearEdge =
+    x < marginX ||
+    x > mapConfig.worldMapWidth - marginX ||
+    y < marginY ||
+    y > mapConfig.worldMapHeight - marginY
+  if (nearEdge) {
+    // 内陸 Province では coastal の draw を消費しない
+    const { value: roll, rng: r1 } = randomFloat(rng)
+    rng = r1
+    if (roll < config.provinceFeatureCoastalChance) features.push('coastal')
+  }
+  {
+    const chance = clamp01(
+      config.provinceFeatureMajorRiverBaseChance +
+        (config.provinceFeatureMajorRiverTerrainDelta[terrain] ?? 0),
+    )
+    const { value: roll, rng: r1 } = randomFloat(rng)
+    rng = r1
+    if (roll < chance) features.push('major_river')
+  }
+  {
+    const chance = clamp01(
+      config.provinceFeatureLakeBaseChance + (config.provinceFeatureLakeTerrainDelta[terrain] ?? 0),
+    )
+    const { value: roll, rng: r1 } = randomFloat(rng)
+    rng = r1
+    if (roll < chance) features.push('lake')
+  }
+  return { features, rng }
+}
 
 /** terrain weights から決定的に 1 種抽選する（randomFloat を 1 回消費）。 */
 function pickTerrain(
@@ -47,6 +92,7 @@ export function generateProvinces(
   mapConfig: MapGenerationConfig,
   preset: WorldPreset,
   namePoolService?: NamePoolService,
+  config: SimulationConfig = defaultConfig,
 ): {
   provinces: Province[]
   stateCenters: StateCenter[]
@@ -422,7 +468,7 @@ export function generateProvinces(
     // terrain: state の dominantTerrain を高確率で継承し、残りは weights から抽選
     let dominantTerrain = dominantTerrainByState.get(pt.stateIndex)
     if (dominantTerrain === undefined) {
-      const picked = pickTerrain(rng, defaultConfig.provinceTerrainWeights)
+      const picked = pickTerrain(rng, config.provinceTerrainWeights)
       rng = picked.rng
       dominantTerrain = picked.value
       dominantTerrainByState.set(pt.stateIndex, dominantTerrain)
@@ -431,48 +477,25 @@ export function generateProvinces(
     {
       const { value: inheritRoll, rng: r1 } = randomFloat(rng)
       rng = r1
-      if (inheritRoll < defaultConfig.stateRegionDominantTerrainInheritanceChance) {
+      if (inheritRoll < config.stateRegionDominantTerrainInheritanceChance) {
         terrain = dominantTerrain
       } else {
-        const picked = pickTerrain(rng, defaultConfig.provinceTerrainWeights)
+        const picked = pickTerrain(rng, config.provinceTerrainWeights)
         rng = picked.rng
         terrain = picked.value
       }
     }
 
     // features: coastal → major_river → lake の順で判定（§10.2 消費順を固定）
-    const features: ProvinceFeature[] = []
-    const marginX = mapConfig.worldMapWidth * defaultConfig.provinceCoastalEdgeMarginRatio
-    const marginY = mapConfig.worldMapHeight * defaultConfig.provinceCoastalEdgeMarginRatio
-    const nearEdge =
-      pt.x < marginX ||
-      pt.x > mapConfig.worldMapWidth - marginX ||
-      pt.y < marginY ||
-      pt.y > mapConfig.worldMapHeight - marginY
-    if (nearEdge) {
-      // 内陸 Province では coastal の draw を消費しない
-      const { value: roll, rng: r1 } = randomFloat(rng)
-      rng = r1
-      if (roll < defaultConfig.provinceFeatureCoastalChance) features.push('coastal')
-    }
-    {
-      const chance = clamp01(
-        defaultConfig.provinceFeatureMajorRiverBaseChance +
-          (defaultConfig.provinceFeatureMajorRiverTerrainDelta[terrain] ?? 0),
-      )
-      const { value: roll, rng: r1 } = randomFloat(rng)
-      rng = r1
-      if (roll < chance) features.push('major_river')
-    }
-    {
-      const chance = clamp01(
-        defaultConfig.provinceFeatureLakeBaseChance +
-          (defaultConfig.provinceFeatureLakeTerrainDelta[terrain] ?? 0),
-      )
-      const { value: roll, rng: r1 } = randomFloat(rng)
-      rng = r1
-      if (roll < chance) features.push('lake')
-    }
+    const { features, rng: rngF } = rollProvinceFeatures(
+      rng,
+      terrain,
+      pt.x,
+      pt.y,
+      mapConfig,
+      config,
+    )
+    rng = rngF
 
     const provinceObj: Province = {
       id,
@@ -490,7 +513,10 @@ export function generateProvinces(
   }
 
   // v0.59: 全地形を World 単位で最低1つ保証する。未出現地形があれば、最も冗長な
-  //   (出現数最多の) 地形を持つ Province を1つ選び terrain を上書きする。RNG 不使用・決定的。
+  //   (出現数最多の) 地形を持つ Province を1つ選び terrain を上書きする。地形選定は決定的。
+  //   v0.59 追補: 上書き後は features を**新地形で再ロール**する（feature 確率は terrain 依存なので、
+  //   旧地形のまま残すと「山岳州が湖→rich_fishery」等の不整合になる）。上書きが起きた世界のみ
+  //   RNG を追加消費する（未発生＝全地形出現の世界では rng 不変）。
   {
     const counts = new Map<ProvinceTerrain, number>()
     for (const k of TERRAIN_KEYS) counts.set(k, 0)
@@ -512,7 +538,16 @@ export function generateProvinces(
       if (targetIdx < 0) break // 上書きできる冗長地形が無い (Province 数 < 地形数 等)
       const victim = provinces[targetIdx]!
       counts.set(victim.terrain, (counts.get(victim.terrain) ?? 0) - 1)
-      provinces[targetIdx] = { ...victim, terrain: missing }
+      const { features: newFeatures, rng: rngRe } = rollProvinceFeatures(
+        rng,
+        missing,
+        victim.x,
+        victim.y,
+        mapConfig,
+        config,
+      )
+      rng = rngRe
+      provinces[targetIdx] = { ...victim, terrain: missing, features: newFeatures }
       counts.set(missing, 1)
     }
   }
