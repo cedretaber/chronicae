@@ -45,6 +45,9 @@ function pickHoldingAndPolities(world: WorldState): {
   for (const hid of Object.keys(world.holdings) as HoldingId[]) {
     const owner = getHoldingTerminalPolityId(world, hid)
     if (!owner || !world.polities[owner]?.active) continue
+    // owner (= defender) は leader を持つ必要がある (CG / victory 解決に使う)。t=0 では多くの
+    // polity が leader 未割当 (遅延割当) なため、leader を持つ owner の holding を選ぶ。
+    if (!getPolityLeader(world, owner)) continue
     const other = activePolities.find((id) => (id as string) !== (owner as string))
     if (!other) continue
     return { holdingId: hid, owner, other }
