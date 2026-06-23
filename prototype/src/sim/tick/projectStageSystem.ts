@@ -1193,7 +1193,9 @@ function resolveRaiseFunds(
     required: updated.budget.required,
   })
 
-  emitProjectFunded(ws, updated, emitEvent)
+  // raised が実質ゼロ (allocated が既に required に到達済みで requiredRemaining=0 等) のラウンドでは
+  //   「資金を集めた」イベントは誤解を招くため出さない (round 加算は終了保証のため継続する)。
+  if (raised > 0) emitProjectFunded(ws, updated, emitEvent)
   return true
 }
 
