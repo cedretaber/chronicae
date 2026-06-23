@@ -3,6 +3,8 @@ import type { HoldingId, PolityId, PersonId, HoldingOfficeAssignmentId } from '.
 import type { HoldingOfficeAssignment } from '../types/landContract'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createHoldingOfficeAssignmentId } from '../types/ids'
+import { targetRefKey } from '../types/task'
+import { removeTaskFromIndicesMut } from './taskMutations'
 
 type AppointHoldingBailiffParams = {
   holdingId: HoldingId
@@ -123,22 +125,46 @@ export function vacateHoldingBailiff(state: WorldState, holdingId: HoldingId): W
   if (!existingId) return state
   const existing = state.holdingOfficeAssignments[existingId]
   if (!existing) return state
-  const nextAssignments = { ...state.holdingOfficeAssignments }
+
+  // この assignment を target にする Task (collect_holding_revenue 等) を先に purge する。
+  //   bailiffRevenueTaskSystem は active assignment しか走査しないため、assignment を消すだけだと
+  //   進行中の collect_holding_revenue タスクが dangling 化し、§17.2 整合性違反になる
+  //   (タスク deadline ≤4週ゆえタイミング依存で稀に year-end に残る)。削除点で確実に巻き取る。
+  let working = state
+  const targetKey = targetRefKey({ kind: 'holding_office_assignment', id: existingId })
+  const danglingTaskIds = state.taskIndex.byTarget[targetKey]
+  if (danglingTaskIds && danglingTaskIds.length > 0) {
+    const draft: WorldState = {
+      ...state,
+      tasks: { ...state.tasks },
+      taskIndex: {
+        byAssignee: { ...state.taskIndex.byAssignee },
+        byOwner: { ...state.taskIndex.byOwner },
+        byTarget: { ...state.taskIndex.byTarget },
+      },
+    }
+    for (const taskId of [...danglingTaskIds]) {
+      removeTaskFromIndicesMut(draft, taskId)
+    }
+    working = draft
+  }
+
+  const nextAssignments = { ...working.holdingOfficeAssignments }
   delete nextAssignments[existingId]
-  const nextByHolding = { ...state.holdingOfficeIndex.byHolding }
+  const nextByHolding = { ...working.holdingOfficeIndex.byHolding }
   delete nextByHolding[holdingId]
   return {
-    ...state,
+    ...working,
     holdingOfficeAssignments: nextAssignments,
     holdingOfficeIndex: {
       byHolding: nextByHolding,
       byHolderPerson: removeFromHolderSlot(
-        state.holdingOfficeIndex,
+        working.holdingOfficeIndex,
         existing.holderPersonId,
         existingId,
       ),
       byAppointingPolity: removeFromPolitySlot(
-        state.holdingOfficeIndex,
+        working.holdingOfficeIndex,
         existing.appointingPolityId,
         existingId,
       ),
