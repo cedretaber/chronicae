@@ -4,10 +4,7 @@ import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopType } from '../types/popGroup'
 import { POP_TYPES } from '../types/popGroup'
 import type { HoldingPopTypeDemand } from '../types/popMobility'
-import {
-  getHoldingAllPopTypeCapacities,
-  getHoldingAllPopTypeEffectiveCapacities,
-} from './popSelectors'
+import { getHoldingAllPopTypeCapacities, clampCapacityByMaxRatio } from './popSelectors'
 
 // v0.57 §雇用細分化: holding 単位の PopType 雇用需要 read-model。
 //   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = holding 全体で正規化した容量比
@@ -34,7 +31,11 @@ export function computeHoldingPopTypeDemand(
   // desired/idealShare = 施設駆動の生容量 (構造的な理想構成・容量推定)。
   const rawCapByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
   // shortage/surplus = maxRatio 後の実効容量 (転職が動かす actionable gap)。v0.59 追補。
-  const effCapByType = getHoldingAllPopTypeEffectiveCapacities(state, config, holdingId)
+  //   生容量を再計算せず raw から派生する (collectHoldingCapacityInputs の二重実行を回避)。
+  const effCapByType: Partial<Record<PopType, number>> = {}
+  for (const t of POP_TYPES) {
+    effCapByType[t] = clampCapacityByMaxRatio(state, holdingId, t, rawCapByType[t] ?? 0)
+  }
 
   // holding 全体の容量合計で正規化して idealShare を求める (移住 opportunity score 用)。
   let totalCap = 0

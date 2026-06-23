@@ -7,7 +7,8 @@ import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { POP_STRATA, POP_TYPES } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
-  getHoldingAllPopTypeEffectiveCapacities,
+  getHoldingAllPopTypeCapacities,
+  clampCapacityByMaxRatio,
   getHoldingEmployedPopSizeByType,
 } from '../selectors/popSelectors'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
@@ -306,12 +307,19 @@ function buildHoldingCache(
   }
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
 
-  // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
-  //   v0.59 追補: 実効容量 (maxRatio 後) を使い、埋まらない熟練職枠へ移住を誘引しない。
-  const capacityByType = getHoldingAllPopTypeEffectiveCapacities(state, config, holdingId)
-  let totalCapacity = 0
-  for (const t of Object.keys(capacityByType) as PopType[]) totalCapacity += capacityByType[t] ?? 0
-  const congestion = totalSize / Math.max(1, totalCapacity)
+  // capacity ceiling は構造由来で月内不変。生容量を 1 回算出し、vacancy 用に実効容量を派生する。
+  //   v0.59 追補: vacancy (capacityByType) は実効容量 (maxRatio 後)＝埋まらない熟練職枠へ移住を
+  //   誘引しない。一方 congestion は「物理的な混雑」なので **生容量**を分母にする (実効容量で割ると
+  //   下層不足の holding が過大な混雑＝過大な移住圧になる)。
+  const rawCapByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  const capacityByType: Partial<Record<PopType, number>> = {}
+  let totalRawCapacity = 0
+  for (const t of POP_TYPES) {
+    const raw = rawCapByType[t] ?? 0
+    totalRawCapacity += raw
+    capacityByType[t] = clampCapacityByMaxRatio(state, holdingId, t, raw)
+  }
+  const congestion = totalSize / Math.max(1, totalRawCapacity)
 
   return {
     demand,

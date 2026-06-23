@@ -391,44 +391,37 @@ export function getHoldingPopTypeCapacity(
   )
 }
 
-// v0.59 追補: 判断系 (転職/移住/昇格 gate・shortage) 専用の「実効容量」。
+// v0.59 追補: 生容量を maxRatio (熟練職の同数上限) で絞る共有 helper。
 //   熟練職 (親方/自作農) は POP_TYPE_MAX_RATIO により下層同種職の実雇用数 × ratio で雇用上限が縛られる。
-//   この絞り込みは employmentRebalanceSystem が適用するが生容量 selector には載らないため、
-//   判断系が「絶対に埋まらない幻の枠」を shortage/空き枠として誤計上していた。本ヘルパーは生容量を
-//   maxRatio で絞った値を返す。**rebalance 本体は生容量＋自前の動的 refEmployed ループに依存するため
-//   これを使わない** (生容量 selector は据え置き)。
+//   判断系 (転職/移住/昇格 gate・shortage) と employmentRebalanceSystem の両方がこの 1 箇所を共有し、
+//   絞り込み式の重複を排除する。refEmployed は呼び出し時点の live employed を読むため、rebalance の
+//   ように loop 内で参照先の雇用が変わる文脈でもそのまま使える。
+export function clampCapacityByMaxRatio(
+  state: WorldState,
+  holdingId: HoldingId,
+  popType: PopType,
+  rawCapacity: number,
+): number {
+  const maxRatio = POP_TYPE_MAX_RATIO[popType]
+  if (!maxRatio) return rawCapacity
+  const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
+  return Math.min(rawCapacity, refEmployed * maxRatio.ratio)
+}
+
+// v0.59 追補: 判断系専用の「実効容量」(生容量を maxRatio で絞った値)。「絶対に埋まらない幻の枠」を
+//   shortage/空き枠として誤計上しないために使う。
 export function getHoldingPopTypeEffectiveCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popType: PopType,
 ): number {
-  const raw = getHoldingPopTypeCapacity(state, config, holdingId, popType)
-  const maxRatio = POP_TYPE_MAX_RATIO[popType]
-  if (!maxRatio) return raw
-  const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
-  return Math.min(raw, refEmployed * maxRatio.ratio)
-}
-
-// v0.59 追補: getHoldingAllPopTypeCapacities の実効容量版 (全 PopType を 1 パスで)。
-export function getHoldingAllPopTypeEffectiveCapacities(
-  state: WorldState,
-  config: SimulationConfig,
-  holdingId: HoldingId,
-): Partial<Record<PopType, number>> {
-  const raw = getHoldingAllPopTypeCapacities(state, config, holdingId)
-  const result: Partial<Record<PopType, number>> = {}
-  for (const t of Object.keys(raw) as PopType[]) {
-    const cap = raw[t] ?? 0
-    const maxRatio = POP_TYPE_MAX_RATIO[t]
-    if (maxRatio) {
-      const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
-      result[t] = Math.min(cap, refEmployed * maxRatio.ratio)
-    } else {
-      result[t] = cap
-    }
-  }
-  return result
+  return clampCapacityByMaxRatio(
+    state,
+    holdingId,
+    popType,
+    getHoldingPopTypeCapacity(state, config, holdingId, popType),
+  )
 }
 
 export function getHoldingPopTypeRemainingCapacity(
