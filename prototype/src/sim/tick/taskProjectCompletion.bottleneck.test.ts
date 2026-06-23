@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { selectProductivityImprovementForBottleneck } from './taskProjectCompletion'
+import { selectProductivityImprovementForBottleneck } from '../selectors/productivityBottleneckSelectors'
 import { getHoldingProducedResourcesByAssetKind } from '../selectors/resourceProductionSelectors'
-import { getResourceShortageSeverity } from '../selectors/resourceRevenueSelectors'
+import {
+  getResourceShortageSeverity,
+  getResourceBottleneckSeverity,
+} from '../selectors/resourceRevenueSelectors'
 import { IMPROVEMENT_BOOSTED_REAL_ESTATE_KINDS } from '../config/resourceEconomyDefinitions'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import type { MarketResourcePriceState } from '../types/resourceEconomy'
-import { createProvinceId, createRealEstateAssetId } from '../types/ids'
+import { createProvinceId, createRealEstateAssetId, createPopGroupId } from '../types/ids'
 import type { ProductionRecipeId, HoldingId, StateRegionId } from '../types/ids'
 import type { RealEstateAsset } from '../types/realEstateAsset'
+import type { PopGroup } from '../types/popGroup'
 import type { ResourceKind } from '../types/resource'
 import type { WorldState } from '../types/world'
 
@@ -169,5 +173,61 @@ describe('selectProductivityImprovementForBottleneck (v0.59 追補③)', () => {
     expect(
       selectProductivityImprovementForBottleneck(withMaxedIrrigation, defaultConfig, holdingId),
     ).toBe('transport_infrastructure')
+  })
+})
+
+// 食料は市場が自己均衡し shortageSeverity≈0 になるため、人口圧 (pressure) シグナルで検出する。
+//   pop size 100 + 食料 CC を floor(50) に張り付かせて pressure=2.0 を作る (grain 市場 severity は 0)。
+function mkPop(
+  id: ReturnType<typeof createPopGroupId>,
+  holdingId: HoldingId,
+  size: number,
+): PopGroup {
+  return {
+    id,
+    holdingId,
+    class: 'lower',
+    popType: 'peasants',
+    employed: true,
+    size,
+    money: 0,
+    needSatisfaction: 50,
+    unrest: 10,
+    attitudes: {},
+  }
+}
+
+describe('食料 pressure シグナル (v0.59 追補③: 市場が見えない食料ボトルネックの検出)', () => {
+  function setupFoodBound(): { state: WorldState; holdingId: HoldingId } {
+    const base = setupFarmHolding(0) // grain 市場 severity = 0
+    const popId = createPopGroupId(900)
+    const state: WorldState = {
+      ...base.state,
+      popGroups: {
+        ...base.state.popGroups,
+        [popId]: mkPop(popId, base.holdingId, 100),
+      },
+      popIndex: {
+        ...base.state.popIndex,
+        byHolding: { ...base.state.popIndex.byHolding, [base.holdingId as string]: [popId] },
+      },
+    }
+    return { state, holdingId: base.holdingId }
+  }
+
+  it('grain 市場 severity=0 でも pressure≥0.9 なら bottleneck severity は pressure を採用', () => {
+    const { state } = setupFoodBound()
+    // pop 100 / 食料CC floor 50 → pressure clamp 2.0。market severity 0 を上回る。
+    expect(getResourceShortageSeverity(state, SR0, 'grain')).toBe(0)
+    expect(
+      getResourceBottleneckSeverity(state, defaultConfig, PA, SR0, 'grain'),
+    ).toBeGreaterThanOrEqual(defaultConfig.foodBottleneckPressureThreshold)
+  })
+
+  it('食料束縛 (pressure 高・市場均衡) の farm holding → irrigation を選ぶ', () => {
+    const { state, holdingId } = setupFoodBound()
+    expect(selectProductivityImprovementForBottleneck(state, defaultConfig, holdingId)).toBe(
+      'irrigation_infrastructure',
+    )
   })
 })
