@@ -1227,9 +1227,12 @@ function applyAcquireRealEstateMut(
   if (terminalPolityId) {
     const polity = ws.polities[terminalPolityId]
     if (polity) {
+      // v0.60: seller への支払いは「実際に集めた額」= budget.allocated に依拠する (保存則)。
+      //   買い手側 (owner House の初期確保 + raise_funds 拠出) で実減算した総額と一致させ、
+      //   under-funded 完了でも貨幣創造にならないようにする。満額 funded 時は allocated==salePrice。
       ws.polities[terminalPolityId] = {
         ...polity,
-        treasury: polity.treasury + project.salePrice,
+        treasury: polity.treasury + project.budget.allocated,
       }
     }
   }

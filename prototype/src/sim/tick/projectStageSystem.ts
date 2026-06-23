@@ -1026,23 +1026,40 @@ function makeProjectPriceLookup(ws: WorldState, project: Project): (r: ResourceK
   }
 }
 
-// pledge を出し手の stock から実減算する (各 stock >= 0 を Math.max で担保)。
-function applyPledgeDrains(ws: WorldState, pledges: Pledge[]): void {
+// pledge を出し手の stock から実減算し、**実際に引いた合計額**を返す。
+//   各 stock の現在値で clamp し (delta = min(amount, stock))、その delta を加算する。
+//   返り値を budget の加算額に使うことで「drain 合計 == budget 増加」を構造的に保証する
+//   (pledge が stock を超えても貨幣創造にならない・保存則の防御層)。
+function applyPledgeDrains(ws: WorldState, pledges: Pledge[]): number {
+  let drained = 0
   for (const { contributor, amount } of pledges) {
     if (contributor.kind === 'polity') {
       const p = ws.polities[contributor.id]
-      if (p) ws.polities[contributor.id] = { ...p, treasury: Math.max(0, p.treasury - amount) }
+      if (!p) continue
+      const d = Math.min(amount, p.treasury)
+      ws.polities[contributor.id] = { ...p, treasury: p.treasury - d }
+      drained += d
     } else if (contributor.kind === 'house') {
       const h = ws.houses[contributor.id]
-      if (h) ws.houses[contributor.id] = { ...h, wealth: Math.max(0, h.wealth - amount) }
+      if (!h) continue
+      const d = Math.min(amount, h.wealth)
+      ws.houses[contributor.id] = { ...h, wealth: h.wealth - d }
+      drained += d
     } else if (contributor.kind === 'person') {
       const pe = ws.persons[contributor.id]
-      if (pe) ws.persons[contributor.id] = { ...pe, wealth: Math.max(0, pe.wealth - amount) }
+      if (!pe) continue
+      const d = Math.min(amount, pe.wealth)
+      ws.persons[contributor.id] = { ...pe, wealth: pe.wealth - d }
+      drained += d
     } else {
       const pop = ws.popGroups[contributor.id]
-      if (pop) ws.popGroups[contributor.id] = { ...pop, money: Math.max(0, pop.money - amount) }
+      if (!pop) continue
+      const d = Math.min(amount, pop.money)
+      ws.popGroups[contributor.id] = { ...pop, money: pop.money - d }
+      drained += d
     }
   }
+  return drained
 }
 
 // cumulative 主要拠出記録を更新する (pop は DecisionSubjectRef に載らないため除外・amount 降順上位 limit)。
@@ -1150,21 +1167,21 @@ function resolveRaiseFunds(
     return true
   }
 
-  // over-collection cap: allocated が required を超えないよう raised を requiredRemaining に clamp。
-  //   各 pledge を比例縮小し「drain 合計 == budget 増加」(保存則) を維持する (acquire の seller
-  //   決済が budget.allocated に依拠するため、超過は seller 過払い=貨幣創造になる)。
+  // over-collection cap: allocated が required を超えないよう各 pledge を比例縮小する
+  //   (acquire の seller 決済が budget.allocated に依拠するため、超過は seller 過払い=貨幣創造)。
   const scale = rawRaised > requiredRemaining ? requiredRemaining / rawRaised : 1
-  let raised = 0
   for (const p of pledges) {
     p.amount = p.amount * scale
-    raised += p.amount
   }
 
-  applyPledgeDrains(ws, pledges)
+  // budget へ加算するのは「実際に stock から引いた合計」(applyPledgeDrains の返り値)。
+  //   こうすることで pledge が stock を超えるケースでも「drain 合計 == budget 増加」が構造的に成立する。
+  const raised = applyPledgeDrains(ws, pledges)
 
   const finalKey = getFinalStageKey(project.kind)
-  const baseDeadline = Math.max(absoluteWeek, project.deadlineWeek ?? absoluteWeek)
-  const newDeadline = baseDeadline + config.projectFundingDeadlineExtensionWeeks
+  // v0.60: deadline の延長は非 crisis kind のみ。handle_crisis は Crisis.deadlineWeek を単一の真実とし
+  //   (非 disrepair)、disrepair は deadline 無し (v0.48.1)。raise_funds で上書きするとそれらを壊すため
+  //   project の既存 deadlineWeek を保持する (spread で維持)。
   const updated = {
     ...project,
     budget: {
@@ -1179,7 +1196,10 @@ function resolveRaiseFunds(
       config.projectMajorContributorTrackLimit,
     ),
     currentStageKey: finalKey,
-    deadlineWeek: newDeadline,
+  }
+  if (project.kind !== 'handle_crisis') {
+    const baseDeadline = Math.max(absoluteWeek, project.deadlineWeek ?? absoluteWeek)
+    updated.deadlineWeek = baseDeadline + config.projectFundingDeadlineExtensionWeeks
   }
   ws.projects[projectId] = updated
 
