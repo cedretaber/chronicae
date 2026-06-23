@@ -1682,7 +1682,6 @@ export function generateWorld(
       //   全 holding 共通の固定職能分布で分割 → 施設に枠の無い PopType を播いて初期失業が出ていた)。
       const popTypeCaps = computeHoldingAllPopTypeCapacities(
         holding.weight,
-        holding.landQuality,
         province.terrain,
         province.features,
         seedImprovements,

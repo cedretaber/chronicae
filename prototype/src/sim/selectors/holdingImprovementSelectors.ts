@@ -143,7 +143,8 @@ export function computeSlotOveruseModifier(
 }
 
 // v0.52: capacity = (asset_term + infra_term) × weight
-// asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod × landQuality
+// asset_term = Σ(slot.capacityPerLevel × level × terrainMult × featureMult × infraMod) × slotOveruseMod
+// (v0.59: landQuality 廃止。holding 単位の変動は「広闊な地形」trait の不動産スロット数に移譲)
 // infra_term = Σ(slot.capacityPerLevel × imp.level × conditionEffectiveness)
 // v0.57 §雇用細分化: slot は PopType キー。stratum 集計 (computeHoldingClassCapacity) は
 //   getPopStratum(slot.popType) で、PopType 別容量 (computeHoldingPopTypeCapacity) は slot.popType で
@@ -167,7 +168,7 @@ function assetCapacityMultiplier(
   return terrainMult * featureMult * infraMod
 }
 
-// v0.54: 単一 asset・単一 stratum の slot 容量項。overuseMod / landQuality / weight は呼び出し側。
+// v0.54: 単一 asset・単一 stratum の slot 容量項。overuseMod / weight は呼び出し側。
 export function computeAssetSlotCapacityTerm(
   realEstateKind: RealEstateKind,
   level: number,
@@ -242,7 +243,6 @@ function improvementPopTypeCapacityTerm(
 export function computeHoldingClassCapacity(
   _holdingKind: HoldingKind,
   weight: number,
-  landQuality: number,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
   improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
@@ -266,7 +266,7 @@ export function computeHoldingClassCapacity(
     }
   }
   const overuseMod = slotOveruseModifier ?? 1.0
-  assetTerm = assetTerm * overuseMod * landQuality
+  assetTerm = assetTerm * overuseMod
 
   const infraTerm = improvementPopTypeCapacityTerm(
     improvements,
@@ -282,7 +282,6 @@ export function computeHoldingClassCapacity(
 export function computeHoldingPopTypeCapacity(
   _holdingKind: HoldingKind,
   weight: number,
-  landQuality: number,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
   improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
@@ -306,7 +305,7 @@ export function computeHoldingPopTypeCapacity(
     }
   }
   const overuseMod = slotOveruseModifier ?? 1.0
-  assetTerm = assetTerm * overuseMod * landQuality
+  assetTerm = assetTerm * overuseMod
 
   const infraTerm = improvementPopTypeCapacityTerm(improvements, config, (pt) => pt === popType)
 
@@ -317,7 +316,6 @@ export function computeHoldingPopTypeCapacity(
 //   12x コストを避ける)。demand/rebalance が利用する。値は computeHoldingPopTypeCapacity と一致する。
 export function computeHoldingAllPopTypeCapacities(
   weight: number,
-  landQuality: number,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
   improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
@@ -338,7 +336,7 @@ export function computeHoldingAllPopTypeCapacities(
       config,
     )
     for (const slot of def.employmentSlots) {
-      const add = slot.capacityPerLevel * asset.level * mult * overuseMod * landQuality * weight
+      const add = slot.capacityPerLevel * asset.level * mult * overuseMod * weight
       result[slot.popType] = (result[slot.popType] ?? 0) + add
     }
   }

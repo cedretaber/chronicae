@@ -53,7 +53,7 @@ function computeStaffingFulfillment(used: number, capacity: number): number {
 
 // v0.54 §10.2 / §23 Step 2: per-asset の class capacity 寄与。
 //   既存 computeHoldingClassCapacity の asset_term を単一 asset について計算したもの
-//   (holding 共通の overuseMod / landQuality / weight も掛けて faithful な capacity 値にする)。
+//   (holding 共通の overuseMod / weight も掛けて faithful な capacity 値にする)。
 //   labor 按分の weight に使う (holding 共通項は比率で相殺するため weight としては asset 固有項だけでも足りる)。
 function getRealEstateAssetClassCapacityContribution(
   state: WorldState,
@@ -82,11 +82,11 @@ function getRealEstateAssetClassCapacityContribution(
     config,
   )
 
-  // overuseMod / landQuality / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
+  // overuseMod / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
   const usedSlots = (state.realEstateAssetIndex.byHolding[asset.holdingId as string] ?? []).length
   const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
-  return assetTerm * overuseMod * holding.landQuality * holding.weight
+  return assetTerm * overuseMod * holding.weight
 }
 
 // v0.54 §11.2 生産施設 modifier。

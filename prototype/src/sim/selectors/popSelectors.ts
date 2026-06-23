@@ -322,7 +322,6 @@ export function getHoldingClassCapacity(
   return computeHoldingClassCapacity(
     holding.kind,
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
@@ -380,7 +379,6 @@ export function getHoldingPopTypeCapacity(
   return computeHoldingPopTypeCapacity(
     holding.kind,
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
@@ -413,7 +411,6 @@ export function getHoldingAllPopTypeCapacities(
   const { holding, province, improvements, assets, overuseMod } = inputs
   return computeHoldingAllPopTypeCapacities(
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
