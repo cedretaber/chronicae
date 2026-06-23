@@ -232,10 +232,12 @@ project:
   sell_land:
     started: '{{seller}}が{{buyer}}への領地売却を持ちかけた。'
   completed: '{{owner}}がプロジェクトを完了した：{{kind}}。'
+  funded: '{{supervisor}}が{{owner}}の{{kind}}のため資金を集めた。'
   failed:
     no_supervisor: '{{owner}}のプロジェクト{{kind}}が頓挫した——監督者不在。'
     deadline: '{{owner}}のプロジェクト{{kind}}が頓挫した——期限超過。'
     budget: '{{owner}}のプロジェクト{{kind}}が頓挫した——予算枯渇。'
+    funding: '{{owner}}のプロジェクト{{kind}}が頓挫した——資金集めに失敗。'
     stage_max_attempts: '{{owner}}のプロジェクト{{kind}}が頓挫した——試行回数超過。'
     duplicate_play: '{{owner}}のプロジェクト{{kind}}が頓挫した——類似の外交劇が進行中。'
     opponent_too_strong: '{{owner}}のプロジェクト{{kind}}が頓挫した——相手が強大で圧力をかけられなかった。'

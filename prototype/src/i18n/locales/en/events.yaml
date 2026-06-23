@@ -233,10 +233,12 @@ project:
   sell_land:
     started: '{{seller}} moved to sell land to {{buyer}}.'
   completed: '{{owner}} completed a project: {{kind}}.'
+  funded: "{{supervisor}} raised funds for {{owner}}'s {{kind}}."
   failed:
     no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."
     deadline: "{{owner}}'s project {{kind}} failed — deadline exceeded."
     budget: "{{owner}}'s project {{kind}} failed — budget exhausted."
+    funding: "{{owner}}'s project {{kind}} failed — fundraising fell short."
     stage_max_attempts: "{{owner}}'s project {{kind}} failed — too many failed attempts."
     duplicate_play: "{{owner}}'s project {{kind}} failed — a similar diplomatic play already exists."
     opponent_too_strong: "{{owner}}'s project {{kind}} failed — the other party was too strong to pressure."

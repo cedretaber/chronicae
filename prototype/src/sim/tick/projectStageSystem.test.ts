@@ -746,3 +746,103 @@ describe('v0.60 secure_budget 軽量化 (develop_holding)', () => {
     expect(ws.polities[POLITY]?.treasury).toBe(4700)
   })
 })
+
+// ─── v0.60 raise_funds resolver ────────────────────────────────────────────
+
+describe('v0.60 raise_funds resolver (develop_holding)', () => {
+  const POLITY = 'c-rf' as PolityId
+  const HOUSE = 'hh-rf' as HouseId
+  const HOLDING = 'hl-rf' as HoldingId
+  const CREATOR = 'pe-rf-creator' as PersonId
+  const SUPERVISOR = 'pe-rf-super' as PersonId
+
+  function makeState(opts: {
+    treasury: number
+    creatorWealth: number
+    supervisorWealth: number
+  }): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: HOUSE, treasury: opts.treasury })
+    ws = withPerson(ws, CREATOR, { houseId: HOUSE, wealth: opts.creatorWealth })
+    ws = withPerson(ws, SUPERVISOR, { houseId: HOUSE, wealth: opts.supervisorWealth })
+    return ws
+  }
+
+  function makeProj(budget: {
+    required: number
+    allocated: number
+    remaining: number
+    spent: number
+  }): DevelopHoldingProject {
+    return {
+      id: 'proj-rf' as ProjectId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: CREATOR,
+      supervisorPersonId: SUPERVISOR,
+      status: 'active',
+      progress: 40,
+      targetProgress: 100,
+      currentStageKey: 'raise_funds',
+      createdWeek: 0,
+      deadlineWeek: 500,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'irrigation_infrastructure',
+      targetImprovementLevel: 1,
+      budget: { ...budget, source: { kind: 'owner' } },
+    }
+  }
+
+  function run(ws: WorldState, project: DevelopHoldingProject): DevelopHoldingProject {
+    ws.projects[project.id] = project
+    resolveImmediateStages(ws, defaultConfig, project.id, 1000)
+    return ws.projects[project.id] as DevelopHoldingProject
+  }
+
+  it('十分な拠出が集まると budget に加算され execute_project へ戻り deadline が延びる', () => {
+    const ws = makeState({ treasury: 200, creatorWealth: 200, supervisorWealth: 200 })
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    // insider polity/creator/supervisor が各 0.5×stock=100 を拠出 → raised=300。
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(600)
+    expect(project.budget.remaining).toBe(300)
+    expect(project.fundingRoundCount).toBe(1)
+    expect(project.deadlineWeek).toBe(1000 + defaultConfig.projectFundingDeadlineExtensionWeeks)
+  })
+
+  it('保存則: 拠出者 stock 減少分の合計 == budget allocated 増加分', () => {
+    const ws = makeState({ treasury: 200, creatorWealth: 200, supervisorWealth: 200 })
+    const before = 200 + 200 + 200
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    const after =
+      (ws.polities[POLITY]?.treasury ?? 0) +
+      (ws.persons[CREATOR]?.wealth ?? 0) +
+      (ws.persons[SUPERVISOR]?.wealth ?? 0)
+    const drained = before - after
+    const allocatedIncrease = project.budget.allocated - 300
+    expect(drained).toBeCloseTo(allocatedIncrease, 6)
+  })
+
+  it('over-collection は requiredRemaining に cap され allocated は required を超えない', () => {
+    const ws = makeState({ treasury: 1000, creatorWealth: 1000, supervisorWealth: 1000 })
+    // requiredRemaining=50 に対し raw pledges は 1500 → cap で raised=50。
+    const project = run(ws, makeProj({ required: 1000, allocated: 950, remaining: 0, spent: 950 }))
+    expect(project.budget.allocated).toBeCloseTo(1000, 6)
+    const drained =
+      3000 -
+      ((ws.polities[POLITY]?.treasury ?? 0) +
+        (ws.persons[CREATOR]?.wealth ?? 0) +
+        (ws.persons[SUPERVISOR]?.wealth ?? 0))
+    expect(drained).toBeCloseTo(50, 6)
+  })
+
+  it('拠出が最小回収未満 (全 stock 枯渇) だと funding_failed', () => {
+    const ws = makeState({ treasury: 0, creatorWealth: 0, supervisorWealth: 0 })
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    expect(project.status).toBe('failed')
+    expect(project.terminalReason).toBe('funding_failed')
+  })
+})
