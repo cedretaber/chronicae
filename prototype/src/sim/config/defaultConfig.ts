@@ -1793,7 +1793,12 @@ export const defaultConfig: SimulationConfig = {
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,
   // v0.55 飢饉: 食料不足の結果として発火・餓死。pressure ベース (購買力中立)。
-  famineOnsetPressure: 1.0,
+  // v0.58 balance: 1.0→1.3。過少消費是正で食料 desire を半減(popEssentialNeedScale 0.5)した結果、
+  //   人口が食料生産限界まで増え food pressure が常時 ~1 となり「満腹なのに飢饉」が頻発していた。
+  //   平時の人口抑制は滑らかな growthFactor=1−pressure²(pressure>1 で負成長)に委ね、急性飢饉は
+  //   深刻な食料不足(pressure>1.3＝干魃等)のみで発火させる。実測: 飢饉イベント -83%・雇用率 74→87%・
+  //   人口は安定。将来 grain 単独×低 survival 閾値への分離も検討(食料内訳が分かれた時に有効、§6.6)。
+  famineOnsetPressure: 1.3,
   famineMortalityPerDeficit: 0.3,
   famineMaxMortalityRate: 0.15,
   // v0.55 干魃: 食料生産への被害。severity 30 → 産出 ×0.70、severity 50 → ×0.50 (floor 0.30)。

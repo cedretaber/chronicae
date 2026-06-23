@@ -466,6 +466,8 @@ const droughtChance = config.droughtBaseChancePerYear
 
 > **v0.55 §B（飢饉・干魃の商品経済整合）**: 旧実装では famine も drought も pressureExcess（人口圧）駆動で発火し、固定率の人口ショックを直接与えていた。商品ベース経済では (1)「食料生産が人口を養えない」は carrying-capacity 経由で**慢性的に**既にモデル化されており（popSystem の `growthFactor = 1 − pressure²` が pressure>1 で負転、§6.5）、(2) market は価格上限で食料を実質無限購入させてしまう抽象化のため、生産不足が「餓死」に結びつかなかった。v0.55 で**消費（結果）を時間軸で分担**する: carrying-capacity が慢性の成長抑制を担い、**飢饉は急性の餓死を担う**。market fulfillment は購買力加重で「買えない＝飢える」層ほど需要が下がり充足が高く出る（逆向き）ため、信号には用いず物理的な pressure（perCapitaFoodNeed ベース）を使う。
 
+> **v0.58 balance（famineOnsetPressure 1.0→1.3）**: 過少消費是正で食料 desire を半減（`popEssentialNeedScale` 0.5、§6.3c.5）した結果、人口が食料生産限界まで増えて food pressure が平時から ~1 に張り付き、「**穀物は安値（需要半減で oversupply）なのに飢饉**」が頻発した（生存閾値 `perCapitaFoodNeed`=1.0 が実消費 ~0.6 より高く、満腹の POP まで餓死判定された）。飢饉は人口抑制の load-bearing な機構（消すと食料 cap 解放で人口爆発・失業・welfare 悪化）のため**消さず**、onset を 1.3 へ上げて**急性飢饉を深刻な不足（干魃等）のみに限定**し、平時の人口抑制は滑らかな `growthFactor` に委ねた。実測（tiny seed1）: 飢饉イベント -83%・雇用率 74→87%・人口安定。**残課題**: 食料の内訳（grain vs protein/fine_food）が乖離してくれば、飢饉を **grain 単独 × 低 survival 閾値**へ分離する案が「survival＝穀物」をより正しく表現できる（現状は grain が総食料の 76–90% で両者がほぼ連動するため効果小・将来の磨き込み）。
+
 - **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
 - **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。plague/war_damage は table 値（plague は全 class、war_damage は peasants）。**v0.55: 飢饉の餓死は table 値ではなく不足分比例の急性死** `min(famineMaxMortalityRate, famineMortalityPerDeficit × max(0, pressure − famineOnsetPressure))`（peasants）。**干魃は直接の人口ショックを持たず（table 0）**、後述の食料生産減衰で扶養力を下げて飢饉を誘発する。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
