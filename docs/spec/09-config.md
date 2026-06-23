@@ -693,6 +693,17 @@
 | projectDeadlineWeeksDiplomatic | 24 | 外交系 Project のデフォルト deadline（週） |
 | prepareProjectPartialTargetProgressPenalty | 10 | prepare_project 部分成功時の targetProgress ペナルティ |
 | projectCooldownWeeks | 4 | Project 着手のクールダウン（週） |
+| **v0.60 Project 資金集めフェーズ** | | |
+| projectInitialReserveFraction | 0.3 | secure_budget で初期確保する required の割合（残りは raise_funds で集める） §6.38 |
+| projectMaxFundingRounds | 3 | budget 枯渇時の raise_funds ラウンド上限（超えると budget_exhausted）§6.40 |
+| projectFundingRoundMinCollectionFraction | 0.15 | 1 ラウンドの最小回収率（requiredRemaining 比）。未満で funding_failed §6.38 |
+| projectFundingDeadlineExtensionWeeks | 48 | 資金集め成功時の deadline 延長（週）= 1 年 §6.38 |
+| fundraisingMaxContributionFractionByContributorKind | polity 0.2 / house 0.2 / person 0.25 / pop 0.15 | external 拠出の kind 別上限率（stock 比）。能力×関係で減衰 §6.38 |
+| insiderMaxContributionFraction | 0.5 | insider（owner/creator/supervisor/代官）の拠出率（stock 比・能力非依存）§6.38 |
+| popContributionHorizonMonths | 3 | POP が拠出前に確保する生活費の月数（これを超える余剰のみ拠出）§6.38 |
+| fundraisingAbilityExponent | 1.4 | external 拠出の能力係数の指数 `(diplomacy score/50)^exp` §6.38 |
+| projectMajorContributorTrackLimit | 5 | majorContributors に記録する累積上位件数（建造 Chronicle 用）§6.38 |
+| localWealthyPopContributorLimit | 8 | ローカル POP 拠出候補の上限件数（予約・現状全列挙）§6.38 |
 | **Task 成否判定** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
 | **HoldingImprovement / ProjectBudget** | | |

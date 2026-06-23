@@ -1782,6 +1782,11 @@ type ProjectTerminalReason =
   | 'completed' | 'deadline_expired' | 'stage_attempts_exceeded' | 'budget_exhausted'
   | 'duplicate_play' | 'opponent_too_strong' | 'no_supervisor'
   | 'owner_inactive' | 'aim_terminal' | 'play_terminal'
+  | 'funding_failed'   // v0.60: 資金集めラウンドが最小回収を満たせず頓挫 (§6.38)
+  // （他に obligation_terminal / owner_titularized / target_destroyed / target_repaired 等が実装に存在）
+
+// v0.60: 資金集めの主要拠出記録（建造 Chronicle 用・cumulative・amount 降順上位 N に bounded）
+type ProjectContributorRecord = { subject: DecisionSubjectRef; amount: number }
 
 type BaseProject = {
   id: ProjectId
@@ -1800,8 +1805,12 @@ type BaseProject = {
   createdWeek: number
   deadlineWeek?: number
   reasonIds: DecisionReasonId[]
+  fundingRoundCount?: number              // v0.60: raise_funds ラウンド回数（§6.38）
+  majorContributors?: ProjectContributorRecord[]  // v0.60: 主要拠出者（建造 Chronicle 用）
 }
 ```
+
+> v0.60: budget を持つ建設・取得系 5 種（develop_holding / develop_real_estate / acquire_real_estate / upgrade_owned_real_estate / handle_crisis）は stage 列の final（execute_project/mitigate）の後ろに `raise_funds`(immediate) を持つ。budget 枯渇時に back-edge で資金集めラウンドへ移る（§6.38 / §6.40）。
 
 9 つの派生型 union で構成:
 - `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / budget (ProjectBudget)
