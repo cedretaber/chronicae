@@ -199,7 +199,7 @@ v0.55/56 では雇用枠は PopStratum 単位で、PopType は生産の soft mod
 - **施設駆動の職能構成（ハード枠）**: 雇用容量は施設 kind が PopType 比率で決める。`RealEstateEmploymentSlot` / `ImprovementEmploymentSlot` を **PopType キー**化（`{popType, capacityPerLevel, maxRatioTo?}`）。
   - 不動産: 工房=職人:親方:書記 6:3:1 / 農園=小作農:自作農 7:3 / 鉱山・山林=労働者:書記:家士 8:1:1。
   - 改善 establishment（外生定員・生産容量とは別プール）: 領主館=貴族:家士:兵士:労働者 1:2:3:4（total 20/lv）/ 市庁舎=都市貴族:官僚:兵士:労働者 1:2:3:4 / 倉庫=労働者:商人:書記 8:1:1。
-  - **容量セレクタ**: `computeHoldingClassCapacity`（stratum 集計＝`getPopStratum(slot.popType)`、既存消費者互換）に加え `computeHoldingPopTypeCapacity` / `computeHoldingAllPopTypeCapacities`（1 パス）を新設。terrain/feature/landQuality/overuse の重い乗数は不変。
+  - **容量セレクタ**: `computeHoldingClassCapacity`（stratum 集計＝`getPopStratum(slot.popType)`、既存消費者互換）に加え `computeHoldingPopTypeCapacity` / `computeHoldingAllPopTypeCapacities`（1 パス）を新設。terrain/feature/overuse の乗数は不変（v0.59: landQuality 乗数は廃止）。
 - **同数上限（`maxRatioTo`、`POP_TYPE_MAX_RATIO`）**: 熟練職（親方→職人 / 自作農→小作農、ratio 1）は主要職能の**実雇用数**までしか雇えない。rebalance が主要職能を先に確定 → 熟練を実数 × ratio で動的にキャップ。
 - **EmploymentRebalanceSystem**: stratum 単位から **PopType 単位**へ。各 PopType で容量超過を強制失業 → 空き枠を同 PopType の未就業で補充（処理順は非 maxRatioTo → maxRatioTo の順で参照先を先に確定）。`computeHoldingPopTypeDemand` の `desired` は施設由来の PopType 容量そのもの（recipe 集計は廃止）。
 - **PopJobChange / PopMigration**: capacity gate を PopType 別残枠（`getHoldingPopTypeRemainingCapacity` / cache の `capacityByType`）に変更。

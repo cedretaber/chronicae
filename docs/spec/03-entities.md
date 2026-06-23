@@ -86,8 +86,7 @@ type Holding = {
   nameKey: string         // required。ロケール中立の名前識別子（manor=province / city=city category で解決）
   kind: HoldingKind
   polityControl: number   // 0..100
-  landQuality: number     // > 0
-  weight: number          // > 0
+  weight: number          // > 0  (v0.59: landQuality 廃止)
   lastRevoltSuppressedWeek?: number  // この Holding の叛乱を最後に鎮圧した absoluteWeek（cooldown 入力）
   lastRevoltSettledWeek?: number     // この Holding の叛乱を最後に和解・決着させた absoluteWeek（cooldown 入力）
 }
@@ -97,7 +96,7 @@ type Holding = {
 - `nameKey`: ロケール中立の名前識別子（required）。manor は `province` category、city は `city` category で解決する（Holding 専用 category は使わない）。worldgen で命名し、同一 Province 内で一意（Province 名・他 Province の Holding 名との衝突は許容）。表示文字列への解決は `app/` / `i18n/` の責務（`sim/` 層規約）
 - `kind`: manor (農村荘園) / city (都市)。収入分配で city は kindMultiplier = 1.3
 - `polityControl`: terminal Polity の実効支配力。ControlSystem が Holding 単位で更新
-- `landQuality`: 土地の基礎品質（worldgen で 0.6〜1.4 の乱数。§7）。**雇用容量（capacity）の乗数**として効き（`computeHoldingClassCapacity` の assetTerm に `× landQuality`、§4.1）、結果として総産出を左右する。1 労働あたり生産性（`baseOutputPerLabor`）には掛けない。加えて収入分配の share weight にも影響する
+- **v0.59: `landQuality` は廃止**（無名のランダム容量ジッタだった。holding 単位の変動表現は Province の「広闊な地形」trait による不動産スロット数に移譲、§3.1 traits / §6）
 - `weight`: Holding の相対的な重み。収入分配・Province 集計の加重に使用
 - `lastRevoltSuppressedWeek` / `lastRevoltSettledWeek`: この Holding 上で叛乱が最後に鎮圧／和解・決着した週。provinceRevoltSystem / taxRevisionSystem が叛乱再発・税率改定の cooldown 入力として参照する
 - Holding-Province 対応はゲーム中不変（ゲーム中の Holding 追加・削除はない）

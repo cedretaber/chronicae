@@ -50,9 +50,9 @@ House / Person の wealth は際限なく蓄積する傾向がある。根本原
 
 ゲーム進行に伴い世界全体の生産力が低下していく傾向が観測されている。POP wealth 安定化で部分的に緩和されたが、Holding 改善の完了率が低いことと合わせ、経済が縮小再生産に陥る可能性が残る。
 
-### 14.1.5 地形 per-labor 生産ボーナスの将来課題（未実装）
+### 14.1.5 地形 per-labor 生産ボーナス（v0.59 で地形特性として実装）
 
-現状、terrain / feature が生産に効くのは **asset の雇用容量（capacity）経由のみ**（`realEstateTerrainCapacityMultiplier` 等、§6.3c / §9）であり、**1 労働あたり産出（`baseOutputPerLabor`）は地形非依存**。`ProductionRecipe` には `terrainOutputModifier`（地形 → per-labor 産出倍率）/ recipe 単位 `allowedTerrains` / `allowedFeatures` の型枠が用意されているが v0.55/56 では未配線（型のみ・enforce しない）。「水辺の漁場は高効率」「平原の穀物は高効率」のような地形特化を per-labor 生産性として表現したい場合に、これらを生産式へ配線する余地がある。同様に fishing_hut の水辺 feature ゲート（現状は内陸 farm でも採用可）も、配線するならこの将来枠で扱う。バランス確定後の検討事項。
+**v0.59 実装済み**: terrain/feature に相関した「地形特性 (TerrainTrait)」を Province 単位で持ち（§3.1 traits）、`output` 効果の特性は該当 raw 資源の per-output 産出倍率として効く（§6.3c / §6 の `getProvinceOutputTraitMultiplier`）。「水辺の漁場は高効率（rich_fishery→fish）」「平原の穀物は高効率（fertile_land→grain）」をこの仕組みで表現する。recipe 単位の `terrainOutputModifier` ではなく Province trait 単位で実装した（漁場のように RealEstateKind に紐付かない特性も表せるため）。対象は input を持たない raw 産出に限る（加工品は input 据え置きで output>input の無償財になるため）。倍率・付与確率・密度（`terrainTraitDensityMultiplier`）は §9 の default で balance-defer。fishing_hut の水辺 feature ゲート化（現状は内陸 farm でも採用可）は引き続き将来課題。
 
 ---
 

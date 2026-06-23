@@ -155,7 +155,7 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
   - **manor≥2 保証 (v0.59)**: 全 Province は manor を最低 2 つ持つ（全 preset）。city がある Province は `2 manor + 1 city = 3 holding`。`holdingCount` を `max(holdingCount, 2 + (hasCity ? 1 : 0))` で底上げするだけで kind 割当（最後の holding のみ city）は不変。holding 数が少ない tiny/small で実質的に効く（standard 以上は元々充足）
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: manor = 1.0 (固定、乱数加算なし)、city = 2.0 + randomFloat * 1.0 (= 2.0〜3.0)
-- `landQuality`: 0.6〜1.4 の乱数（terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
+- （v0.59: `landQuality` は廃止。holding 単位の変動は Province の「広闊な地形」trait による不動産スロット数で表現する。§7.1 traits / §3.1）
 
 初期の土地整備度は `development` フィールドではなく初期 HoldingImprovement の配置で表現する（§7.3c 参照）。
 
@@ -204,7 +204,7 @@ city:
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 
-各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する。seat 選定時点では Holding 未生成のため Holding ベースの指標（landQuality 平均 / weight 合計）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する。seat 選定時点では Holding 未生成のため Holding ベースの指標（weight 合計など）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
 
 ### 7.5 polityControl の初期値
 
