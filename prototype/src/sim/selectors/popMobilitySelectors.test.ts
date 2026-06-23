@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeHoldingPopTypeDemand, computePopTypeWealthQuantiles } from './popMobilitySelectors'
+import { computeHoldingPopTypeDemand, computePopTypeMoneyQuantiles } from './popMobilitySelectors'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { createProvinceId, createPopGroupId, createRealEstateAssetId } from '../types/ids'
@@ -13,7 +13,7 @@ const PROVINCE = createProvinceId('p', 0)
 type PopSpec = {
   cls: PopStratum
   popType: PopType
-  wealth: number
+  perCapMoney: number // v0.58: per-capita money (money = perCapMoney × size で seed)
   size: number
   employed?: boolean
 }
@@ -34,7 +34,8 @@ function setupPops(specs: PopSpec[]): { state: WorldState; holdingId: HoldingId 
       popType: spec.popType,
       employed: spec.employed ?? true,
       size: spec.size,
-      wealth: spec.wealth,
+      money: spec.perCapMoney * spec.size,
+      needSatisfaction: 50,
       unrest: 10,
       attitudes: {},
     }
@@ -49,19 +50,19 @@ function setupPops(specs: PopSpec[]): { state: WorldState; holdingId: HoldingId 
   return { state, holdingId }
 }
 
-describe('computePopTypeWealthQuantiles', () => {
-  it('computes size-weighted wealth quantiles per PopType within a state region', () => {
-    // 同じ職能 (laborers) 内で半分が貧 (wealth 10)・半分が富 (wealth 90)、同サイズ。
+describe('computePopTypeMoneyQuantiles', () => {
+  it('computes size-weighted per-capita money quantiles per PopType within a state region', () => {
+    // 同じ職能 (laborers) 内で半分が貧 (per-capita money 10)・半分が富 (90)、同サイズ。
     //   比較母集団は stratum ではなく職能単位 (v0.57.1)。
     const { state } = setupPops([
-      { cls: 'lower', popType: 'laborers', wealth: 10, size: 50 },
-      { cls: 'lower', popType: 'laborers', wealth: 90, size: 50 },
-      { cls: 'lower', popType: 'artisans', wealth: 50, size: 30 },
+      { cls: 'lower', popType: 'laborers', perCapMoney: 10, size: 50 },
+      { cls: 'lower', popType: 'laborers', perCapMoney: 90, size: 50 },
+      { cls: 'lower', popType: 'artisans', perCapMoney: 50, size: 30 },
     ])
 
-    const q = computePopTypeWealthQuantiles(state, 'sr-0' as StateRegionId)
+    const q = computePopTypeMoneyQuantiles(state, 'sr-0' as StateRegionId)
 
-    // cumulative size weighting: p25 & median は wealth-10 群、p75 は wealth-90 群。
+    // cumulative size weighting: p25 & median は per-capita money 10 群、p75 は 90 群。
     expect(q.laborers?.p25).toBe(10)
     expect(q.laborers?.median).toBe(10)
     expect(q.laborers?.p75).toBe(90)
@@ -76,8 +77,8 @@ describe('computeHoldingPopTypeDemand', () => {
   it('施設が無ければ雇用需要は発生しない (idealShare 0)', () => {
     // v0.57: 施設駆動。施設 (asset/improvement) が無い holding は雇用容量 0 → 需要なし。
     const { state, holdingId } = setupPops([
-      { cls: 'lower', popType: 'laborers', wealth: 50, size: 30 },
-      { cls: 'lower', popType: 'peasants', wealth: 50, size: 10 },
+      { cls: 'lower', popType: 'laborers', perCapMoney: 50, size: 30 },
+      { cls: 'lower', popType: 'peasants', perCapMoney: 50, size: 10 },
     ])
     // withProvince が付与した critical infra (manor_house) を外して「施設なし」にする。
     state.holdingImprovements = {}

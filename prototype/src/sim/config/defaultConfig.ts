@@ -220,11 +220,11 @@ export type SimulationConfig = {
   manpowerFactorByClass: Record<PopStratum, number>
   baseMonthlyGrowthByClass: Record<PopStratum, number>
   populationPressureThreshold: number
-  populationPressureWealthPenalty: number
   populationPressureUnrestGain: number
-  povertyWealthThreshold: number
+  // v0.58: poverty/prosperity は needSatisfaction(0..100) を welfare 指標として判定 (wealth から移行)。
+  povertyNeedSatisfactionThreshold: number
   povertyUnrestGain: number
-  prosperityWealthThreshold: number
+  prosperityNeedSatisfactionThreshold: number
   prosperityUnrestReduction: number
   unrestNaturalDecayRate: number
   // v0.57 §雇用細分化: 治安 (兵士・家士) による holding 単位の月次 unrest 低減。
@@ -232,11 +232,27 @@ export type SimulationConfig = {
   //   reduction = securityUnrestReductionAtFull × clamp(coverage / securityFullCoverageRatio, 0, 1)。
   securityUnrestReductionAtFull: number
   securityFullCoverageRatio: number
-  retainedWealthGainByClass: Record<PopStratum, number>
+  // v0.58: 賃金 = max(0, asset netRevenue) × wageShareOfNetRevenue を雇用 POP へ役割重み付き配分。
+  //   残り (1 − wageShareOfNetRevenue) が owner 取り分 (税/国庫含む)。労使ゼロサムの山分け。
+  wageShareOfNetRevenue: number
+  // v0.58 balance: 上流階層(nobles/patricians)は「給料」ではなく所有者・支配者としての**配当**を
+  //   受ける。holding 純収益の固定割合 = max(0, netRevenue) × upperDividendShareOfNetRevenue を
+  //   **雇用枠に就いている upper POP にのみ** size 比例で分配する(失業 upper=没落→配当ゼロ→money 枯渇→
+  //   既存降格で下位転落)。賃金とは別 carve で、owner 取り分はさらにこの分縮む。
+  //   制約: wageShareOfNetRevenue + upperDividendShareOfNetRevenue < 1。
+  upperDividendShareOfNetRevenue: number
+  // v0.58 balance: POP 資産課税。lower/middle の money 死蔵(mint>goods で消費しきれず貯まる分)を
+  //   削るための sink。per-capita floor 超過分に月次率で課税し、land 税と同じ holding 収入へ合流させる
+  //   (代官が徴収=localExtractionRate×collectionEfficiency で代官能力が効く・手数料も共通・chain で treasury へ)。
+  //   floor 以下の貧困層は非課税(累進)・upper は除外(死蔵は将来 Project 出資で使う)。史実の間接税/賦課が
+  //   持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの(§13)。
+  popWealthTaxRate: number // 月次・per-capita floor 超過分への課税率
+  popWealthTaxFloorPerCapita: number // この per-capita money 以下は非課税(貧困層の生活防衛バッファ)
+  wageRoleWeightByRole: Record<'primary' | 'skilled' | 'throughput', number>
   overExtractionThreshold: number
-  overExtractionWealthSafeThreshold: number
+  // v0.58: townsmen 反乱の welfare 判定を needSatisfaction へ (wealth から移行)。
+  overExtractionNeedSatisfactionSafeThreshold: number
   overExtractionUnrestSafeThreshold: number
-  overExtractionWealthPenalty: number
   overExtractionUnrestGain: number
   // v0.24 Occupation capacity
   classCapacityBaseByHoldingKind: Record<HoldingKind, Record<PopClass, number>>
@@ -253,13 +269,15 @@ export type SimulationConfig = {
   // v0.24 Occupation manpower multipliers
   employedManpowerMultiplierByClass: Record<PopClass, number>
   unemployedManpowerMultiplier: number
-  // v0.24 Unemployed POP penalties
-  unemployedWealthDecayByClass: Record<PopClass, number>
+  // v0.24 Unemployed POP penalties (v0.58: wealth decay は撤去。失業困窮は賃金ゼロ→money 枯渇で表現)
   unemployedUnrestGainByClass: Record<PopClass, number>
   unemployedGrowthModifierByClass: Record<PopClass, number>
   // v0.24 Initial POP generation
   initialPopFillRatioMin: number
   initialPopFillRatioMax: number
+  // v0.58 POP 初期 money (worldgen)。essential N ヶ月分相当 × stratum 倍率。
+  worldgenPopMoneyMonthsOfEssential: number
+  worldgenPopMoneyStratumMultiplier: Record<PopStratum, number>
   // v0.24 POP epsilon
   popSizeEpsilon: number
   // v0.56 POP 転職・移住 (spec-v056-update.md §15)
@@ -1459,13 +1477,13 @@ export type SimulationConfig = {
   // v0.55: recipeSwitchSystem の実行間隔 (週)。作付け・工房設備はそう頻繁に入れ替えられないため、
   //   月次 (4) より長い四半期 (12) / 年次 (48) を選べる。tick.ts の intervalOverrides 経由。
   recipeSwitchIntervalWeeks: number
-  // v0.55 §15.3: NeedTier ごとの購買力 (飽和曲線)。tierFloor=wealth0 でも買う割合、
-  //   tierWealthHalf=係数が中間まで伸びる per-capita wealth。
-  needTierFloor: Record<NeedTier, number>
-  needTierWealthHalf: Record<NeedTier, number>
-  // v0.55 §16.2: NeedTier ごとの shortage penalty (weekly wealth/unrest delta 係数)。
-  needShortageWealthPenaltyByTier: Record<NeedTier, number>
-  needShortageUnrestPenaltyByTier: Record<NeedTier, number>
+  // v0.58 §6.3c.5: needSatisfaction = Σ tier重み × (afford × market-fill) の加重平均×100 を平滑化。
+  needSatisfactionTierWeight: Record<NeedTier, number>
+  needSatisfactionSmoothing: number // 0..1（新値の重み。1=平滑なし）
+  // v0.58 balance: essential tier の消費 desire 全体スケール。賃金(粗利の wageShareOfNetRevenue)
+  //   が essential desire の ~15% しか賄えず全 POP が貧困床に貼り付く過少消費を是正する調整ダイヤル。
+  //   POP_NEED_PROFILES の PopType 間比率は保ったまま essential 量を一律倍する (1.0=従来)。
+  popEssentialNeedScale: number
   // recipe slot
   realEstateRecipeSlotCount: number
   // 生産
@@ -1688,20 +1706,22 @@ export const defaultConfig: SimulationConfig = {
   manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
   baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,
-  populationPressureWealthPenalty: 0.2,
   populationPressureUnrestGain: 0.3,
-  povertyWealthThreshold: 25,
+  povertyNeedSatisfactionThreshold: 25,
   povertyUnrestGain: 0.02,
-  prosperityWealthThreshold: 70,
+  prosperityNeedSatisfactionThreshold: 70,
   prosperityUnrestReduction: 0.01,
   unrestNaturalDecayRate: 0.05,
   securityUnrestReductionAtFull: 2.0,
   securityFullCoverageRatio: 0.1,
-  retainedWealthGainByClass: { lower: 0.3, middle: 0.45, upper: 0.25 },
+  wageShareOfNetRevenue: 0.5,
+  upperDividendShareOfNetRevenue: 0.03,
+  popWealthTaxRate: 0.03,
+  popWealthTaxFloorPerCapita: 2.0,
+  wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
   overExtractionThreshold: 0.95,
-  overExtractionWealthSafeThreshold: 55,
+  overExtractionNeedSatisfactionSafeThreshold: 55,
   overExtractionUnrestSafeThreshold: 45,
-  overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
   classCapacityBaseByHoldingKind: {
     manor: { lower: 0, middle: 0, upper: 0 },
@@ -1732,12 +1752,13 @@ export const defaultConfig: SimulationConfig = {
   employedManpowerMultiplierByClass: { lower: 1.0, middle: 0.8, upper: 1.2 },
   unemployedManpowerMultiplier: 0.5,
   // v0.24 Unemployed POP penalties
-  unemployedWealthDecayByClass: { lower: 0.2, middle: 0.3, upper: 0.15 },
   unemployedUnrestGainByClass: { lower: 0.2, middle: 0.35, upper: 0.45 },
   unemployedGrowthModifierByClass: { lower: 0.6, middle: 0.5, upper: 0.7 },
   // v0.24 Initial POP generation
   initialPopFillRatioMin: 70,
   initialPopFillRatioMax: 95,
+  worldgenPopMoneyMonthsOfEssential: 4,
+  worldgenPopMoneyStratumMultiplier: { lower: 1.0, middle: 1.5, upper: 3.0 },
   // v0.24 POP epsilon
   popSizeEpsilon: 0.01,
   // v0.56 POP 転職・移住 (§15。初期値。長期 seed 観察で調整)
@@ -1772,7 +1793,12 @@ export const defaultConfig: SimulationConfig = {
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,
   // v0.55 飢饉: 食料不足の結果として発火・餓死。pressure ベース (購買力中立)。
-  famineOnsetPressure: 1.0,
+  // v0.58 balance: 1.0→1.3。過少消費是正で食料 desire を半減(popEssentialNeedScale 0.5)した結果、
+  //   人口が食料生産限界まで増え food pressure が常時 ~1 となり「満腹なのに飢饉」が頻発していた。
+  //   平時の人口抑制は滑らかな growthFactor=1−pressure²(pressure>1 で負成長)に委ね、急性飢饉は
+  //   深刻な食料不足(pressure>1.3＝干魃等)のみで発火させる。実測: 飢饉イベント -83%・雇用率 74→87%・
+  //   人口は安定。将来 grain 単独×低 survival 閾値への分離も検討(食料内訳が分かれた時に有効、§6.6)。
+  famineOnsetPressure: 1.3,
   famineMortalityPerDeficit: 0.3,
   famineMaxMortalityRate: 0.15,
   // v0.55 干魃: 食料生産への被害。severity 30 → 産出 ×0.70、severity 50 → ×0.50 (floor 0.30)。
@@ -3059,10 +3085,9 @@ export const defaultConfig: SimulationConfig = {
   inputShortageOutputFloor: 0.25,
   recipeSwitchMinGainRate: 0.02,
   recipeSwitchIntervalWeeks: 12,
-  needTierFloor: { essential: 0.85, ordinary: 0.1, luxury: 0.0 },
-  needTierWealthHalf: { essential: 20, ordinary: 60, luxury: 150 },
-  needShortageWealthPenaltyByTier: { essential: 0.3, ordinary: 0.12, luxury: 0.06 },
-  needShortageUnrestPenaltyByTier: { essential: 0.4, ordinary: 0.1, luxury: 0.02 },
+  needSatisfactionTierWeight: { essential: 0.6, ordinary: 0.3, luxury: 0.1 },
+  needSatisfactionSmoothing: 0.5,
+  popEssentialNeedScale: 0.5,
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,

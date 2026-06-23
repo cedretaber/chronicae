@@ -45,7 +45,8 @@ function baseState(
     popType: 'peasants',
     employed: true,
     size,
-    wealth: 0,
+    money: 0,
+    needSatisfaction: 50,
     unrest: 0,
     attitudes: {},
   }

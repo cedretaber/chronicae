@@ -62,6 +62,13 @@ export type RealEstateProductionResult = {
   grossRevenue: number
   inputCost: number
   netRevenue: number
+  // v0.58: netRevenue から労働者(lower/middle)へ carve した賃金額 (= 実際に mint された money の合計)。
+  //   landRevenueSystem は positiveNet = max(0, netRevenue − wageShare − ownerDividendShare) で控除する。
+  //   carve==mint 不変条件: 分配不能 (雇用 PopType 不在) のときは 0 (owner から引かない)。
+  wageShare: number
+  // v0.58 balance: netRevenue から雇用 upper(nobles/patricians)へ carve した**配当**額 (= mint された合計)。
+  //   賃金とは別 carve (所有者・支配者の取り分)。雇用 upper 不在なら 0 (owner から引かない＝carve==mint)。
+  ownerDividendShare: number
   // v0.55 観察用充足率 (asset の recipe を slotCount 加重平均)。分配・生産計算には使わず UI/digest 専用。
   //   inputFulfillment: raw Liebig 最小律 (recipeInputScale, 0..1)。入力がどれだけ市場供給で満たされたか。
   //     これ自体が低いほど産出ペナルティ大 (floor 付き modifier 経由)。input 無し raw recipe は 1。

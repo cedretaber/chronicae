@@ -23,7 +23,13 @@ import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
+  computeAssetPopTypeShares,
 } from '../selectors/resourceProductionSelectors'
+import { WAGE_ROLE_BY_POP_TYPE } from '../config/popWageDefinitions'
+import type { PopType, PopStratum } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import type { ResolvedInputCategory } from '../selectors/resourceProductionSelectors'
 import { RESOURCE_LEVELS, RESOURCE_LEVELS_SORTED } from '../selectors/resourceGraph'
 import {
@@ -36,7 +42,11 @@ import {
   computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
+import type { NeedTier } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
+
+// v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
+const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
 import { createLogger } from '../debug/logger'
 
 // v0.54 §13 ResourceEconomySystem: 月次 (intervalWeeks:4) で資源生産・市場・売却益を解決し、
@@ -62,7 +72,14 @@ type MarketAccum = {
   // §12: 全 resource の buyOrders (POP 消費需要 + recipe input 需要)。supply は清算ループで level 昇順に算出。
   demand: Record<ResourceKind, number>
   // §16: 各 POP の NeedCategory 解決を保持し、清算後の per-pop wellbeing 計算に使う。
-  popDemands: { popId: PopGroupId; needs: ResolvedNeedCategory[] }[]
+  //   v0.58: needs は予算制約後の placed order（buyOrders を tier 優先 afford で縮小済み）。
+  //   affordByTier = 買えた割合（money 制約）、allocatedByTier = 充当 money（smoothedPrice 評価）。
+  popDemands: {
+    popId: PopGroupId
+    needs: ResolvedNeedCategory[]
+    affordByTier: Record<NeedTier, number>
+    allocatedByTier: Record<NeedTier, number>
+  }[]
 }
 
 function emptyResourceRecord(): Record<ResourceKind, number> {
@@ -166,18 +183,43 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           }
         }
 
-        // POP の消費需要 (§5.4 / §12.3 step 3): NeedCategory 別需要を ResourceKind buyOrders へ展開。
+        // POP の消費需要 (§5.4 / §12.3 step 3): NeedCategory 別 full desired を ResourceKind buyOrders へ展開し、
+        //   v0.58: start-of-tick money で **tier 優先 (essential→ordinary→luxury)** に予算制約する (§6.3c.5)。
+        //   一律スケールではなく tier 優先にすることで、貧困 POP は「食料を満額・贅沢ゼロ」になる
+        //   (一律だと「食料 30%＋贅沢 30%」で essential 充足が下がり飢餓と誤判定される)。
+        //   評価価格は終始 smoothedPrice (marketPriceLookup) で、burn (Task 2.2) と基準を揃え money が負にならない。
         const popIds = state.popIndex.byHolding[holdingId] ?? []
         for (const popId of popIds) {
           const pop = state.popGroups[popId]
           if (!pop) continue
-          const needs = computePopNeedDemand(pop, config, marketPriceLookup)
-          for (const cat of needs) {
-            for (const res of cat.resources) {
-              accum.demand[res.resource] += res.buyOrders
+          const needs = computePopNeedDemand(pop, config, marketPriceLookup) // full desired
+          let budget = pop.money // start-of-tick money（先月までの稼ぎ）
+          const affordByTier: Record<NeedTier, number> = { essential: 0, ordinary: 0, luxury: 0 }
+          const allocatedByTier: Record<NeedTier, number> = { essential: 0, ordinary: 0, luxury: 0 }
+          for (const tier of TIER_PRIORITY) {
+            let tierCost = 0
+            for (const cat of needs) {
+              if (cat.tier !== tier) continue
+              for (const res of cat.resources) {
+                tierCost += res.buyOrders * marketPriceLookup(res.resource)
+              }
+            }
+            const spend = tierCost > 0 ? Math.min(budget, tierCost) : 0
+            const afford = tierCost > 0 ? spend / tierCost : 0
+            affordByTier[tier] = afford
+            allocatedByTier[tier] = spend
+            budget -= spend
+            // placed order = full desired × afford。以降の充足率/burn でもこの placed を使う。
+            for (const cat of needs) {
+              if (cat.tier !== tier) continue
+              for (const res of cat.resources) {
+                const placed = res.buyOrders * afford
+                res.buyOrders = placed
+                accum.demand[res.resource] += placed
+              }
             }
           }
-          accum.popDemands.push({ popId, needs })
+          accum.popDemands.push({ popId, needs, affordByTier, allocatedByTier })
         }
       }
     }
@@ -207,6 +249,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   const newPopGroups: Record<PopGroupId, PopGroup> = { ...state.popGroups }
 
   for (const market of markets) {
+    // v0.58: needSatisfaction/burn の market-fill 評価用 smoothedPrice lookup (pass1 と同じ前月価格)。
+    const marketPriceLookup = (resource: ResourceKind): number => {
+      const ps = state.marketResourcePrices[marketResourcePriceKey(market.marketKey, resource)]
+      return getSmoothedPriceOrBase(ps?.smoothedPrice, resource)
+    }
+
     // ─── 市場清算 (§12 DAG 化) ───
     // demand は pass 1 で全 resource 分を計上済み (POP 需要 + recipe input 需要)。
     // supply は resource level 昇順に increment 計算する: level-N resource の supply は
@@ -325,6 +373,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           grossRevenue: 0,
           inputCost: 0,
           netRevenue: 0,
+          wageShare: 0, // v0.58: 最終 pass の賃金 carve で確定
+          ownerDividendShare: 0, // v0.58 balance: 最終 pass の upper 配当 carve で確定
           inputFulfillment: 0, // 集計中は Σ(slotCount × value)、後で正規化
         }
         assetResultByAsset.set(assetKey, assetResult)
@@ -434,33 +484,188 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
       }
     }
 
-    // ─── §16: NeedCategory 別 fulfillment を per-pop で集計し wealth/unrest へ反映 ───
-    //   各 pop の need 解決 (pass1 で smoothedPrice ベースに確定済み) を使い、各 category の
-    //   categoryFulfillment = Σ share_i × marketFulfillmentRatio_i (need value 加重, §16.1) を求める。
-    //   shortage = 1 - fulfillment。tier 別 penalty を weekly delta に積む (§16.2)。
-    //   需要 0 の category は pass1 で除外済み (resources 空は popDemands に入らない)。
-    //   NOTE: pop.wealth は 0..100 の指数なので spec §16.2 の ×pop.size は適用しない (index delta)。
-    for (const { popId, needs } of market.popDemands) {
+    // ─── v0.58 §6.3c.5: needSatisfaction (= afford × market-fill) を per-pop で算出し money を burn ───
+    //   per-tier 充足 = affordByTier[tier] (買えた割合・money 制約) × marketFill[tier] (市場で満たせた割合)。
+    //   afford と market-fill の **積** にすることで「金が無い」も「市場に無い」も両方シグナルに乗る
+    //   (placed order の fill だけだと貧困 POP が小口注文を出し市場が埋めれば満足判定になり貧困が消える)。
+    //   tier 重み加重平均×100 を平滑化して needSatisfaction。money burn = Σ allocated × marketFill。
+    //   burn は smoothedPrice 基準 (allocated と同基準) なので spent ≤ budget で money は負にならない。
+    //   unrest 即時加算・wealth 更新はここでは行わない (unrest は needSatisfaction 経由で popSystem が駆動)。
+    for (const { popId, needs, affordByTier, allocatedByTier } of market.popDemands) {
       if (needs.length === 0) continue
       const pop = newPopGroups[popId]
       if (!pop) continue
-      let wealthDelta = 0
-      let unrestDelta = 0
-      for (const cat of needs) {
-        let fulfillmentC = 0
-        for (const res of cat.resources) {
-          fulfillmentC += res.share * fulfillment[res.resource].fulfillmentRatio
+      let weightedFulfill = 0
+      let weightSum = 0
+      let spent = 0
+      for (const tier of TIER_PRIORITY) {
+        // placed order の smoothedPrice 評価額で市場充足率 (fulfillmentRatio) を value 加重平均。
+        let fillNum = 0
+        let fillDen = 0
+        for (const cat of needs) {
+          if (cat.tier !== tier) continue
+          for (const res of cat.resources) {
+            const v = res.buyOrders * marketPriceLookup(res.resource) // placed value
+            fillNum += v * clamp(fulfillment[res.resource].fulfillmentRatio, 0, 1)
+            fillDen += v
+          }
         }
-        const shortage = 1 - clamp(fulfillmentC, 0, 1)
-        if (shortage <= 0) continue
-        wealthDelta -= config.needShortageWealthPenaltyByTier[cat.tier] * shortage
-        unrestDelta += config.needShortageUnrestPenaltyByTier[cat.tier] * shortage
+        const marketFill = fillDen > 0 ? fillNum / fillDen : 0
+        const tierFulfillment = affordByTier[tier] * marketFill // afford × fill
+        const w = config.needSatisfactionTierWeight[tier]
+        weightedFulfill += tierFulfillment * w
+        weightSum += w
+        spent += allocatedByTier[tier] * marketFill // 実際に買えた分だけ burn (≤ allocated ≤ budget)
       }
-      if (wealthDelta !== 0 || unrestDelta !== 0) {
-        const newWealth = clamp100(pop.wealth + wealthDelta)
-        const newUnrest = clamp100(pop.unrest + unrestDelta)
-        if (newWealth !== pop.wealth || newUnrest !== pop.unrest) {
-          newPopGroups[popId] = { ...pop, wealth: newWealth, unrest: newUnrest }
+      const instantSat = weightSum > 0 ? (weightedFulfill / weightSum) * 100 : 0
+      const a = config.needSatisfactionSmoothing
+      const newSat = clamp100(pop.needSatisfaction * (1 - a) + instantSat * a)
+      const newMoney = Math.max(0, pop.money - spent)
+      newPopGroups[popId] = { ...pop, needSatisfaction: newSat, money: newMoney }
+    }
+  }
+
+  // ─── v0.58: 賃金 carve ＋ upper 配当 carve (最終 pass) ───
+  //   全 market 清算・snapshot 確定後に、各 asset の netRevenue から (1) 賃金 wageShare を lower/middle
+  //   雇用 POP へ、(2) 配当 ownerDividendShare を雇用 upper POP へ切り出して money を mint する。
+  //   landRevenueSystem は positiveNet = max(0, netRevenue − wageShare − ownerDividendShare) で控除。
+  //   タイミング: 今 tick の所得は newPopGroups に積まれ「次 tick から使える」(§3.3 tick 内循環の解消)。
+  //   shares は state (start-of-tick・本 system 中不変) を参照、mint 先は newPopGroups。RNG 非消費。
+  //   carve==mint 不変条件: 分配不能 (賃金=雇用 PopType 不在 / 配当=雇用 upper 不在) のときは carve せず
+  //   owner からも引かない (advisor: owner から carve したのに mint 先がないと money が消える)。
+  const wageRate = config.wageShareOfNetRevenue
+  const upperDividendRate = config.upperDividendShareOfNetRevenue
+  if (wageRate > 0 || upperDividendRate > 0) {
+    for (const holdingId of (Object.keys(snapshots) as HoldingId[]).sort()) {
+      const snap = snapshots[holdingId]
+      if (!snap) continue
+      const popIdsHere = state.popIndex.byHolding[holdingId] ?? []
+
+      // ─── 賃金 carve (lower/middle): asset 単位 ───
+      //   prodWageByPop に POP 別の生産賃金を記録し、後段の施設俸給 supplement の按分基準に使う。
+      const prodWageByPop = new Map<PopGroupId, number>()
+      if (wageRate > 0) {
+        for (const ar of snap.assetResults) {
+          const carveBudget = Math.max(0, ar.netRevenue) * wageRate
+          if (carveBudget <= 0) {
+            ar.wageShare = 0
+            continue
+          }
+          const asset = state.realEstateAssets[ar.assetId]
+          if (!asset) {
+            ar.wageShare = 0
+            continue
+          }
+          const shares = computeAssetPopTypeShares(state, asset)
+          // 役割重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
+          let weightSum = 0
+          const weighted: { popType: PopType; w: number }[] = []
+          for (const t of (Object.keys(shares) as PopType[]).sort()) {
+            const s = shares[t] ?? 0
+            if (s <= 0) continue
+            const w = s * config.wageRoleWeightByRole[WAGE_ROLE_BY_POP_TYPE[t]]
+            if (w <= 0) continue
+            weighted.push({ popType: t, w })
+            weightSum += w
+          }
+          if (weightSum <= 0) {
+            ar.wageShare = 0 // 分配先なし → owner から carve しない
+            continue
+          }
+          // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
+          let minted = 0
+          for (const { popType, w } of weighted) {
+            const amount = carveBudget * (w / weightSum)
+            for (const pid of popIdsHere) {
+              const pop = newPopGroups[pid]
+              if (!pop || pop.popType !== popType || !pop.employed) continue
+              newPopGroups[pid] = { ...pop, money: pop.money + amount }
+              prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
+              minted += amount
+              break
+            }
+          }
+          ar.wageShare = minted
+        }
+
+        // ─── v0.58 balance: 施設(improvement)労働者の俸給 supplement (holding 収入から) ───
+        //   施設は収益を生まないので、施設労働者の給料は holding 収入(owner 取り分)から確保する。
+        //   生産者の賃金を希釈しないよう、給与水準は「生産 asset の労働者のみで算出した per-capita」と同等にする。
+        //   stratum 単位で facCap/prodCap(雇用枠容量比、level 込み)を求め、各 POP の生産賃金にこの比を掛けた額を
+        //   施設俸給として mint する(= 同 per-capita で施設分の頭数に支払うのと等価。slot 充足率に依らず成立)。
+        //   prodCap=0 の stratum(upper)は生産賃金ゼロ→対象外(upper は別途配当)。supplement は wageShare に
+        //   合算して landRevenue が控除する(施設俸給も労働コスト)。determinism: byHolding/slot は固定順、RNG 非消費。
+        if (prodWageByPop.size > 0) {
+          const prodCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          const facCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          for (const aid of state.realEstateAssetIndex.byHolding[holdingId as string] ?? []) {
+            const asset = state.realEstateAssets[aid]
+            if (!asset) continue
+            for (const slot of REAL_ESTATE_DEFINITIONS[asset.realEstateKind].employmentSlots) {
+              prodCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * asset.level
+            }
+          }
+          for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
+            const imp = state.holdingImprovements[impId]
+            if (!imp) continue
+            const slots = IMPROVEMENT_DEFINITIONS[imp.kind].employmentSlots
+            if (!slots) continue
+            for (const slot of slots) {
+              facCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * imp.level
+            }
+          }
+          let supplementTotal = 0
+          for (const [pid, prodWage] of prodWageByPop) {
+            const pop = newPopGroups[pid]
+            if (!pop) continue
+            const pc = prodCap[pop.class]
+            const fc = facCap[pop.class]
+            if (pc <= 0 || fc <= 0) continue
+            const supplement = prodWage * (fc / pc)
+            if (supplement <= 0) continue
+            newPopGroups[pid] = { ...pop, money: pop.money + supplement }
+            supplementTotal += supplement
+          }
+          // supplement 総額を asset へ max(0,netRevenue) 比で按分し wageShare に加算(landRevenue 控除)。
+          if (supplementTotal > 0) {
+            let netSum = 0
+            for (const ar of snap.assetResults) netSum += Math.max(0, ar.netRevenue)
+            if (netSum > 0) {
+              for (const ar of snap.assetResults) {
+                ar.wageShare += supplementTotal * (Math.max(0, ar.netRevenue) / netSum)
+              }
+            }
+          }
+        }
+      }
+
+      // ─── v0.58 balance: upper 配当 carve (holding 単位) ───
+      //   雇用枠に就いている upper(nobles/patricians) POP に、holding 純収益の固定割合を size 比例で配当。
+      //   失業 upper は受け取らない (没落→money 枯渇→既存降格で下位転落)。雇用 upper 不在なら carve しない
+      //   (carve==mint: owner から引いて mint 先が無いと money が消えるため)。賃金とは別 carve。
+      if (upperDividendRate > 0) {
+        // holding 内の雇用 upper POP と総 size を集計 (determinism: byHolding 配列の固定順)。
+        let upperSize = 0
+        for (const pid of popIdsHere) {
+          const pop = newPopGroups[pid]
+          if (pop && pop.employed && pop.class === 'upper') upperSize += pop.size
+        }
+        if (upperSize > 0) {
+          // 配当原資 = Σ_assets max(0, netRevenue) × rate。各 asset の ownerDividendShare に記録 (landRevenue 控除)。
+          let dividendBudget = 0
+          for (const ar of snap.assetResults) {
+            const share = Math.max(0, ar.netRevenue) * upperDividendRate
+            ar.ownerDividendShare = share
+            dividendBudget += share
+          }
+          if (dividendBudget > 0) {
+            for (const pid of popIdsHere) {
+              const pop = newPopGroups[pid]
+              if (!pop || !pop.employed || pop.class !== 'upper') continue
+              const amount = dividendBudget * (pop.size / upperSize)
+              newPopGroups[pid] = { ...pop, money: pop.money + amount }
+            }
+          }
         }
       }
     }

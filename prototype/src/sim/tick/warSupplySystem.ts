@@ -33,7 +33,10 @@ import { destroyRegimentMut, updateRegimentMut } from '../mutations/regimentMuta
 import { clamp } from '../utils/math'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { damageHoldingImprovementConditionMut } from '../mutations/holdingImprovementMutations'
-import { adjustHoldingPopWealthMut, adjustHoldingPopUnrestMut } from '../mutations/popMutations'
+import {
+  adjustHoldingPopNeedSatisfactionMut,
+  adjustHoldingPopUnrestMut,
+} from '../mutations/popMutations'
 import { createCrisisMut, setCrisisSeverityMut } from '../mutations/crisisMutations'
 import type { CreateCrisisInput } from '../mutations/crisisMutations'
 import { resolveCrisisHandlers, createHandleCrisisProjectMut } from './crisisSystem'
@@ -424,7 +427,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
               damageHoldingImprovementConditionMut(ws, targetHoldingId, harshDrop, [
                 'storage_infrastructure',
               ])
-              adjustHoldingPopWealthMut(
+              adjustHoldingPopNeedSatisfactionMut(
                 ws,
                 targetHoldingId,
                 -config.warSupplyHarshRequisitionPopWealthDamage,
@@ -448,7 +451,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                   damageHoldingImprovementConditionMut(ws, spilloverTarget, spilloverDrop, [
                     'storage_infrastructure',
                   ])
-                  adjustHoldingPopWealthMut(
+                  adjustHoldingPopNeedSatisfactionMut(
                     ws,
                     spilloverTarget,
                     -config.warSupplyHarshRequisitionPopWealthDamage,
@@ -504,7 +507,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
               const targetKinds = PLUNDER_PRIORITY_BY_HOLDING_KIND[targetHolding?.kind ?? ''] ?? []
               const plunderDrop = config.supplyPlunderConditionDrop
               damageHoldingImprovementConditionMut(ws, targetHoldingId, plunderDrop, targetKinds)
-              adjustHoldingPopWealthMut(
+              adjustHoldingPopNeedSatisfactionMut(
                 ws,
                 targetHoldingId,
                 -config.warSupplyPlunderPopWealthDamage,
@@ -597,7 +600,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                     spilloverDrop,
                     targetKinds,
                   )
-                  adjustHoldingPopWealthMut(
+                  adjustHoldingPopNeedSatisfactionMut(
                     ws,
                     spilloverTarget,
                     -config.warSupplyPlunderPopWealthDamage,

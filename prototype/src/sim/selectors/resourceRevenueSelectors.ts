@@ -99,7 +99,8 @@ export function estimateMonthlyOwnerIncome(
     let positiveNet = 0
     for (const ar of snap.assetResults) {
       if ((ar.assetId as string) === (asset.id as string)) {
-        positiveNet = Math.max(0, ar.netRevenue)
+        // v0.58: owner income の原資は賃金・配当 carve 後 (landRevenueSystem の positiveNet と一致させる)。
+        positiveNet = Math.max(0, ar.netRevenue - ar.wageShare - ar.ownerDividendShare)
         break
       }
     }

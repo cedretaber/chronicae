@@ -19,9 +19,9 @@ import {
   getProvinceCarryingCapacity,
   getProvincePopulation,
   getProvincePopulationPressure,
-  getProvinceAveragePopWealth,
+  getProvinceAveragePopNeedSatisfaction,
   getProvinceUnrest,
-  getPopWealthByClass,
+  getPopNeedSatisfactionByClass,
   getHoldingEmployedPopSize,
   getHoldingUnemployedPopSize,
   getHoldingClassCapacity,
@@ -92,7 +92,9 @@ export function ProvinceDetail({
   const populationPressure = currentState
     ? getProvincePopulationPressure(currentState, defaultConfig, province.id)
     : 0
-  const avgWealth = currentState ? getProvinceAveragePopWealth(currentState, province.id) : 0
+  const avgNeedSatisfaction = currentState
+    ? getProvinceAveragePopNeedSatisfaction(currentState, province.id)
+    : 0
   const derivedUnrest = currentState ? getProvinceUnrest(currentState, province.id) : 0
   const derivedProduction = currentState
     ? getProvinceMonthlyResourceRevenue(currentState, defaultConfig, province.id)
@@ -144,16 +146,16 @@ export function ProvinceDetail({
         defaultConfig.provinceRevoltStabilitySuppressionFactor
 
     if (popClass === 'lower') {
-      if (pop.wealth < defaultConfig.povertyWealthThreshold) {
+      if (pop.needSatisfaction < defaultConfig.povertyNeedSatisfactionThreshold) {
         tendency +=
-          (defaultConfig.povertyWealthThreshold - pop.wealth) *
+          (defaultConfig.povertyNeedSatisfactionThreshold - pop.needSatisfaction) *
           defaultConfig.peasantRevoltPovertyFactor
       }
       const pressure = getProvincePopulationPressure(ws, defaultConfig, province.id)
       tendency += pressure * defaultConfig.peasantRevoltPressureFactor
     } else if (popClass === 'middle') {
-      const townsmenWealth = getPopWealthByClass(ws, province.id, 'middle')
-      if (townsmenWealth < defaultConfig.overExtractionWealthSafeThreshold) {
+      const townsmenSat = getPopNeedSatisfactionByClass(ws, province.id, 'middle')
+      if (townsmenSat < defaultConfig.overExtractionNeedSatisfactionSafeThreshold) {
         tendency += defaultConfig.townsmenRevoltExtractionFactor
         tendency +=
           Math.log1p(getProvinceMonthlyResourceRevenue(ws, defaultConfig, province.id)) *
@@ -426,8 +428,8 @@ export function ProvinceDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.province.avg_wealth')}:</span>
-          <span>{avgWealth.toFixed(1)}</span>
+          <span className="text-gray-400">{t('detail.province.avg_need_satisfaction')}:</span>
+          <span>{avgNeedSatisfaction.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.unrest')}:</span>
@@ -477,8 +479,12 @@ export function ProvinceDetail({
                 <span>{formatPopCount(pop.size)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">{t('detail.province.wealth')}:</span>
-                <span>{pop.wealth.toFixed(1)}</span>
+                <span className="text-gray-400">{t('detail.province.money')}:</span>
+                <span>{pop.money.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
+                <span>{pop.needSatisfaction.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">{t('detail.province.unrest')}:</span>

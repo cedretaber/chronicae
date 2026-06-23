@@ -51,23 +51,9 @@ export function computeMarketFulfillment(
   return { fulfillmentRatio, shortage, shortageSeverity }
 }
 
-// v0.55 §15.3: NeedTier ごとの購買力係数 (飽和曲線)。pop.wealth は 0..100 の指数として扱う
-//   (codebase の wealth セマンティクスに合わせ、spec §15.3 の per-capita 除算は用いない)。
-//   factor = clamp(floor + (1-floor) * (w / (w + half)), floor, 1)。
-export function purchasingPowerFactor(
-  tier: NeedTier,
-  wealthIndex: number,
-  config: SimulationConfig,
-): number {
-  const floor = config.needTierFloor[tier]
-  const half = config.needTierWealthHalf[tier]
-  const w = clamp(wealthIndex, 0, 100)
-  const raw = floor + (1 - floor) * (w / (w + half))
-  return clamp(raw, floor, 1.0)
-}
-
 // §5.4 / §15.3: POP の NeedCategory 別需要を ResourceKind buyOrders へ解決する。
-//   desiredCategoryValue (value 建て) = amountPerPop × size × purchasingPowerFactor(tier)。
+//   v0.58: desiredValue = amountPerPop × size の **full desired**（購買力補正は廃止）。
+//   予算制約は呼び出し側（resourceEconomySystem の tier 優先配分）が start-of-tick money で担う。
 //   buyOrders_i (資源単位) = share_i × desiredValue / contributionValue_i (§5.4)。
 //   demand 集計と wellbeing fulfillment の双方が同じ解決を使う。
 export type ResolvedNeedCategory = {
@@ -94,8 +80,9 @@ export function computePopNeedDemand(
     const amountPerPop = profile[category]
     if (amountPerPop <= 0) continue
     const tier = NEED_CATEGORY_TIER[category]
-    const ppf = purchasingPowerFactor(tier, pop.wealth, config)
-    const desiredValue = amountPerPop * pop.size * ppf
+    // v0.58 balance: essential tier は popEssentialNeedScale で一律スケール（過少消費の調整ダイヤル）。
+    const tierScale = tier === 'essential' ? config.popEssentialNeedScale : 1
+    const desiredValue = amountPerPop * pop.size * tierScale // v0.58: full desired（予算制約は呼び出し側）
     if (desiredValue <= 0) continue
     const shares = resolveCategoryShares(NEED_CATEGORY_CONTRIBUTIONS[category], priceLookup, beta)
     const resources = shares.map((s) => ({

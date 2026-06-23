@@ -40,7 +40,7 @@ function withPopGroup(
   holdingId: HoldingId,
   popClass: PopClass,
   size: number,
-  wealth: number,
+  needSatisfaction: number, // v0.58: 旧 wealth 引数を needSatisfaction(welfare) へ転用。
   unrest: number = 0,
 ): WorldState {
   const pop: PopGroup = {
@@ -50,7 +50,8 @@ function withPopGroup(
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
     employed: true,
     size,
-    wealth,
+    money: 0,
+    needSatisfaction,
     unrest,
     attitudes: {},
   }
@@ -112,6 +113,8 @@ function withHoldingResourceRevenue(
             grossRevenue: totalNet,
             inputCost: 0,
             netRevenue: totalNet,
+            wageShare: 0,
+            ownerDividendShare: 0,
             inputFulfillment: 1,
           },
         ],
@@ -286,19 +289,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     expect(popAfter.unrest).toBeGreaterThan(0)
   })
 
-  it('retainedToPop is based on provinceCollected, not gross', () => {
-    const base = setupWithNormalBailiff()
-    const popId = base.popId
-    const newPopGroups = {
-      ...base.state.popGroups,
-      [popId]: { ...base.state.popGroups[popId]!, wealth: 50 },
-    }
-    const state = { ...base.state, popGroups: newPopGroups }
-    const result = runLandRevenueSystem(makeCtx(state))
-    const popAfter = result.state.popGroups[popId]!
-    expect(popAfter.wealth).toBeGreaterThan(0)
-    expect(popAfter.wealth).toBeLessThan(100)
-  })
+  // v0.58: retainedToPop wealth-gain は廃止 (所得は賃金へ一本化) のため当該テストは削除。
 
   it('POP→Bailiff attitude is set for normal bailiff', () => {
     const { state, popId, bailiffPersonId } = setupWithNormalBailiff()
@@ -348,7 +339,7 @@ function withOwnedAssetSnapshot(
   holdingId: HoldingId,
   owner: AssetOwnerRef,
   net: number,
-  opts: { seized?: boolean } = {},
+  opts: { seized?: boolean; wageShare?: number; ownerDividendShare?: number } = {},
 ): { state: WorldState; assetId: RealEstateAssetId } {
   const assetId = ('re-owned-' + (holdingId as string)) as RealEstateAssetId
   const asset: RealEstateAsset = {
@@ -386,6 +377,8 @@ function withOwnedAssetSnapshot(
             grossRevenue: net,
             inputCost: 0,
             netRevenue: net,
+            wageShare: opts.wageShare ?? 0,
+            ownerDividendShare: opts.ownerDividendShare ?? 0,
             inputFulfillment: 1,
           },
         ],
@@ -426,6 +419,23 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
     expect(houseAfter - houseBefore).toBeCloseTo(NET * (1 - DUE_RATE), 3)
     // holding due (= NET * DUE_RATE) は bailiff/chain 経由で treasury に流れる (>0)
     expect(result.state.polities[base.polityId]!.treasury).toBeGreaterThan(0)
+  })
+
+  it('v0.58: wageShare は positiveNet から控除される (owner income = (net − wageShare) × (1 − dueRate))', () => {
+    const base = setupBaseWorld()
+    const WAGE = 30
+    const { state } = withOwnedAssetSnapshot(
+      base.state,
+      base.holdingId,
+      { kind: 'house', id: base.houseId },
+      NET,
+      { wageShare: WAGE },
+    )
+    const houseBefore = state.houses[base.houseId]!.wealth
+    const result = runLandRevenueSystem(makeCtx(state))
+    const houseAfter = result.state.houses[base.houseId]!.wealth
+    // positiveNet = NET − WAGE = 70 → ownerIncome = 70 × (1 − dueRate)。
+    expect(houseAfter - houseBefore).toBeCloseTo((NET - WAGE) * (1 - DUE_RATE), 3)
   })
 
   it('person owner receives ownerIncome into Person.wealth', () => {

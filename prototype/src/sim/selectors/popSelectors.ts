@@ -52,7 +52,11 @@ export function getProvincePopulation(state: WorldState, provinceId: ProvinceId)
 }
 
 // Returns the weighted average wealth of all POPs in a province (0 if no pops)
-export function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId): number {
+// v0.58: POP の welfare 指標は wealth(退役) から needSatisfaction(0..100) へ移行。
+export function getProvinceAveragePopNeedSatisfaction(
+  state: WorldState,
+  provinceId: ProvinceId,
+): number {
   const province = state.provinces[provinceId]
   if (!province) return 0
 
@@ -64,7 +68,7 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      weightedSum += pop.wealth * pop.size
+      weightedSum += pop.needSatisfaction * pop.size
       totalPopulation += pop.size
     }
   }
@@ -178,7 +182,8 @@ export function getPopUnrestByClass(
 }
 
 // Returns the weighted average wealth of all POPs with the given class in the province
-export function getPopWealthByClass(
+// v0.58: class 別の welfare 平均 (needSatisfaction・size 加重)。wealth から移行。
+export function getPopNeedSatisfactionByClass(
   state: WorldState,
   provinceId: ProvinceId,
   popClass: PopClass,
@@ -193,7 +198,7 @@ export function getPopWealthByClass(
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop || pop.class !== popClass) continue
-      weightedSum += pop.wealth * pop.size
+      weightedSum += pop.needSatisfaction * pop.size
       totalSize += pop.size
     }
   }

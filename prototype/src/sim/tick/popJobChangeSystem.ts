@@ -1,4 +1,3 @@
-import { clamp } from '../utils/math'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -12,7 +11,7 @@ import {
 } from '../selectors/popSelectors'
 import {
   computeHoldingPopTypeDemand,
-  computePopTypeWealthQuantiles,
+  computePopTypeMoneyQuantiles,
 } from '../selectors/popMobilitySelectors'
 import { allowedTargetsFor, classifyMobilityKind } from '../config/popMobilityDefinitions'
 import { movePopSizeToKeyMut } from '../mutations/popMutations'
@@ -22,15 +21,20 @@ import {
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
 
-type WealthQuantiles = ReturnType<typeof computePopTypeWealthQuantiles>
+type MoneyQuantiles = ReturnType<typeof computePopTypeMoneyQuantiles>
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
+
+// v0.58: POP の per-capita money (money/size)。空集団は 0。昇格/降格 gate の比較値。
+function perCapitaMoney(pop: PopGroup): number {
+  return pop.size > 0 ? pop.money / pop.size : 0
+}
 
 type JobChangeCandidate = {
   source: PopGroup
   target: PopTargetKey
   kind: PopMobilityKind
   maxAmount: number
-  incomingWealthOverride?: number
+  moneyCostPerCapita?: number
   // priority keys (§7.5)
   sourceUnemployed: boolean
   shortage: number
@@ -50,13 +54,10 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
     nextPopGroupId: ctx.state.nextPopGroupId,
   }
 
-  // C3: wealth 分位を StateRegion 単位で月初に 1 回算出 (mutation 前の state)。
-  const quantilesByState = new Map<string, WealthQuantiles>()
+  // C3: per-capita money 分位を StateRegion 単位で月初に 1 回算出 (mutation 前の state)。
+  const quantilesByState = new Map<string, MoneyQuantiles>()
   for (const stateId of Object.keys(ctx.state.states).sort()) {
-    quantilesByState.set(
-      stateId,
-      computePopTypeWealthQuantiles(ctx.state, stateId as StateRegionId),
-    )
+    quantilesByState.set(stateId, computePopTypeMoneyQuantiles(ctx.state, stateId as StateRegionId))
   }
 
   // snapshot は jobChange が新規作成し、PopMigrationSystem が read-or-create で引き継ぐ (A3)。
@@ -98,8 +99,8 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
 
       const targetId = movePopSizeToKeyMut(ws, candidate.source.id, candidate.target, amount, {
         minSourceSize: eps,
-        ...(candidate.incomingWealthOverride !== undefined
-          ? { incomingWealthOverride: candidate.incomingWealthOverride }
+        ...(candidate.moneyCostPerCapita !== undefined
+          ? { moneyCostPerCapita: candidate.moneyCostPerCapita }
           : {}),
       })
       if (targetId === undefined) break // safety: candidate said movable but move was a no-op
@@ -130,7 +131,7 @@ function bestJobChangeCandidate(
   config: SimulationConfig,
   holdingId: HoldingId,
   demand: HoldingDemand,
-  quantiles: WealthQuantiles | undefined,
+  quantiles: MoneyQuantiles | undefined,
   eps: number,
   minMove: number,
 ): JobChangeCandidate | undefined {
@@ -166,11 +167,13 @@ function bestJobChangeCandidate(
   return best
 }
 
-// §7.5 優先度: unemployed 優先 → shortage 大 → 低 wealth → PopGroupId 昇順 → target popType 昇順。
+// §7.5 優先度: unemployed 優先 → shortage 大 → 低 per-capita money → PopGroupId 昇順 → target popType 昇順。
 function candidateBetter(a: JobChangeCandidate, b: JobChangeCandidate): boolean {
   if (a.sourceUnemployed !== b.sourceUnemployed) return a.sourceUnemployed
   if (a.shortage !== b.shortage) return a.shortage > b.shortage
-  if (a.source.wealth !== b.source.wealth) return a.source.wealth < b.source.wealth
+  const am = perCapitaMoney(a.source)
+  const bm = perCapitaMoney(b.source)
+  if (am !== bm) return am < bm
   const ai = a.source.id as string
   const bi = b.source.id as string
   if (ai !== bi) return ai < bi
@@ -185,7 +188,7 @@ function evaluateCandidate(
   targetPopType: PopType,
   kind: PopMobilityKind,
   demand: HoldingDemand,
-  quantiles: WealthQuantiles | undefined,
+  quantiles: MoneyQuantiles | undefined,
   eps: number,
 ): JobChangeCandidate | undefined {
   const targetStratum: PopStratum = getPopStratum(targetPopType)
@@ -198,13 +201,13 @@ function evaluateCandidate(
   const make = (
     targetEmployed: boolean,
     maxAmount: number,
-    incomingWealthOverride?: number,
+    moneyCostPerCapita?: number,
   ): JobChangeCandidate => ({
     source,
     target: { holdingId, class: targetStratum, popType: targetPopType, employed: targetEmployed },
     kind,
     maxAmount,
-    ...(incomingWealthOverride !== undefined ? { incomingWealthOverride } : {}),
+    ...(moneyCostPerCapita !== undefined ? { moneyCostPerCapita } : {}),
     sourceUnemployed: !source.employed,
     shortage: targetShortage,
   })
@@ -225,24 +228,25 @@ function evaluateCandidate(
     if (targetShortage <= 0) return undefined
     const q = quantiles?.[source.popType]
     if (!q) return undefined
-    if (!(source.wealth >= q.p75 && source.wealth > q.median + config.popPromotionEpsilon)) {
+    // v0.58: per-capita money 上位 (>= p75 かつ median 超) を昇格 gate に。
+    const srcMoney = perCapitaMoney(source)
+    if (!(srcMoney >= q.p75 && srcMoney > q.median + config.popPromotionEpsilon)) {
       return undefined
     }
     const remainingCap = getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
     if (remainingCap <= 0) return undefined
-    const cost = config.popPromotionWealthCostByTargetStratum[targetStratum] ?? 0
-    const incomingWealthOverride = clamp(source.wealth - cost, 0, 100)
+    // 昇格コストは per-capita money の sink (movePopSizeToKeyMut が移送 money から burn)。
+    const moneyCostPerCapita = config.popPromotionWealthCostByTargetStratum[targetStratum] ?? 0
     const maxAmount = Math.min(movableBySize, targetShortage, remainingCap, movableByRate)
-    return make(true, maxAmount, incomingWealthOverride)
+    return make(true, maxAmount, moneyCostPerCapita)
   }
 
-  // demotion
+  // demotion (v0.58: per-capita money 下位を gate に)
   const q = quantiles?.[source.popType]
+  const srcMoney = perCapitaMoney(source)
   const demotionWealthOk =
     !source.employed ||
-    (q !== undefined &&
-      source.wealth <= q.p25 &&
-      source.wealth < q.median - config.popDemotionEpsilon)
+    (q !== undefined && srcMoney <= q.p25 && srcMoney < q.median - config.popDemotionEpsilon)
   if (!demotionWealthOk) return undefined
   const hasTargetShortage = targetShortage > 0
   if (!(hasTargetShortage || !source.employed)) return undefined

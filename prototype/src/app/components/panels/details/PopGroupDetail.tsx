@@ -73,8 +73,12 @@ export function PopGroupDetail({
           <span>{formatPopCount(popGroup.size)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.province.wealth')}:</span>
-          <span>{popGroup.wealth.toFixed(1)}</span>
+          <span className="text-gray-400">{t('detail.province.money')}:</span>
+          <span>{popGroup.money.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
+          <span>{popGroup.needSatisfaction.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.unrest')}:</span>

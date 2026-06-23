@@ -32,7 +32,7 @@ import {
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import {
   reduceHoldingPopSizeProportionalMut,
-  adjustHoldingPopWealthMut,
+  adjustHoldingPopNeedSatisfactionMut,
   adjustHoldingPopUnrestMut,
 } from '../mutations/popMutations'
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
@@ -781,7 +781,7 @@ function runWeeklyProcessing(
     // v0.48.1 §4.3: disrepair の実コストは生産 effectiveness 低下 (§3) なので severity 比例の pop
     //   デバフは適用しない (二重計上回避)。間接連鎖 (生産低下→wealth→unrest) は残る。
     if (crisis.kind !== 'disrepair' && severity > 0) {
-      adjustHoldingPopWealthMut(
+      adjustHoldingPopNeedSatisfactionMut(
         ws,
         holdingId,
         -config.crisisWeeklyWealthPenaltyPerSeverity * severity,

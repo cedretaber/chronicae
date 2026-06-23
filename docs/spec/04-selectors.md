@@ -97,11 +97,12 @@ function getHoldingTotalPopSize(state: WorldState, holdingId: HoldingId): number
 //   返り値の idealShareByType は移住 score の構成ミスマッチ（B2）でも参照。強制変換はしない。
 function computeHoldingPopTypeDemand(state: WorldState, config: SimulationConfig, holdingId: HoldingId): HoldingPopTypeDemand
 
-// promotion/demotion の相対 wealth gate（C3）用。StateRegion × PopType・size 加重の wealth 分位
-//   （v0.57.1: 比較母集団を stratum プールから同じ職能へ。移動判断を Class 単位に統一）。
+// promotion/demotion の相対 gate（C3）用。StateRegion × PopType・size 加重の **per-capita money** 分位
+//   （v0.57.1: 比較母集団を同じ職能へ。v0.58: wealth 指数 → per-capita money〔money/size〕へ移行。
+//   extensive total では大集団が常に上位になるため per-capita で比較）。
 //   当該 StateRegion 内全 holding の同一 PopType POP を母集団に p25/median/p75 を size 加重で算出。
 //   該当 PopType の POP が無ければ undefined（その職能では昇格/転落を発火させない）。月初に 1 回 cache。
-function computePopTypeWealthQuantiles(state: WorldState, stateRegionId: StateRegionId): Partial<Record<PopType, { p25: number; median: number; p75: number }>>
+function computePopTypeMoneyQuantiles(state: WorldState, stateRegionId: StateRegionId): Partial<Record<PopType, { p25: number; median: number; p75: number }>>
 ```
 
 #### Province POP セレクター（Holding POP から集計）
@@ -113,8 +114,8 @@ function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[]
 // POP size の合計（総人口）
 function getProvincePopulation(state: WorldState, provinceId: ProvinceId): number
 
-// POP wealth の人口加重平均
-function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId): number
+// v0.58: POP welfare(needSatisfaction) の人口加重平均（旧 getProvinceAveragePopWealth）
+function getProvinceAveragePopNeedSatisfaction(state: WorldState, provinceId: ProvinceId): number
 
 // POP unrest の人口加重平均
 function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): number
@@ -128,8 +129,8 @@ function getProvincePopulationPressure(state: WorldState, config: SimulationConf
 // class 別の unrest（Province 内の該当 class POP の人口加重平均）
 function getPopUnrestByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 
-// class 別の wealth（Province 内の該当 class POP の人口加重平均）
-function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
+// v0.58: class 別の welfare(needSatisfaction)（Province 内の該当 class POP の人口加重平均。旧 getPopWealthByClass）
+function getPopNeedSatisfactionByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 ```
 
 ### 4.3 Resource Economy セレクター（v0.54）

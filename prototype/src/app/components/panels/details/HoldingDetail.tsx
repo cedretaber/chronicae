@@ -970,8 +970,12 @@ export function HoldingDetail({
                     <span>{formatPopCount(pop.size)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">{t('detail.province.wealth')}:</span>
-                    <span>{pop.wealth.toFixed(1)}</span>
+                    <span className="text-gray-400">{t('detail.province.money')}:</span>
+                    <span>{pop.money.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
+                    <span>{pop.needSatisfaction.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.province.unrest')}:</span>

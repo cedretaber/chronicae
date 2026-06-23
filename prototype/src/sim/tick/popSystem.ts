@@ -98,7 +98,8 @@ export function runPopSystem(ctx: TickContext): TickContext {
     // 1. Population growth
     const growthFactor = clamp(1 - pressure * pressure, -0.5, 1.0)
     const baseGrowth = ctx.config.baseMonthlyGrowthByClass[pop.class]
-    const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
+    // v0.58: 成長は welfare(needSatisfaction) で増減。形は維持 (clamp(0.5 + x, 0.5, 1.5))。
+    const welfareFactor = clamp(0.5 + pop.needSatisfaction / 100, 0.5, 1.5)
     const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
 
     const employmentGrowthModifier: number = pop.employed
@@ -106,7 +107,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
       : ctx.config.unemployedGrowthModifierByClass[pop.class]
 
     const delta =
-      pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * employmentGrowthModifier
+      pop.size * baseGrowth * growthFactor * welfareFactor * unrestFactor * employmentGrowthModifier
 
     // 2. Apply growth (v0.55 POP 再設計)
     //   成長は food carrying capacity の growthFactor (pressure) で頭打ちにする。
@@ -120,25 +121,27 @@ export function runPopSystem(ctx: TickContext): TickContext {
       newSize = pop.size + delta
     }
 
-    // 3. Population pressure effect
-    let newWealth = pop.wealth
+    // 3. Population pressure effect (v0.58: welfare 減は needSatisfaction が消費で決まるためここでは
+    //    直接いじらず、pressure の unrest 項のみ残す)。
     let newUnrest = pop.unrest
 
     if (pressure > ctx.config.populationPressureThreshold) {
       const excess = pressure - ctx.config.populationPressureThreshold
-      newWealth = pop.wealth - excess * ctx.config.populationPressureWealthPenalty
       newUnrest = pop.unrest + excess * ctx.config.populationPressureUnrestGain
     }
 
-    // 4. Poverty effect
-    if (pop.wealth < ctx.config.povertyWealthThreshold) {
-      newUnrest += (ctx.config.povertyWealthThreshold - pop.wealth) * ctx.config.povertyUnrestGain
+    // 4. Poverty effect (v0.58: welfare 指標を needSatisfaction で判定)
+    if (pop.needSatisfaction < ctx.config.povertyNeedSatisfactionThreshold) {
+      newUnrest +=
+        (ctx.config.povertyNeedSatisfactionThreshold - pop.needSatisfaction) *
+        ctx.config.povertyUnrestGain
     }
 
-    // 5. Prosperity effect
-    if (pop.wealth > ctx.config.prosperityWealthThreshold) {
+    // 5. Prosperity effect (v0.58: needSatisfaction で判定)
+    if (pop.needSatisfaction > ctx.config.prosperityNeedSatisfactionThreshold) {
       newUnrest -=
-        (pop.wealth - ctx.config.prosperityWealthThreshold) * ctx.config.prosperityUnrestReduction
+        (pop.needSatisfaction - ctx.config.prosperityNeedSatisfactionThreshold) *
+        ctx.config.prosperityUnrestReduction
     }
 
     // 5.5. Natural unrest decay
@@ -147,21 +150,25 @@ export function runPopSystem(ctx: TickContext): TickContext {
     // 5.6. v0.57 §雇用細分化: 治安 (兵士・家士) による unrest 低減。
     newUnrest -= securityUnrestReductionByHolding.get(pop.holdingId) ?? 0
 
-    // 6. Unemployed POP penalties
+    // 6. Unemployed POP penalties (v0.58: wealth decay は撤去。失業困窮は賃金ゼロ→money 枯渇→
+    //    needSatisfaction 低下で自然表現される)。unrest 加算は残す。
     if (!pop.employed) {
-      newWealth -= ctx.config.unemployedWealthDecayByClass[pop.class]
       newUnrest += ctx.config.unemployedUnrestGainByClass[pop.class]
     }
 
     // 7. Clamp (v0.55 POP 再設計: 就業 POP の minSize 底上げは撤廃。人口は food CC に縛られる)
     const finalSize = Math.max(0, newSize)
-    const finalWealth = clamp(newWealth, 0, 100)
     const finalUnrest = clamp(newUnrest, 0, 100)
+
+    // v0.58: money は extensive。死亡 (size 減) は per-capita 保存のため比例 burn、
+    //   出生 (size 増) は money 据え置き (per-capita 希釈・相続なし)。
+    const newMoney =
+      finalSize < pop.size && pop.size > 0 ? pop.money * (finalSize / pop.size) : pop.money
 
     ws.popGroups[pop.id] = {
       ...pop,
       size: finalSize,
-      wealth: finalWealth,
+      money: newMoney,
       unrest: finalUnrest,
     }
   }

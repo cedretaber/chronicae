@@ -8,7 +8,10 @@ import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
 import type { DiplomaticPlay, DiplomaticDemand } from '../types/diplomaticPlay'
-import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
+import {
+  getProvincePopulationPressure,
+  getPopNeedSatisfactionByClass,
+} from '../selectors/popSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { getProvinceMonthlyResourceRevenue } from '../selectors/resourceRevenueSelectors'
 import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
@@ -115,14 +118,17 @@ function calcHoldingRevoltTendency(
   }
 
   if (rebelClass === 'lower') {
-    if (pop.wealth < config.povertyWealthThreshold) {
-      tendency += (config.povertyWealthThreshold - pop.wealth) * config.peasantRevoltPovertyFactor
+    // v0.58: 貧困判定を welfare(needSatisfaction) へ移行。
+    if (pop.needSatisfaction < config.povertyNeedSatisfactionThreshold) {
+      tendency +=
+        (config.povertyNeedSatisfactionThreshold - pop.needSatisfaction) *
+        config.peasantRevoltPovertyFactor
     }
     tendency +=
       getProvincePopulationPressure(state, config, provinceId) * config.peasantRevoltPressureFactor
   } else if (rebelClass === 'middle') {
-    const townsmenWealth = getPopWealthByClass(state, provinceId, 'middle')
-    if (townsmenWealth < config.overExtractionWealthSafeThreshold) {
+    const townsmenSat = getPopNeedSatisfactionByClass(state, provinceId, 'middle')
+    if (townsmenSat < config.overExtractionNeedSatisfactionSafeThreshold) {
       tendency += config.townsmenRevoltExtractionFactor
       tendency +=
         Math.log1p(getProvinceMonthlyResourceRevenue(state, config, provinceId)) *

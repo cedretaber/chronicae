@@ -39,6 +39,9 @@ const FORCE_FAMINE = {
   bountifulHarvestBaseChancePerYear: 0,
   populationPressureThreshold: 999999,
   crisisSeverityPressureBonus: 0,
+  // v0.58: default famineOnsetPressure は 1.3 へ上げたが、これらの餓死式テストは deficit=pressure(2.0)−onset
+  //   を 1.0 と仮定するため onset を 1.0 に固定する (式の検証であり default 値の検証ではない)。
+  famineOnsetPressure: 1.0,
 }
 
 // LEADER を POLITY の leader office に就ける (getPolityLeader が返すように)。
