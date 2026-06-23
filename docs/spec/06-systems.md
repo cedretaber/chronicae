@@ -181,6 +181,13 @@ EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が rec
 
 - **PopEmploymentNormalizeSystem**: mobility 後に全 holding へ `normalizePopEmploymentMut` を再適用（capacity 整合の保険）。
 
+- **v0.59 追補（POP 移動 cap の per-source 再設計 ＋ 移動/雇用分離 ＋ 実効容量判断）**: 上記 v0.56〜v0.57.1 の「holding 共有 cap・移動先で直接 employed・生容量で判断」を以下へ改める。設計原理は「集団は一気に変化しないが、変化量は**変化元のサイズ**で決まり、**変化先のサイズは問わない**」。
+  - **per-source cap**: holding 共有予算（`popJobChangeMaxFractionPerHoldingPerMonth` / `…HardCap` / `popMigrationMax*Fraction*` / `…HardCap`、計 6 config）を**全廃**。各 source POP は自分の `size × kind/stratum 別レート`（`popJobChangeMonthlyRateByKind` / `popMigrationMonthlyRateByStratum`）まで /月 移動する。holding 総流量はその総和として創発。これにより小 holding（総 size<10）でも移動が**凍結しない**（旧: holding 予算 < `popMobilityMinMoveAmount` で全凍結していた）。PopJobChange は holding ごとに各 source POP を id 昇順に 1 回ずつ処理（旧 greedy while ループを廃止、demand は holding 月初 1 回算出）。
+  - **移動と雇用の分離**: 転職（lateral/promotion/demotion）・移住とも、移動先では **`employed: false`（失業）で着地**する。雇用は後段 `PopEmploymentNormalizeSystem`（rebalance）が PopType 別職枠＋同数上限の範囲で確定する。「職があると聞いて移住したが各地から殺到し結局失業」が成立する。
+  - **昇格だけ移動先の実効職枠を gate（非対称）**: 降格・移住は**移動先非依存**（変化元サイズで決まる）。昇格のみ「社会的余地」として移動先の実効昇格枠（`getHoldingPopTypeRemainingCapacity` − 同月内 `consumedPromotionByType`）> 0 を必須にする。移住先選定は opportunity score の実効 vacancy（行く理由）を見るが、移動**量**は移動先残枠で縛らない（オーバーシュート許容＝開拓ブーム/反動）。
+  - **判断系は maxRatio 後の実効容量を見る**: 熟練職（自作農≤小作農 / 親方≤職人）の同数上限で「下層不足で埋まらない枠」を `shortage` / 空き枠 / 移住 vacancy に計上しないよう、`getHoldingPopTypeEffectiveCapacity` / `getHoldingAllPopTypeEffectiveCapacities`（生容量を `refEmployed × ratio` で絞る）を追加し、`shortageByType`/`surplusByType`・`getHoldingPopTypeRemainingCapacity`・移住 cache の `capacityByType` をこれに差し替えた。`idealShareByType`/`desiredEmployedByType` は構造的推定値なので**生容量のまま**。`employmentRebalanceSystem` 本体は生容量＋自前の動的 `refEmployed` ループに依存するため**変更しない**。
+  - 数値（各レート・`popMobilityMinMoveAmount`・maxRatio ratio）は default 据え置き（balance-defer §4）。観察項目: per-source レートの妥当性・移住オーバーシュートの振動・失業上位（職なし貴族）の量。150年×4seed integrity green・determinism 維持（移動挙動が変わるため dump-world は本追補適用前と非互換＝期待挙動）。
+
 - **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（PopJobChange が初期化・PopMigration が append して merge）。各 entry は `kind`（'job_change' | 'migration'）/ `amount` / source・target holding / from・to popType / from・to employed を持つ。**UI 表示（v0.56 UI 改修）**:
   - **Holding detail** = 移住のみ。topMovements の migration entry をこの holding に出入りする相手 holding 別に集計し「流入元 / 流出先」を表示（相手 holding はクリックで遷移）。
   - **POP detail** = 階層移動・転職。topMovements の job_change entry のうちこの POP を target/source とするものを相手職種別に集計し、`classifyMobilityKind(from, to)` で昇格/降格/転職に分類して「転入 / 転出」を表示。
@@ -205,9 +212,9 @@ v0.55/56 では雇用枠は PopStratum 単位で、PopType は生産の soft mod
   - 不動産: 工房=職人:親方:書記 6:3:1 / 農園=小作農:自作農 7:3 / 鉱山・山林=労働者:書記:家士 8:1:1。
   - 改善 establishment（外生定員・生産容量とは別プール）: 領主館=貴族:家士:兵士:労働者 1:2:3:4（total 20/lv）/ 市庁舎=都市貴族:官僚:兵士:労働者 1:2:3:4 / 倉庫=労働者:商人:書記 8:1:1。
   - **容量セレクタ**: `computeHoldingClassCapacity`（stratum 集計＝`getPopStratum(slot.popType)`、既存消費者互換）に加え `computeHoldingPopTypeCapacity` / `computeHoldingAllPopTypeCapacities`（1 パス）を新設。terrain/feature/overuse の乗数は不変（v0.59: landQuality 乗数は廃止）。
-- **同数上限（`maxRatioTo`、`POP_TYPE_MAX_RATIO`）**: 熟練職（親方→職人 / 自作農→小作農、ratio 1）は主要職能の**実雇用数**までしか雇えない。rebalance が主要職能を先に確定 → 熟練を実数 × ratio で動的にキャップ。
+- **同数上限（`maxRatioTo`、`POP_TYPE_MAX_RATIO`）**: 熟練職（親方→職人 / 自作農→小作農、ratio 1）は主要職能の**実雇用数**までしか雇えない。rebalance が主要職能を先に確定 → 熟練を実数 × ratio で動的にキャップ。**v0.59 追補**: この絞り込みは rebalance だけでなく**判断系（shortage / 空き枠 / 移住 vacancy）にも実効容量として一貫適用**する（`getHoldingPopType(All)EffectiveCapacit*`）。下層が薄く埋まらない熟練職枠を需要として誤計上しない（§6.3b v0.59 追補）。
 - **EmploymentRebalanceSystem**: stratum 単位から **PopType 単位**へ。各 PopType で容量超過を強制失業 → 空き枠を同 PopType の未就業で補充（処理順は非 maxRatioTo → maxRatioTo の順で参照先を先に確定）。`computeHoldingPopTypeDemand` の `desired` は施設由来の PopType 容量そのもの（recipe 集計は廃止）。
-- **PopJobChange / PopMigration**: capacity gate を PopType 別残枠（`getHoldingPopTypeRemainingCapacity` / cache の `capacityByType`）に変更。
+- **PopJobChange / PopMigration**: capacity gate を PopType 別残枠（`getHoldingPopTypeRemainingCapacity` / cache の `capacityByType`）に変更。v0.59 追補でこれらは**実効容量**（maxRatio 後）を返し、昇格 gate と移住 vacancy に効く（降格・移住量自体は移動先非依存）。
 - **生産効果**: 親方/自作農 `directOutputPower 1.5`（一次の 1.5 倍生産）、書記 `throughputBonus 0.5`（同原材料で産出 +最大 50%）。詳細は §6.3c.2。
 - **非生産効果**:
   - **治安（兵士・家士）**: holding 単位の `securityCoverage = (employed soldiers+ministeriales)/total pop` に応じて月次 unrest を低減（`securityUnrestReductionAtFull=2.0` × clamp(coverage/`securityFullCoverageRatio=0.1`)）。`popSystem` で適用。
