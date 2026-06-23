@@ -588,16 +588,19 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           ar.wageShare = minted
         }
 
-        // ─── v0.58 balance: 施設(improvement)労働者の俸給 supplement (holding 収入から) ───
+        // ─── v0.58: 施設(improvement)労働者の俸給 (holding 収入から、施設労働者本人へ) ───
         //   施設は収益を生まないので、施設労働者の給料は holding 収入(owner 取り分)から確保する。
-        //   生産者の賃金を希釈しないよう、給与水準は「生産 asset の労働者のみで算出した per-capita」と同等にする。
-        //   stratum 単位で facCap/prodCap(雇用枠容量比、level 込み)を求め、各 POP の生産賃金にこの比を掛けた額を
-        //   施設俸給として mint する(= 同 per-capita で施設分の頭数に支払うのと等価。slot 充足率に依らず成立)。
+        //   給与水準は同 stratum の生産 per-capita 相当(stratum 単位で「生産賃金総額 × facCap/prodCap」を
+        //   施設労働の人件費とし、これは従来総額と同一=owner 影響を変えない)。その人件費を各 stratum の
+        //   施設 slot を持つ popType へ facCap 比で按分し、**その popType の雇用 PopGroup 本人**へ mint する
+        //   (soldiers 等 生産 asset に登場しない施設専用 popType がここで初めて収入を得る。生産者には mint しない)。
+        //   施設 slot が未充足(該当 popType の雇用 POP 不在)なら carve しない(carve==mint)。
         //   prodCap=0 の stratum(upper)は生産賃金ゼロ→対象外(upper は別途配当)。supplement は wageShare に
-        //   合算して landRevenue が控除する(施設俸給も労働コスト)。determinism: byHolding/slot は固定順、RNG 非消費。
+        //   合算して landRevenue が控除する(施設俸給も労働コスト)。determinism: byHolding/slot/popType は固定順、RNG 非消費。
         if (prodWageByPop.size > 0) {
           const prodCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
           const facCap: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          const prodWageByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
           for (const aid of state.realEstateAssetIndex.byHolding[holdingId as string] ?? []) {
             const asset = state.realEstateAssets[aid]
             if (!asset) continue
@@ -605,26 +608,50 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               prodCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * asset.level
             }
           }
+          // 施設 slot を popType 別に集計(facCap と、mint 先 popType の列挙基準)。
+          const facCapByPopType = new Map<PopType, number>()
           for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
             const imp = state.holdingImprovements[impId]
             if (!imp) continue
             const slots = IMPROVEMENT_DEFINITIONS[imp.kind].employmentSlots
             if (!slots) continue
             for (const slot of slots) {
-              facCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * imp.level
+              const cap = slot.capacityPerLevel * imp.level
+              facCap[getPopStratum(slot.popType)] += cap
+              facCapByPopType.set(slot.popType, (facCapByPopType.get(slot.popType) ?? 0) + cap)
             }
           }
-          let supplementTotal = 0
           for (const [pid, prodWage] of prodWageByPop) {
             const pop = newPopGroups[pid]
             if (!pop) continue
-            const pc = prodCap[pop.class]
-            const fc = facCap[pop.class]
+            prodWageByStratum[pop.class] += prodWage
+          }
+          // stratum 別の施設人件費総額 = 生産賃金総額 × facCap_s/prodCap_s(従来総額と同一)。
+          const supplementByStratum: Record<PopStratum, number> = { lower: 0, middle: 0, upper: 0 }
+          for (const s of ['lower', 'middle', 'upper'] as PopStratum[]) {
+            const pc = prodCap[s]
+            const fc = facCap[s]
             if (pc <= 0 || fc <= 0) continue
-            const supplement = prodWage * (fc / pc)
-            if (supplement <= 0) continue
-            newPopGroups[pid] = { ...pop, money: pop.money + supplement }
-            supplementTotal += supplement
+            supplementByStratum[s] = prodWageByStratum[s] * (fc / pc)
+          }
+          // 各施設 popType へ facCap 比で按分し、その popType の雇用 PopGroup 本人へ mint。
+          let supplementTotal = 0
+          for (const popType of [...facCapByPopType.keys()].sort()) {
+            const cap = facCapByPopType.get(popType) ?? 0
+            if (cap <= 0) continue
+            const s = getPopStratum(popType)
+            const stratumFacCap = facCap[s]
+            const stratumBudget = supplementByStratum[s]
+            if (stratumFacCap <= 0 || stratumBudget <= 0) continue
+            const pay = stratumBudget * (cap / stratumFacCap)
+            if (pay <= 0) continue
+            for (const pid of popIdsHere) {
+              const pop = newPopGroups[pid]
+              if (!pop || pop.popType !== popType || !pop.employed) continue
+              newPopGroups[pid] = { ...pop, money: pop.money + pay }
+              supplementTotal += pay
+              break
+            }
           }
           // supplement 総額を asset へ max(0,netRevenue) 比で按分し wageShare に加算(landRevenue 控除)。
           if (supplementTotal > 0) {
