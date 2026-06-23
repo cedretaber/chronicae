@@ -669,7 +669,22 @@ async function main(): Promise<void> {
   const renderEvent = (e: { messageKey: string; messageParams: EventMessageParams }): string =>
     eventRenderer.render(e.messageKey, e.messageParams)
 
-  const { world, rng: initialRng } = generateWorld(args.seed, args.preset, namePoolService)
+  // v0.59: config を generateWorld より前に構築し、地形特性の定義・密度を --config で
+  //   調整可能にする（worldgen の trait 付与パスへ threaded config を渡す）。
+  const validConfigKeys = new Set(Object.keys(defaultConfig))
+  for (const key of Object.keys(args.configOverrides)) {
+    if (!validConfigKeys.has(key)) {
+      console.error(`Warning: unknown config key "${key}" (ignored)`)
+    }
+  }
+  const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
+  const config = {
+    ...configBase,
+    ...(args.debug ? { debug: true } : {}),
+    ...(args.integrityPerSystem ? { integrityPerSystem: true } : {}),
+  }
+
+  const { world, rng: initialRng } = generateWorld(args.seed, args.preset, namePoolService, config)
 
   const initialPolityCount = countActivePolities(world)
   const initialHouseCount = countActiveHouses(world)
@@ -684,18 +699,6 @@ async function main(): Promise<void> {
   let state: WorldState = world
   let currentRng = initialRng
   const allEvents: SimEvent[] = []
-  const validConfigKeys = new Set(Object.keys(defaultConfig))
-  for (const key of Object.keys(args.configOverrides)) {
-    if (!validConfigKeys.has(key)) {
-      console.error(`Warning: unknown config key "${key}" (ignored)`)
-    }
-  }
-  const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
-  const config = {
-    ...configBase,
-    ...(args.debug ? { debug: true } : {}),
-    ...(args.integrityPerSystem ? { integrityPerSystem: true } : {}),
-  }
   const snapshots: ActivitySnapshot[] = []
   // 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
   if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {

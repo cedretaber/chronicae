@@ -67,6 +67,8 @@ import {
   stateName,
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { assignTerrainTraits } from '../selectors/terrainTraitSelectors'
 import { computeInitialIdIndices } from '../tick/context'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
@@ -122,6 +124,9 @@ export function generateWorld(
   seedText: string,
   presetName?: WorldPresetName,
   namePoolService?: NamePoolService,
+  // v0.59: 地形特性の付与に使う config。worldgen は基本 defaultConfig 直参照だが、trait の
+  //   定義・密度を --config で調整可能にするため、ここだけ threaded config を受け取る。
+  config: SimulationConfig = defaultConfig,
 ): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
@@ -133,6 +138,18 @@ export function generateWorld(
     rng: rng0,
   } = generateProvinces(rng, defaultMapConfig, preset, namePoolService)
   rng = rng0
+
+  // v0.59: 地形特性を付与する（決定的・config 駆動）。assignTerrainTraits は純関数なので、
+  //   結果の traits を元 provinces 配列へ index 整合で書き戻す（以降の全参照に波及・L230 sort 前）。
+  const { provinces: provincesWithTraits, rng: rngTraits } = assignTerrainTraits(
+    provinces,
+    config,
+    rng,
+  )
+  rng = rngTraits
+  for (let i = 0; i < provinces.length; i++) {
+    provinces[i]!.traits = provincesWithTraits[i]!.traits
+  }
 
   // Generate StateRegion records
   const statesRecord: Record<StateRegionId, StateRegion> = {}
