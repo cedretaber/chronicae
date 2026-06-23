@@ -78,9 +78,27 @@ function mk(
   }
 }
 
-describe('PopJobChangeSystem', () => {
-  it('C1: employed→employed lateral fires even when the stratum is at full capacity', () => {
-    // farm wants peasants in the lower stratum, but the lower stratum is fully employed with laborers.
+// holding 内の (popType, employed) 別の合計 size。
+function sizeOf(
+  state: WorldState,
+  holdingId: HoldingId,
+  popType: PopType,
+  employed: boolean,
+): number {
+  return getHoldingPopsByClassAndEmployment(state, holdingId, getStratum(popType), employed)
+    .filter((p) => p.popType === popType)
+    .reduce((s, p) => s + p.size, 0)
+}
+function getStratum(popType: PopType): PopStratum {
+  if (['nobles', 'patricians'].includes(popType)) return 'upper'
+  if (['bureaucrats', 'freeholders', 'masters', 'merchants', 'ministeriales'].includes(popType))
+    return 'middle'
+  return 'lower'
+}
+
+describe('PopJobChangeSystem (v0.59 追補: per-source cap + 移動/雇用分離)', () => {
+  it('lateral は capacity に関係なく発火し、移動先では失業着地する', () => {
+    // lower stratum が laborers で満員 (remaining capacity ゼロ) でも lateral laborers→peasants は起きる。
     const { state, holdingId } = setup([])
     const capLower = getHoldingClassCapacity(state, defaultConfig, holdingId, 'lower')
     expect(capLower).toBeGreaterThan(0)
@@ -92,7 +110,7 @@ describe('PopJobChangeSystem', () => {
       class: 'lower',
       popType: 'laborers',
       employed: true,
-      size: capLower, // fully fills lower capacity → zero remaining capacity
+      size: capLower, // fully fills lower capacity
       money: 0,
       needSatisfaction: 50,
       unrest: 10,
@@ -102,74 +120,62 @@ describe('PopJobChangeSystem', () => {
 
     const result = run(state)
 
-    // lateral laborers→peasants must occur despite no remaining capacity (C1: same-stratum
-    // employed→employed move does not increase headcount, so the capacity gate must not block it).
-    const employedPeasants = getHoldingPopsByClassAndEmployment(
-      result,
-      holdingId,
-      'lower',
-      true,
-    ).filter((p) => p.popType === 'peasants')
-    expect(employedPeasants.length).toBeGreaterThan(0)
+    // v0.59 追補: lateral は移動先で失業着地する (employed=false)。雇用は後段 rebalance が確定。
+    expect(sizeOf(result, holdingId, 'peasants', false)).toBeGreaterThan(0)
   })
 
-  it('does not exceed the per-holding population-fraction cap', () => {
-    const { state, holdingId } = setup([])
-    const capLower = getHoldingClassCapacity(state, defaultConfig, holdingId, 'lower')
-    const lab = createPopGroupId(100)
-    state.popGroups[lab] = {
-      id: lab,
-      holdingId,
-      class: 'lower',
-      popType: 'laborers',
-      employed: true,
-      size: capLower,
-      money: 0,
-      needSatisfaction: 50,
-      unrest: 10,
-      attitudes: {},
-    }
-    state.popIndex.byHolding[holdingId] = [lab]
-
-    const totalPop = capLower
-    const expectedCap = Math.min(
-      totalPop * defaultConfig.popJobChangeMaxFractionPerHoldingPerMonth,
-      defaultConfig.popJobChangeMaxPerHoldingPerMonthHardCap,
-    )
-
+  it('cap は per-source: 1 source は size × kind 別レートまでしか動かない (holding 予算ではない)', () => {
+    // 失業 laborers (size 100)。lateral laborers→peasants (shortage あり) が rate 0.02 で発火。
+    //   旧 holding 予算 (size×0.001=0.1) ではなく source rate (100×0.02=2) が cap になる。
+    const { state } = setup([mk('lower', 'laborers', false, 100, 0)])
     const result = run(state)
-    expect(result.monthlyPopMobility!.jobChangedTotal).toBeGreaterThan(0)
-    expect(result.monthlyPopMobility!.jobChangedTotal).toBeLessThanOrEqual(expectedCap + 1e-9)
+    const lateralRate = defaultConfig.popJobChangeMonthlyRateByKind.lateral
+    expect(result.monthlyPopMobility!.jobChangedTotal).toBeGreaterThan(100 * 0.001) // 旧予算超え
+    expect(result.monthlyPopMobility!.jobChangedTotal).toBeLessThanOrEqual(100 * lateralRate + 1e-9)
   })
 
-  it('C3: promotion fires for the relatively-rich source, but not when wealth is uniform', () => {
-    // Three unemployed peasants; the farm provides a middle-stratum freeholders shortage (promotion target).
+  it('小 holding (総 size < 10) でも失業中産の降格が凍結しない', () => {
+    // 旧版: holding 予算 = 5×0.001 = 0.005 < minMove(0.01) で全移動が凍結していた。
+    //   per-source cap では失業 freeholders が demotion rate (0.01) で peasants へ降格できる。
+    const { state, holdingId } = setup([mk('middle', 'freeholders', false, 5, 1)])
+    const result = run(state)
+    // freeholders→peasants の降格が起き、移動先 (peasants) は失業着地。
+    expect(sizeOf(result, holdingId, 'peasants', false)).toBeGreaterThan(0)
+  })
+
+  it('C3: promotion は相対的に裕福な source で発火し、wealth が一様なら発火しない (失業着地)', () => {
+    // v0.59 追補: freeholders は実効容量 (= 雇用 peasants × maxRatio) で gate されるため、
+    //   昇格先の枠を生むには雇用済み小作農のアンカーが必要。昇格者は移動先で失業着地する。
+    const ANCHOR = mk('lower', 'peasants', true, 1000, 50)
     const spread = setup([
+      ANCHOR,
       mk('lower', 'peasants', false, 100, 10),
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 90),
     ])
     const spreadResult = run(spread.state)
-    const promotedSpread = getHoldingPopsByClassAndEmployment(
-      spreadResult,
-      spread.holdingId,
-      'middle',
-      true,
-    ).filter((p) => p.popType === 'freeholders')
-    expect(promotedSpread.length).toBeGreaterThan(0) // the wealth-90 peasant clears p75 + median gate
+    // wealth-90 の peasant が p75 + median gate を超えて freeholders へ昇格 (失業着地)。
+    expect(sizeOf(spreadResult, spread.holdingId, 'freeholders', false)).toBeGreaterThan(0)
 
     const flat = setup([
+      ANCHOR,
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 50),
     ])
     const flatResult = run(flat.state)
-    const promotedFlat = getHoldingPopsByClassAndEmployment(
-      flatResult,
-      flat.holdingId,
-      'middle',
-      true,
-    ).filter((p) => p.popType === 'freeholders')
-    expect(promotedFlat.length).toBe(0) // collapsed distribution → no one clears the relative gate
+    expect(sizeOf(flatResult, flat.holdingId, 'freeholders', false)).toBe(0)
+  })
+
+  it('昇格は移動先の実効職枠が無いと発火しない (下層アンカー無し)', () => {
+    // 雇用済み小作農が居ないと freeholders 実効容量 = 0 → 裕福な失業 peasant でも昇格できない。
+    const noAnchor = setup([
+      mk('lower', 'peasants', false, 100, 10),
+      mk('lower', 'peasants', false, 100, 50),
+      mk('lower', 'peasants', false, 100, 90),
+    ])
+    const result = run(noAnchor.state)
+    expect(sizeOf(result, noAnchor.holdingId, 'freeholders', false)).toBe(0)
+    expect(sizeOf(result, noAnchor.holdingId, 'freeholders', true)).toBe(0)
   })
 })

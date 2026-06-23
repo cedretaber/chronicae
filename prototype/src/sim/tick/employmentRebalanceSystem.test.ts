@@ -87,23 +87,26 @@ describe('normalizePopEmploymentMut — PopType ハード枠', () => {
 
   it('熟練職 (自作農) は主要職能 (小作農) の実雇用数までしか雇えない (同数上限)', () => {
     // 小作農を少量 (容量内) ・自作農を大量。自作農枠は十分あるが小作農の実数で頭打ちになる。
+    // v0.59: landQuality 廃止で実容量は base のみ (level1 farm: peasants 45.5 / freeholders 19.5)。
+    //   小作農 15 < freeholders 容量 なので「同数上限」が freeholders を縛る (容量ではなく)。
+    const PEASANT_COUNT = 15
     const { state, holdingId } = setupFarmHolding([
-      { popType: 'peasants', size: 100 },
+      { popType: 'peasants', size: PEASANT_COUNT },
       { popType: 'freeholders', size: 100000 },
     ])
 
     const capPeasants = getHoldingPopTypeCapacity(state, defaultConfig, holdingId, 'peasants')
     const capFreeholders = getHoldingPopTypeCapacity(state, defaultConfig, holdingId, 'freeholders')
-    // 前提: 小作農容量は 100 より大きく全員就業でき、自作農容量も 100 より大きい (上限が同数で効く)。
-    expect(capPeasants).toBeGreaterThan(100)
-    expect(capFreeholders).toBeGreaterThan(100)
+    // 前提: 小作農容量は実数 (15) より大きく全員就業でき、自作農容量も 15 より大きい (上限が同数で効く)。
+    expect(capPeasants).toBeGreaterThan(PEASANT_COUNT)
+    expect(capFreeholders).toBeGreaterThan(PEASANT_COUNT)
 
     normalizePopEmploymentMut(state, defaultConfig, holdingId)
 
     const employedPeasants = getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')
     const employedFreeholders = getHoldingEmployedPopSizeByType(state, holdingId, 'freeholders')
-    expect(employedPeasants).toBe(100)
-    // 同数上限: 自作農は小作農の実雇用数 (100) でキャップされる。
-    expect(employedFreeholders).toBe(100)
+    expect(employedPeasants).toBe(PEASANT_COUNT)
+    // 同数上限: 自作農は小作農の実雇用数 (15) でキャップされる。
+    expect(employedFreeholders).toBe(PEASANT_COUNT)
   })
 })

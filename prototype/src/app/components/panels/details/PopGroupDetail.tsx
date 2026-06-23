@@ -1,5 +1,8 @@
 import type { PopGroup, PopType } from '@/sim/types/popGroup'
 import { getPopStratum } from '@/sim/types/popGroup'
+import type { NeedCategory, NeedTier } from '@sim/types/needCategory'
+import { NEED_CATEGORIES, NEED_CATEGORY_TIER } from '@sim/types/needCategory'
+import { clamp100 } from '@sim/utils/math'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
@@ -7,9 +10,9 @@ import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList, DetailSection } from './shared/widgets'
-import { getHoldingClassCapacity } from '@sim/selectors/popSelectors'
+import { getHoldingClassCapacity, getPopGroupMonthlyPopChange } from '@sim/selectors/popSelectors'
 import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
-import { formatPopCount, formatPopFlow } from '@/app/utils/format'
+import { formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
 import { defaultConfig } from '@sim/config/defaultConfig'
 
 export function PopGroupDetail({
@@ -88,6 +91,54 @@ export function PopGroupDetail({
         </div>
       </div>
 
+      {/* v0.59: 需要充足率の内訳 (必需品/日用品/贅沢品 × カテゴリ)。直近経済 tick のキャッシュ。
+          desire を持つカテゴリのみ表示。食料不足を POP 側から確認するためのビュー。 */}
+      {(() => {
+        const sat = popGroup.categorySatisfaction
+        if (!sat) return null
+        const tierOrder: NeedTier[] = ['essential', 'ordinary', 'luxury']
+        const byTier = new Map<NeedTier, NeedCategory[]>()
+        for (const cat of NEED_CATEGORIES) {
+          if (sat[cat] === undefined) continue
+          const tier = NEED_CATEGORY_TIER[cat]
+          const arr = byTier.get(tier) ?? []
+          arr.push(cat)
+          byTier.set(tier, arr)
+        }
+        const tiersToShow = tierOrder.filter((tr) => (byTier.get(tr)?.length ?? 0) > 0)
+        if (tiersToShow.length === 0) return null
+        const barColor = (pct: number) =>
+          pct < 40 ? 'bg-red-600' : pct < 70 ? 'bg-amber-500' : 'bg-emerald-600'
+        return (
+          <div className="text-sm">
+            <DetailSection title={t('detail.popNeed.section_title')} />
+            <div className="mt-1 flex flex-col gap-2 text-xs">
+              {tiersToShow.map((tier) => (
+                <div key={tier} className="flex flex-col gap-0.5">
+                  <span className="font-medium text-gray-400">
+                    {t(`detail.popNeed.tier_${tier}`)}
+                  </span>
+                  {(byTier.get(tier) ?? []).map((cat) => {
+                    const pct = clamp100(sat[cat] ?? 0)
+                    return (
+                      <div key={cat} className="flex items-center gap-1.5 pl-2">
+                        <span className="w-20 shrink-0 text-gray-500">
+                          {t(`detail.popNeed.category_${cat}`)}
+                        </span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
+                          <div className={`h-full ${barColor(pct)}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-8 text-right text-gray-400">{pct.toFixed(0)}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       {popGroup.employed && currentState && (
         <div className="text-sm">
           <div className="flex justify-between">
@@ -106,6 +157,45 @@ export function PopGroupDetail({
           </div>
         </div>
       )}
+
+      {/* v0.59: 先月からの人口変動 (自然増減 + 移住の小計)。転職・雇用変動は下の階層移動セクションに集約。 */}
+      {currentState &&
+        (() => {
+          const change = getPopGroupMonthlyPopChange(currentState, popGroup)
+          if (!change) return null
+          const netTone =
+            change.net > 0 ? 'text-emerald-400' : change.net < 0 ? 'text-rose-400' : 'text-gray-300'
+          const naturalTone =
+            change.natural > 0
+              ? 'text-emerald-400'
+              : change.natural < 0
+                ? 'text-rose-400'
+                : 'text-gray-300'
+          return (
+            <div className="text-sm">
+              <DetailSection title={t('detail.popChange.section_title')} />
+              <div className="mt-1 flex flex-col gap-1 text-xs">
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-300">{t('detail.popChange.net')}</span>
+                  <span className={netTone}>{formatPopDelta(change.net)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.natural')}</span>
+                  <span className={naturalTone}>{formatPopDelta(change.natural)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.migration')}</span>
+                  <span>
+                    <span className="text-emerald-400">+{formatPopFlow(change.migrationIn)}</span>
+                    <span className="text-gray-500"> / </span>
+                    <span className="text-amber-400">−{formatPopFlow(change.migrationOut)}</span>
+                  </span>
+                </div>
+                <div className="text-gray-500">{t('detail.popChange.pop_subtotal_note')}</div>
+              </div>
+            </div>
+          )
+        })()}
 
       {/* v0.56: 階層移動・転職 (先月)。この POP への転入 (昇格/降格/転職で来た) と転出を相手職種別に集計。 */}
       {currentState?.monthlyPopMobility &&

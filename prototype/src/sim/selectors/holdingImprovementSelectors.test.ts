@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   canBuildHoldingImprovementPure,
+  canBuildRealEstateAssetPure,
   conditionEffectiveness,
 } from './holdingImprovementSelectors'
 import { defaultConfig } from '../config/defaultConfig'
@@ -45,24 +46,13 @@ describe('canBuildHoldingImprovementPure', () => {
     ).toBe(false)
   })
 
-  it('irrigation_infrastructure: mountains では建設不可 (allowedTerrains 外)', () => {
-    expect(
-      canBuildHoldingImprovementPure('manor', 'mountains', [], 0, 'irrigation_infrastructure', cfg),
-    ).toBe(false)
-  })
-
   it('transport_infrastructure: currentLevel が maxLevel(3) 到達済みなら不可', () => {
     expect(
       canBuildHoldingImprovementPure('manor', 'plains', [], 3, 'transport_infrastructure', cfg),
     ).toBe(false)
   })
 
-  it('irrigation: feature 無しでは建設不可 (requiredAnyFeatures)', () => {
-    expect(
-      canBuildHoldingImprovementPure('manor', 'plains', [], 0, 'irrigation_infrastructure', cfg),
-    ).toBe(false)
-  })
-
+  // v0.59 追補③: 灌漑は地形/feature ゲートを撤去。河川/湖沼でも建設可 (もはや必須ではないが許可される)。
   it('irrigation: major_river があれば建設可', () => {
     expect(
       canBuildHoldingImprovementPure(
@@ -102,5 +92,32 @@ describe('canBuildHoldingImprovementPure', () => {
     expect(
       canBuildHoldingImprovementPure('manor', 'mountains', [], 0, 'storage_infrastructure', cfg),
     ).toBe(true)
+  })
+})
+
+describe('v0.59 農園どこでも', () => {
+  it('farm は mountains でも建設可能', () => {
+    expect(canBuildRealEstateAssetPure('manor', 'mountains', [], 'farm')).toBe(true)
+  })
+  it('farm は従来地形でも建設可能 (plains)', () => {
+    expect(canBuildRealEstateAssetPure('manor', 'plains', [], 'farm')).toBe(true)
+  })
+})
+
+describe('v0.59 追補③ 灌漑 degate', () => {
+  it('irrigation は河川/湖沼が無い plains の manor でも建設可 (旧 requiredAnyFeatures 撤去)', () => {
+    expect(
+      canBuildHoldingImprovementPure('manor', 'plains', [], 0, 'irrigation_infrastructure', cfg),
+    ).toBe(true)
+  })
+  it('irrigation は mountains の manor でも建設可 (旧 allowedTerrains 撤去)', () => {
+    expect(
+      canBuildHoldingImprovementPure('manor', 'mountains', [], 0, 'irrigation_infrastructure', cfg),
+    ).toBe(true)
+  })
+  it('irrigation は city には建てられない (allowedHoldingKinds=manor 維持)', () => {
+    expect(
+      canBuildHoldingImprovementPure('city', 'plains', [], 0, 'irrigation_infrastructure', cfg),
+    ).toBe(false)
   })
 })

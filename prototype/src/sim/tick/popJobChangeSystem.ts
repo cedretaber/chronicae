@@ -5,10 +5,7 @@ import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import type { PopTargetKey, PopMobilitySnapshotEntry, PopMobilityKind } from '../types/popMobility'
-import {
-  getHoldingPopTypeRemainingCapacity,
-  getHoldingTotalPopSize,
-} from '../selectors/popSelectors'
+import { getHoldingPopTypeRemainingCapacity } from '../selectors/popSelectors'
 import {
   computeHoldingPopTypeDemand,
   computePopTypeMoneyQuantiles,
@@ -40,11 +37,11 @@ type JobChangeCandidate = {
   shortage: number
 }
 
-// while ループの安全弁 (理論上 remainingCap が単調減少して終了するが、無限ループの backstop)。
-const MAX_ITERATIONS_PER_HOLDING = 64
-
-// v0.56 §7: 同一 holding 内で recipe 労働需要に追随する転職。
-//   候補優先度方式 (A2) + C1 capacity gate + C3 相対 wealth gate + 人口比 cap (C2)。
+// v0.56 §7 / v0.59 追補: 同一 holding 内で recipe 労働需要に追随する転職。
+//   v0.59 追補で **per-source cap** へ再設計: holding 共有予算 (remainingCap) を廃し、各 source POP が
+//   自分の size × kind 別レートまで /月 移動できる (移動先非依存)。移動は雇用と分離し、移動先では
+//   **失業として着地**する (employed=false)。雇用は後段 employmentRebalance が職枠＋maxRatio で確定。
+//   昇格だけは「社会的余地」として移動先の実効職枠 (consumed 差引後) を gate にする (§判断3)。
 export function runPopJobChangeSystem(ctx: TickContext): TickContext {
   const config = ctx.config
   const ws: WorldState = {
@@ -75,27 +72,36 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
     const stateId = province.stateId
     const quantiles = quantilesByState.get(stateId)
 
-    let remainingCap = Math.min(
-      getHoldingTotalPopSize(ws, holdingId) * config.popJobChangeMaxFractionPerHoldingPerMonth,
-      config.popJobChangeMaxPerHoldingPerMonthHardCap,
-    )
+    // demand は holding ごとに月初に 1 回算出 (旧版の per-iteration 再計算を廃止)。
+    const demand = computeHoldingPopTypeDemand(ws, config, holdingId)
+    // 同月内に複数 source が同 target を昇格先にする oversubscribe 防止 (実効職枠の消費を追跡)。
+    const consumedPromotionByType = new Map<PopType, number>()
 
-    let guard = 0
-    while (remainingCap >= minMove && guard++ < MAX_ITERATIONS_PER_HOLDING) {
-      const demand = computeHoldingPopTypeDemand(ws, config, holdingId)
-      const candidate = bestJobChangeCandidate(
+    // 各 source POP を id 昇順に 1 回ずつ処理する (per-source cap)。
+    for (const sourcePid of [...(ws.popIndex.byHolding[holdingId] ?? [])].sort()) {
+      const source = ws.popGroups[sourcePid]
+      if (!source) continue
+      if (source.size - eps < minMove) continue
+      // eligibility: 失業 source か、employed かつ surplus がある source のみ。
+      const isUnemployed = !source.employed
+      const isSurplus = source.employed && (demand.surplusByType[source.popType] ?? 0) > 0
+      if (!isUnemployed && !isSurplus) continue
+
+      const candidate = bestTargetForSource(
         ws,
         config,
         holdingId,
+        source,
         demand,
         quantiles,
         eps,
         minMove,
+        consumedPromotionByType,
       )
-      if (!candidate) break
+      if (!candidate) continue
 
-      const amount = Math.min(candidate.maxAmount, remainingCap)
-      if (amount < minMove) break
+      const amount = candidate.maxAmount
+      if (amount < minMove) continue
 
       const targetId = movePopSizeToKeyMut(ws, candidate.source.id, candidate.target, amount, {
         minSourceSize: eps,
@@ -103,8 +109,14 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
           ? { moneyCostPerCapita: candidate.moneyCostPerCapita }
           : {}),
       })
-      if (targetId === undefined) break // safety: candidate said movable but move was a no-op
-      remainingCap -= amount
+      if (targetId === undefined) continue // safety: candidate said movable but move was a no-op
+
+      if (candidate.kind === 'promotion') {
+        consumedPromotionByType.set(
+          candidate.target.popType,
+          (consumedPromotionByType.get(candidate.target.popType) ?? 0) + amount,
+        )
+      }
 
       entries.push({
         kind: 'job_change',
@@ -114,7 +126,7 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
         fromPopType: candidate.source.popType,
         toPopType: candidate.target.popType,
         fromEmployed: candidate.source.employed,
-        toEmployed: candidate.target.employed,
+        toEmployed: false, // v0.59 追補: 移動先では失業着地 (雇用は rebalance が確定)
       })
       snapshot.jobChangedTotal += amount
       ensureByState(snapshot, stateId).jobChanged += amount
@@ -126,43 +138,35 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
   return { ...ctx, state: ws }
 }
 
-function bestJobChangeCandidate(
+// 単一 source POP について、許可 target の中から最良の転職候補を 1 つ選ぶ (per-source)。
+function bestTargetForSource(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
+  source: PopGroup,
   demand: HoldingDemand,
   quantiles: MoneyQuantiles | undefined,
   eps: number,
   minMove: number,
+  consumedPromotionByType: Map<PopType, number>,
 ): JobChangeCandidate | undefined {
-  const popIds = [...(ws.popIndex.byHolding[holdingId] ?? [])].sort()
   let best: JobChangeCandidate | undefined
-
-  for (const pid of popIds) {
-    const source = ws.popGroups[pid]
-    if (!source) continue
-
-    const isSurplusSource = source.employed && (demand.surplusByType[source.popType] ?? 0) > 0
-    const isUnemployedSource = !source.employed
-    if (!isSurplusSource && !isUnemployedSource) continue
-    if (source.size - eps < minMove) continue // too small to move the minimum amount
-
-    for (const targetPopType of allowedTargetsFor(source.popType)) {
-      const kind = classifyMobilityKind(source.popType, targetPopType)
-      const cand = evaluateCandidate(
-        ws,
-        config,
-        holdingId,
-        source,
-        targetPopType,
-        kind,
-        demand,
-        quantiles,
-        eps,
-      )
-      if (!cand || cand.maxAmount < minMove) continue
-      if (!best || candidateBetter(cand, best)) best = cand
-    }
+  for (const targetPopType of allowedTargetsFor(source.popType)) {
+    const kind = classifyMobilityKind(source.popType, targetPopType)
+    const cand = evaluateCandidate(
+      ws,
+      config,
+      holdingId,
+      source,
+      targetPopType,
+      kind,
+      demand,
+      quantiles,
+      eps,
+      consumedPromotionByType,
+    )
+    if (!cand || cand.maxAmount < minMove) continue
+    if (!best || candidateBetter(cand, best)) best = cand
   }
   return best
 }
@@ -190,6 +194,7 @@ function evaluateCandidate(
   demand: HoldingDemand,
   quantiles: MoneyQuantiles | undefined,
   eps: number,
+  consumedPromotionByType: Map<PopType, number>,
 ): JobChangeCandidate | undefined {
   const targetStratum: PopStratum = getPopStratum(targetPopType)
   const targetShortage = demand.shortageByType[targetPopType] ?? 0
@@ -198,13 +203,10 @@ function evaluateCandidate(
   const movableBySize = source.size - eps
   const movableByRate = source.size * rate
 
-  const make = (
-    targetEmployed: boolean,
-    maxAmount: number,
-    moneyCostPerCapita?: number,
-  ): JobChangeCandidate => ({
+  // v0.59 追補: 移動先では常に失業着地 (雇用は rebalance が確定)。cap は source サイズ依存・移動先非依存。
+  const make = (maxAmount: number, moneyCostPerCapita?: number): JobChangeCandidate => ({
     source,
-    target: { holdingId, class: targetStratum, popType: targetPopType, employed: targetEmployed },
+    target: { holdingId, class: targetStratum, popType: targetPopType, employed: false },
     kind,
     maxAmount,
     ...(moneyCostPerCapita !== undefined ? { moneyCostPerCapita } : {}),
@@ -213,18 +215,15 @@ function evaluateCandidate(
   })
 
   if (kind === 'lateral') {
+    // 同 stratum 内の職替え。移動先非依存 (capacity gate なし)。shortage を満たす方向のみ。
     if (targetShortage <= 0) return undefined
     if (!(sourceSurplus > 0 || !source.employed)) return undefined
-    const increasesHeadcount = !source.employed // same stratum, target employed → only unemployed→employed grows headcount
-    const remainingCap = increasesHeadcount
-      ? getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
-      : Infinity
-    if (increasesHeadcount && remainingCap <= 0) return undefined
-    const maxAmount = Math.min(movableBySize, targetShortage, remainingCap, movableByRate)
-    return make(true, maxAmount)
+    const maxAmount = Math.min(movableBySize, targetShortage, movableByRate)
+    return make(maxAmount)
   }
 
   if (kind === 'promotion') {
+    // §判断3: 昇格は移動先の実効職枠 (consumed 差引後) を必須にする (社会的余地)。
     if (targetShortage <= 0) return undefined
     const q = quantiles?.[source.popType]
     if (!q) return undefined
@@ -233,15 +232,17 @@ function evaluateCandidate(
     if (!(srcMoney >= q.p75 && srcMoney > q.median + config.popPromotionEpsilon)) {
       return undefined
     }
-    const remainingCap = getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
+    const remainingCap =
+      getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType) -
+      (consumedPromotionByType.get(targetPopType) ?? 0)
     if (remainingCap <= 0) return undefined
     // 昇格コストは per-capita money の sink (movePopSizeToKeyMut が移送 money から burn)。
     const moneyCostPerCapita = config.popPromotionWealthCostByTargetStratum[targetStratum] ?? 0
     const maxAmount = Math.min(movableBySize, targetShortage, remainingCap, movableByRate)
-    return make(true, maxAmount, moneyCostPerCapita)
+    return make(maxAmount, moneyCostPerCapita)
   }
 
-  // demotion (v0.58: per-capita money 下位を gate に)
+  // demotion (v0.58: per-capita money 下位を gate に)。移動先非依存・失業着地。
   const q = quantiles?.[source.popType]
   const srcMoney = perCapitaMoney(source)
   const demotionWealthOk =
@@ -251,16 +252,7 @@ function evaluateCandidate(
   const hasTargetShortage = targetShortage > 0
   if (!(hasTargetShortage || !source.employed)) return undefined
 
-  // §7.9 A5: employed source + 雇用余地 → employed; それ以外 → unemployed。
-  let targetEmployed = false
-  let remainingCap = Infinity
-  if (source.employed) {
-    remainingCap = getHoldingPopTypeRemainingCapacity(ws, config, holdingId, targetPopType)
-    targetEmployed = remainingCap > 0
-  }
-  const increasesHeadcount = targetEmployed // cross-stratum + employed target
-  const capTerm = increasesHeadcount ? remainingCap : Infinity
   const shortageTerm = hasTargetShortage ? targetShortage : Infinity
-  const maxAmount = Math.min(movableBySize, movableByRate, shortageTerm, capTerm)
-  return make(targetEmployed, maxAmount)
+  const maxAmount = Math.min(movableBySize, movableByRate, shortageTerm)
+  return make(maxAmount)
 }

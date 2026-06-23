@@ -39,6 +39,7 @@ function makeFixture(): {
         holdingIds: [],
         terrain: 'plains',
         features: [],
+        traits: [],
       },
     },
     holdings: {},

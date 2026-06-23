@@ -59,6 +59,7 @@ import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImpro
 import type { RealEstateAsset, RealEstateAssetIndex } from './realEstateAsset'
 import type { MarketResourcePriceState, HoldingResourceRevenueSnapshot } from './resourceEconomy'
 import type { MonthlyPopMobilitySnapshot } from './popMobility'
+import type { MonthlyPopChangeSnapshot } from './popChange'
 import type { RealEstateSeizure, RealEstateSeizureIndex } from './realEstateSeizure'
 import type { LandContractDefault, LandContractDefaultIndex } from './landContractDefault'
 import type { Project, ProjectIndex } from './project'
@@ -128,6 +129,9 @@ export type WorldState = {
   monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
   // v0.56 POP mobility read-model (PopMigrationSystem が月次出力。latest のみ。optional 開始)
   monthlyPopMobility?: MonthlyPopMobilitySnapshot
+  // v0.59 POP 人口変動 read-model (先月の自然増減 + 移住。PopSystem が月初リセット生成、
+  //   CrisisSystem / PopMigrationSystem が in-place 累積。latest のみ。optional 開始)
+  monthlyPopChange?: MonthlyPopChangeSnapshot
   // v0.53 RealEstateSeizure (押領)
   realEstateSeizures: Record<RealEstateSeizureId, RealEstateSeizure>
   realEstateSeizureIndex: RealEstateSeizureIndex

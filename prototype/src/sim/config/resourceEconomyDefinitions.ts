@@ -70,3 +70,17 @@ export const REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS: Record<
     { improvementKind: 'transport_infrastructure', bonusPerLevel: 0.1 },
   ],
 }
+
+// v0.59 追補③: 改良 kind → それが生産性を boost する RealEstateKind 群 (上の逆引き・module 初期化時に派生)。
+//   「品薄資源を生産する asset を boost できる production_quality 改良はどれか」の選定に使う。
+export const IMPROVEMENT_BOOSTED_REAL_ESTATE_KINDS: Partial<
+  Record<HoldingImprovementKind, RealEstateKind[]>
+> = (() => {
+  const map: Partial<Record<HoldingImprovementKind, RealEstateKind[]>> = {}
+  for (const reKind of Object.keys(REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS) as RealEstateKind[]) {
+    for (const mod of REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS[reKind]) {
+      ;(map[mod.improvementKind] ??= []).push(reKind)
+    }
+  }
+  return map
+})()

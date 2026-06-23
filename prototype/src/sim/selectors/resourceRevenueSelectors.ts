@@ -1,9 +1,13 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { HoldingId, ProvinceId } from '../types/ids'
+import type { HoldingId, ProvinceId, StateRegionId } from '../types/ids'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import { RESOURCE_KINDS } from '../types/resource'
+import type { ResourceKind } from '../types/resource'
+import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
+import { getProvincePopulationPressure } from './popSelectors'
 import {
   computeAllocatedLaborByAsset,
   computeAssetRecipePotentials,
@@ -119,4 +123,37 @@ export function estimateMonthlyOwnerIncome(
     estimateAssetPotentialNetRevenue(state, config, asset, allocated.get(asset.id) ?? 0),
   )
   return net * dueShare
+}
+
+// v0.59 追補③: ある資源の state 市場での品薄度 (直近 clearing の shortageSeverity ∈ [0,1])。
+//   buyOrders が sellOrders を上回るほど大きい。市場 history が無ければ 0 (品薄でない)。純関数。
+export function getResourceShortageSeverity(
+  state: WorldState,
+  stateId: StateRegionId,
+  resource: ResourceKind,
+): number {
+  const ps = state.marketResourcePrices[marketResourcePriceKey(stateId, resource)]
+  if (!ps) return 0
+  const last = ps.history[ps.history.length - 1]
+  return last?.shortageSeverity ?? 0
+}
+
+// v0.59 追補③: 資源の「ボトルネック度」= max(市場 shortageSeverity, 食料 pressure シグナル)。
+//   食料資源 (FOOD_RESOURCE_VALUE) はマルサス的に市場が自己均衡し market shortage が ≈0 になるため、
+//   人口圧 (state人口/食料CC) が foodBottleneckPressureThreshold 以上なら pressure 値を severity とする。
+//   非食料資源は市場 shortage のみ。RNG 非消費・純関数。
+export function getResourceBottleneckSeverity(
+  state: WorldState,
+  config: SimulationConfig,
+  provinceId: ProvinceId,
+  stateId: StateRegionId,
+  resource: ResourceKind,
+): number {
+  const marketSeverity = getResourceShortageSeverity(state, stateId, resource)
+  let foodSeverity = 0
+  if (FOOD_RESOURCE_VALUE[resource] !== undefined) {
+    const pressure = getProvincePopulationPressure(state, config, provinceId)
+    if (pressure >= config.foodBottleneckPressureThreshold) foodSeverity = pressure
+  }
+  return Math.max(marketSeverity, foodSeverity)
 }

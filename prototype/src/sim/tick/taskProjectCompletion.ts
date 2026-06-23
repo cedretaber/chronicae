@@ -15,12 +15,14 @@ import type {
   ProjectKind,
 } from '../types/project'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { Province } from '../types/province'
 import {
   getHoldingImprovementLevel,
   canBuildHoldingImprovement,
   canBuildRealEstateAsset,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
+import { computeSlotCapacity } from '../selectors/terrainTraitSelectors'
 import { hasCapacityPressure, hasEmploymentSlack } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
@@ -29,6 +31,7 @@ import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import { selectProductivityImprovementForBottleneck } from '../selectors/productivityBottleneckSelectors'
 import {
   computeProjectMaterialBaseUnits,
   getProjectMaterialRequirements,
@@ -154,6 +157,26 @@ export function handlePrepareProjectCompletionMut(
   })
 }
 
+// v0.59 追補③: 改良 develop_holding プロジェクトの必要予算を算出する共有 helper。
+//   base × level 乗数 × 地形コスト乗数 × (各 feature コスト乗数の積) × budget margin。
+//   地形/地物コスト乗数は未定義なら 1.0 (割引なし)。RNG 不使用・純関数。
+export function computeImprovementProjectCost(
+  config: SimulationConfig,
+  province: Province,
+  improvementKind: HoldingImprovementKind,
+  targetLevel: number,
+): number {
+  const base = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
+  const levelMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+  const terrainMult =
+    config.holdingImprovementTerrainCostMultiplier[improvementKind]?.[province.terrain] ?? 1
+  let featureMult = 1
+  for (const f of province.features) {
+    featureMult *= config.holdingImprovementFeatureCostMultiplier[improvementKind]?.[f] ?? 1
+  }
+  return base * levelMult * terrainMult * featureMult * config.projectBudgetMarginMultiplier
+}
+
 // v0.33 §11.2: IMPROVEMENT_DEFINITIONS 駆動。canBuildHoldingImprovement で候補を絞り
 // （生 maxLevel の >= 比較は undefined を無制限と誤読するため使わない）、
 // capacityRole='capacity' を優先、不足 occupation を増やせる kind を優先、同条件は level 最小。
@@ -191,7 +214,7 @@ function selectRealEstateKind(
   if (!province) return undefined
 
   const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const usedSlots = assetIds.length
   const hasSlotRoom = usedSlots < slotCap
 
@@ -263,6 +286,38 @@ function buildProjectFieldsForAim(
       // v0.55 §B: 失業スラックがあれば、満員でなくても雇用を生む不動産開発ルートへ (インフラより優先)。
       const hasSlack = hasEmploymentSlack(ws, config, holdingId)
 
+      // v0.59 追補③: 品薄資源 (市場 shortage または食料 pressure) を生産している holding は、capacity
+      //   増設より production_quality 改良 (例: 灌漑) を優先する。aim 生成 (goalSelectors) もボトルネックを
+      //   トリガにするため、食料束縛で人口が capacity 未満・全員就業 (slack 無し) の holding でもこの分岐に
+      //   到達する。hasSlack では gate しない (slack 無しでも改良する)。
+      //   max level 到達で selectProductivityImprovementForBottleneck が undefined を返し自然に打ち止め。
+      const prodKind = selectProductivityImprovementForBottleneck(ws, config, holdingId)
+      if (prodKind) {
+        const province = ws.provinces[holding.provinceId]
+        if (province) {
+          const currentLevel = getHoldingImprovementLevel(ws, holdingId, prodKind)
+          const targetLevel = currentLevel + 1
+          const required = computeImprovementProjectCost(config, province, prodKind, targetLevel)
+          const baseProgress = config.developHoldingProjectBaseProgressByImprovementKind[prodKind]
+          const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+          return {
+            // 'kind' を返さない → projectKind 'develop_holding' のまま (既存 improvement パスと同形)。
+            holdingId,
+            improvementKind: prodKind,
+            targetImprovementLevel: targetLevel,
+            currentStageKey: getInitialProjectStageKey('develop_holding'),
+            budget: {
+              required,
+              allocated: 0,
+              remaining: 0,
+              spent: 0,
+              source: { kind: 'owner' },
+            } satisfies ProjectBudget,
+            targetProgress: baseProgress * progMult,
+          }
+        }
+      }
+
       if (hasCapPressure || hasSlack) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
         if (!realEstateKind) {
@@ -274,7 +329,12 @@ function buildProjectFieldsForAim(
               holding?.kind ?? 'manor'
             ] ?? 3
           const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-          const slotCap = config.realEstateSlotCapacityBase[holding?.kind ?? 'manor'] ?? 3
+          const slotProvince = holding ? ws.provinces[holding.provinceId] : undefined
+          const slotCap = computeSlotCapacity(
+            config,
+            holding?.kind ?? 'manor',
+            slotProvince?.traits ?? [],
+          )
           const hasSlotRoom = assetIds.length < slotCap
           // upgrade: find existing asset of this kind with level < maxLevel
           const upgradeTarget = (() => {
@@ -323,9 +383,15 @@ function buildProjectFieldsForAim(
       const currentLevel = getHoldingImprovementLevel(ws, holdingId, improvementKind)
       const targetLevel = currentLevel + 1
 
-      const baseCost = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
-      const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
-      const required = baseCost * costMult * config.projectBudgetMarginMultiplier
+      const improvementProvince = ws.provinces[holding.provinceId]
+      if (!improvementProvince) return undefined
+      // v0.59 追補③: 地形/地物コスト割引を共有 helper で適用。
+      const required = computeImprovementProjectCost(
+        config,
+        improvementProvince,
+        improvementKind,
+        targetLevel,
+      )
 
       const baseProgress =
         config.developHoldingProjectBaseProgressByImprovementKind[improvementKind]

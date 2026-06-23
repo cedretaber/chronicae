@@ -40,8 +40,8 @@ function mkPop(
   }
 }
 
-describe('PopMigrationSystem', () => {
-  it('migrates from a crowded holding to a vacant one within the region, respecting caps', () => {
+describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 + 失業着地)', () => {
+  it('混雑 holding から空きのある holding へ移住する。cap は source rate・移動先非依存で失業着地', () => {
     let s = makeEmptyV016State()
     s = withProvince(s, PA)
     s = withProvince(s, PB)
@@ -83,20 +83,20 @@ describe('PopMigrationSystem', () => {
       nextPopGroupId: 1000,
     }
 
-    const inflowCapB = Math.min(
-      50 * defaultConfig.popMigrationMaxInflowFractionPerHoldingPerMonth,
-      defaultConfig.popMigrationMaxInflowPerHoldingPerMonthHardCap,
-    )
-
     const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
     const result = runPopMigrationSystem(ctx).state
 
-    // migration occurred and stayed within the inflow cap of the (small) target holding.
-    expect(result.monthlyPopMobility!.migratedTotal).toBeGreaterThan(0)
-    expect(result.monthlyPopMobility!.migratedTotal).toBeLessThanOrEqual(inflowCapB + 1e-9)
+    // v0.59 追補: cap は source サイズ依存 (size × stratum rate) で移動先非依存。
+    //   旧 inflow cap (50×0.001=0.05) を大きく超え、source rate (1000×0.01=10) で頭打ちになる。
+    const lowerMigRate = defaultConfig.popMigrationMonthlyRateByStratum.lower
+    const moved = result.monthlyPopMobility!.migratedTotal
+    expect(moved).toBeGreaterThan(1) // 旧 inflow cap (0.05) を大きく超える＝移動先非依存
+    // per-source cap: 各 source は size × rate まで。region 内 source size 総和 × rate が上限。
+    const totalSourceSize = capA + 1000 + 50
+    expect(moved).toBeLessThanOrEqual(totalSourceSize * lowerMigRate + 1e-9)
 
-    // a laborers cohort now lives in the target holding.
-    const laborersInB = getHoldingPopsByClassAndEmployment(result, hB, 'lower', true).filter(
+    // a laborers cohort now lives in the target holding — 失業着地する (雇用は rebalance が確定)。
+    const laborersInB = getHoldingPopsByClassAndEmployment(result, hB, 'lower', false).filter(
       (p) => p.popType === 'laborers',
     )
     expect(laborersInB.length).toBeGreaterThan(0)
@@ -105,5 +105,57 @@ describe('PopMigrationSystem', () => {
     const byState = result.monthlyPopMobility!.byState['sr-0' as StateRegionId]
     expect(byState?.migratedOut).toBeGreaterThan(0)
     expect(byState?.migratedIn).toBeGreaterThan(0)
+  })
+
+  it('v0.59: 移住を monthlyPopChange に流出元/流入先 holding 単位で累積する', () => {
+    let s = makeEmptyV016State()
+    s = withProvince(s, PA)
+    s = withProvince(s, PB)
+    const hA = s.provinces[PA]!.holdingIds[0]!
+    const hB = s.provinces[PB]!.holdingIds[0]!
+
+    const assetId = createRealEstateAssetId(0)
+    const asset: RealEstateAsset = {
+      id: assetId,
+      holdingId: hB,
+      realEstateKind: 'farm',
+      level: 1,
+      createdWeek: 0,
+      recipeSlots: { [GRAIN_FIELD]: 20 },
+    }
+    const capA = getHoldingClassCapacity(s, defaultConfig, hA, 'lower')
+    const employedA = createPopGroupId(100)
+    const migrant = createPopGroupId(101)
+    const residentB = createPopGroupId(102)
+
+    const state: WorldState = {
+      ...s,
+      realEstateAssets: { [assetId]: asset },
+      realEstateAssetIndex: {
+        ...s.realEstateAssetIndex,
+        byHolding: { ...s.realEstateAssetIndex.byHolding, [hB as string]: [assetId] },
+      },
+      popGroups: {
+        [employedA]: mkPop(employedA, hA, 'laborers', true, capA, 50),
+        [migrant]: mkPop(migrant, hA, 'laborers', false, 1000, 5),
+        [residentB]: mkPop(residentB, hB, 'peasants', true, 50, 50),
+      },
+      popIndex: { byHolding: { [hA]: [employedA, migrant], [hB]: [residentB] } },
+      nextPopGroupId: 1000,
+      // PopSystem が月初に生成する read-model を模す (migration は生成せず in-place 累積のみ)。
+      monthlyPopChange: { week: 0, byHolding: {}, byPopGroupKey: {} },
+    }
+
+    const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
+    const result = runPopMigrationSystem(ctx).state
+
+    const moved = result.monthlyPopMobility!.migratedTotal
+    expect(moved).toBeGreaterThan(0)
+    const change = result.monthlyPopChange!
+    // 流出は source(hA)、流入は target(hB) に同量。
+    expect(change.byHolding[hA]?.migrationOut).toBeCloseTo(moved)
+    expect(change.byHolding[hB]?.migrationIn).toBeCloseTo(moved)
+    expect(change.byHolding[hA]?.migrationIn ?? 0).toBe(0)
+    expect(change.byHolding[hB]?.migrationOut ?? 0).toBe(0)
   })
 })

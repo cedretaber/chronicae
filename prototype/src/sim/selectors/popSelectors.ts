@@ -14,6 +14,9 @@ import {
   computeHoldingAllPopTypeCapacities,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
+import { computeSlotCapacity } from './terrainTraitSelectors'
+import { popGroupChangeKey } from '../types/popChange'
+import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -303,7 +306,7 @@ function collectHoldingCapacityInputs(
     if (asset) assets.push({ realEstateKind: asset.realEstateKind, level: asset.level })
   }
 
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(assets.length, slotCap, config)
 
   return { holding, province, improvements, assets, overuseMod }
@@ -321,7 +324,6 @@ export function getHoldingClassCapacity(
   return computeHoldingClassCapacity(
     holding.kind,
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
@@ -379,7 +381,6 @@ export function getHoldingPopTypeCapacity(
   return computeHoldingPopTypeCapacity(
     holding.kind,
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
@@ -390,13 +391,47 @@ export function getHoldingPopTypeCapacity(
   )
 }
 
+// v0.59 追補: 生容量を maxRatio (熟練職の同数上限) で絞る共有 helper。
+//   熟練職 (親方/自作農) は POP_TYPE_MAX_RATIO により下層同種職の実雇用数 × ratio で雇用上限が縛られる。
+//   判断系 (転職/移住/昇格 gate・shortage) と employmentRebalanceSystem の両方がこの 1 箇所を共有し、
+//   絞り込み式の重複を排除する。refEmployed は呼び出し時点の live employed を読むため、rebalance の
+//   ように loop 内で参照先の雇用が変わる文脈でもそのまま使える。
+export function clampCapacityByMaxRatio(
+  state: WorldState,
+  holdingId: HoldingId,
+  popType: PopType,
+  rawCapacity: number,
+): number {
+  const maxRatio = POP_TYPE_MAX_RATIO[popType]
+  if (!maxRatio) return rawCapacity
+  const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
+  return Math.min(rawCapacity, refEmployed * maxRatio.ratio)
+}
+
+// v0.59 追補: 判断系専用の「実効容量」(生容量を maxRatio で絞った値)。「絶対に埋まらない幻の枠」を
+//   shortage/空き枠として誤計上しないために使う。
+export function getHoldingPopTypeEffectiveCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popType: PopType,
+): number {
+  return clampCapacityByMaxRatio(
+    state,
+    holdingId,
+    popType,
+    getHoldingPopTypeCapacity(state, config, holdingId, popType),
+  )
+}
+
 export function getHoldingPopTypeRemainingCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popType: PopType,
 ): number {
-  const capacity = getHoldingPopTypeCapacity(state, config, holdingId, popType)
+  // v0.59 追補: 昇格 gate・lateral capacity gate で「埋まらない幻の枠」を弾くため実効容量を使う。
+  const capacity = getHoldingPopTypeEffectiveCapacity(state, config, holdingId, popType)
   const used = getHoldingEmployedPopSizeByType(state, holdingId, popType)
   return Math.max(0, capacity - used)
 }
@@ -412,7 +447,6 @@ export function getHoldingAllPopTypeCapacities(
   const { holding, province, improvements, assets, overuseMod } = inputs
   return computeHoldingAllPopTypeCapacities(
     holding.weight,
-    holding.landQuality,
     province.terrain,
     province.features,
     improvements,
@@ -453,4 +487,40 @@ export function hasEmploymentSlack(
       return true
   }
   return false
+}
+
+// v0.59: 先月 (直近 4 週) の人口変動 read-model を holding 単位で取得 (pure read)。
+//   net = natural + migrationIn − migrationOut。read-model 未生成 (最初の月初前) は undefined。
+export function getHoldingMonthlyPopChange(
+  state: WorldState,
+  holdingId: HoldingId,
+): { natural: number; migrationIn: number; migrationOut: number; net: number } | undefined {
+  const snapshot = state.monthlyPopChange
+  if (!snapshot) return undefined
+  const e = snapshot.byHolding[holdingId] ?? { natural: 0, migrationIn: 0, migrationOut: 0 }
+  return {
+    natural: e.natural,
+    migrationIn: e.migrationIn,
+    migrationOut: e.migrationOut,
+    net: e.natural + e.migrationIn - e.migrationOut,
+  }
+}
+
+// v0.59: 先月の人口変動を POP グループ単位で取得。net は自然増減 + 移住の小計
+//   (転職・雇用変動は含まない → POP グループの素の size 差分とは一致しない。それらは
+//   monthlyPopMobility の階層移動セクションに集約)。read-model 未生成は undefined。
+export function getPopGroupMonthlyPopChange(
+  state: WorldState,
+  pop: PopGroup,
+): { natural: number; migrationIn: number; migrationOut: number; net: number } | undefined {
+  const snapshot = state.monthlyPopChange
+  if (!snapshot) return undefined
+  const key = popGroupChangeKey(pop.holdingId, pop.class, pop.popType, pop.employed)
+  const e = snapshot.byPopGroupKey[key] ?? { natural: 0, migrationIn: 0, migrationOut: 0 }
+  return {
+    natural: e.natural,
+    migrationIn: e.migrationIn,
+    migrationOut: e.migrationOut,
+    net: e.natural + e.migrationIn - e.migrationOut,
+  }
 }

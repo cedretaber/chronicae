@@ -696,7 +696,6 @@ describe('runBailiffAppointmentSystem', () => {
           nameKey: 'h',
           kind: 'manor',
           polityControl: 100,
-          landQuality: 50,
           weight: 1,
         },
       },

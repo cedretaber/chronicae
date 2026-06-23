@@ -12,11 +12,26 @@ type Province = {
   neighbors: ProvinceId[]
   terrain: ProvinceTerrain      // 自然地形（5 種・単一）
   features: ProvinceFeature[]   // 地理特徴（複数可・順不同）
+  traits: TerrainTraitKind[]    // 地形特性（v0.59・複数可・付与順=定義順）
   holdingIds: HoldingId[]
 }
 
 type ProvinceTerrain = 'plains' | 'forest' | 'hills' | 'mountains' | 'wetlands'
 type ProvinceFeature = 'coastal' | 'major_river' | 'lake'
+
+// v0.59 地形特性（config 駆動・名前付き）。表示は nameKey 経由（i18n）。
+type TerrainTraitKind =
+  | 'fertile_land' | 'rich_fishery' | 'rich_lode' | 'dense_forest' | 'open_terrain'
+type TerrainTraitEffect =
+  | { kind: 'output'; resources: Partial<Record<ResourceKind, number>> } // raw 産出倍率
+  | { kind: 'slot'; slotBonus: number }                                  // 不動産スロット +N
+type TerrainTraitDefinition = {
+  trait: TerrainTraitKind
+  eligibleTerrains?: ProvinceTerrain[]   // 適合地形（未指定=全地形）
+  eligibleFeatures?: ProvinceFeature[]   // 適合地物（いずれか 1 つを持つことが条件）
+  probability: number                    // 適合 Province での付与確率（× terrainTraitDensityMultiplier）
+  effect: TerrainTraitEffect
+}
 ```
 
 - `stateId`: 所属する StateRegion
@@ -26,6 +41,7 @@ type ProvinceFeature = 'coastal' | 'major_river' | 'lake'
 - Province は polityId / ownerHouseId / houseControl を持たない。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
 - development / polityControl は Province ではなく Holding が持つ。Province レベルの値は selector (`getProvinceDevelopmentFromHoldings` / `getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する
 - 自然地形 `terrain`（5 種・単一）と地理特徴 `features`（3 種・複数可）を持つ。terrain は House seat 選定（`provinceTerrainSettlementSuitability`、§7.4）と Holding Improvement の建設可否・capacity multiplier（§3.1d / §4.2）に消費される。features は Improvement の建設可否（例: 灌漑は `major_river` / `lake` が必要）と capacity multiplier に効く。worldgen 時に確定しゲーム中は不変（§7.1）
+- **`traits`（v0.59 地形特性・複数可）**: terrain/feature に相関した名前付き特性（config `terrainTraitDefinitions` 駆動）。`output` 効果は該当 raw 資源の per-output 産出倍率（§6.3c の生産で乗算・input 据え置き）、`slot` 効果は不動産スロット上限の加算（§6 `computeSlotCapacity`）。worldgen で確率付与（決定的）しゲーム中は不変。付与密度は `terrainTraitDensityMultiplier` で調整可。表示は nameKey 経由（`detail.province.trait_value.*`）
 
 ### 3.1a ProvinceTerrain / ProvinceFeature
 
@@ -70,8 +86,7 @@ type Holding = {
   nameKey: string         // required。ロケール中立の名前識別子（manor=province / city=city category で解決）
   kind: HoldingKind
   polityControl: number   // 0..100
-  landQuality: number     // > 0
-  weight: number          // > 0
+  weight: number          // > 0  (v0.59: landQuality 廃止)
   lastRevoltSuppressedWeek?: number  // この Holding の叛乱を最後に鎮圧した absoluteWeek（cooldown 入力）
   lastRevoltSettledWeek?: number     // この Holding の叛乱を最後に和解・決着させた absoluteWeek（cooldown 入力）
 }
@@ -81,7 +96,7 @@ type Holding = {
 - `nameKey`: ロケール中立の名前識別子（required）。manor は `province` category、city は `city` category で解決する（Holding 専用 category は使わない）。worldgen で命名し、同一 Province 内で一意（Province 名・他 Province の Holding 名との衝突は許容）。表示文字列への解決は `app/` / `i18n/` の責務（`sim/` 層規約）
 - `kind`: manor (農村荘園) / city (都市)。収入分配で city は kindMultiplier = 1.3
 - `polityControl`: terminal Polity の実効支配力。ControlSystem が Holding 単位で更新
-- `landQuality`: 土地の基礎品質（worldgen で 0.6〜1.4 の乱数。§7）。**雇用容量（capacity）の乗数**として効き（`computeHoldingClassCapacity` の assetTerm に `× landQuality`、§4.1）、結果として総産出を左右する。1 労働あたり生産性（`baseOutputPerLabor`）には掛けない。加えて収入分配の share weight にも影響する
+- **v0.59: `landQuality` は廃止**（無名のランダム容量ジッタだった。holding 単位の変動表現は Province の「広闊な地形」trait による不動産スロット数に移譲、§3.1 traits / §6）
 - `weight`: Holding の相対的な重み。収入分配・Province 集計の加重に使用
 - `lastRevoltSuppressedWeek` / `lastRevoltSettledWeek`: この Holding 上で叛乱が最後に鎮圧／和解・決着した週。provinceRevoltSystem / taxRevisionSystem が叛乱再発・税率改定の cooldown 入力として参照する
 - Holding-Province 対応はゲーム中不変（ゲーム中の Holding 追加・削除はない）
@@ -182,10 +197,11 @@ type PopGroup = {
   needSatisfaction: number // v0.58: need 充足度 0..100（intensive）。unrest/成長/mobility を駆動
   unrest: number     // 0..100
   attitudes: AttitudeMap  // 対 Polity などへの態度
+  categorySatisfaction?: Partial<Record<NeedCategory, number>> // v0.59: NeedCategory 別充足度 0..100（表示専用キャッシュ）
 }
 ```
 
-不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6.3c.5）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。旧 0..100 `wealth` 指数は v0.58 で退役（money と needSatisfaction の 2 本立てに分離）。
+不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6.3c.5）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。旧 0..100 `wealth` 指数は v0.58 で退役（money と needSatisfaction の 2 本立てに分離）。**v0.59 追補④**: `categorySatisfaction` は経済 system が直近 tick で算出した NeedCategory 別充足度（= `afford(tier) × カテゴリ market-fill ×100`、desire を持つカテゴリのみ key）を保持する**表示専用キャッシュ**で、POP 詳細の必需品/日用品/贅沢品内訳に使う。merge/split/worldgen では設定せず（次 econ tick で再生成）、integrity 非検査・挙動（needSatisfaction/money/成長/unrest）には不参照（§6.3c.5）。
 
 | PopStratum | PopType | 意味 |
 |---|---|---|
@@ -232,7 +248,7 @@ type RealEstateAsset = {
 - owner ありの RealEstateAsset は House / Person / Polity が所有する私有不動産
 - `realEstateOwnerSuccessionSystem` が owner 死亡・House 消滅時に所有権を継承・解放する
 - v0.54: `recipeSlots` は生産内容を RealEstateKind ではなく `ProductionRecipe`（§3.2c）に持たせる仕組み。20 slot=100%、slot は労働配分比率（生産量乗数ではない）。IntegrityCheck で合計=20 / 整数 / recipe 実在 / allowedRealEstateKinds 整合を検査
-- **v0.55 RealEstateKind 再編**（`farm / mountain / woodland / workshop`、`config/realEstateDefinitions.ts` の `REAL_ESTATE_DEFINITIONS`）。RealEstateKind は粗分類で、生産内容は ProductionRecipe が持つ。一次産業（farm/mountain/woodland）は荘園（manor）のみ、工房（workshop）は都市（city）のみに建設可（commit 15c8394）。`allowedTerrains`（farm=plains/wetlands/hills/forest, mountain=mountains/hills, woodland=forest/hills, workshop=制限なし）/ `employmentSlots`（PopStratum weight: farm lower0.80/middle0.20, mountain 0.90/0.10, woodland 0.85/0.15, workshop 0.75/0.25。upper は雇用しない）/ `capacityPerLevel`（farm 50 / mountain 35 / woodland 40 / workshop 80）/ `maxLevelByHoldingKind`（各 3）を定義
+- **v0.55 RealEstateKind 再編**（`farm / mountain / woodland / workshop`、`config/realEstateDefinitions.ts` の `REAL_ESTATE_DEFINITIONS`）。RealEstateKind は粗分類で、生産内容は ProductionRecipe が持つ。一次産業（farm/mountain/woodland）は荘園（manor）のみ、工房（workshop）は都市（city）のみに建設可（commit 15c8394）。`allowedTerrains`（**v0.59: farm=全地形**（plains/wetlands/hills/forest/mountains。山岳は容量倍率 0.25 で「狭く雇用少」を表現＝World 単位地形保証の安全弁を兼ねる）, mountain=mountains/hills, woodland=forest/hills, workshop=制限なし）/ `employmentSlots`（PopStratum weight: farm lower0.80/middle0.20, mountain 0.90/0.10, woodland 0.85/0.15, workshop 0.75/0.25。upper は雇用しない）/ `capacityPerLevel`（farm 50 / mountain 35 / woodland 40 / workshop 80）/ `maxLevelByHoldingKind`（各 3）を定義
 
 ### 3.2c 資源経済の型（v0.55 で 21 資源・需要/投入カテゴリへ拡張）
 
@@ -327,6 +343,13 @@ type MonthlyPopMobilitySnapshot = {
   byState: Record<StateRegionId, { jobChanged: number; migratedIn: number; migratedOut: number }>
   topMovements: PopMobilitySnapshotEntry[]   // amount 降順上位 N（N = popMobilityTopMovementLimit）
 }
+// v0.59 人口変動 read-model: 先月（直近 4 週）の純人口変動を自然増減と移住に分解
+type PopChangeEntry = { natural: number; migrationIn: number; migrationOut: number }  // natural は正=増/負=減
+type MonthlyPopChangeSnapshot = {
+  week: number
+  byHolding: Record<HoldingId, PopChangeEntry>
+  byPopGroupKey: Record<string, PopChangeEntry>  // key = `${holdingId}|${class}|${popType}|${employed}`（popGroupChangeKey）
+}
 ```
 
 ProductionRecipe 定義は `config/productionRecipeDefinitions.ts`、価格 config は `config/resourceEconomyDefinitions.ts`。**v0.54 market-clearing rewrite で価格は資源別 min/max/elasticity を廃止し、全資源共通の `marketPriceSwing`（imbalance ベース、§6.3c.1）に置換**（`basePrice` のみ資源別に維持。旧 `minMultiplier`/`maxMultiplier`/`elasticity` フィールドは型から削除済み）。
@@ -342,6 +365,8 @@ marketResourcePrices: Record<string, MarketResourcePriceState>            // key
 monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>
 // v0.56 POP 転職・移住 read-model（optional・latest のみ毎月上書き。0 件の月も zero snapshot で上書き）
 monthlyPopMobility?: MonthlyPopMobilitySnapshot
+// v0.59 POP 人口変動 read-model（optional・PopSystem が月初リセット生成、CrisisSystem/PopMigration が in-place 累積）
+monthlyPopChange?: MonthlyPopChangeSnapshot
 ```
 
 - `realEstateAssetIndex.byHolding`: HoldingId → RealEstateAssetId[] のインデックス

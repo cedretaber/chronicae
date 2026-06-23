@@ -38,7 +38,10 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     realEstateKind: 'farm',
     // v0.55: 一次産業 (農園/鉱山/林地) は荘園 holding のみ。都市は工房専業とする。
     allowedHoldingKinds: ['manor'],
-    allowedTerrains: ['plains', 'wetlands', 'hills', 'forest'],
+    // v0.59: 農園はどこでも作れる。山岳は容量倍率 0.25 (realEstateTerrainCapacityMultiplier)
+    //   で「土地が狭く雇用が少ない」を表現する。World 単位の地形保証で山岳偏重 state が
+    //   生じても食料生産が >0 になる安全弁を兼ねる。
+    allowedTerrains: ['plains', 'wetlands', 'hills', 'forest', 'mountains'],
     maxLevelByHoldingKind: { manor: 3 },
     // 農園: 小作農:自作農 = 7:3 (total 50)。自作農は小作農と同数まで。
     employmentSlots: [

@@ -407,6 +407,35 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(needs.some((n) => n.tier === 'essential')).toBe(true)
   })
 
+  it('v0.59: categorySatisfaction — 市場欠乏なら essential カテゴリが低く、需要なしカテゴリは key を持たない', () => {
+    // 生産 asset の無い市場 + money 潤沢 (afford=1) → essential need が市場で満たせない (fill 0)。
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withEmployedPop(state, hd, 'lower', 100, 50, true, undefined, 100000)
+    const result = runEcon(state)
+    const popId = state.popIndex.byHolding[hd]![0]!
+    const cs = result.popGroups[popId]!.categorySatisfaction!
+    expect(cs.staple_food).toBeDefined()
+    expect(cs.staple_food!).toBeLessThan(50) // 市場に無いので低い (afford×fill, fill≈0)
+    // lower pop は luxury を需要しない → 該当 key は存在しない (「需要なし」と「0%」を区別)。
+    expect(cs.luxury_goods).toBeUndefined()
+    expect(cs.luxury_drink).toBeUndefined()
+  })
+
+  it('v0.59: categorySatisfaction — 市場潤沢 + money 潤沢なら staple_food が高い', () => {
+    let state = makeEmptyV016State()
+    state = withProvince(state, 'pr-0' as ProvinceId, {})
+    const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
+    state = withAsset(state, hd, 'farm', 3).state // grain 大供給で market 潤沢
+    state = withEmployedPop(state, hd, 'lower', 100, 50, true, undefined, 100000)
+    const result = runEcon(state)
+    const popId = state.popIndex.byHolding[hd]![0]!
+    const cs = result.popGroups[popId]!.categorySatisfaction!
+    expect(cs.staple_food).toBeDefined()
+    expect(cs.staple_food!).toBeGreaterThan(50) // 供給潤沢 + afford=1 → 高い
+  })
+
   it('does not consume RNG and does not mutate treasury (Phase 2-3 side-effect boundary)', () => {
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})

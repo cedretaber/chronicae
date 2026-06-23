@@ -243,7 +243,6 @@ export function withProvince(
     nameKey: (anyOverrides.holdingNameKey as string) ?? 'h',
     kind: 'manor',
     polityControl: (anyOverrides.polityControl as number) ?? 100,
-    landQuality: (anyOverrides.landQuality as number) ?? 50,
     weight: 1,
   }
   // Auto-link to existing provinces in the same state as bidirectional neighbors
@@ -262,6 +261,7 @@ export function withProvince(
     neighbors: autoNeighbors,
     terrain: 'plains',
     features: [],
+    traits: [],
     ...overrides,
     holdingIds: overrides.holdingIds ?? [holdingId],
   }
@@ -301,7 +301,6 @@ export function withHolding(
     nameKey: 'h',
     kind: 'manor',
     polityControl: 100,
-    landQuality: 50,
     weight: 1,
     ...overrides,
   }

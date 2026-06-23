@@ -8,8 +8,8 @@ import { POP_STRATA, POP_TYPES } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
   getHoldingAllPopTypeCapacities,
+  clampCapacityByMaxRatio,
   getHoldingEmployedPopSizeByType,
-  getHoldingTotalPopSize,
 } from '../selectors/popSelectors'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { computeHoldingPopTypeDemand } from '../selectors/popMobilitySelectors'
@@ -19,6 +19,7 @@ import {
   ensureByState,
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
+import { accrueMigrationInPopChangeMut, accrueMigrationOutPopChangeMut } from './popChangeSnapshot'
 
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 
@@ -83,32 +84,14 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
     holdingIds.sort()
     if (holdingIds.length < 2) continue
 
-    const outflowCap = new Map<string, number>()
-    const inflowCap = new Map<string, number>()
-    for (const hid of holdingIds) {
-      const totalPop = getHoldingTotalPopSize(ws, hid)
-      outflowCap.set(
-        hid,
-        Math.min(
-          totalPop * config.popMigrationMaxOutflowFractionPerHoldingPerMonth,
-          config.popMigrationMaxOutflowPerHoldingPerMonthHardCap,
-        ),
-      )
-      inflowCap.set(
-        hid,
-        Math.min(
-          totalPop * config.popMigrationMaxInflowFractionPerHoldingPerMonth,
-          config.popMigrationMaxInflowPerHoldingPerMonthHardCap,
-        ),
-      )
-    }
-
+    // v0.59 追補: holding 単位の outflow/inflow cap を廃止。各 source POP の流出枠は
+    //   source サイズ依存・移動先非依存 (size × stratum 別レート) のみ。流入側は無制限
+    //   (無人/希薄 holding へ大量流入可能)。移動先では失業着地し、雇用は後段 rebalance が確定。
     for (const sourceHoldingId of holdingIds) {
       const sourceCache = cacheByHolding.get(sourceHoldingId)
       if (!sourceCache) continue
 
       for (const sourcePid of [...(ws.popIndex.byHolding[sourceHoldingId] ?? [])].sort()) {
-        if ((outflowCap.get(sourceHoldingId) ?? 0) < minMove) break
         const source = ws.popGroups[sourcePid]
         if (!source) continue
         if (source.size - eps < minMove) continue
@@ -127,13 +110,13 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           stayRemaining,
         )
 
-        // 最良 target を探す (空き capacity / inflow cap がある同一 region 内 holding)。
+        // 最良 target を探す (実効 vacancy が opportunity score の主項＝「職があるという評判」)。
+        //   v0.59 追補: remaining>0 は「行く理由があるか」の filter として残すが、移動量は
+        //   remaining では縛らない (移動先非依存・オーバーシュート許容)。
         let bestHolding: HoldingId | undefined
         let bestScore = -Infinity
-        let bestRemaining = 0
         for (const targetHoldingId of holdingIds) {
           if (targetHoldingId === sourceHoldingId) continue
-          if ((inflowCap.get(targetHoldingId) ?? 0) < minMove) continue
           const targetCache = cacheByHolding.get(targetHoldingId)
           if (!targetCache) continue
           const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.popType)
@@ -154,7 +137,6 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           ) {
             bestScore = score
             bestHolding = targetHoldingId
-            bestRemaining = remaining
           }
         }
 
@@ -162,15 +144,10 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         if (bestScore <= sourceScore + config.popMigrationScoreGapThreshold) continue
 
         const rate = config.popMigrationMonthlyRateByStratum[source.class]
-        const amount = Math.min(
-          source.size - eps,
-          bestRemaining,
-          source.size * rate,
-          outflowCap.get(sourceHoldingId) ?? 0,
-          inflowCap.get(bestHolding) ?? 0,
-        )
+        const amount = Math.min(source.size - eps, source.size * rate)
         if (amount < minMove) continue
 
+        const sizeBefore = source.size
         const moved = movePopSizeToKeyMut(
           ws,
           source.id,
@@ -178,15 +155,34 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
             holdingId: bestHolding,
             class: source.class,
             popType: source.popType,
-            employed: true,
+            employed: false, // v0.59 追補: 移動先では失業着地 (雇用は rebalance が確定)
           },
           amount,
           { minSourceSize: eps },
         )
         if (moved === undefined) continue
 
-        outflowCap.set(sourceHoldingId, (outflowCap.get(sourceHoldingId) ?? 0) - amount)
-        inflowCap.set(bestHolding, (inflowCap.get(bestHolding) ?? 0) - amount)
+        // v0.59: 移住を人口変動 read-model に累積。movePopSizeToKeyMut は source 残量が sliver
+        //   (<= eps) になる場合 source を丸ごと移すため、実移動量は要求 amount を eps だけ超えうる。
+        //   holding 合計 = natural + 流入 − 流出 を厳密に保つため、source の size 差分 (= 実移動量)
+        //   で累積する。流出は source pop の key、流入は target key (target は常に employed:false)。
+        const actualMoved = sizeBefore - (ws.popGroups[source.id]?.size ?? 0)
+        accrueMigrationOutPopChangeMut(
+          ws,
+          sourceHoldingId,
+          source.class,
+          source.popType,
+          source.employed,
+          actualMoved,
+        )
+        accrueMigrationInPopChangeMut(
+          ws,
+          bestHolding,
+          source.class,
+          source.popType,
+          false,
+          actualMoved,
+        )
 
         migrationEntries.push({
           kind: 'migration',
@@ -196,7 +192,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           fromPopType: source.popType,
           toPopType: source.popType,
           fromEmployed: source.employed,
-          toEmployed: true,
+          toEmployed: false,
         })
         snapshot.migratedTotal += amount
         // 同一 StateRegion 内移動だが将来拡張のため source/target 両方を記録 (§8.12)。
@@ -311,11 +307,19 @@ function buildHoldingCache(
   }
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
 
-  // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
-  const capacityByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
-  let totalCapacity = 0
-  for (const t of Object.keys(capacityByType) as PopType[]) totalCapacity += capacityByType[t] ?? 0
-  const congestion = totalSize / Math.max(1, totalCapacity)
+  // capacity ceiling は構造由来で月内不変。生容量を 1 回算出し、vacancy 用に実効容量を派生する。
+  //   v0.59 追補: vacancy (capacityByType) は実効容量 (maxRatio 後)＝埋まらない熟練職枠へ移住を
+  //   誘引しない。一方 congestion は「物理的な混雑」なので **生容量**を分母にする (実効容量で割ると
+  //   下層不足の holding が過大な混雑＝過大な移住圧になる)。
+  const rawCapByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  const capacityByType: Partial<Record<PopType, number>> = {}
+  let totalRawCapacity = 0
+  for (const t of POP_TYPES) {
+    const raw = rawCapByType[t] ?? 0
+    totalRawCapacity += raw
+    capacityByType[t] = clampCapacityByMaxRatio(state, holdingId, t, raw)
+  }
+  const congestion = totalSize / Math.max(1, totalRawCapacity)
 
   return {
     demand,

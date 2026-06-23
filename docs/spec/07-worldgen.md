@@ -12,6 +12,8 @@ StateRegion ごとに dominantTerrain を lazy fill（初回参照時に provinc
 それ以外は provinceTerrainWeights から再抽選する。
 ```
 
+**全地形カバレッジ保証 (v0.59)**: 全 Province の terrain 抽選後、`generateProvinces` の末尾で **World 単位**で全 5 地形（plains/forest/hills/mountains/wetlands）が最低 1 つずつ出現することを保証する。未出現の地形があれば、「出現数最多の地形を持つ最小 index の Province」を 1 つ選んで terrain を上書きする（RNG 不使用・決定的。出現数 ≤1 の地形は奪わない＝別の欠落を生まないため）。Province 数が地形数未満の極小ケースでは欠落が残りうるが、全 preset で発生しない。市場は state 単位で閉じるため、鉱業/林業に恵まれない state は残りうる（将来の交易システムで解消予定）。農園は全地形で建設可能（§7.3d）なので、地形が偏った state でも食料生産は >0 になる。
+
 **features**（terrain 抽選後に coastal → major_river → lake の順で判定、消費順固定）:
 
 ```txt
@@ -149,10 +151,11 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
 
 - `kind`: 基本は `manor`。`minHoldingsForCity` (3) 以上の Holding を持つ Province のみ city 配置の抽選対象となり、確率 `cityProvinceChance` (20%) で最後の Holding が `city` になる。1 Province あたり city は最大 1 つ
-  - **city 保証 (v0.48)**: 上記の抽選とは別に、ワールド全体で最低 `minGuaranteedCities` (2) 個の city を保証する。worldgen は holding 生成前にランダムな Province を 2 つ選び (部分 Fisher-Yates、配置が末尾に偏らないようにする)、それらは強制的に city を 1 つ持つ。**この保証は `minHoldingsForCity` 閾値を上書きする** ため、tiny preset (holdingsPerProvince=2、通常は city が 0 個) でも常に city が 2 つ生成される。強制対象の Province は `holdingCount >= 2` なら最後の Holding のみ city 化し manor が 1 つ以上残る (全 preset で `holdingsPerProvinceMin >= 2`)
+  - **city 保証 (v0.48 → v0.59 で state 単位に格上げ)**: 上記の抽選とは別に、**各 state に最低 1 つの city を保証する**（全 preset）。worldgen は holding 生成前に、provinces 出力順で各 state に最初に現れる Province を 1 つずつ強制 city province にする（決定的・RNG 不使用）。**この保証は `minHoldingsForCity` 閾値を上書きする** ため、tiny preset (holdingsPerProvince=2) でも各 state に city が生成される。強制対象の Province は最後の Holding のみ city 化する。（旧 v0.48: world 全体で `minGuaranteedCities` (2) を Fisher-Yates でランダム選択していたが、state 単位保証に置換）
+  - **manor≥2 保証 (v0.59)**: 全 Province は manor を最低 2 つ持つ（全 preset）。city がある Province は `2 manor + 1 city = 3 holding`。`holdingCount` を `max(holdingCount, 2 + (hasCity ? 1 : 0))` で底上げするだけで kind 割当（最後の holding のみ city）は不変。holding 数が少ない tiny/small で実質的に効く（standard 以上は元々充足）
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: manor = 1.0 (固定、乱数加算なし)、city = 2.0 + randomFloat * 1.0 (= 2.0〜3.0)
-- `landQuality`: 0.6〜1.4 の乱数（terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
+- （v0.59: `landQuality` は廃止。holding 単位の変動は Province の「広闊な地形」trait による不動産スロット数で表現する。§7.1 traits / §3.1）
 
 初期の土地整備度は `development` フィールドではなく初期 HoldingImprovement の配置で表現する（§7.3c 参照）。
 
@@ -201,7 +204,7 @@ city:
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 
-各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する。seat 選定時点では Holding 未生成のため Holding ベースの指標（landQuality 平均 / weight 合計）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する。seat 選定時点では Holding 未生成のため Holding ベースの指標（weight 合計など）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
 
 ### 7.5 polityControl の初期値
 
@@ -224,14 +227,14 @@ worldgen で生成する初期人物（House メンバーの sibling / child / r
 - 初期在野人物: `houselessMaleRatio`（既定 0.75。runtime の在野補充と整合。旧 0.5 ハードコード）
 - 父・母・配偶者の固定性別、house:leader 選定の男子優先は不変
 
-**注**: worldgen は `defaultConfig` を直参照するため `--config` では変更されない（既知の制約）。女性多めプレイ（§9 レシピ）では worldgen 初期は男性多めのまま、runtime 出生で性比が drift する。
+**注 (v0.59 で解消)**: 旧来 worldgen は `defaultConfig` 直参照で `--config` が初期世界生成に効かなかったが、v0.59 自己レビューで `generateWorld` / `generateProvinces` 全体に threaded config を通し、`--config` の上書きが初期世界（性比・地形・地物・初期人口・容量等）にも反映されるようになった（既定は `defaultConfig` なので未指定時は不変）。女性多めプレイ（§9 レシピ）は worldgen 初期から反映される。
 
 ### 7.7a 初期 Office の生成
 
 - **house:leader**: 各 House の成人男性からスコア（legacyPrestige + governance/warCommand 加重）最高の者。成人男性が居なければ成人女性、それも居なければ最年長メンバー
 - **polity:leader**: polity 内で最多 Province を支配する House の house:leader をそのまま任命
 - **polity の administrator / treasurer / military**: polity 関係 House の成人から能力順（admin 系 = governance 加重、military = warCommand 加重）に各 1 名。polity:leader は除外
-  - v0.45.3: 性別役職適格ゲート（§6.19）を適用 — sorted 先頭の適格者を採用し、適格者ゼロなら `allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true の場合のみ先頭に fallback（runtime 任命と同形）。worldgen は defaultConfig 直参照のため `--config` では変更不可（既知の制約）
+  - v0.45.3: 性別役職適格ゲート（§6.19）を適用 — sorted 先頭の適格者を採用し、適格者ゼロなら `allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true の場合のみ先頭に fallback（runtime 任命と同形）。v0.59 で worldgen 全体に config を threading したため `--config` で変更可能（旧「defaultConfig 直参照で不可」の制約は解消）
 
 ### 7.8a Person Goal / Aim 初期生成
 

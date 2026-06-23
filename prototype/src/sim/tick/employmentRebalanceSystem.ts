@@ -8,6 +8,7 @@ import {
   getHoldingAllPopTypeCapacities,
   getHoldingEmployedPopSizeByType,
   getHoldingPopsByTypeAndEmployment,
+  clampCapacityByMaxRatio,
 } from '../selectors/popSelectors'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 import { movePopEmploymentMut } from '../mutations/popMutations'
@@ -35,13 +36,9 @@ export function normalizePopEmploymentMut(
   const capByType = getHoldingAllPopTypeCapacities(ws, config, holdingId)
 
   for (const popType of REBALANCE_ORDER) {
-    let cap = capByType[popType] ?? 0
-    // 同数上限: 参照先 (職人/小作農) の現在の実雇用数 × ratio で上限を絞る。
-    const maxRatio = POP_TYPE_MAX_RATIO[popType]
-    if (maxRatio) {
-      const refEmployed = getHoldingEmployedPopSizeByType(ws, holdingId, maxRatio.popType)
-      cap = Math.min(cap, refEmployed * maxRatio.ratio)
-    }
+    // 同数上限: 参照先 (職人/小作農) の現在の実雇用数 × ratio で上限を絞る (共有 helper)。
+    //   REBALANCE_ORDER で参照先を先に確定するため、ここで読む refEmployed は確定後の値。
+    const cap = clampCapacityByMaxRatio(ws, holdingId, popType, capByType[popType] ?? 0)
 
     // Phase 1: Forced unemployment — capacity 超過の employed を unemployed へ。
     const currentEmployed = getHoldingEmployedPopSizeByType(ws, holdingId, popType)

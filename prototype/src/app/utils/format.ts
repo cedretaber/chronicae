@@ -82,6 +82,21 @@ export function formatPopFlow(value: number | undefined | null): string {
   }).format(value * POP_DISPLAY_SCALE)
 }
 
+// v0.59: 人口の純変動 (符号付き)。正は「+」、負は「−」(U+2212) を明示し、流動量と同じ小数1桁。
+//   符号は「表示精度に丸めた後」の値で判定し、−0.0 のような微小負値の符号付き表示を避ける。
+export function formatPopDelta(value: number | undefined | null): string {
+  if (value == null || !Number.isFinite(value)) return dash
+  const scaled = value * POP_DISPLAY_SCALE
+  const rounded = Math.round(scaled * 10) / 10
+  const abs = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Math.abs(scaled))
+  if (rounded > 0) return `+${abs}`
+  if (rounded < 0) return `−${abs}`
+  return abs
+}
+
 const POLITY_RANK_FALLBACK: Record<number, string> = {
   1: 'Empire',
   2: 'Kingdom',

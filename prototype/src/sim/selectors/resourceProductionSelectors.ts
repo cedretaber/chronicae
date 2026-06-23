@@ -3,7 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, ProductionRecipeId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import { POP_STRATA } from '../types/popGroup'
-import type { RealEstateAsset } from '../types/realEstateAsset'
+import type { RealEstateAsset, RealEstateKind } from '../types/realEstateAsset'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ResourceKind } from '../types/resource'
 import type { InputCategory } from '../types/inputCategory'
@@ -22,6 +22,7 @@ import {
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelectors'
+import { computeSlotCapacity, getProvinceOutputTraitMultiplier } from './terrainTraitSelectors'
 import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
@@ -52,7 +53,7 @@ function computeStaffingFulfillment(used: number, capacity: number): number {
 
 // v0.54 §10.2 / §23 Step 2: per-asset の class capacity 寄与。
 //   既存 computeHoldingClassCapacity の asset_term を単一 asset について計算したもの
-//   (holding 共通の overuseMod / landQuality / weight も掛けて faithful な capacity 値にする)。
+//   (holding 共通の overuseMod / weight も掛けて faithful な capacity 値にする)。
 //   labor 按分の weight に使う (holding 共通項は比率で相殺するため weight としては asset 固有項だけでも足りる)。
 function getRealEstateAssetClassCapacityContribution(
   state: WorldState,
@@ -81,11 +82,11 @@ function getRealEstateAssetClassCapacityContribution(
     config,
   )
 
-  // overuseMod / landQuality / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
+  // overuseMod / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
   const usedSlots = (state.realEstateAssetIndex.byHolding[asset.holdingId as string] ?? []).length
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
-  return assetTerm * overuseMod * holding.landQuality * holding.weight
+  return assetTerm * overuseMod * holding.weight
 }
 
 // v0.54 §11.2 生産施設 modifier。
@@ -298,9 +299,18 @@ export function computeAssetRecipePotentials(
     // 産出は throughput で増やす (同原材料で +最大50%)。
     const potential = basePotential * labor.throughputMult
 
+    // v0.59: 地形特性の産出ブーストは input を持たない raw/採掘 recipe のみに適用する。
+    //   input を持つ加工 recipe に掛けると input 据え置きのまま output が増え無償財になるため、
+    //   config 定義の規約 (raw 限定) をコード側でも強制する。
+    const isRawRecipe = !recipe.inputs || recipe.inputs.length === 0
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
-      potentialOutputs[o.resource] = (potentialOutputs[o.resource] ?? 0) + potential * o.amount
+      // 産出 trait は output にのみ乗算する (input は下の basePotential 基準で据え置き=純生産性)。
+      const traitMult = isRawRecipe
+        ? getProvinceOutputTraitMultiplier(state, config, asset.holdingId, o.resource)
+        : 1.0
+      potentialOutputs[o.resource] =
+        (potentialOutputs[o.resource] ?? 0) + potential * o.amount * traitMult
     }
 
     // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
@@ -332,4 +342,32 @@ export function computeAssetRecipePotentials(
     })
   }
   return results
+}
+
+// v0.59 追補③: holding が生産しうる ResourceKind を asset 種別ごとに静的列挙する。
+//   realEstateAssetIndex.byHolding → asset.recipeSlots → recipe.outputs[].resource を集約。
+//   実雇用/市場に依存しない決定的な「この holding の farm は穀物を生産しうる」マップ。RNG 非消費。
+export function getHoldingProducedResourcesByAssetKind(
+  state: WorldState,
+  holdingId: HoldingId,
+): Map<RealEstateKind, Set<ResourceKind>> {
+  const result = new Map<RealEstateKind, Set<ResourceKind>>()
+  const assetIds = state.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+  for (const assetId of assetIds) {
+    const asset = state.realEstateAssets[assetId]
+    if (!asset) continue
+    let set = result.get(asset.realEstateKind)
+    if (!set) {
+      set = new Set<ResourceKind>()
+      result.set(asset.realEstateKind, set)
+    }
+    for (const recipeId of Object.keys(asset.recipeSlots) as ProductionRecipeId[]) {
+      const slot = asset.recipeSlots[recipeId]
+      if (slot === undefined || slot <= 0) continue
+      const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+      if (!recipe) continue
+      for (const o of recipe.outputs) set.add(o.resource)
+    }
+  }
+  return result
 }

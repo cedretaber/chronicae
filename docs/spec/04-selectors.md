@@ -20,8 +20,8 @@ function getHoldingImprovementLevel(state: WorldState, holdingId: HoldingId, kin
 function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: ProvinceId, config?: SimulationConfig): number
 
 // state 非依存の純粋 capacity helper（selector / worldgen seeding が共有し計算ズレを防ぐ）
-// capacity = (base + improvementDerivedCapacity) * weight * landQuality（devMod 不使用）
-function computeHoldingClassCapacity(holdingKind, weight, landQuality, terrain, features, improvements, config): number
+// capacity = (base + improvementDerivedCapacity) * weight（v0.59: landQuality 廃止・devMod 不使用）
+function computeHoldingClassCapacity(holdingKind, weight, terrain, features, improvements, config): number
 
 // state 非依存の建設可否判定（selector / worldgen 初期生成が共有）
 function canBuildHoldingImprovementPure(holdingKind, terrain, features, currentLevel, kind, config): boolean
@@ -59,7 +59,7 @@ function getHoldingUnemployedPopSize(state: WorldState, holdingId: HoldingId, po
 
 ```ts
 // Holding のクラス別キャパシティ（computeHoldingClassCapacity へ委譲）
-//   = (base + improvementDerivedCapacity) * weight * landQuality
+//   = (base + improvementDerivedCapacity) * weight（v0.59: landQuality 廃止）
 //   improvementDerivedCapacity = Σ level * capacityPerLevel[kind] * terrainMult * featureMult
 //   terrainMult = terrainCapacityMultiplier[kind]?.[terrain] ?? 1.0（clamp なし）
 //   featureMult = clamp(Π(featureCapacityMultiplier[kind]?.[f] ?? 1.0), 0.75, 1.50)（feature 無→空積 1.0）

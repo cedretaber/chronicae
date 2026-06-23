@@ -99,6 +99,7 @@ function makeMinimalWorld(): WorldState {
     y: 0,
     terrain: 'plains',
     features: [],
+    traits: [],
     neighbors: [],
     holdingIds: [],
   }

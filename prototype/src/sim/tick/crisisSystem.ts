@@ -36,6 +36,7 @@ import {
   adjustHoldingPopUnrestMut,
 } from '../mutations/popMutations'
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
+import { accrueNaturalPopChangeMut } from './popChangeSnapshot'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
@@ -251,7 +252,10 @@ export function spawnWarDamageCrisis(
   // 戦災の初期ショックは全 class (戦火は身分を選ばない)
   const shockRate = config.crisisInitialShockSizeRateByKind.war_damage
   if (shockRate > 0) {
-    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined)
+    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined, (pop, removed) =>
+      // v0.59: 戦災死を自然減として人口変動 read-model へ累積。
+      accrueNaturalPopChangeMut(ws, pop.holdingId, pop.class, pop.popType, pop.employed, -removed),
+    )
   }
 
   applyWarDamageToImprovementsMut(ws, holdingId, drop)
@@ -439,7 +443,10 @@ function spawnCrisisForHolding(
   }
   if (shockRate > 0) {
     const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'lower'
-    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass)
+    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass, (pop, removed) =>
+      // v0.59: 飢饉・疫病死を自然減として人口変動 read-model へ累積。
+      accrueNaturalPopChangeMut(ws, pop.holdingId, pop.class, pop.popType, pop.employed, -removed),
+    )
   }
 
   // 対処 Project を生成 (= 凌ぐ)。代官がいれば代官が、いなければ Pressure 同様 owner polity が担当者を

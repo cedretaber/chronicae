@@ -199,12 +199,6 @@ export function checkGeographyAndHoldings(
         message: `Holding ${holding.id} polityControl=${holding.polityControl} out of range [0,100] (§18.3)`,
       })
     }
-    if (holding.landQuality <= 0) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Holding ${holding.id} landQuality=${holding.landQuality} must be > 0 (§18.3)`,
-      })
-    }
     if (holding.weight <= 0) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',

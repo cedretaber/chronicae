@@ -1,5 +1,6 @@
 import type { PopGroupId, HoldingId } from './ids'
 import type { AttitudeMap } from './attitude'
+import type { NeedCategory } from './needCategory'
 
 // v0.55 §13: PopStratum (旧 PopClass の値移行)。PopGroup.class field 名は維持し値のみ移行する。
 //   旧 peasants→lower / townsmen→middle / nobles→upper。
@@ -37,6 +38,11 @@ export type PopGroup = {
   needSatisfaction: number // v0.58: need 充足度 0-100（intensive）。unrest/成長/mobility を駆動
   unrest: number
   attitudes: AttitudeMap
+  // v0.59: 直近の経済 tick で算出した NeedCategory 別充足度 0-100（= afford × カテゴリ market-fill ×100）。
+  //   表示専用キャッシュ（UI で必需品/日用品/贅沢品の内訳を見せるため）。経済 system が desire を持つ
+  //   active POP に毎月上書きする。intensive だが merge/split/worldgen では設定せず（次 tick で再生成）、
+  //   挙動（needSatisfaction/money/成長/unrest）には一切影響しない。desire が無いカテゴリは key を持たない。
+  categorySatisfaction?: Partial<Record<NeedCategory, number>>
 }
 
 export type PopIndex = {

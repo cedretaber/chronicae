@@ -67,6 +67,8 @@ import {
   stateName,
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { assignTerrainTraits, computeSlotCapacity } from '../selectors/terrainTraitSelectors'
 import { computeInitialIdIndices } from '../tick/context'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
@@ -122,6 +124,9 @@ export function generateWorld(
   seedText: string,
   presetName?: WorldPresetName,
   namePoolService?: NamePoolService,
+  // v0.59: worldgen 全体で threaded config を使う（--config の上書きを初期世界生成にも反映）。
+  //   既定は defaultConfig なので未指定時の挙動は不変。generateProvinces にも config を渡す。
+  config: SimulationConfig = defaultConfig,
 ): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
@@ -131,8 +136,20 @@ export function generateWorld(
     provinces,
     stateCenters,
     rng: rng0,
-  } = generateProvinces(rng, defaultMapConfig, preset, namePoolService)
+  } = generateProvinces(rng, defaultMapConfig, preset, namePoolService, config)
   rng = rng0
+
+  // v0.59: 地形特性を付与する（決定的・config 駆動）。assignTerrainTraits は純関数なので、
+  //   結果の traits を元 provinces 配列へ index 整合で書き戻す（以降の全参照に波及・L230 sort 前）。
+  const { provinces: provincesWithTraits, rng: rngTraits } = assignTerrainTraits(
+    provinces,
+    config,
+    rng,
+  )
+  rng = rngTraits
+  for (let i = 0; i < provinces.length; i++) {
+    provinces[i]!.traits = provincesWithTraits[i]!.traits
+  }
 
   // Generate StateRegion records
   const statesRecord: Record<StateRegionId, StateRegion> = {}
@@ -196,7 +213,7 @@ export function generateWorld(
   const { persons, rng: rng3 } = generatePersons(
     houseProvinces,
     housePolity,
-    defaultConfig,
+    config,
     rng,
     namePoolService,
   )
@@ -229,7 +246,7 @@ export function generateWorld(
     provinceMap.set(p.id, p)
   }
 
-  const { controlMaxDistancePenalty, controlMaxMinimum } = defaultConfig
+  const { controlMaxDistancePenalty, controlMaxMinimum } = config
 
   for (const houseId of sortedHouseIds) {
     const { value: legacyPrestige, rng: r1 } = randomInt(rng, 20, 80)
@@ -251,12 +268,12 @@ export function generateWorld(
       const firstId = sortedProvinceIds[0]!
       let bestId = firstId
       let bestSuitability =
-        defaultConfig.provinceTerrainSettlementSuitability[provinceMap.get(firstId)!.terrain]
+        config.provinceTerrainSettlementSuitability[provinceMap.get(firstId)!.terrain]
       for (let i = 1; i < sortedProvinceIds.length; i++) {
         const pid = sortedProvinceIds[i]!
         const prov = provinceMap.get(pid)
         if (!prov) continue
-        const suitability = defaultConfig.provinceTerrainSettlementSuitability[prov.terrain]
+        const suitability = config.provinceTerrainSettlementSuitability[prov.terrain]
         if (suitability > bestSuitability) {
           bestSuitability = suitability
           bestId = pid
@@ -268,8 +285,7 @@ export function generateWorld(
     // First try adult males
     const adultMaleCandidates = persons
       .filter(
-        (p) =>
-          p.houseId === houseId && p.alive && p.sex === 'male' && p.age >= defaultConfig.adultAge,
+        (p) => p.houseId === houseId && p.alive && p.sex === 'male' && p.age >= config.adultAge,
       )
       .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -301,11 +317,7 @@ export function generateWorld(
     if (!headId) {
       const adultFemaleCandidates = persons
         .filter(
-          (p) =>
-            p.houseId === houseId &&
-            p.alive &&
-            p.sex === 'female' &&
-            p.age >= defaultConfig.adultAge,
+          (p) => p.houseId === houseId && p.alive && p.sex === 'female' && p.age >= config.adultAge,
         )
         .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -602,11 +614,7 @@ export function generateWorld(
     if (house) {
       const adultMaleCandidates = persons
         .filter(
-          (p) =>
-            p.houseId === house.id &&
-            p.alive &&
-            p.sex === 'male' &&
-            p.age >= defaultConfig.adultAge,
+          (p) => p.houseId === house.id && p.alive && p.sex === 'male' && p.age >= config.adultAge,
         )
         .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -635,10 +643,7 @@ export function generateWorld(
         const adultFemaleCandidates = persons
           .filter(
             (p) =>
-              p.houseId === house.id &&
-              p.alive &&
-              p.sex === 'female' &&
-              p.age >= defaultConfig.adultAge,
+              p.houseId === house.id && p.alive && p.sex === 'female' && p.age >= config.adultAge,
           )
           .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -804,8 +809,7 @@ export function generateWorld(
 
     const adultMaleCandidates = persons
       .filter(
-        (p) =>
-          p.houseId === house.id && p.alive && p.sex === 'male' && p.age >= defaultConfig.adultAge,
+        (p) => p.houseId === house.id && p.alive && p.sex === 'male' && p.age >= config.adultAge,
       )
       .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -834,10 +838,7 @@ export function generateWorld(
       const adultFemaleCandidates = persons
         .filter(
           (p) =>
-            p.houseId === house.id &&
-            p.alive &&
-            p.sex === 'female' &&
-            p.age >= defaultConfig.adultAge,
+            p.houseId === house.id && p.alive && p.sex === 'female' && p.age >= config.adultAge,
         )
         .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -918,18 +919,17 @@ export function generateWorld(
         p.houseId &&
         housePolity.get(p.houseId) === polity.id &&
         p.alive &&
-        p.age >= defaultConfig.adultAge,
+        p.age >= config.adultAge,
     )
 
     // v0.45.3 性別役職適格ゲート: sorted 先頭の適格者を採用し、適格者ゼロなら
     // allowFemaleRolesWhenNoMaleCandidate で先頭に fallback (runtime 任命と同形)。
-    // NOTE: worldgen は defaultConfig 直参照 (--config 不感) — 既知の制約。
     const pickEligible = (
       sorted: typeof polityPersons,
     ): (typeof polityPersons)[number] | undefined => {
-      const eligible = sorted.find((p) => isRoleEligibleBySex(officeState, defaultConfig, p.id))
+      const eligible = sorted.find((p) => isRoleEligibleBySex(officeState, config, p.id))
       if (eligible) return eligible
-      return defaultConfig.allowFemaleRolesWhenNoMaleCandidate ? sorted[0] : undefined
+      return config.allowFemaleRolesWhenNoMaleCandidate ? sorted[0] : undefined
     }
 
     // Administrator: best admin stat
@@ -1058,7 +1058,6 @@ export function generateWorld(
   // House shares
   for (const house of houses) {
     if (!house.active) continue
-    const config = defaultConfig
 
     const houseOrgKey = `house:${house.id}`
     const houseOfficeIds = officeState.officeIndex.byOrganization[houseOrgKey] ?? []
@@ -1189,23 +1188,18 @@ export function generateWorld(
   let nextHoldingId = 0
   let nextHoldingOfficeAssignmentId = 0
 
-  // §7.3b city 保証: ワールド全体で最低 minGuaranteedCities 個の city を保証する。
-  // tiny preset は holdingsPerProvince=2 で minHoldingsForCity(3) に届かず通常抽選では city が
-  // 0 になりうるため、抽選とは別にランダムな Province を強制的に city 化する。
-  // この強制は minHoldingsForCity の閾値を上書きする (2-holding Province でも city になりうる)。
-  const minGuaranteedCities = 2
+  // §7.3b / v0.59 city 保証: 各 state に最低1 city を保証する。state ごとに Province を
+  //   1つ強制 city province にする (決定的: provinces 出力順で state ごとに最初に現れる
+  //   Province を選ぶ)。この強制は minHoldingsForCity の閾値を上書きする (2-holding
+  //   Province でも city になりうる)。RNG は消費しない。
   const forcedCityProvinceIds = new Set<string>()
   {
-    const indices = provinces.map((_, idx) => idx)
-    const pick = Math.min(minGuaranteedCities, indices.length)
-    // 部分 Fisher-Yates で重複なくランダム選択 (末尾固定でなくバラけさせ配置の偏りを避ける)
-    for (let k = 0; k < pick; k++) {
-      const { value: j, rng: rPick } = randomInt(rng, k, indices.length - 1)
-      rng = rPick
-      const tmp = indices[k]!
-      indices[k] = indices[j]!
-      indices[j] = tmp
-      forcedCityProvinceIds.add(provinces[indices[k]!]!.id)
+    const seenStates = new Set<string>()
+    for (const province of provinces) {
+      const sid = province.stateId as string
+      if (seenStates.has(sid)) continue
+      seenStates.add(sid)
+      forcedCityProvinceIds.add(province.id)
     }
   }
 
@@ -1240,6 +1234,14 @@ export function generateWorld(
       hasCity = cityRoll < cityProvinceChance
     }
 
+    // v0.59: 全 Province に manor≥2 を保証する。city があればその上に +1 (city province は
+    //   2 manor + 1 city)。holdingCount を底上げするだけで kind 割当 (最後の holding のみ
+    //   city) は不変。RNG は消費しない。
+    {
+      const minHoldings = 2 + (hasCity ? 1 : 0)
+      if (holdingCount < minHoldings) holdingCount = minHoldings
+    }
+
     const holdingControl = controlMap.get(province.id) ?? 0
     const holdingIds: HoldingId[] = []
     // §2.3/§4.1: Holding 名は同一 Province 内でのみ一意。Province 自身の nameKey は
@@ -1263,11 +1265,6 @@ export function generateWorld(
         kind = 'manor'
         weight = 1.0
       }
-
-      // landQuality: randomFloat(0.6, 1.4)
-      const { value: lqRoll, rng: rlq } = randomFloat(rng)
-      rng = rlq
-      const landQuality = 0.6 + lqRoll * 0.8
 
       // §4.1: Holding 命名。manor=province pool / city=city pool。required のため
       // literal 構築時に確定させる。
@@ -1304,7 +1301,6 @@ export function generateWorld(
         nameKey: holdingNameKey,
         kind,
         polityControl: holdingControl,
-        landQuality,
         weight,
       }
       holdingsRecord[holdingId] = holding
@@ -1368,8 +1364,8 @@ export function generateWorld(
           active: true,
           startWeek: 1,
           unpaidCount: 0,
-          contractedRemittanceRate: defaultConfig.defaultContractedRemittanceRate,
-          expectedFeeRate: defaultConfig.defaultExpectedBailiffFeeRate,
+          contractedRemittanceRate: config.defaultContractedRemittanceRate,
+          expectedFeeRate: config.defaultExpectedBailiffFeeRate,
         }
         holdingOfficeAssignments[hoaId] = hoa
         holdingOfficeIndex.byHolding[holdingId] = hoaId
@@ -1425,7 +1421,7 @@ export function generateWorld(
           province.features,
           0,
           cfg.kind,
-          defaultConfig,
+          config,
         )
       ) {
         continue
@@ -1438,7 +1434,7 @@ export function generateWorld(
         // v0.48.1 §2.5/§11-M2: condition を 100 固定でなく決定論 jitter (jitterMin..100) にする。
         //   全 condition 100 出発だと同レベル設備が同週に一斉閾値割れし第1波が同期するため、improvement
         //   id から派生する剰余で時間方向にばらす。新たに RNG を引かない (worldgen の draw 順を乱さない)。
-        const jitterMin = defaultConfig.facilityConditionSeedJitterMin
+        const jitterMin = config.facilityConditionSeedJitterMin
         const span = 100 - jitterMin
         const condition = span > 0 ? jitterMin + ((idNum * 37) % (span + 1)) : 100
         holdingImprovements[impId] = {
@@ -1469,7 +1465,7 @@ export function generateWorld(
     if (!province) continue
 
     // RealEstateAsset chance table + capacity target 補完
-    const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+    const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
     let usedSlots = 0
 
     const buildableKinds = ALL_REAL_ESTATE_KINDS.filter((kind) =>
@@ -1559,7 +1555,7 @@ export function generateWorld(
 
   // Generate initial unaffiliated persons proportional to holdings count
   const holdingsCount = Object.keys(holdingsRecord).length
-  const initialHouselessCount = Math.ceil(holdingsCount * defaultConfig.houselessPersonsPerHolding)
+  const initialHouselessCount = Math.ceil(holdingsCount * config.houselessPersonsPerHolding)
   if (initialHouselessCount > 0) {
     let maxPeIndex = 0
     for (const pid of Object.keys(personsRecord)) {
@@ -1583,7 +1579,7 @@ export function generateWorld(
       const { value: sexRoll, rng: rng_s } = randomFloat(rng)
       rng = rng_s
       // v0.45.4: runtime の在野補充 (houselessMaleRatio) と整合 (旧 0.5 ハードコード)
-      const sex: 'male' | 'female' = sexRoll < defaultConfig.houselessMaleRatio ? 'male' : 'female'
+      const sex: 'male' | 'female' = sexRoll < config.houselessMaleRatio ? 'male' : 'female'
 
       let unNameKey: string
       if (namePoolService) {
@@ -1600,7 +1596,7 @@ export function generateWorld(
         unNameKey = name
       }
 
-      const { value: age, rng: rng_a } = randomInt(rng, defaultConfig.adultAge, 45)
+      const { value: age, rng: rng_a } = randomInt(rng, config.adultAge, 45)
       rng = rng_a
       const { value: ambition, rng: rng_am } = randomFloat(rng)
       rng = rng_am
@@ -1608,7 +1604,7 @@ export function generateWorld(
       rng = rng_ca
       const { value: prestige, rng: rng_pr } = randomInt(rng, 0, 20)
       rng = rng_pr
-      const { value: person, rng: rng_sp } = samplePerson(rng, defaultConfig, {
+      const { value: person, rng: rng_sp } = samplePerson(rng, config, {
         id: personId,
         nameKey: unNameKey,
         sex,
@@ -1627,7 +1623,7 @@ export function generateWorld(
 
   // §6.3 POP generation (Holding-based, occupation capacity driven)
   const popIndexByHolding: Record<HoldingId, PopGroupId[]> = {}
-  const { minPopSizeByClass } = defaultConfig
+  const { minPopSizeByClass } = config
 
   for (const provinceBase of provinces) {
     const province = provincesRecord[provinceBase.id]!
@@ -1653,28 +1649,25 @@ export function generateWorld(
         if (a) seedAssets.push({ realEstateKind: a.realEstateKind, level: a.level })
       }
       const usedSlots = seedAssets.length
-      const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+      const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
       const overuseMod =
-        usedSlots <= slotCap
-          ? 1.0
-          : Math.max(defaultConfig.minSlotOveruseModifier, slotCap / usedSlots)
+        usedSlots <= slotCap ? 1.0 : Math.max(config.minSlotOveruseModifier, slotCap / usedSlots)
       // v0.57 §雇用細分化: 初期配置を施設駆動の PopType ハード枠に比例させる (旧: stratum 容量を
       //   全 holding 共通の固定職能分布で分割 → 施設に枠の無い PopType を播いて初期失業が出ていた)。
       const popTypeCaps = computeHoldingAllPopTypeCapacities(
         holding.weight,
-        holding.landQuality,
         province.terrain,
         province.features,
         seedImprovements,
-        defaultConfig,
+        config,
         seedAssets,
         overuseMod,
       )
 
       const { value: fillPct, rng: rf1 } = randomInt(
         rng,
-        defaultConfig.initialPopFillRatioMin,
-        defaultConfig.initialPopFillRatioMax,
+        config.initialPopFillRatioMin,
+        config.initialPopFillRatioMax,
       )
       const fillRatio = fillPct / 100
 
@@ -1707,8 +1700,8 @@ export function generateWorld(
           money:
             estimateMonthlyEssentialCostPerPop(popType) *
             (cap * fillRatio) *
-            defaultConfig.worldgenPopMoneyMonthsOfEssential *
-            defaultConfig.worldgenPopMoneyStratumMultiplier[stratum],
+            config.worldgenPopMoneyMonthsOfEssential *
+            config.worldgenPopMoneyStratumMultiplier[stratum],
           needSatisfaction: 60,
           unrest: stratumUnrest[stratum],
           attitudes: {},
@@ -1729,8 +1722,8 @@ export function generateWorld(
           money:
             estimateMonthlyEssentialCostPerPop('peasants') *
             minPopSizeByClass.lower *
-            defaultConfig.worldgenPopMoneyMonthsOfEssential *
-            defaultConfig.worldgenPopMoneyStratumMultiplier.lower,
+            config.worldgenPopMoneyMonthsOfEssential *
+            config.worldgenPopMoneyStratumMultiplier.lower,
           needSatisfaction: 60,
           unrest: lowerUnrest,
           attitudes: {},

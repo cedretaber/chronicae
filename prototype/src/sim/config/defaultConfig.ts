@@ -7,7 +7,7 @@ import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
-import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+import type { ProvinceTerrain, ProvinceFeature, TerrainTraitDefinition } from '../types/province'
 import type { NeedTier } from '../types/needCategory'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
@@ -287,19 +287,13 @@ export type SimulationConfig = {
   //   先月分を完全に再構成できるよう、実質 store-all となる高い値にする (truncate は read-model の
   //   欠落を生むだけで sim ロジックには無影響)。snapshot は毎月上書きで累積しない。
   popMobilityTopMovementLimit: number
-  //   job change (cap は holding 人口比率 + hard cap, C2)
-  popJobChangeMaxFractionPerHoldingPerMonth: number
-  popJobChangeMaxPerHoldingPerMonthHardCap: number
+  //   job change (cap は per-source: source.size × kind 別レート, v0.59 追補)
   popJobChangeMonthlyRateByKind: Record<PopMobilityKind, number>
   //   wealth gate は相対分位 (C3)。epsilon は分布が潰れた際の不発ガード。
   popPromotionEpsilon: number
   popDemotionEpsilon: number
   popPromotionWealthCostByTargetStratum: Partial<Record<PopStratum, number>>
-  //   migration (cap は holding 人口比率 + hard cap, C2)
-  popMigrationMaxOutflowFractionPerHoldingPerMonth: number
-  popMigrationMaxInflowFractionPerHoldingPerMonth: number
-  popMigrationMaxOutflowPerHoldingPerMonthHardCap: number
-  popMigrationMaxInflowPerHoldingPerMonthHardCap: number
+  //   migration (cap は per-source: source.size × stratum 別レート・移動先非依存, v0.59 追補)
   popMigrationMonthlyRateByStratum: Record<PopStratum, number>
   popMigrationPressureThreshold: number
   popMigrationScoreGapThreshold: number
@@ -1137,6 +1131,13 @@ export type SimulationConfig = {
     Partial<Record<HoldingKind, number>>
   >
   developHoldingTargetDevelopmentThreshold: number
+  // v0.59 追補③: 「品薄資源」とみなす shortageSeverity の下限。これ以上の資源を生産する holding は
+  //   capacity でなく production_quality 改良 (例: 灌漑) を優先する。
+  bottleneckShortageSeverityThreshold: number
+  // v0.59 追補③: 食料資源は市場が自己均衡 (マルサス的に人口が供給ちょうどに自己制限) するため
+  //   market shortageSeverity では検出できない。代わりに人口圧 (state人口/食料CC) がこの閾値以上なら
+  //   食料資源を「ボトルネック」とみなす。severity = pressure (≈1.0) を採用しランキングに使う。
+  foodBottleneckPressureThreshold: number
   developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
   // v0.33: capacity 生成テーブル（§8.3-8.5）。Partial = 未定義は寄与 0 / multiplier 1.0
@@ -1149,6 +1150,16 @@ export type SimulationConfig = {
     Partial<Record<ProvinceTerrain, number>>
   >
   holdingImprovementFeatureCapacityMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceFeature, number>>
+  >
+  // v0.59 追補③: 改良の develop_holding プロジェクトコストを地形/地物で割り引く乗数 (汎用)。
+  //   未定義 = 乗数 1.0 (割引なし)。例: 灌漑は wetlands 地形・河川/湖沼 feature で安くなる (海=coastal は割引なし)。
+  holdingImprovementTerrainCostMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceTerrain, number>>
+  >
+  holdingImprovementFeatureCostMultiplier: Record<
     HoldingImprovementKind,
     Partial<Record<ProvinceFeature, number>>
   >
@@ -1452,6 +1463,9 @@ export type SimulationConfig = {
   improveRealEstateEmploymentSlackBonus: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
+  // v0.59 地形特性: 定義（config 駆動・--config で上書き可）と付与密度の global 乗数。
+  terrainTraitDefinitions: TerrainTraitDefinition[]
+  terrainTraitDensityMultiplier: number
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
   developRealEstateProjectBaseProgress: Record<RealEstateKind, number>
   realEstateSalePriceYears: number
@@ -1765,16 +1779,10 @@ export const defaultConfig: SimulationConfig = {
   popMobilityMinMoveAmount: 0.01,
   // store-all 相当 (実測: tiny ~80, small ~411, standard ~1-2k movements/月)。per-entity UI の完全性確保。
   popMobilityTopMovementLimit: 4000,
-  popJobChangeMaxFractionPerHoldingPerMonth: 0.001,
-  popJobChangeMaxPerHoldingPerMonthHardCap: 0.15,
   popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.01 },
   popPromotionEpsilon: 1,
   popDemotionEpsilon: 1,
   popPromotionWealthCostByTargetStratum: { middle: 5, upper: 10 },
-  popMigrationMaxOutflowFractionPerHoldingPerMonth: 0.001,
-  popMigrationMaxInflowFractionPerHoldingPerMonth: 0.001,
-  popMigrationMaxOutflowPerHoldingPerMonthHardCap: 0.15,
-  popMigrationMaxInflowPerHoldingPerMonthHardCap: 0.15,
   popMigrationMonthlyRateByStratum: { lower: 0.01, middle: 0.005, upper: 0.002 },
   popMigrationPressureThreshold: 35,
   popMigrationScoreGapThreshold: 20,
@@ -2649,6 +2657,8 @@ export const defaultConfig: SimulationConfig = {
     transport_infrastructure: { manor: 3, city: 3 },
   },
   developHoldingTargetDevelopmentThreshold: 40,
+  bottleneckShortageSeverityThreshold: 0.2,
+  foodBottleneckPressureThreshold: 0.9,
   developHoldingProjectBaseCostByImprovementKind: {
     manor_house: 20,
     town_hall: 20,
@@ -2689,6 +2699,25 @@ export const defaultConfig: SimulationConfig = {
     manor_house: {},
     town_hall: {},
     irrigation_infrastructure: {},
+    market_infrastructure: {},
+    workshop_infrastructure: {},
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  // v0.59 追補③: 改良コスト割引。灌漑は沼沢地形で 0.8、河川 0.8 / 湖沼 0.85 (海 coastal は割引なし)。
+  holdingImprovementTerrainCostMultiplier: {
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: { wetlands: 0.8 },
+    market_infrastructure: {},
+    workshop_infrastructure: {},
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  holdingImprovementFeatureCostMultiplier: {
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: { major_river: 0.8, lake: 0.85 },
     market_infrastructure: {},
     workshop_infrastructure: {},
     storage_infrastructure: {},
@@ -3056,6 +3085,40 @@ export const defaultConfig: SimulationConfig = {
   improveRealEstateEmploymentSlackBonus: 8,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
+  // v0.59 地形特性（balance-defer の default 値）。産出 trait は input を持たない raw 資源のみ対象。
+  terrainTraitDensityMultiplier: 1.0,
+  terrainTraitDefinitions: [
+    {
+      trait: 'fertile_land',
+      eligibleTerrains: ['plains', 'hills'],
+      probability: 0.25,
+      effect: { kind: 'output', resources: { grain: 1.3, fruit: 1.2 } },
+    },
+    {
+      trait: 'rich_fishery',
+      eligibleFeatures: ['coastal', 'major_river', 'lake'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { fish: 1.4 } },
+    },
+    {
+      trait: 'rich_lode',
+      eligibleTerrains: ['mountains', 'hills'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { iron_ore: 1.3, gems: 1.3, stone: 1.3 } },
+    },
+    {
+      trait: 'dense_forest',
+      eligibleTerrains: ['forest', 'hills'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { timber: 1.4, fur: 1.2 } },
+    },
+    {
+      trait: 'open_terrain',
+      eligibleTerrains: ['plains', 'wetlands'],
+      probability: 0.25,
+      effect: { kind: 'slot', slotBonus: 1 },
+    },
+  ],
   developRealEstateProjectBaseCost: {
     farm: 30,
     mountain: 32,

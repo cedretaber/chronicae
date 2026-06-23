@@ -21,7 +21,6 @@ function makeBaseState(): WorldState {
       nameKey: 'h',
       kind: 'manor',
       polityControl: 0,
-      landQuality: 1,
       weight: 1,
     }
   }
