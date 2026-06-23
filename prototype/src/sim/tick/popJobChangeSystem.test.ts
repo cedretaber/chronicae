@@ -144,7 +144,11 @@ describe('PopJobChangeSystem', () => {
 
   it('C3: promotion fires for the relatively-rich source, but not when wealth is uniform', () => {
     // Three unemployed peasants; the farm provides a middle-stratum freeholders shortage (promotion target).
+    // v0.59 追補: freeholders は実効容量 (= 雇用 peasants × maxRatio) で gate されるため、
+    //   昇格先の枠を生むには雇用済み小作農のアンカーが必要。アンカーの per-capita money は中庸 (50)。
+    const ANCHOR = mk('lower', 'peasants', true, 1000, 50)
     const spread = setup([
+      ANCHOR,
       mk('lower', 'peasants', false, 100, 10),
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 90),
@@ -159,6 +163,7 @@ describe('PopJobChangeSystem', () => {
     expect(promotedSpread.length).toBeGreaterThan(0) // the wealth-90 peasant clears p75 + median gate
 
     const flat = setup([
+      ANCHOR,
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 50),

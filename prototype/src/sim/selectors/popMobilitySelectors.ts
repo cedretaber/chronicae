@@ -4,12 +4,19 @@ import type { HoldingId, StateRegionId } from '../types/ids'
 import type { PopType } from '../types/popGroup'
 import { POP_TYPES } from '../types/popGroup'
 import type { HoldingPopTypeDemand } from '../types/popMobility'
-import { getHoldingAllPopTypeCapacities } from './popSelectors'
+import {
+  getHoldingAllPopTypeCapacities,
+  getHoldingAllPopTypeEffectiveCapacities,
+} from './popSelectors'
 
 // v0.57 §雇用細分化: holding 単位の PopType 雇用需要 read-model。
 //   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = holding 全体で正規化した容量比
 //   (v0.57.1: stratum 内正規化から holding 全体へ。移動の判断を Class 単位に統一)。
 //   current は employed POP 集計。shortage/surplus は転職・移住スコア・rebalance 順序付け用。
+//   v0.59 追補: idealShare/desired は構造的な「理想構成・容量推定」なので **生容量**のまま
+//   (型コメントどおり即時雇用を意味しない推定値)。一方 shortage/surplus は転職が実際に動かす
+//   actionable gap なので **maxRatio 後の実効容量**で算出する (下層不足で埋まらない熟練職枠を
+//   gap に計上しない)。
 export function computeHoldingPopTypeDemand(
   state: WorldState,
   config: SimulationConfig,
@@ -24,29 +31,31 @@ export function computeHoldingPopTypeDemand(
     currentEmployedByType[p.popType] = (currentEmployedByType[p.popType] ?? 0) + p.size
   }
 
-  // desired = 施設駆動の PopType 雇用容量 (1 パス計算)。
-  const capByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  // desired/idealShare = 施設駆動の生容量 (構造的な理想構成・容量推定)。
+  const rawCapByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  // shortage/surplus = maxRatio 後の実効容量 (転職が動かす actionable gap)。v0.59 追補。
+  const effCapByType = getHoldingAllPopTypeEffectiveCapacities(state, config, holdingId)
 
   // holding 全体の容量合計で正規化して idealShare を求める (移住 opportunity score 用)。
   let totalCap = 0
-  for (const t of POP_TYPES) totalCap += capByType[t] ?? 0
+  for (const t of POP_TYPES) totalCap += rawCapByType[t] ?? 0
 
   const idealShareByType: Partial<Record<PopType, number>> = {}
   const desiredEmployedByType: Partial<Record<PopType, number>> = {}
   for (const t of POP_TYPES) {
-    const cap = capByType[t] ?? 0
+    const cap = rawCapByType[t] ?? 0
     desiredEmployedByType[t] = cap
     idealShareByType[t] = totalCap > 0 ? cap / totalCap : 0
   }
 
-  // §6.4: shortage / surplus。
+  // §6.4: shortage / surplus (実効容量基準)。
   const shortageByType: Partial<Record<PopType, number>> = {}
   const surplusByType: Partial<Record<PopType, number>> = {}
   for (const t of POP_TYPES) {
-    const desired = desiredEmployedByType[t] ?? 0
+    const effDesired = effCapByType[t] ?? 0
     const current = currentEmployedByType[t] ?? 0
-    const shortage = Math.max(0, desired - current)
-    const surplus = Math.max(0, current - desired)
+    const shortage = Math.max(0, effDesired - current)
+    const surplus = Math.max(0, current - effDesired)
     if (shortage > 0) shortageByType[t] = shortage
     if (surplus > 0) surplusByType[t] = surplus
   }

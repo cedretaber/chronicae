@@ -16,6 +16,7 @@ import {
 } from './holdingImprovementSelectors'
 import { computeSlotCapacity } from './terrainTraitSelectors'
 import { popGroupChangeKey } from '../types/popChange'
+import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -390,13 +391,54 @@ export function getHoldingPopTypeCapacity(
   )
 }
 
+// v0.59 追補: 判断系 (転職/移住/昇格 gate・shortage) 専用の「実効容量」。
+//   熟練職 (親方/自作農) は POP_TYPE_MAX_RATIO により下層同種職の実雇用数 × ratio で雇用上限が縛られる。
+//   この絞り込みは employmentRebalanceSystem が適用するが生容量 selector には載らないため、
+//   判断系が「絶対に埋まらない幻の枠」を shortage/空き枠として誤計上していた。本ヘルパーは生容量を
+//   maxRatio で絞った値を返す。**rebalance 本体は生容量＋自前の動的 refEmployed ループに依存するため
+//   これを使わない** (生容量 selector は据え置き)。
+export function getHoldingPopTypeEffectiveCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popType: PopType,
+): number {
+  const raw = getHoldingPopTypeCapacity(state, config, holdingId, popType)
+  const maxRatio = POP_TYPE_MAX_RATIO[popType]
+  if (!maxRatio) return raw
+  const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
+  return Math.min(raw, refEmployed * maxRatio.ratio)
+}
+
+// v0.59 追補: getHoldingAllPopTypeCapacities の実効容量版 (全 PopType を 1 パスで)。
+export function getHoldingAllPopTypeEffectiveCapacities(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): Partial<Record<PopType, number>> {
+  const raw = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  const result: Partial<Record<PopType, number>> = {}
+  for (const t of Object.keys(raw) as PopType[]) {
+    const cap = raw[t] ?? 0
+    const maxRatio = POP_TYPE_MAX_RATIO[t]
+    if (maxRatio) {
+      const refEmployed = getHoldingEmployedPopSizeByType(state, holdingId, maxRatio.popType)
+      result[t] = Math.min(cap, refEmployed * maxRatio.ratio)
+    } else {
+      result[t] = cap
+    }
+  }
+  return result
+}
+
 export function getHoldingPopTypeRemainingCapacity(
   state: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
   popType: PopType,
 ): number {
-  const capacity = getHoldingPopTypeCapacity(state, config, holdingId, popType)
+  // v0.59 追補: 昇格 gate・lateral capacity gate で「埋まらない幻の枠」を弾くため実効容量を使う。
+  const capacity = getHoldingPopTypeEffectiveCapacity(state, config, holdingId, popType)
   const used = getHoldingEmployedPopSizeByType(state, holdingId, popType)
   return Math.max(0, capacity - used)
 }

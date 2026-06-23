@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeHoldingPopTypeDemand, computePopTypeMoneyQuantiles } from './popMobilitySelectors'
+import { getHoldingPopTypeEffectiveCapacity } from './popSelectors'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { createProvinceId, createPopGroupId, createRealEstateAssetId } from '../types/ids'
@@ -126,5 +127,81 @@ describe('computeHoldingPopTypeDemand', () => {
     expect(d.desiredEmployedByType.peasants! / d.desiredEmployedByType.freeholders!).toBeCloseTo(
       35 / 15,
     )
+  })
+})
+
+// v0.59 追補: maxRatio 後の実効容量。熟練職 (自作農) は下層同種職 (小作農) の実雇用数 × ratio で頭打ち。
+function setupFarm(specs: PopSpec[]): { state: WorldState; holdingId: HoldingId } {
+  const { state, holdingId } = setupPops(specs)
+  state.holdingImprovements = {}
+  state.holdingImprovementIndex = { byHolding: {} }
+  const assetId = createRealEstateAssetId(0)
+  const asset: RealEstateAsset = {
+    id: assetId,
+    holdingId,
+    realEstateKind: 'farm', // 小作農:自作農 = 7:3
+    level: 1,
+    createdWeek: 0,
+    recipeSlots: {},
+  }
+  state.realEstateAssets[assetId] = asset
+  state.realEstateAssetIndex.byHolding[holdingId as string] = [assetId]
+  return { state, holdingId }
+}
+
+describe('getHoldingPopTypeEffectiveCapacity (v0.59 追補)', () => {
+  it('自作農の実効容量は小作農の実雇用数で頭打ちになる', () => {
+    // 小作農を 2 人だけ雇用 → 自作農の実効容量 = min(生容量, 2×1) = 2。
+    const { state, holdingId } = setupFarm([
+      { cls: 'lower', popType: 'peasants', perCapMoney: 1, size: 2, employed: true },
+    ])
+    const effFree = getHoldingPopTypeEffectiveCapacity(
+      state,
+      defaultConfig,
+      holdingId,
+      'freeholders',
+    )
+    expect(effFree).toBeCloseTo(2)
+    // maxRatio 無しの小作農は生容量そのまま (頭打ちされない)。
+    const effPeasants = getHoldingPopTypeEffectiveCapacity(
+      state,
+      defaultConfig,
+      holdingId,
+      'peasants',
+    )
+    expect(effPeasants).toBeGreaterThan(2)
+  })
+
+  it('小作農が十分なら自作農は生容量まで使える', () => {
+    const { state, holdingId } = setupFarm([
+      { cls: 'lower', popType: 'peasants', perCapMoney: 1, size: 100000, employed: true },
+    ])
+    const effFree = getHoldingPopTypeEffectiveCapacity(
+      state,
+      defaultConfig,
+      holdingId,
+      'freeholders',
+    )
+    expect(effFree).toBeGreaterThan(0)
+  })
+})
+
+describe('computeHoldingPopTypeDemand 実効容量 shortage (v0.59 追補)', () => {
+  it('下層が薄いと自作農の shortage は実効容量で 0 になる (幻の需要を出さない)', () => {
+    // 小作農・自作農とも未雇用。farm は自作農の生容量 > 0 を持つが、小作農 0 雇用なので
+    //   自作農の実効容量 = 0 → shortage.freeholders は出ない。一方 idealShare は構造的に 0.3。
+    const { state, holdingId } = setupFarm([])
+    const d = computeHoldingPopTypeDemand(state, defaultConfig, holdingId)
+    expect(d.shortageByType.freeholders ?? 0).toBe(0)
+    expect(d.shortageByType.peasants!).toBeGreaterThan(0) // 小作農は maxRatio 無しなので shortage 出る
+    expect(d.idealShareByType.freeholders).toBeCloseTo(0.3) // idealShare は生容量基準で構造維持
+  })
+
+  it('小作農を十分雇用すると自作農の shortage が現れる', () => {
+    const { state, holdingId } = setupFarm([
+      { cls: 'lower', popType: 'peasants', perCapMoney: 1, size: 100000, employed: true },
+    ])
+    const d = computeHoldingPopTypeDemand(state, defaultConfig, holdingId)
+    expect(d.shortageByType.freeholders!).toBeGreaterThan(0)
   })
 })

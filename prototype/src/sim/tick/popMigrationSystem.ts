@@ -7,7 +7,7 @@ import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
 import { POP_STRATA, POP_TYPES } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
-  getHoldingAllPopTypeCapacities,
+  getHoldingAllPopTypeEffectiveCapacities,
   getHoldingEmployedPopSizeByType,
   getHoldingTotalPopSize,
 } from '../selectors/popSelectors'
@@ -336,7 +336,8 @@ function buildHoldingCache(
   const avgUnrest = totalSize > 0 ? unrestSum / totalSize : 0
 
   // capacity ceiling は構造由来で月内不変。1 回算出して cache し、congestion にも流用する。
-  const capacityByType = getHoldingAllPopTypeCapacities(state, config, holdingId)
+  //   v0.59 追補: 実効容量 (maxRatio 後) を使い、埋まらない熟練職枠へ移住を誘引しない。
+  const capacityByType = getHoldingAllPopTypeEffectiveCapacities(state, config, holdingId)
   let totalCapacity = 0
   for (const t of Object.keys(capacityByType) as PopType[]) totalCapacity += capacityByType[t] ?? 0
   const congestion = totalSize / Math.max(1, totalCapacity)
