@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   canBuildHoldingImprovementPure,
+  canBuildRealEstateAssetPure,
   conditionEffectiveness,
 } from './holdingImprovementSelectors'
 import { defaultConfig } from '../config/defaultConfig'
@@ -102,5 +103,14 @@ describe('canBuildHoldingImprovementPure', () => {
     expect(
       canBuildHoldingImprovementPure('manor', 'mountains', [], 0, 'storage_infrastructure', cfg),
     ).toBe(true)
+  })
+})
+
+describe('v0.59 農園どこでも', () => {
+  it('farm は mountains でも建設可能', () => {
+    expect(canBuildRealEstateAssetPure('manor', 'mountains', [], 'farm')).toBe(true)
+  })
+  it('farm は従来地形でも建設可能 (plains)', () => {
+    expect(canBuildRealEstateAssetPure('manor', 'plains', [], 'farm')).toBe(true)
   })
 })
