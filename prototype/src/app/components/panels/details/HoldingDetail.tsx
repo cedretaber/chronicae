@@ -147,10 +147,6 @@ export function HoldingDetail({
           <span>{holding.polityControl.toFixed(0)}%</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.province.quality')}:</span>
-          <span>{holding.landQuality.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.weight')}:</span>
           <span>{holding.weight.toFixed(1)}</span>
         </div>

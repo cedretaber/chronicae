@@ -255,6 +255,14 @@ export function ProvinceDetail({
           </span>
         </div>
         <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.traits')}:</span>
+          <span>
+            {province.traits.length > 0
+              ? province.traits.map((tr) => t(`detail.province.trait_value.${tr}`)).join(', ')
+              : t('detail.province.no_traits')}
+          </span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.development')}:</span>
           <span>
             {formatScore(holdingDev)} {getDevelopmentLabel(holdingDev)}
@@ -313,9 +321,6 @@ export function ProvinceDetail({
                   </span>
                   <span>
                     {t('detail.province.control')}: {holding.polityControl.toFixed(0)}%
-                  </span>
-                  <span>
-                    {t('detail.province.quality')}: {holding.landQuality.toFixed(2)}
                   </span>
                   <span>
                     {t('detail.province.weight')}: {holding.weight.toFixed(1)}
