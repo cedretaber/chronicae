@@ -61,7 +61,7 @@
 | motherMaxChildAge | 45 | 母親になれる最高年齢 |
 | baseBirthChancePerMalePerYear | 0.09 | 男性 1 人あたりの年間出生確率（基本）。家内出生を増やし有力な大家系を出現させるため高め（houseFounding 絞りとセット） |
 | spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
-| maleBirthChance | 0.75 | 男子出生確率（通常）。v0.45.4: 0.52→0.75 = 男:女 ≈ 3:1。worldgen 初期性比も参照（§7、ただし --config 不感） |
+| maleBirthChance | 0.75 | 男子出生確率（通常）。v0.45.4: 0.52→0.75 = 男:女 ≈ 3:1。worldgen 初期性比も参照（§7。v0.59 で worldgen に config threading 済 = --config 反映可） |
 | maleBirthChanceWhenAdultMaleShortage | 0.85 | 男子出生確率（成人男性不足時）。v0.45.4: 0.65→0.85（base より上に — 不足時に男性比を下げる逆転を解消） |
 | adultMaleShortageThreshold | 0.4 | v0.45.4 新規: 男性不足コントローラの発動閾値（成人男性 < 総人口 × この値で shortage 値）。**0 でコントローラ無効**（女性多めプレイに必須 — 低 maleBirthChance を引き戻し続けるため） |
 | targetLivingPersonsFactor | 2.0 | 出生倍率 1.5 の上限閾値（worldgen 初期人口 × この値。v0.45.1 で絶対値 180 から係数化） |

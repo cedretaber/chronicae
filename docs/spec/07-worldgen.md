@@ -227,14 +227,14 @@ worldgen で生成する初期人物（House メンバーの sibling / child / r
 - 初期在野人物: `houselessMaleRatio`（既定 0.75。runtime の在野補充と整合。旧 0.5 ハードコード）
 - 父・母・配偶者の固定性別、house:leader 選定の男子優先は不変
 
-**注**: worldgen は `defaultConfig` を直参照するため `--config` では変更されない（既知の制約）。女性多めプレイ（§9 レシピ）では worldgen 初期は男性多めのまま、runtime 出生で性比が drift する。
+**注 (v0.59 で解消)**: 旧来 worldgen は `defaultConfig` 直参照で `--config` が初期世界生成に効かなかったが、v0.59 自己レビューで `generateWorld` / `generateProvinces` 全体に threaded config を通し、`--config` の上書きが初期世界（性比・地形・地物・初期人口・容量等）にも反映されるようになった（既定は `defaultConfig` なので未指定時は不変）。女性多めプレイ（§9 レシピ）は worldgen 初期から反映される。
 
 ### 7.7a 初期 Office の生成
 
 - **house:leader**: 各 House の成人男性からスコア（legacyPrestige + governance/warCommand 加重）最高の者。成人男性が居なければ成人女性、それも居なければ最年長メンバー
 - **polity:leader**: polity 内で最多 Province を支配する House の house:leader をそのまま任命
 - **polity の administrator / treasurer / military**: polity 関係 House の成人から能力順（admin 系 = governance 加重、military = warCommand 加重）に各 1 名。polity:leader は除外
-  - v0.45.3: 性別役職適格ゲート（§6.19）を適用 — sorted 先頭の適格者を採用し、適格者ゼロなら `allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true の場合のみ先頭に fallback（runtime 任命と同形）。worldgen は defaultConfig 直参照のため `--config` では変更不可（既知の制約）
+  - v0.45.3: 性別役職適格ゲート（§6.19）を適用 — sorted 先頭の適格者を採用し、適格者ゼロなら `allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true の場合のみ先頭に fallback（runtime 任命と同形）。v0.59 で worldgen 全体に config を threading したため `--config` で変更可能（旧「defaultConfig 直参照で不可」の制約は解消）
 
 ### 7.8a Person Goal / Aim 初期生成
 

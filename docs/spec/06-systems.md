@@ -673,7 +673,7 @@ high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で�
 - それ以外: `maleBirthChance`（**0.75** = 男:女 ≈ 3:1）
 - 出生は **per-male**（生存男性ごとに判定）なので、男性多め化で出生数は減らない（人口は上記ダンパーが自己調整）。性別役職適格ゲート（§6.19）で可視化された男性人材不足への人口側の対応
 - `adultMaleShortageThreshold` を **0** にするとコントローラ無効。これと `maleBirthChance` を下げる＋`femaleRoleEligibilityChance: 1`＋`allowFemaleRolesWhenNoMaleCandidate: true` を組み合わせると「女性多め＋女性の役職制限なし」のプレイが可能（§9 のレシピ参照）。コントローラを残したまま `maleBirthChance` だけ下げても、不足判定が発動して男性比を引き戻し続けるため 0 化が必要
-- worldgen の初期人物性比も `maleBirthChance` を参照（§7）。ただし worldgen は defaultConfig 直参照のため `--config` では変わらず、runtime 出生で徐々に drift する
+- worldgen の初期人物性比も `maleBirthChance` を参照（§7）。v0.59 で worldgen 全体に config を threading したため `--config` の上書きが worldgen 初期から反映される（旧「defaultConfig 直参照で不感」は解消）
 
 **天才ロール（v0.45）**: aptitude 確定（`inheritAptitudes` / `sampleAptitudes`）直後に `rollGeniusType` を実行。出現した場合は `applyGeniusAptitudes` で対応能力の天賦を引き上げてから `birthChild` に渡す（詳細 §6.67）。
 
@@ -2839,7 +2839,7 @@ type PersonReputation = {
 | `samplePerson`（personFactory） | worldgen 初期人口 / 在野人物 / 婚姻配偶者 / commonwealth 指導者 | aptitude サンプル → roll → 天賦・初期能力の両適用 |
 | `birthSystem` → `birthChild` | 出生 | birthSystem で roll + 天賦適用 → birthChild 内で初期能力適用 |
 
-**制約**: `generateWorld` は config 引数を持たず `defaultConfig` 直参照のため、CLI `--config` での genius 設定変更は tick 中の生成にのみ効き、**worldgen 初期人口には効かない**（全 config 共通の既存制約）。
+**v0.59 で解消**: 旧来 `generateWorld` は `defaultConfig` 直参照で CLI `--config` の genius 等の設定が worldgen 初期人口に効かなかったが、v0.59 自己レビューで worldgen 全体（`generateWorld` / `generateProvinces` / 下流の `generatePersons` / `samplePerson` 等は元々 config param 経由）に threaded config を通したため、`--config` が worldgen 初期生成にも反映される（既定は `defaultConfig`）。
 
 #### 既存システムとの相互作用（設計時に検証済み・追加実装なし）
 
