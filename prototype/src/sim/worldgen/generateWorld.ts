@@ -1284,11 +1284,6 @@ export function generateWorld(
         weight = 1.0
       }
 
-      // landQuality: randomFloat(0.6, 1.4)
-      const { value: lqRoll, rng: rlq } = randomFloat(rng)
-      rng = rlq
-      const landQuality = 0.6 + lqRoll * 0.8
-
       // §4.1: Holding 命名。manor=province pool / city=city pool。required のため
       // literal 構築時に確定させる。
       let holdingNameKey: string
@@ -1324,7 +1319,6 @@ export function generateWorld(
         nameKey: holdingNameKey,
         kind,
         polityControl: holdingControl,
-        landQuality,
         weight,
       }
       holdingsRecord[holdingId] = holding

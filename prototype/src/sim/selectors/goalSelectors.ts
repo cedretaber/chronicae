@@ -613,13 +613,12 @@ function pickPolityAim(
         // v0.55 §B: 失業スラックも拡張トリガにする (失業 POP を新規開発/レベルアップで雇用)。
         const employmentSlack = hasEmploymentSlack(state, config, h.id)
         if (devDeficit || capacityPressure || employmentSlack) {
+          // v0.59: landQuality 廃止に伴い tiebreaker 項 (h.landQuality * 0.3) を除去。
           const score = devDeficit
-            ? 20 +
-              (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5 +
-              h.landQuality * 0.3
+            ? 20 + (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5
             : capacityPressure
-              ? 15 + h.landQuality * 0.3
-              : config.developRealEstateEmploymentSlackScore + h.landQuality * 0.3
+              ? 15
+              : config.developRealEstateEmploymentSlackScore
           candidates.push({
             kind: 'develop_owned_holding',
             target: { kind: 'holding', id: h.id },

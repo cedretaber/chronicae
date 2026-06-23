@@ -353,7 +353,6 @@ describe('runControlSystem — capital province maxControl', () => {
           nameKey: 'h',
           kind: 'manor' as const,
           polityControl: 100,
-          landQuality: 50,
           weight: 1,
         },
       },

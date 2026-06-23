@@ -54,7 +54,6 @@ export type Holding = {
   nameKey: string
   kind: HoldingKind
   polityControl: number
-  landQuality: number
   weight: number
   lastRevoltSuppressedWeek?: number
   lastRevoltSettledWeek?: number
