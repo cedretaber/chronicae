@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { assignTerrainTraits, computeSlotCapacity } from './terrainTraitSelectors'
+import {
+  assignTerrainTraits,
+  computeSlotCapacity,
+  getProvinceOutputTraitMultiplier,
+} from './terrainTraitSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
-import type { Province } from '../types/province'
+import type { Province, TerrainTraitKind } from '../types/province'
+import type { WorldState } from '../types/world'
+import type { HoldingId, ProvinceId } from '../types/ids'
 
 const prov = (
   id: string,
@@ -59,5 +65,35 @@ describe('v0.59 computeSlotCapacity', () => {
   })
   it('output trait は slot に影響しない', () => {
     expect(computeSlotCapacity(defaultConfig, 'manor', ['fertile_land'])).toBe(3)
+  })
+})
+
+describe('v0.59 getProvinceOutputTraitMultiplier', () => {
+  // holding → province を引ける最小 state を組む。
+  const mkState = (traits: TerrainTraitKind[]): WorldState =>
+    ({
+      holdings: {
+        ['h1' as HoldingId]: { id: 'h1', provinceId: 'p1' },
+      },
+      provinces: {
+        ['p1' as ProvinceId]: { id: 'p1', traits },
+      },
+    }) as unknown as WorldState
+
+  it('fertile_land の Province では grain が 1.3 倍', () => {
+    const st = mkState(['fertile_land'])
+    expect(
+      getProvinceOutputTraitMultiplier(st, defaultConfig, 'h1' as HoldingId, 'grain'),
+    ).toBeCloseTo(1.3)
+  })
+  it('対象外 resource は 1.0', () => {
+    const st = mkState(['fertile_land'])
+    expect(getProvinceOutputTraitMultiplier(st, defaultConfig, 'h1' as HoldingId, 'wool')).toBe(1.0)
+  })
+  it('trait 無しは 1.0', () => {
+    const st = mkState([])
+    expect(getProvinceOutputTraitMultiplier(st, defaultConfig, 'h1' as HoldingId, 'grain')).toBe(
+      1.0,
+    )
   })
 })

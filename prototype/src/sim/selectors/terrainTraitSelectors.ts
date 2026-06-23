@@ -1,6 +1,9 @@
 import type { Province, TerrainTraitKind } from '../types/province'
 import type { HoldingKind } from '../types/landContract'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { WorldState } from '../types/world'
+import type { HoldingId } from '../types/ids'
+import type { ResourceKind } from '../types/resource'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 
@@ -51,4 +54,31 @@ export function computeSlotCapacity(
     if (def?.effect.kind === 'slot') bonus += def.effect.slotBonus
   }
   return base + bonus
+}
+
+/**
+ * v0.59: holding の所属 Province の地形特性（output 効果）から、該当 resource の産出倍率を返す。
+ * 複数 trait が同 resource を上げる場合は乗算。該当無しは 1.0。
+ * 対象は input を持たない raw/採掘産出に限る（config 定義側で担保。加工品に掛けると
+ * output>input の無償財になるため）。
+ */
+export function getProvinceOutputTraitMultiplier(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  resource: ResourceKind,
+): number {
+  const holding = state.holdings[holdingId]
+  if (!holding) return 1.0
+  const province = state.provinces[holding.provinceId]
+  if (!province || province.traits.length === 0) return 1.0
+  let mult = 1.0
+  for (const t of province.traits) {
+    const def = config.terrainTraitDefinitions.find((d) => d.trait === t)
+    if (def?.effect.kind === 'output') {
+      const r = def.effect.resources[resource]
+      if (r !== undefined) mult *= r
+    }
+  }
+  return mult
 }

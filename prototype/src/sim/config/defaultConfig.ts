@@ -7,11 +7,7 @@ import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
-import type {
-  ProvinceTerrain,
-  ProvinceFeature,
-  TerrainTraitDefinition,
-} from '../types/province'
+import type { ProvinceTerrain, ProvinceFeature, TerrainTraitDefinition } from '../types/province'
 import type { NeedTier } from '../types/needCategory'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'

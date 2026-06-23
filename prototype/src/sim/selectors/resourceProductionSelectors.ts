@@ -22,7 +22,7 @@ import {
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelectors'
-import { computeSlotCapacity } from './terrainTraitSelectors'
+import { computeSlotCapacity, getProvinceOutputTraitMultiplier } from './terrainTraitSelectors'
 import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
@@ -301,7 +301,11 @@ export function computeAssetRecipePotentials(
 
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
-      potentialOutputs[o.resource] = (potentialOutputs[o.resource] ?? 0) + potential * o.amount
+      // v0.59: 地形特性 (raw 産出ブースト) を output にのみ乗算する。input (下の basePotential
+      //   基準) には掛けないため、同じ労働・入力で産出だけ増える純生産性ボーナスになる。
+      const traitMult = getProvinceOutputTraitMultiplier(state, config, asset.holdingId, o.resource)
+      potentialOutputs[o.resource] =
+        (potentialOutputs[o.resource] ?? 0) + potential * o.amount * traitMult
     }
 
     // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
