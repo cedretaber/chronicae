@@ -48,11 +48,11 @@ export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, Improvement
     ],
     critical: true,
   },
+  // v0.59 追補③: 灌漑は manor ならどの地形でも建設可 (allowedTerrains/requiredAnyFeatures の
+  //   ゲートを撤去)。河川/湖沼 feature・沼沢地形ではコストが下がる (holdingImprovement*CostMultiplier)。
   irrigation_infrastructure: {
     kind: 'irrigation_infrastructure',
     allowedHoldingKinds: ['manor'],
-    allowedTerrains: ['plains', 'wetlands', 'hills'],
-    requiredAnyFeatures: ['major_river', 'lake'],
     capacityRole: 'production_quality',
   },
   market_infrastructure: {

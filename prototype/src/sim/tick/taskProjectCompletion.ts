@@ -15,6 +15,7 @@ import type {
   ProjectKind,
 } from '../types/project'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { Province } from '../types/province'
 import {
   getHoldingImprovementLevel,
   canBuildHoldingImprovement,
@@ -153,6 +154,26 @@ export function handlePrepareProjectCompletionMut(
     },
     entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],
   })
+}
+
+// v0.59 追補③: 改良 develop_holding プロジェクトの必要予算を算出する共有 helper。
+//   base × level 乗数 × 地形コスト乗数 × (各 feature コスト乗数の積) × budget margin。
+//   地形/地物コスト乗数は未定義なら 1.0 (割引なし)。RNG 不使用・純関数。
+export function computeImprovementProjectCost(
+  config: SimulationConfig,
+  province: Province,
+  improvementKind: HoldingImprovementKind,
+  targetLevel: number,
+): number {
+  const base = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
+  const levelMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+  const terrainMult =
+    config.holdingImprovementTerrainCostMultiplier[improvementKind]?.[province.terrain] ?? 1
+  let featureMult = 1
+  for (const f of province.features) {
+    featureMult *= config.holdingImprovementFeatureCostMultiplier[improvementKind]?.[f] ?? 1
+  }
+  return base * levelMult * terrainMult * featureMult * config.projectBudgetMarginMultiplier
 }
 
 // v0.33 §11.2: IMPROVEMENT_DEFINITIONS 駆動。canBuildHoldingImprovement で候補を絞り
@@ -329,9 +350,15 @@ function buildProjectFieldsForAim(
       const currentLevel = getHoldingImprovementLevel(ws, holdingId, improvementKind)
       const targetLevel = currentLevel + 1
 
-      const baseCost = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
-      const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
-      const required = baseCost * costMult * config.projectBudgetMarginMultiplier
+      const improvementProvince = ws.provinces[holding.provinceId]
+      if (!improvementProvince) return undefined
+      // v0.59 追補③: 地形/地物コスト割引を共有 helper で適用。
+      const required = computeImprovementProjectCost(
+        config,
+        improvementProvince,
+        improvementKind,
+        targetLevel,
+      )
 
       const baseProgress =
         config.developHoldingProjectBaseProgressByImprovementKind[improvementKind]

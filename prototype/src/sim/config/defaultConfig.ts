@@ -1146,6 +1146,16 @@ export type SimulationConfig = {
     HoldingImprovementKind,
     Partial<Record<ProvinceFeature, number>>
   >
+  // v0.59 追補③: 改良の develop_holding プロジェクトコストを地形/地物で割り引く乗数 (汎用)。
+  //   未定義 = 乗数 1.0 (割引なし)。例: 灌漑は wetlands 地形・河川/湖沼 feature で安くなる (海=coastal は割引なし)。
+  holdingImprovementTerrainCostMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceTerrain, number>>
+  >
+  holdingImprovementFeatureCostMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceFeature, number>>
+  >
   improvementLevelCostMultiplier: Record<number, number>
   improvementLevelProgressMultiplier: Record<number, number>
   projectBudgetMarginMultiplier: number
@@ -2680,6 +2690,25 @@ export const defaultConfig: SimulationConfig = {
     manor_house: {},
     town_hall: {},
     irrigation_infrastructure: {},
+    market_infrastructure: {},
+    workshop_infrastructure: {},
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  // v0.59 追補③: 改良コスト割引。灌漑は沼沢地形で 0.8、河川 0.8 / 湖沼 0.85 (海 coastal は割引なし)。
+  holdingImprovementTerrainCostMultiplier: {
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: { wetlands: 0.8 },
+    market_infrastructure: {},
+    workshop_infrastructure: {},
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  holdingImprovementFeatureCostMultiplier: {
+    manor_house: {},
+    town_hall: {},
+    irrigation_infrastructure: { major_river: 0.8, lake: 0.85 },
     market_infrastructure: {},
     workshop_infrastructure: {},
     storage_infrastructure: {},
