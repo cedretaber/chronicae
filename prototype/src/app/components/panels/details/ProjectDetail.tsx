@@ -212,6 +212,32 @@ export function ProjectDetail({
             </div>
           )}
 
+          {/* v0.60: 主要出資者 (資金集めラウンドの累積・個人/家/国の上位のみ・POP は除外)。
+              資金集めを行った Project でのみ表示する。 */}
+          {project.majorContributors && project.majorContributors.length > 0 && (
+            <div className="mt-1 flex flex-col gap-1 rounded border border-gray-700 p-2">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">{t('detail.project.contributors')}:</span>
+                {project.fundingRoundCount !== undefined && (
+                  <span className="text-xs text-gray-500">
+                    {t('detail.project.funding_rounds')} {project.fundingRoundCount}
+                  </span>
+                )}
+              </div>
+              {project.majorContributors.map((c, i) => (
+                <div key={`${c.subject.kind}-${c.subject.id}-${i}`} className="flex gap-1">
+                  <EntityRefLink
+                    entityRef={c.subject}
+                    worldState={worldState}
+                    onNavigate={onNavigate}
+                  />
+                  <span className="text-gray-300">{Math.round(c.amount)}</span>
+                </div>
+              ))}
+              <div className="text-xs text-gray-500">{t('detail.project.contributors_note')}</div>
+            </div>
+          )}
+
           {/* 期間。createdWeek/deadlineWeek は絶対週なので 年/月/週 に分解して表示。
               期限は最終ステージ (negotiate / execute_project 等) でのみ発効するため、
               それ以前は過去日付を出さず「最終段階で発効」と注記する (誤解防止)。 */}
