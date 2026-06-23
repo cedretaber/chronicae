@@ -299,11 +299,16 @@ export function computeAssetRecipePotentials(
     // 産出は throughput で増やす (同原材料で +最大50%)。
     const potential = basePotential * labor.throughputMult
 
+    // v0.59: 地形特性の産出ブーストは input を持たない raw/採掘 recipe のみに適用する。
+    //   input を持つ加工 recipe に掛けると input 据え置きのまま output が増え無償財になるため、
+    //   config 定義の規約 (raw 限定) をコード側でも強制する。
+    const isRawRecipe = !recipe.inputs || recipe.inputs.length === 0
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
-      // v0.59: 地形特性 (raw 産出ブースト) を output にのみ乗算する。input (下の basePotential
-      //   基準) には掛けないため、同じ労働・入力で産出だけ増える純生産性ボーナスになる。
-      const traitMult = getProvinceOutputTraitMultiplier(state, config, asset.holdingId, o.resource)
+      // 産出 trait は output にのみ乗算する (input は下の basePotential 基準で据え置き=純生産性)。
+      const traitMult = isRawRecipe
+        ? getProvinceOutputTraitMultiplier(state, config, asset.holdingId, o.resource)
+        : 1.0
       potentialOutputs[o.resource] =
         (potentialOutputs[o.resource] ?? 0) + potential * o.amount * traitMult
     }
