@@ -3,6 +3,8 @@ import {
   getPopPredictedLifeCost,
   getPopContributableSurplus,
   getProjectFundingStakeholders,
+  computeContributorPledge,
+  type FundingContributor,
 } from './projectFundingSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import type { PopGroup } from '../types/popGroup'
@@ -194,5 +196,95 @@ describe('v0.60 ステークホルダー列挙', () => {
     s = withPerson(s, SUPERVISOR, { houseId: HOUSE })
     const result = getProjectFundingStakeholders(s, defaultConfig, makeDevelopHoldingProject())
     expect(result.length).toBeGreaterThan(0)
+  })
+})
+
+describe('v0.60 pledge 算出', () => {
+  const noPrice = () => 1
+
+  it('insider Person は wealth × insiderMaxContributionFraction を拠出 (能力非依存)', () => {
+    let s = makeEmptyV016State()
+    s = withHouse(s, HOUSE, {})
+    // supervisor の能力を 0 にしても insider は高率で拠出する。
+    s = withPerson(s, SUPERVISOR, {
+      houseId: HOUSE,
+      abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    })
+    s = withPerson(s, MEMBER, { houseId: HOUSE, wealth: 1000 })
+    const project = makeDevelopHoldingProject()
+    const c: FundingContributor = { kind: 'person', id: MEMBER, insider: true }
+    expect(computeContributorPledge(s, defaultConfig, project, c, noPrice)).toBeCloseTo(
+      1000 * defaultConfig.insiderMaxContributionFraction,
+      6,
+    )
+  })
+
+  it('external Person は supervisor 能力 0 だと拠出ほぼ 0', () => {
+    let s = makeEmptyV016State()
+    s = withHouse(s, HOUSE, {})
+    s = withPerson(s, SUPERVISOR, {
+      houseId: HOUSE,
+      abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    })
+    s = withPerson(s, MEMBER, {
+      houseId: HOUSE,
+      wealth: 1000,
+      attitudes: { [`person:${SUPERVISOR}`]: { affection: 100, respect: 100 } },
+    })
+    const project = makeDevelopHoldingProject()
+    const c: FundingContributor = { kind: 'person', id: MEMBER, insider: false }
+    expect(computeContributorPledge(s, defaultConfig, project, c, noPrice)).toBe(0)
+  })
+
+  it('external Person は friendly(attitude 高) だと拠出が増える', () => {
+    let s = makeEmptyV016State()
+    s = withHouse(s, HOUSE, {})
+    s = withPerson(s, SUPERVISOR, { houseId: HOUSE }) // 能力 50 (diplomacy>0)
+    s = withPerson(s, MEMBER, {
+      houseId: HOUSE,
+      wealth: 1000,
+      attitudes: { [`person:${SUPERVISOR}`]: { affection: 100, respect: 100 } },
+    })
+    s = withPerson(s, CREATOR, { houseId: HOUSE, wealth: 1000 }) // attitude 無し (中立)
+    const project = makeDevelopHoldingProject()
+    const friendly: FundingContributor = { kind: 'person', id: MEMBER, insider: false }
+    const neutral: FundingContributor = { kind: 'person', id: CREATOR, insider: false }
+    const friendlyPledge = computeContributorPledge(s, defaultConfig, project, friendly, noPrice)
+    const neutralPledge = computeContributorPledge(s, defaultConfig, project, neutral, noPrice)
+    expect(friendlyPledge).toBeGreaterThan(neutralPledge)
+  })
+
+  it('pledge は stock を超えない (clamp)', () => {
+    let s = makeEmptyV016State()
+    s = withHouse(s, HOUSE, {})
+    s = withPerson(s, SUPERVISOR, { houseId: HOUSE })
+    s = withPerson(s, MEMBER, { houseId: HOUSE, wealth: 100 })
+    const project = makeDevelopHoldingProject()
+    // insiderMaxContributionFraction を 1 超に設定 → clamp01+min で wealth に張り付く。
+    const config = { ...defaultConfig, insiderMaxContributionFraction: 5 }
+    const c: FundingContributor = { kind: 'person', id: MEMBER, insider: true }
+    expect(computeContributorPledge(s, config, project, c, noPrice)).toBe(100)
+  })
+
+  it('飢えた POP は pledge 0', () => {
+    let s = makeEmptyV016State()
+    s = withHouse(s, HOUSE, {})
+    s = withPerson(s, SUPERVISOR, { houseId: HOUSE })
+    const pop: PopGroup = {
+      id: POP1,
+      holdingId: HOLD,
+      class: 'lower',
+      popType: 'peasants',
+      employed: true,
+      size: 100,
+      money: 0, // 余剰なし
+      needSatisfaction: 50,
+      unrest: 0,
+      attitudes: {},
+    }
+    s = { ...s, popGroups: { ...s.popGroups, [POP1]: pop } }
+    const project = makeDevelopHoldingProject()
+    const c: FundingContributor = { kind: 'pop', id: POP1, insider: false }
+    expect(computeContributorPledge(s, defaultConfig, project, c, noPrice)).toBe(0)
   })
 })

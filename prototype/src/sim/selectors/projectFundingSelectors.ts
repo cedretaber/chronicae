@@ -4,10 +4,13 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, HouseId, PersonId, PopGroupId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Project } from '../types/project'
+import type { Person } from '../types/person'
 import { computePopNeedDemand } from './resourceMarketSelectors'
 import { getPolityHouseIds, getPolityPersonIds } from './polityRelations'
 import { getRepublicPoliticalCandidatePersons } from './republicSelectors'
 import { getActiveBailiff } from './bailiffSelectors'
+import { getRoleScore } from './abilitySelectors'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
 // v0.60: POP が full-desired need を満たすのに要する金額（resourceEconomySystem の
 //   tierCost と同一式: Σ buyOrders × price）。desiredValue は数量なので金額化が必須。
@@ -114,4 +117,89 @@ export function getProjectFundingStakeholders(
   // 決定的順序: kind:id の辞書順でグローバルソート (各 kind:id は dedup 済みで一意)。
   out.sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`))
   return out
+}
+
+function clamp01(x: number): number {
+  return x < 0 ? 0 : x > 1 ? 1 : x
+}
+
+// external 拠出意欲の能力係数 (supervisor の diplomacy 適性を非線形スケール)。
+//   factor = (clamp(score,0,∞)/50)^exponent。score 0 → 0、50 → 1.0。能力中心史観の演出。
+function supervisorAbilityFactor(
+  state: WorldState,
+  config: SimulationConfig,
+  project: Project,
+): number {
+  const score = getRoleScore(state, project.supervisorPersonId, 'diplomacy')
+  const clamped = score < 0 ? 0 : score
+  return Math.pow(clamped / 50, config.fundraisingAbilityExponent)
+}
+
+// contributor → supervisor への attitude (friendly ほど高い [0,1])。Person/POP のみ。
+function relationFactorToSupervisor(
+  state: WorldState,
+  project: Project,
+  source: Person | PopGroup,
+): number {
+  const att = getAttitudeOrDefault(state, source, {
+    kind: 'person',
+    id: project.supervisorPersonId,
+  })
+  return clamp01((att.affection * 0.6 + att.respect * 0.4) / 100)
+}
+
+// v0.60: 1 contributor が当ラウンドで拠出する額 (決定的・stock 以下に clamp)。
+//   insider = stock × insiderMaxContributionFraction (能力非依存・高率)。
+//   external = stock × maxFractionByKind × supervisorAbilityFactor × relationFactor。
+//   POP の stock は生活費 horizon を超える余剰のみ。RNG 不使用。
+export function computeContributorPledge(
+  state: WorldState,
+  config: SimulationConfig,
+  project: Project,
+  contributor: FundingContributor,
+  priceLookup: (resource: ResourceKind) => number,
+): number {
+  let spare: number
+  let willingness: number
+  const frac = config.fundraisingMaxContributionFractionByContributorKind
+
+  if (contributor.kind === 'polity') {
+    const polity = state.polities[contributor.id]
+    if (!polity) return 0
+    spare = polity.treasury
+    willingness = contributor.insider
+      ? clamp01(config.insiderMaxContributionFraction)
+      : clamp01(frac.polity * supervisorAbilityFactor(state, config, project)) // 組織は relation=1
+  } else if (contributor.kind === 'house') {
+    const house = state.houses[contributor.id]
+    if (!house || !house.active) return 0
+    spare = house.wealth
+    willingness = contributor.insider
+      ? clamp01(config.insiderMaxContributionFraction)
+      : clamp01(frac.house * supervisorAbilityFactor(state, config, project)) // 家も relation=1
+  } else if (contributor.kind === 'person') {
+    const person = state.persons[contributor.id]
+    if (!person || !person.alive) return 0
+    spare = person.wealth
+    willingness = contributor.insider
+      ? clamp01(config.insiderMaxContributionFraction)
+      : clamp01(
+          frac.person *
+            supervisorAbilityFactor(state, config, project) *
+            relationFactorToSupervisor(state, project, person),
+        )
+  } else {
+    const pop = state.popGroups[contributor.id]
+    if (!pop) return 0
+    spare = getPopContributableSurplus(pop, config, priceLookup)
+    willingness = clamp01(
+      frac.pop *
+        supervisorAbilityFactor(state, config, project) *
+        relationFactorToSupervisor(state, project, pop),
+    )
+  }
+
+  if (spare <= 0 || willingness <= 0) return 0
+  const pledge = spare * willingness
+  return Math.max(0, Math.min(pledge, spare))
 }
