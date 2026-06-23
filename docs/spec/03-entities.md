@@ -197,10 +197,11 @@ type PopGroup = {
   needSatisfaction: number // v0.58: need 充足度 0..100（intensive）。unrest/成長/mobility を駆動
   unrest: number     // 0..100
   attitudes: AttitudeMap  // 対 Polity などへの態度
+  categorySatisfaction?: Partial<Record<NeedCategory, number>> // v0.59: NeedCategory 別充足度 0..100（表示専用キャッシュ）
 }
 ```
 
-不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6.3c.5）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。旧 0..100 `wealth` 指数は v0.58 で退役（money と needSatisfaction の 2 本立てに分離）。
+不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6.3c.5）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。旧 0..100 `wealth` 指数は v0.58 で退役（money と needSatisfaction の 2 本立てに分離）。**v0.59 追補④**: `categorySatisfaction` は経済 system が直近 tick で算出した NeedCategory 別充足度（= `afford(tier) × カテゴリ market-fill ×100`、desire を持つカテゴリのみ key）を保持する**表示専用キャッシュ**で、POP 詳細の必需品/日用品/贅沢品内訳に使う。merge/split/worldgen では設定せず（次 econ tick で再生成）、integrity 非検査・挙動（needSatisfaction/money/成長/unrest）には不参照（§6.3c.5）。
 
 | PopStratum | PopType | 意味 |
 |---|---|---|

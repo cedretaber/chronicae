@@ -506,17 +506,17 @@
 | **POP 転職・移住（v0.56、§6.3b）** | | |
 | popMobilityMinMoveAmount | 0.01 | これ未満の移動は行わない（snapshot を微小移動で汚さない） |
 | popMobilityTopMovementLimit | 4000 | snapshot topMovements の上限件数。**store-all 相当の高い safety cap**（draft 初期値 20 から引き上げ — per-Holding/per-POP の drill-down 再構成のため。毎月上書きで累積しない） |
-| popJobChangeMaxFractionPerHoldingPerMonth | 0.001 | holding 月次転職 cap の人口比（C2）。`totalPop × これ` を hard cap で頭打ち |
-| popJobChangeMaxPerHoldingPerMonthHardCap | 0.15 | holding 月次転職総量の絶対上限 |
-| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.01 } | kind 別の source.size に対する 1 回あたり移動率 |
+| ~~popJobChangeMaxFractionPerHoldingPerMonth~~ | — | **v0.59 追補で廃止**（holding 共有予算 cap → per-source cap へ再設計。`popJobChangeMonthlyRateByKind` に一本化） |
+| ~~popJobChangeMaxPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
+| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.01 } | kind 別の source.size に対する 1 回あたり移動率（v0.59 追補で per-source cap の主軸に） |
 | popPromotionEpsilon | 1 | promotion 相対 gate（C3）の不発ガード（`> median + これ`）。分布が潰れていると発火しない |
 | popDemotionEpsilon | 1 | demotion 相対 gate の不発ガード（`< median − これ`） |
 | popPromotionWealthCostByTargetStratum | { middle: 5, upper: 10 } | promotion で移動 cohort の incoming wealth から引く昇格コスト（source pool は下げない） |
-| popMigrationMaxOutflowFractionPerHoldingPerMonth | 0.001 | holding 月次流出 cap の人口比（C2） |
-| popMigrationMaxInflowFractionPerHoldingPerMonth | 0.001 | holding 月次流入 cap の人口比 |
-| popMigrationMaxOutflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流出の絶対上限 |
-| popMigrationMaxInflowPerHoldingPerMonthHardCap | 0.15 | holding 月次流入の絶対上限 |
-| popMigrationMonthlyRateByStratum | { lower: 0.01, middle: 0.005, upper: 0.002 } | stratum 別の source.size に対する 1 回あたり移住率 |
+| ~~popMigrationMaxOutflowFractionPerHoldingPerMonth~~ | — | **v0.59 追補で廃止**（holding 共有予算 cap → per-source cap へ再設計。`popMigrationMonthlyRateByStratum` に一本化） |
+| ~~popMigrationMaxInflowFractionPerHoldingPerMonth~~ | — | **v0.59 追補で廃止**（移動先非依存化に伴い流入 cap 自体を撤去） |
+| ~~popMigrationMaxOutflowPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
+| ~~popMigrationMaxInflowPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
+| popMigrationMonthlyRateByStratum | { lower: 0.01, middle: 0.005, upper: 0.002 } | stratum 別の source.size に対する 1 回あたり移住率（v0.59 追補で per-source cap の主軸に） |
 | popMigrationPressureThreshold | 35 | この migration pressure 以上の POP のみ移住 source 候補 |
 | popMigrationScoreGapThreshold | 20 | 最良 target の opportunity score が source-stay score をこの差以上で上回れば移住 |
 | popMigrationCrossPolityScorePenalty | 15 | terminal polity 跨ぎ移住の score 減点（禁止ではなく減点） |
@@ -705,9 +705,13 @@
 | holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | feature ボーナス。manor_house/town_hall/storage/transport は空 |
 | improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率 |
 | improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率 |
+| holdingImprovementTerrainCostMultiplier | kind × terrain のコスト乗数（未定義 → 1.0）。例: irrigation={wetlands:0.8} | v0.59 追補③: 改良 Project コストの地形割引（`computeImprovementProjectCost`）。他 kind は空 |
+| holdingImprovementFeatureCostMultiplier | kind × feature のコスト乗数（積・未定義 → 1.0）。例: irrigation={major_river:0.8, lake:0.85}（coastal は無し） | v0.59 追補③: 改良 Project コストの地物割引。河川/湖沼で灌漑が安く、海は対象外。他 kind は空 |
 | projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
+| bottleneckShortageSeverityThreshold | 0.2 | v0.59 追補③: production_quality 改良を優先する最小ボトルネック度（市場 shortageSeverity か食料 pressure の max がこれ以上） |
+| foodBottleneckPressureThreshold | 0.9 | v0.59 追補③: 食料資源を「ボトルネック」と判定する最小人口圧（state 人口 / 食料 CC）。食料市場は自己均衡し shortageSeverity が見えないため pressure で検出 |
 | **RealEstateAsset（v0.52）** | | |
 | realEstateSlotCapacityBase | {manor:3, city:4} | Holding 種別ごとの RealEstateAsset スロット上限（base。v0.59: Province の slot 系 trait〔広闊な地形〕の slotBonus が加算される。`computeSlotCapacity`。これ以上は overuse modifier が適用） |
 | terrainTraitDefinitions | 5 種（fertile_land/rich_fishery/rich_lode/dense_forest/open_terrain） | v0.59 地形特性の定義（適合地形/feature・付与確率・効果〔output 倍率 or slot 加算〕）。output 対象は input を持たない raw 資源に限る。worldgen で確率付与（§6.3c / §7.1） |
