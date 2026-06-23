@@ -1,7 +1,13 @@
 import type { PopGroup } from '../types/popGroup'
 import type { ResourceKind } from '../types/resource'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { PolityId, HouseId, PersonId, PopGroupId, HoldingId } from '../types/ids'
+import type { WorldState } from '../types/world'
+import type { Project } from '../types/project'
 import { computePopNeedDemand } from './resourceMarketSelectors'
+import { getPolityHouseIds, getPolityPersonIds } from './polityRelations'
+import { getRepublicPoliticalCandidatePersons } from './republicSelectors'
+import { getActiveBailiff } from './bailiffSelectors'
 
 // v0.60: POP が full-desired need を満たすのに要する金額（resourceEconomySystem の
 //   tierCost と同一式: Σ buyOrders × price）。desiredValue は数量なので金額化が必須。
@@ -29,4 +35,83 @@ export function getPopContributableSurplus(
   const lifeCost = getPopPredictedLifeCost(pop, config, priceLookup)
   const reserve = lifeCost * config.popContributionHorizonMonths
   return Math.max(0, pop.money - reserve)
+}
+
+// v0.60: 資金集めの拠出候補 (ステークホルダー)。insider = owner/creator/supervisor/現地代官
+//   (高率・能力非依存)。external = 関連 House/Person・ローカル POP (能力×関係で減衰)。
+export type FundingContributor =
+  | { kind: 'polity'; id: PolityId; insider: boolean }
+  | { kind: 'house'; id: HouseId; insider: boolean }
+  | { kind: 'person'; id: PersonId; insider: boolean }
+  | { kind: 'pop'; id: PopGroupId; insider: false }
+
+// 対象 holding を持つか判定 (funding 対象 5 種は全て holdingId を持つ)。
+function getProjectHoldingId(project: Project): HoldingId | undefined {
+  return 'holdingId' in project ? project.holdingId : undefined
+}
+
+// v0.60: Project のステークホルダーを決定的 (ID 昇順・重複排除・insider 優先) に列挙する。
+//   acquire_real_estate は私的取得なので POP・関連 Polity を含めず owner House＋メンバーのみ。
+export function getProjectFundingStakeholders(
+  state: WorldState,
+  config: SimulationConfig,
+  project: Project,
+): FundingContributor[] {
+  const personInsider = new Set<PersonId>()
+  const personExternal = new Set<PersonId>()
+  const houseInsider = new Set<HouseId>()
+  const houseExternal = new Set<HouseId>()
+  const polityInsider = new Set<PolityId>()
+  const popExternal = new Set<PopGroupId>()
+
+  // --- insider: owner / creator / supervisor ---
+  if (project.owner.kind === 'polity') polityInsider.add(project.owner.id)
+  if (project.owner.kind === 'house') houseInsider.add(project.owner.id)
+  if (project.owner.kind === 'person') personInsider.add(project.owner.id)
+  personInsider.add(project.creatorPersonId)
+  personInsider.add(project.supervisorPersonId)
+
+  const holdingId = getProjectHoldingId(project)
+  const isAcquire = project.kind === 'acquire_real_estate'
+
+  // --- insider: 現地代官 (acquire 以外) ---
+  if (holdingId && !isAcquire) {
+    const bailiff = getActiveBailiff(state, holdingId)
+    if (bailiff) personInsider.add(bailiff)
+  }
+
+  // --- external: owner が polity の場合の関連 House/Person (commonwealth は republic union) ---
+  if (project.owner.kind === 'polity' && !isAcquire) {
+    const polityId = project.owner.id
+    for (const hid of getPolityHouseIds(state, polityId)) houseExternal.add(hid)
+    for (const pid of getPolityPersonIds(state, polityId)) personExternal.add(pid)
+    for (const pid of getRepublicPoliticalCandidatePersons(state, config, polityId)) {
+      personExternal.add(pid)
+    }
+  }
+  // --- external: owner が house の場合の House メンバー Person ---
+  if (project.owner.kind === 'house') {
+    const house = state.houses[project.owner.id]
+    if (house) for (const pid of house.memberIds) personExternal.add(pid)
+  }
+
+  // --- external: ローカル POP (acquire 以外) ---
+  if (holdingId && !isAcquire) {
+    for (const popId of state.popIndex.byHolding[holdingId] ?? []) popExternal.add(popId)
+  }
+
+  // --- dedup: insider 優先 (external から insider を除外) ---
+  for (const id of personInsider) personExternal.delete(id)
+  for (const id of houseInsider) houseExternal.delete(id)
+
+  const out: FundingContributor[] = []
+  for (const id of polityInsider) out.push({ kind: 'polity', id, insider: true })
+  for (const id of houseInsider) out.push({ kind: 'house', id, insider: true })
+  for (const id of houseExternal) out.push({ kind: 'house', id, insider: false })
+  for (const id of personInsider) out.push({ kind: 'person', id, insider: true })
+  for (const id of personExternal) out.push({ kind: 'person', id, insider: false })
+  for (const id of popExternal) out.push({ kind: 'pop', id, insider: false })
+  // 決定的順序: kind:id の辞書順でグローバルソート (各 kind:id は dedup 済みで一意)。
+  out.sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`))
+  return out
 }

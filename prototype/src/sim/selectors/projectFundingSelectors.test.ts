@@ -1,8 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { getPopPredictedLifeCost, getPopContributableSurplus } from './projectFundingSelectors'
+import {
+  getPopPredictedLifeCost,
+  getPopContributableSurplus,
+  getProjectFundingStakeholders,
+} from './projectFundingSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import type { PopGroup } from '../types/popGroup'
-import { createPopGroupId, createHoldingId } from '../types/ids'
+import type { WorldState } from '../types/world'
+import type { Project } from '../types/project'
+import type { HoldingOfficeAssignmentId } from '../types/ids'
+import {
+  createPopGroupId,
+  createHoldingId,
+  createProvinceId,
+  createPolityId,
+  createHouseId,
+  createPersonId,
+} from '../types/ids'
+import {
+  makeEmptyV016State,
+  withProvince,
+  withHolding,
+  withPolity,
+  withHouse,
+  withPerson,
+} from '../testFixtures'
 
 function makePop(money: number, size = 100): PopGroup {
   return {
@@ -38,5 +60,139 @@ describe('v0.60 POP 拠出余剰', () => {
     const cost = getPopPredictedLifeCost(makePop(0), defaultConfig, price1)
     const rich = makePop(cost * defaultConfig.popContributionHorizonMonths + 500)
     expect(getPopContributableSurplus(rich, defaultConfig, price1)).toBeCloseTo(500, 6)
+  })
+})
+
+// --- ステークホルダー列挙用 fixture ---
+const PR = createProvinceId('pr', 0)
+const HOLD = createHoldingId(0)
+const POL = createPolityId('po', 0)
+const HOUSE = createHouseId('ho', 0)
+const CREATOR = createPersonId('pe', 1)
+const SUPERVISOR = createPersonId('pe', 2)
+const MEMBER = createPersonId('pe', 3)
+const BAILIFF = createPersonId('pe', 4)
+const POP1 = createPopGroupId(10)
+
+// owner=polity, House(メンバー), 代官, ローカル POP を備えた develop_holding world を組む。
+function buildPolityOwnedWorld(): WorldState {
+  let s = makeEmptyV016State()
+  s = withProvince(s, PR)
+  s = withHolding(s, HOLD, PR)
+  s = withHouse(s, HOUSE, { memberIds: [] })
+  s = withPolity(s, POL, { ownerHouseId: HOUSE })
+  s = withPerson(s, CREATOR, { houseId: HOUSE })
+  s = withPerson(s, SUPERVISOR, { houseId: HOUSE })
+  s = withPerson(s, MEMBER, { houseId: HOUSE })
+  s = withPerson(s, BAILIFF, { houseId: HOUSE })
+  // 代官 (非 placeholder・active) を holding に設置。
+  const hoaId = 'ho-bailiff' as HoldingOfficeAssignmentId
+  s = {
+    ...s,
+    holdingOfficeAssignments: {
+      ...s.holdingOfficeAssignments,
+      [hoaId]: {
+        id: hoaId,
+        holdingId: HOLD,
+        role: 'bailiff',
+        holderPersonId: BAILIFF,
+        appointingPolityId: POL,
+        active: true,
+        startWeek: 0,
+        unpaidCount: 0,
+        contractedRemittanceRate: 0.4,
+        expectedFeeRate: 0.1,
+      },
+    },
+    holdingOfficeIndex: {
+      ...s.holdingOfficeIndex,
+      byHolding: { ...s.holdingOfficeIndex.byHolding, [HOLD]: hoaId },
+    },
+    popIndex: {
+      ...s.popIndex,
+      byHolding: { ...s.popIndex.byHolding, [HOLD]: [POP1] },
+    },
+  }
+  return s
+}
+
+function makeDevelopHoldingProject(): Project {
+  return {
+    kind: 'develop_holding',
+    owner: { kind: 'polity', id: POL },
+    creatorPersonId: CREATOR,
+    supervisorPersonId: SUPERVISOR,
+    holdingId: HOLD,
+  } as unknown as Project
+}
+
+describe('v0.60 ステークホルダー列挙', () => {
+  it('develop_holding: owner/creator/supervisor/代官 は insider=true', () => {
+    const s = buildPolityOwnedWorld()
+    const result = getProjectFundingStakeholders(s, defaultConfig, makeDevelopHoldingProject())
+    const find = (kind: string, id: string) =>
+      result.find((c) => c.kind === kind && (c.id as string) === id)
+    expect(find('polity', POL as string)?.insider).toBe(true)
+    expect(find('person', CREATOR as string)?.insider).toBe(true)
+    expect(find('person', SUPERVISOR as string)?.insider).toBe(true)
+    expect(find('person', BAILIFF as string)?.insider).toBe(true)
+  })
+
+  it('ローカル POP は external として含まれる', () => {
+    const s = buildPolityOwnedWorld()
+    const result = getProjectFundingStakeholders(s, defaultConfig, makeDevelopHoldingProject())
+    const pop = result.find((c) => c.kind === 'pop')
+    expect(pop).toBeDefined()
+    expect(pop?.insider).toBe(false)
+  })
+
+  it('結果は kind:id 昇順かつ重複なし (同一 Person が複数役割でも 1 回)', () => {
+    const s = buildPolityOwnedWorld()
+    // creator と supervisor を同一人物にして重複排除を検証。
+    const project = {
+      kind: 'develop_holding',
+      owner: { kind: 'polity', id: POL },
+      creatorPersonId: CREATOR,
+      supervisorPersonId: CREATOR,
+      holdingId: HOLD,
+    } as unknown as Project
+    const result = getProjectFundingStakeholders(s, defaultConfig, project)
+    const keys = result.map((c) => `${c.kind}:${c.id}`)
+    expect(keys).toEqual([...keys].sort((a, b) => a.localeCompare(b)))
+    expect(new Set(keys).size).toBe(keys.length)
+    // CREATOR は insider(person) として 1 回だけ。
+    const creatorEntries = result.filter(
+      (c) => c.kind === 'person' && (c.id as string) === (CREATOR as string),
+    )
+    expect(creatorEntries.length).toBe(1)
+    expect(creatorEntries[0]?.insider).toBe(true)
+  })
+
+  it('acquire_real_estate は POP を含めない (owner House＋メンバーのみ)', () => {
+    const s = buildPolityOwnedWorld()
+    const project = {
+      kind: 'acquire_real_estate',
+      owner: { kind: 'house', id: HOUSE },
+      creatorPersonId: CREATOR,
+      supervisorPersonId: SUPERVISOR,
+      holdingId: HOLD,
+    } as unknown as Project
+    const result = getProjectFundingStakeholders(s, defaultConfig, project)
+    expect(result.some((c) => c.kind === 'pop')).toBe(false)
+    expect(result.some((c) => c.kind === 'house' && (c.id as string) === (HOUSE as string))).toBe(
+      true,
+    )
+  })
+
+  it('commonwealth(ownerHouseId 無) owned でも空にならない (insider で担保)', () => {
+    let s = makeEmptyV016State()
+    s = withProvince(s, PR)
+    s = withHolding(s, HOLD, PR)
+    s = withPolity(s, POL) // ownerHouseId 無し
+    s = withPerson(s, CREATOR, { houseId: HOUSE })
+    s = withHouse(s, HOUSE, { memberIds: [CREATOR] })
+    s = withPerson(s, SUPERVISOR, { houseId: HOUSE })
+    const result = getProjectFundingStakeholders(s, defaultConfig, makeDevelopHoldingProject())
+    expect(result.length).toBeGreaterThan(0)
   })
 })
