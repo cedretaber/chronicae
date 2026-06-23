@@ -1878,6 +1878,17 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 - deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）。deadline は `projectDeadlineWeeksDevelopment × (targetProgress / projectDefaultTargetProgress)` で算出。Level 2 (×2) / Level 3 (×3) の大規模工事に比例した期間を確保
 - budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
 
+**v0.59 追補③: ボトルネック資源への生産性投資（`buildProjectFieldsForAim` の develop_holding 決定）**
+
+`develop_owned_holding` Aim から develop_holding Project を作る際、`buildProjectFieldsForAim`（§6.55 / taskProjectCompletion）が「capacity 増設（不動産 = develop_real_estate）」「productivity 改良（production_quality improvement = develop_holding）」「汎用 improvement」のいずれを建てるか決める。v0.59 追補③でこの決定木の**先頭に productivity 分岐**を追加した。
+
+- **背景**: 旧決定木は `hasCapacityPressure || hasEmploymentSlack → capacity` で止まり、capacity をひたすら増設していた。だが食料 carrying capacity が職枠 capacity を下回る世界では、増設した職枠は食料に縛られた人口では永遠に埋まらず無駄になる（灌漑 `irrigation_infrastructure` は配線済みだが一度も建たず消滅していた）。
+- **判定**: holding が生産する資源（asset の recipe outputs を asset 種別別に静的列挙 = `getHoldingProducedResourcesByAssetKind`）のうち**ボトルネック度** `getResourceBottleneckSeverity` ≥ `bottleneckShortageSeverityThreshold`(0.2) のものがあり、かつその資源を boost する buildable な production_quality 改良（`IMPROVEMENT_BOOSTED_REAL_ESTATE_KINDS` 逆引き）が存在すれば、capacity 分岐より先にその改良を建てる（`selectProductivityImprovementForBottleneck`、`selectors/productivityBottleneckSelectors.ts`）。severity 最大 → level 最小 → kind 名昇順で決定的に選ぶ。
+- **ボトルネック度 = `max(市場 shortageSeverity, 食料 pressure シグナル)`**。食料資源（`FOOD_RESOURCE_VALUE`）はマルサス的に人口が供給ちょうどに自己制限するため**市場が均衡し shortageSeverity≈0** になり市場シグナルでは検出できない。代わりに人口圧（state人口/食料CC、`getProvincePopulationPressure`）が `foodBottleneckPressureThreshold`(0.9) 以上なら pressure 値を severity に採用する。非食料資源は市場 shortage のみ。
+- **`hasEmploymentSlack` では gate しない**: 食料束縛 holding は人口が capacity 未満で全員就業（slack 無し）になりうるため、ボトルネック検出自体をトリガにする。自己調整的（改良 → 食料 output↑ → CC↑ → 人口↑ → pressure 低下 → capacity 建設へ戻る）で、`canBuildHoldingImprovement` の `currentLevel < maxLevel`（灌漑 max 3）が自然な上限。RNG 不使用＝決定性維持。
+- **灌漑の全地形建設可（degate）**: `irrigation_infrastructure` の `allowedTerrains` / `requiredAnyFeatures` ゲートを撤去（`allowedHoldingKinds: ['manor']` は維持）。代わりに改良 kind × terrain/feature の**コスト割引テーブル** `holdingImprovementTerrainCostMultiplier` / `holdingImprovementFeatureCostMultiplier` を新設（既定: 灌漑は wetlands 0.8 / major_river 0.8 / lake 0.85、coastal=割引なし）。コストは共有 helper `computeImprovementProjectCost` で `base × level乗数 × terrain乗数 × Π feature乗数 × budget margin`。
+- **balance-defer（§4・値は据え置き）**: `foodBottleneckPressureThreshold`・`bottleneckShortageSeverityThreshold`・割引率。tiny 実測では灌漑が消滅しなくなり高 pressure seed で level 2-3 へ伸びるが、集計の食料CC・人口への寄与は default 値では小さい。強度調整は後段。
+
 ### 6.41 ProjectOutcomeSystem（4週ごと）
 
 terminal Project の効果解決・ログ出力・cleanup を担当。
