@@ -770,11 +770,18 @@ function resolveSecureBudget(
   if (project.owner.kind !== 'polity') return false
   const polityId = project.owner.id
   const polity = ws.polities[polityId]
-  if (!polity || polity.treasury < project.budget.required) return false
+  if (!polity) return false
 
+  // v0.60: 初期確保は required の一部のみ (stock 不足でもハード失敗せず確保分で開始)。
+  //   不足分は budget 枯渇時の raise_funds ラウンドで集める (開始ハードルの引き下げ)。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, polity.treasury))
   ws.polities = {
     ...ws.polities,
-    [polityId]: { ...polity, treasury: polity.treasury - project.budget.required },
+    [polityId]: { ...polity, treasury: polity.treasury - take },
   }
 
   // v0.48 Crisis: handle_crisis の実行 deadline は Crisis.deadlineWeek を単一の真実とする
@@ -807,8 +814,8 @@ function resolveSecureBudget(
     ...project,
     budget: {
       ...project.budget,
-      allocated: project.budget.required,
-      remaining: project.budget.required,
+      allocated: take,
+      remaining: take,
     },
     currentStageKey: nextKey,
   }
@@ -831,11 +838,19 @@ function resolveAcquireRealEstateSecureBudget(
 ): boolean {
   if (project.owner.kind !== 'house') return false
   const house = ws.houses[project.owner.id]
-  if (!house || !house.active || house.wealth < project.salePrice) return false
+  if (!house || !house.active) return false
 
+  // v0.60: 初期確保は salePrice (= budget.required) の一部のみ。stock 不足でもハード失敗せず開始し、
+  //   不足分は raise_funds で集める。完了時の seller 支払いは budget.allocated (実集金額) に依拠する
+  //   ため、保存則は funded 量と一致する (projectOutcomeSystem の seller 決済を参照)。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, house.wealth))
   ws.houses = {
     ...ws.houses,
-    [project.owner.id]: { ...house, wealth: house.wealth - project.salePrice },
+    [project.owner.id]: { ...house, wealth: house.wealth - take },
   }
 
   const nextKey = getNextProjectStageKey(project)
@@ -857,7 +872,7 @@ function resolveAcquireRealEstateSecureBudget(
     ...project,
     currentStageKey: nextKey,
     deadlineWeek,
-    budget: { ...project.budget, allocated: project.salePrice, remaining: project.salePrice },
+    budget: { ...project.budget, allocated: take, remaining: take },
   }
   ws.projects[projectId] = updated
   addProjectToIndexMut(ws, updated)
@@ -901,11 +916,17 @@ function resolveUpgradeOwnedSecureBudget(
 ): boolean {
   if (project.owner.kind !== 'house') return false
   const house = ws.houses[project.owner.id]
-  if (!house || !house.active || house.wealth < project.budget.required) return false
+  if (!house || !house.active) return false
 
+  // v0.60: 初期確保は required の一部のみ。stock 不足でもハード失敗せず開始し raise_funds で補う。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, house.wealth))
   ws.houses = {
     ...ws.houses,
-    [project.owner.id]: { ...house, wealth: house.wealth - project.budget.required },
+    [project.owner.id]: { ...house, wealth: house.wealth - take },
   }
 
   const nextKey = getNextProjectStageKey(project)
@@ -929,8 +950,8 @@ function resolveUpgradeOwnedSecureBudget(
     deadlineWeek,
     budget: {
       ...project.budget,
-      allocated: project.budget.required,
-      remaining: project.budget.required,
+      allocated: take,
+      remaining: take,
     },
   }
   ws.projects[projectId] = updated

@@ -675,3 +675,74 @@ describe('resolveFindSupervisor via resolveImmediateStages (develop_holding)', (
     expect(project.currentStageKey).not.toBe('find_supervisor')
   })
 })
+
+// ─── v0.60 secure_budget 軽量化 (初期 fraction 確保・ハード失敗撤廃) ──────────
+
+describe('v0.60 secure_budget 軽量化 (develop_holding)', () => {
+  const POLITY = 'c-sb' as PolityId
+  const HOUSE = 'hh-sb' as HouseId
+  const HOLDING = 'hl-sb' as HoldingId
+  const CREATOR = 'pe-sb-creator' as PersonId
+
+  function makeState(treasury: number): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: HOUSE, treasury })
+    ws = withPerson(ws, CREATOR, { houseId: HOUSE })
+    return ws
+  }
+
+  function makeProj(): DevelopHoldingProject {
+    return {
+      id: 'proj-sb' as ProjectId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: CREATOR,
+      supervisorPersonId: CREATOR,
+      status: 'active',
+      progress: 0,
+      targetProgress: 100,
+      currentStageKey: 'secure_budget',
+      createdWeek: 0,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'irrigation_infrastructure',
+      targetImprovementLevel: 1,
+      budget: { required: 1000, allocated: 0, remaining: 0, spent: 0, source: { kind: 'owner' } },
+    }
+  }
+
+  function run(ws: WorldState): DevelopHoldingProject {
+    ws.projects['proj-sb' as ProjectId] = makeProj()
+    resolveImmediateStages(ws, defaultConfig, 'proj-sb' as ProjectId, ws.absoluteWeek)
+    return ws.projects['proj-sb' as ProjectId] as DevelopHoldingProject
+  }
+
+  it('treasury が required 未満でも開始でき、確保額は fraction (300) と stock の小さい方', () => {
+    // required=1000, fraction=0.3 → target=300。treasury=300 → take=300。
+    const ws = makeState(300)
+    const project = run(ws)
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(300)
+    expect(project.budget.remaining).toBe(300)
+    expect(ws.polities[POLITY]?.treasury).toBe(0)
+    // budget.required は不変。
+    expect(project.budget.required).toBe(1000)
+  })
+
+  it('treasury 0 でも失敗せず execute へ進む (remaining=0)', () => {
+    const ws = makeState(0)
+    const project = run(ws)
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(0)
+    expect(project.budget.remaining).toBe(0)
+  })
+
+  it('treasury が target を超えるなら target(300) だけ確保する', () => {
+    const ws = makeState(5000)
+    const project = run(ws)
+    expect(project.budget.allocated).toBe(300)
+    expect(ws.polities[POLITY]?.treasury).toBe(4700)
+  })
+})

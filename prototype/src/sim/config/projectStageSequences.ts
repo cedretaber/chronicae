@@ -161,7 +161,12 @@ export function getNextProjectStageKey(project: Project): ProjectStageKey | unde
   const seq = PROJECT_STAGE_SEQUENCES[project.kind]
   const idx = seq.findIndex((e) => e.key === project.currentStageKey)
   if (idx < 0 || idx >= seq.length - 1) return undefined
-  return seq[idx + 1]!.key
+  const next = seq[idx + 1]!
+  // v0.60: raise_funds は final stage の後ろに置く back-edge 専用ステージ。linear 遷移
+  //   (例: execute_project の「次」) には絶対に出さない。遷移は resolver/maintenance が手動で行う。
+  //   これにより final stage の linear next は従来どおり undefined のまま (caller 全体の不変条件を維持)。
+  if (next.key === 'raise_funds') return undefined
+  return next.key
 }
 
 export function isProjectStageValid(project: Project): boolean {
