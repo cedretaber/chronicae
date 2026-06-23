@@ -73,51 +73,6 @@ export function adjustProvincePopUnrestByClass(
   return { ...state, popGroups: newPopGroups }
 }
 
-// Apply per-pop PROPORTIONAL size damage to pops in a province (optionally
-// filtered by class). Each matching pop loses `pop.size * rate` from its OWN
-// size — distinct from the flat-fan-out `adjustProvincePopSize*` family above,
-// which apply the same absolute delta to every pop. Calling those once per pop
-// (as disasterSystem historically did) multiplies total damage by the pop count
-// (調査 §1.1: standard preset の holdingsPerProvince=4 で常時 4x 過剰適用).
-// `rate` is a fraction in [0, 1]. The subtraction form keeps this bit-identical
-// to the old single-pop path (`a + (-(a*r))` === `a - a*r`).
-export function reduceProvincePopSizeProportional(
-  state: WorldState,
-  provinceId: ProvinceId,
-  rate: number,
-  popClass?: PopClass,
-): WorldState {
-  const province = state.provinces[provinceId]
-  if (!province) return state
-
-  let newPopGroups: typeof state.popGroups | undefined
-  for (const holdingId of province.holdingIds) {
-    const popIds = state.popIndex.byHolding[holdingId]
-    if (!popIds) continue
-    for (const popGroupId of popIds) {
-      const pop = state.popGroups[popGroupId]
-      if (!pop) continue
-      if (popClass !== undefined && pop.class !== popClass) continue
-      const newSize = Math.max(0, pop.size - pop.size * rate)
-      if (newSize === pop.size) continue
-      if (!newPopGroups) {
-        newPopGroups = { ...state.popGroups }
-      }
-      // v0.58: money は extensive → 死亡 (size 減) は per-capita 保存のため比例 burn
-      //   (popSystem の自然死亡と同じ規約。これを怠ると crisis 死で生存者の per-capita money が膨らむ)。
-      newPopGroups[popGroupId] = {
-        ...pop,
-        size: newSize,
-        money: pop.size > 0 ? pop.money * (newSize / pop.size) : pop.money,
-      }
-    }
-  }
-
-  if (!newPopGroups) return state
-
-  return { ...state, popGroups: newPopGroups }
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -402,9 +357,9 @@ export function movePopSizeToKeyMut(
 
 // ---------------------------------------------------------------------------
 // v0.48 Crisis: holding スコープの in-place pop helper。
-// province ラッパー (adjustProvincePop* / reduceProvincePopSizeProportional) を per-holding で
-// 呼ぶと holdingsPerProvince 倍に多重適用する罠 (§1.1) があるため、Crisis は holding 単位で
-// 1 回だけ適用するこの族を使う。1 tick 1 draft の mutable 規約に従い ws を直接書き換える。
+// province 全体への一括適用を per-holding ループで呼ぶと holdingsPerProvince 倍に多重適用する罠
+// (§1.1) があるため、Crisis は holding 単位で 1 回だけ適用するこの族を使う。1 tick 1 draft の
+// mutable 規約に従い ws を直接書き換える。
 // ---------------------------------------------------------------------------
 
 // v0.58: holding 内の (optionally class 指定) POP の welfare(needSatisfaction) を delta だけ動かす
@@ -447,7 +402,7 @@ export function adjustHoldingPopUnrestMut(
 }
 
 // holding 内の (optionally class 指定) POP の size を比例で減らす (各 pop が自身の size×rate を失う)。
-// rate は [0,1]。reduceProvincePopSizeProportional の holding スコープ in-place 版。
+// rate は [0,1]。crisis 死など holding 単位の比例減に使う in-place 版 (onReduce で自然減を read-model へ通知)。
 export function reduceHoldingPopSizeProportionalMut(
   ws: WorldState,
   holdingId: HoldingId,

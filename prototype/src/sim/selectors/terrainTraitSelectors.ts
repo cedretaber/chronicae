@@ -1,4 +1,4 @@
-import type { Province, TerrainTraitKind } from '../types/province'
+import type { Province, TerrainTraitKind, TerrainTraitDefinition } from '../types/province'
 import type { HoldingKind } from '../types/landContract'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { WorldState } from '../types/world'
@@ -6,6 +6,23 @@ import type { HoldingId } from '../types/ids'
 import type { ResourceKind } from '../types/resource'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
+
+// v0.59: trait → 定義の索引を config 単位でメモ化する（hot path での線形 find を O(1) 化）。
+//   config は不変前提（同一 config オブジェクトには同一 definitions）。WeakMap なので GC 安全。
+//   純粋キャッシュ＝決定性に影響しない（同入力→同出力）。
+const traitDefIndexCache = new WeakMap<
+  SimulationConfig,
+  Map<TerrainTraitKind, TerrainTraitDefinition>
+>()
+function getTraitDefIndex(config: SimulationConfig): Map<TerrainTraitKind, TerrainTraitDefinition> {
+  let idx = traitDefIndexCache.get(config)
+  if (!idx) {
+    idx = new Map()
+    for (const def of config.terrainTraitDefinitions) idx.set(def.trait, def)
+    traitDefIndexCache.set(config, idx)
+  }
+  return idx
+}
 
 /**
  * v0.59: Province 群に地形特性を決定的に付与する。Province は入力順・trait は定義順に走査し、
@@ -48,9 +65,11 @@ export function computeSlotCapacity(
   traits: readonly TerrainTraitKind[],
 ): number {
   const base = config.realEstateSlotCapacityBase[holdingKind] ?? 3
+  if (traits.length === 0) return base
+  const idx = getTraitDefIndex(config)
   let bonus = 0
   for (const t of traits) {
-    const def = config.terrainTraitDefinitions.find((d) => d.trait === t)
+    const def = idx.get(t)
     if (def?.effect.kind === 'slot') bonus += def.effect.slotBonus
   }
   return base + bonus
@@ -72,9 +91,10 @@ export function getProvinceOutputTraitMultiplier(
   if (!holding) return 1.0
   const province = state.provinces[holding.provinceId]
   if (!province || province.traits.length === 0) return 1.0
+  const idx = getTraitDefIndex(config)
   let mult = 1.0
   for (const t of province.traits) {
-    const def = config.terrainTraitDefinitions.find((d) => d.trait === t)
+    const def = idx.get(t)
     if (def?.effect.kind === 'output') {
       const r = def.effect.resources[resource]
       if (r !== undefined) mult *= r

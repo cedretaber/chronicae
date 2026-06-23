@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  reduceProvincePopSizeProportional,
   reduceHoldingPopSizeProportionalMut,
   movePopSizeToKeyMut,
   movePopEmploymentMut,
@@ -33,62 +32,6 @@ function pop(
   }
 }
 
-// Province with two holdings, each carrying one peasant pop + one townsmen pop.
-function makeFixture(): { state: WorldState; provinceId: ProvinceId } {
-  const provinceId = createProvinceId('p', 0)
-  const h0 = createHoldingId(0)
-  const h1 = createHoldingId(1)
-  const peas0 = createPopGroupId(0)
-  const peas1 = createPopGroupId(1)
-  const town0 = createPopGroupId(2)
-
-  let state = makeEmptyV016State()
-  state = withProvince(state, provinceId)
-  state = withHolding(state, h0, provinceId)
-  state = withHolding(state, h1, provinceId)
-  state = {
-    ...state,
-    popGroups: {
-      [peas0]: pop(peas0, h0, 'lower', 100),
-      [peas1]: pop(peas1, h1, 'lower', 200),
-      [town0]: pop(town0, h0, 'middle', 50),
-    },
-    popIndex: { byHolding: { [h0]: [peas0, town0], [h1]: [peas1] } },
-  }
-  return { state, provinceId }
-}
-
-describe('reduceProvincePopSizeProportional', () => {
-  it('reduces each pop by its OWN proportion (no N× over-application across pops)', () => {
-    const { state, provinceId } = makeFixture()
-    const result = reduceProvincePopSizeProportional(state, provinceId, 0.1, 'lower')
-
-    // Each peasant pop loses 10% of ITS size, independent of the other pop's size.
-    expect(result.popGroups[createPopGroupId(0)]!.size).toBe(90) // 100 - 100*0.1
-    expect(result.popGroups[createPopGroupId(1)]!.size).toBe(180) // 200 - 200*0.1
-    // townsmen untouched by the class filter
-    expect(result.popGroups[createPopGroupId(2)]!.size).toBe(50)
-  })
-
-  it('without a class filter, reduces every pop proportionally', () => {
-    const { state, provinceId } = makeFixture()
-    const result = reduceProvincePopSizeProportional(state, provinceId, 0.05)
-
-    expect(result.popGroups[createPopGroupId(0)]!.size).toBe(95)
-    expect(result.popGroups[createPopGroupId(1)]!.size).toBe(190)
-    expect(result.popGroups[createPopGroupId(2)]!.size).toBeCloseTo(47.5)
-  })
-
-  it('clamps to >= 0 and is a no-op when rate is 0', () => {
-    const { state, provinceId } = makeFixture()
-    expect(reduceProvincePopSizeProportional(state, provinceId, 0)).toBe(state)
-
-    const wiped = reduceProvincePopSizeProportional(state, provinceId, 1, 'lower')
-    expect(wiped.popGroups[createPopGroupId(0)]!.size).toBe(0)
-    expect(wiped.popGroups[createPopGroupId(1)]!.size).toBe(0)
-  })
-})
-
 // v0.58: crisis 死亡 (size 比例減) は money も per-capita 保存のため比例 burn する
 //   (popSystem の自然死亡と同規約)。怠ると生存者の per-capita money が膨らみ飢饉が報われる。
 describe('v0.58 money 保存 (crisis 死亡 = 比例 burn)', () => {
@@ -106,15 +49,6 @@ describe('v0.58 money 保存 (crisis 死亡 = 比例 burn)', () => {
     }
     return { state, provinceId, holdingId }
   }
-
-  it('reduceProvincePopSizeProportional burns money proportionally (per-capita preserved)', () => {
-    const { state, provinceId } = moneyFixture()
-    const result = reduceProvincePopSizeProportional(state, provinceId, 0.3)
-    const after = result.popGroups[createPopGroupId(0)]!
-    expect(after.size).toBe(70)
-    expect(after.money).toBeCloseTo(700) // 1000 * (70/100)
-    expect(after.money / after.size).toBeCloseTo(10) // per-capita 不変
-  })
 
   it('reduceHoldingPopSizeProportionalMut burns money proportionally (per-capita preserved)', () => {
     const { state, holdingId } = moneyFixture()
