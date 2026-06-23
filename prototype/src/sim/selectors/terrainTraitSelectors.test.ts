@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assignTerrainTraits } from './terrainTraitSelectors'
+import { assignTerrainTraits, computeSlotCapacity } from './terrainTraitSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import type { Province } from '../types/province'
@@ -46,5 +46,18 @@ describe('v0.59 assignTerrainTraits', () => {
     const provs = [prov('p1', 'plains', ['coastal']), prov('p2', 'mountains')]
     const { provinces } = assignTerrainTraits(provs, cfg, createRng('z'))
     expect(provinces.every((p) => p.traits.length === 0)).toBe(true)
+  })
+})
+
+describe('v0.59 computeSlotCapacity', () => {
+  it('open_terrain で manor の slotCap が +1', () => {
+    expect(computeSlotCapacity(defaultConfig, 'manor', [])).toBe(3)
+    expect(computeSlotCapacity(defaultConfig, 'manor', ['open_terrain'])).toBe(4)
+  })
+  it('open_terrain で city の slotCap が +1', () => {
+    expect(computeSlotCapacity(defaultConfig, 'city', ['open_terrain'])).toBe(5)
+  })
+  it('output trait は slot に影響しない', () => {
+    expect(computeSlotCapacity(defaultConfig, 'manor', ['fertile_land'])).toBe(3)
   })
 })

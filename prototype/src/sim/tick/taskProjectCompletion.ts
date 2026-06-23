@@ -21,6 +21,7 @@ import {
   canBuildRealEstateAsset,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
+import { computeSlotCapacity } from '../selectors/terrainTraitSelectors'
 import { hasCapacityPressure, hasEmploymentSlack } from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
@@ -191,7 +192,7 @@ function selectRealEstateKind(
   if (!province) return undefined
 
   const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const usedSlots = assetIds.length
   const hasSlotRoom = usedSlots < slotCap
 
@@ -274,7 +275,12 @@ function buildProjectFieldsForAim(
               holding?.kind ?? 'manor'
             ] ?? 3
           const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-          const slotCap = config.realEstateSlotCapacityBase[holding?.kind ?? 'manor'] ?? 3
+          const slotProvince = holding ? ws.provinces[holding.provinceId] : undefined
+          const slotCap = computeSlotCapacity(
+            config,
+            holding?.kind ?? 'manor',
+            slotProvince?.traits ?? [],
+          )
           const hasSlotRoom = assetIds.length < slotCap
           // upgrade: find existing asset of this kind with level < maxLevel
           const upgradeTarget = (() => {

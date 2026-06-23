@@ -14,6 +14,7 @@ import {
   computeHoldingAllPopTypeCapacities,
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
+import { computeSlotCapacity } from './terrainTraitSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -303,7 +304,7 @@ function collectHoldingCapacityInputs(
     if (asset) assets.push({ realEstateKind: asset.realEstateKind, level: asset.level })
   }
 
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(assets.length, slotCap, config)
 
   return { holding, province, improvements, assets, overuseMod }

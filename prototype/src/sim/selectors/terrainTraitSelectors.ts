@@ -1,4 +1,5 @@
 import type { Province, TerrainTraitKind } from '../types/province'
+import type { HoldingKind } from '../types/landContract'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -32,4 +33,22 @@ export function assignTerrainTraits(
     out.push({ ...province, traits })
   }
   return { provinces: out, rng: cur }
+}
+
+/**
+ * v0.59: holding の不動産スロット上限。base（holdingKind 別）＋ Province の slot 系 trait
+ * （広闊な地形など）の slotBonus 合計。worldgen・develop Project・overuse 判定で共通利用する。
+ */
+export function computeSlotCapacity(
+  config: SimulationConfig,
+  holdingKind: HoldingKind,
+  traits: readonly TerrainTraitKind[],
+): number {
+  const base = config.realEstateSlotCapacityBase[holdingKind] ?? 3
+  let bonus = 0
+  for (const t of traits) {
+    const def = config.terrainTraitDefinitions.find((d) => d.trait === t)
+    if (def?.effect.kind === 'slot') bonus += def.effect.slotBonus
+  }
+  return base + bonus
 }

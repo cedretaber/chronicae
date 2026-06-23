@@ -22,6 +22,7 @@ import {
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { getHoldingEmployedPopSize, getHoldingClassCapacity } from './popSelectors'
+import { computeSlotCapacity } from './terrainTraitSelectors'
 import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
@@ -83,7 +84,7 @@ function getRealEstateAssetClassCapacityContribution(
 
   // overuseMod / landQuality / weight は holding 共通項 (computeHoldingClassCapacity と同じ)。
   const usedSlots = (state.realEstateAssetIndex.byHolding[asset.holdingId as string] ?? []).length
-  const slotCap = config.realEstateSlotCapacityBase[holding.kind] ?? 3
+  const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(usedSlots, slotCap, config)
   return assetTerm * overuseMod * holding.landQuality * holding.weight
 }

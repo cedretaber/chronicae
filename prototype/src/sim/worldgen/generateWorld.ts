@@ -68,7 +68,7 @@ import {
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
 import type { SimulationConfig } from '../config/defaultConfig'
-import { assignTerrainTraits } from '../selectors/terrainTraitSelectors'
+import { assignTerrainTraits, computeSlotCapacity } from '../selectors/terrainTraitSelectors'
 import { computeInitialIdIndices } from '../tick/context'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
@@ -1489,7 +1489,7 @@ export function generateWorld(
     if (!province) continue
 
     // RealEstateAsset chance table + capacity target 補完
-    const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+    const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
     let usedSlots = 0
 
     const buildableKinds = ALL_REAL_ESTATE_KINDS.filter((kind) =>
@@ -1673,7 +1673,7 @@ export function generateWorld(
         if (a) seedAssets.push({ realEstateKind: a.realEstateKind, level: a.level })
       }
       const usedSlots = seedAssets.length
-      const slotCap = defaultConfig.realEstateSlotCapacityBase[holding.kind] ?? 3
+      const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
       const overuseMod =
         usedSlots <= slotCap
           ? 1.0
