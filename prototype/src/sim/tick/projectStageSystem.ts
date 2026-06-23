@@ -1204,11 +1204,18 @@ function resolveRaiseFunds(
   ws.projects[projectId] = updated
 
   const log = createLogger(config.debug)
+  // insider/external 内訳 (debug 専用診断・ability 依存が実際に効いているかの計測用)。
+  let insiderRaised = 0
+  for (const p of pledges) {
+    if (p.contributor.kind !== 'pop' && p.contributor.insider) insiderRaised += p.amount
+  }
   log.log('PROJECT_RAISE_FUNDS', {
     projectId,
     kind: project.kind,
     round: updated.fundingRoundCount,
     raised,
+    insiderRaised,
+    externalRaised: raised - insiderRaised,
     allocated: updated.budget.allocated,
     required: updated.budget.required,
   })

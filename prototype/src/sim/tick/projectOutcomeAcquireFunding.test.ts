@@ -81,12 +81,13 @@ function makeCompletedProject(allocated: number): AcquireRealEstateProject {
     holdingId: HOLD,
     targetRealEstateAssetId: ASSET,
     salePrice: 1000,
-    // under-funded: 実際に集めたのは 600 (allocated == remaining + spent)。
+    // under-funded: 集めた総額 = allocated。remaining/spent は分けて持たせ、seller 支払いが
+    //   allocated に依拠する（remaining でも salePrice でもない）ことを pin する。allocated==remaining+spent。
     budget: {
       required: 1000,
       allocated,
-      remaining: allocated,
-      spent: 0,
+      remaining: Math.round(allocated * 0.4),
+      spent: allocated - Math.round(allocated * 0.4),
       source: { kind: 'owner' },
     },
   }
