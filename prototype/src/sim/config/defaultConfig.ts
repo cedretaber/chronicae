@@ -7,7 +7,11 @@ import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { CrisisKind } from '../types/crisis'
-import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+import type {
+  ProvinceTerrain,
+  ProvinceFeature,
+  TerrainTraitDefinition,
+} from '../types/province'
 import type { NeedTier } from '../types/needCategory'
 import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
@@ -1452,6 +1456,9 @@ export type SimulationConfig = {
   improveRealEstateEmploymentSlackBonus: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
+  // v0.59 地形特性: 定義（config 駆動・--config で上書き可）と付与密度の global 乗数。
+  terrainTraitDefinitions: TerrainTraitDefinition[]
+  terrainTraitDensityMultiplier: number
   developRealEstateProjectBaseCost: Record<RealEstateKind, number>
   developRealEstateProjectBaseProgress: Record<RealEstateKind, number>
   realEstateSalePriceYears: number
@@ -3056,6 +3063,40 @@ export const defaultConfig: SimulationConfig = {
   improveRealEstateEmploymentSlackBonus: 8,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
+  // v0.59 地形特性（balance-defer の default 値）。産出 trait は input を持たない raw 資源のみ対象。
+  terrainTraitDensityMultiplier: 1.0,
+  terrainTraitDefinitions: [
+    {
+      trait: 'fertile_land',
+      eligibleTerrains: ['plains', 'hills'],
+      probability: 0.25,
+      effect: { kind: 'output', resources: { grain: 1.3, fruit: 1.2 } },
+    },
+    {
+      trait: 'rich_fishery',
+      eligibleFeatures: ['coastal', 'major_river', 'lake'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { fish: 1.4 } },
+    },
+    {
+      trait: 'rich_lode',
+      eligibleTerrains: ['mountains', 'hills'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { iron_ore: 1.3, gems: 1.3, stone: 1.3 } },
+    },
+    {
+      trait: 'dense_forest',
+      eligibleTerrains: ['forest', 'hills'],
+      probability: 0.3,
+      effect: { kind: 'output', resources: { timber: 1.4, fur: 1.2 } },
+    },
+    {
+      trait: 'open_terrain',
+      eligibleTerrains: ['plains', 'wetlands'],
+      probability: 0.25,
+      effect: { kind: 'slot', slotBonus: 1 },
+    },
+  ],
   developRealEstateProjectBaseCost: {
     farm: 30,
     mountain: 32,

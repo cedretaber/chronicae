@@ -360,6 +360,7 @@ describe('generateCandidateBattlefield (§6.3)', () => {
       neighbors: [],
       terrain,
       features,
+      traits: [],
       holdingIds: [],
     }
   }

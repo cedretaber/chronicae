@@ -483,6 +483,7 @@ export function generateProvinces(
       neighbors,
       terrain,
       features,
+      traits: [],
       holdingIds: [],
     }
     provinces.push(provinceObj)

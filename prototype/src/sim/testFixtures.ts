@@ -262,6 +262,7 @@ export function withProvince(
     neighbors: autoNeighbors,
     terrain: 'plains',
     features: [],
+    traits: [],
     ...overrides,
     holdingIds: overrides.holdingIds ?? [holdingId],
   }

@@ -342,6 +342,7 @@ describe('runControlSystem — capital province maxControl', () => {
           neighbors: [],
           terrain: 'plains',
           features: [],
+          traits: [],
           holdingIds: [holdingId],
         },
       },
