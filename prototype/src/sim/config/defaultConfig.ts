@@ -1167,6 +1167,22 @@ export type SimulationConfig = {
   improvementLevelProgressMultiplier: Record<number, number>
   projectBudgetMarginMultiplier: number
   projectCompletedRespectGain: number
+  // v0.60 Project 資金集め改修
+  projectInitialReserveFraction: number
+  projectMaxFundingRounds: number
+  projectFundingRoundMinCollectionFraction: number
+  projectFundingDeadlineExtensionWeeks: number
+  fundraisingMaxContributionFractionByContributorKind: {
+    polity: number
+    house: number
+    person: number
+    pop: number
+  }
+  insiderMaxContributionFraction: number
+  popContributionHorizonMonths: number
+  fundraisingAbilityExponent: number
+  projectMajorContributorTrackLimit: number
+  localWealthyPopContributorLimit: number
   // v0.31 House Founding
   houseFoundingEnabled: boolean
   houseFoundingMinWealth: number
@@ -2727,6 +2743,22 @@ export const defaultConfig: SimulationConfig = {
   improvementLevelProgressMultiplier: { 1: 1, 2: 2, 3: 3 },
   projectBudgetMarginMultiplier: 2,
   projectCompletedRespectGain: 5,
+  // v0.60 Project 資金集め改修
+  projectInitialReserveFraction: 0.3,
+  projectMaxFundingRounds: 3,
+  projectFundingRoundMinCollectionFraction: 0.15,
+  projectFundingDeadlineExtensionWeeks: 48,
+  fundraisingMaxContributionFractionByContributorKind: {
+    polity: 0.2,
+    house: 0.2,
+    person: 0.25,
+    pop: 0.15,
+  },
+  insiderMaxContributionFraction: 0.5,
+  popContributionHorizonMonths: 3,
+  fundraisingAbilityExponent: 1.4,
+  projectMajorContributorTrackLimit: 5,
+  localWealthyPopContributorLimit: 8,
   // v0.31 House Founding
   // v0.47 §7.1: 通常世界の self-made House founding (wealth/prestige/office/activityLog のみで
   //   House を興す経路) を廃止 (default 無効化)。House 創設は原則 Polity 獲得を伴う
