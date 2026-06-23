@@ -40,8 +40,8 @@ function mkPop(
   }
 }
 
-describe('PopMigrationSystem', () => {
-  it('migrates from a crowded holding to a vacant one within the region, respecting caps', () => {
+describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 + 失業着地)', () => {
+  it('混雑 holding から空きのある holding へ移住する。cap は source rate・移動先非依存で失業着地', () => {
     let s = makeEmptyV016State()
     s = withProvince(s, PA)
     s = withProvince(s, PB)
@@ -83,20 +83,20 @@ describe('PopMigrationSystem', () => {
       nextPopGroupId: 1000,
     }
 
-    const inflowCapB = Math.min(
-      50 * defaultConfig.popMigrationMaxInflowFractionPerHoldingPerMonth,
-      defaultConfig.popMigrationMaxInflowPerHoldingPerMonthHardCap,
-    )
-
     const ctx = createTickContext({ state, config: defaultConfig, rng: createRng('t') })
     const result = runPopMigrationSystem(ctx).state
 
-    // migration occurred and stayed within the inflow cap of the (small) target holding.
-    expect(result.monthlyPopMobility!.migratedTotal).toBeGreaterThan(0)
-    expect(result.monthlyPopMobility!.migratedTotal).toBeLessThanOrEqual(inflowCapB + 1e-9)
+    // v0.59 追補: cap は source サイズ依存 (size × stratum rate) で移動先非依存。
+    //   旧 inflow cap (50×0.001=0.05) を大きく超え、source rate (1000×0.01=10) で頭打ちになる。
+    const lowerMigRate = defaultConfig.popMigrationMonthlyRateByStratum.lower
+    const moved = result.monthlyPopMobility!.migratedTotal
+    expect(moved).toBeGreaterThan(1) // 旧 inflow cap (0.05) を大きく超える＝移動先非依存
+    // per-source cap: 各 source は size × rate まで。region 内 source size 総和 × rate が上限。
+    const totalSourceSize = capA + 1000 + 50
+    expect(moved).toBeLessThanOrEqual(totalSourceSize * lowerMigRate + 1e-9)
 
-    // a laborers cohort now lives in the target holding.
-    const laborersInB = getHoldingPopsByClassAndEmployment(result, hB, 'lower', true).filter(
+    // a laborers cohort now lives in the target holding — 失業着地する (雇用は rebalance が確定)。
+    const laborersInB = getHoldingPopsByClassAndEmployment(result, hB, 'lower', false).filter(
       (p) => p.popType === 'laborers',
     )
     expect(laborersInB.length).toBeGreaterThan(0)

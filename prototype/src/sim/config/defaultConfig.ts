@@ -287,19 +287,13 @@ export type SimulationConfig = {
   //   先月分を完全に再構成できるよう、実質 store-all となる高い値にする (truncate は read-model の
   //   欠落を生むだけで sim ロジックには無影響)。snapshot は毎月上書きで累積しない。
   popMobilityTopMovementLimit: number
-  //   job change (cap は holding 人口比率 + hard cap, C2)
-  popJobChangeMaxFractionPerHoldingPerMonth: number
-  popJobChangeMaxPerHoldingPerMonthHardCap: number
+  //   job change (cap は per-source: source.size × kind 別レート, v0.59 追補)
   popJobChangeMonthlyRateByKind: Record<PopMobilityKind, number>
   //   wealth gate は相対分位 (C3)。epsilon は分布が潰れた際の不発ガード。
   popPromotionEpsilon: number
   popDemotionEpsilon: number
   popPromotionWealthCostByTargetStratum: Partial<Record<PopStratum, number>>
-  //   migration (cap は holding 人口比率 + hard cap, C2)
-  popMigrationMaxOutflowFractionPerHoldingPerMonth: number
-  popMigrationMaxInflowFractionPerHoldingPerMonth: number
-  popMigrationMaxOutflowPerHoldingPerMonthHardCap: number
-  popMigrationMaxInflowPerHoldingPerMonthHardCap: number
+  //   migration (cap は per-source: source.size × stratum 別レート・移動先非依存, v0.59 追補)
   popMigrationMonthlyRateByStratum: Record<PopStratum, number>
   popMigrationPressureThreshold: number
   popMigrationScoreGapThreshold: number
@@ -1768,16 +1762,10 @@ export const defaultConfig: SimulationConfig = {
   popMobilityMinMoveAmount: 0.01,
   // store-all 相当 (実測: tiny ~80, small ~411, standard ~1-2k movements/月)。per-entity UI の完全性確保。
   popMobilityTopMovementLimit: 4000,
-  popJobChangeMaxFractionPerHoldingPerMonth: 0.001,
-  popJobChangeMaxPerHoldingPerMonthHardCap: 0.15,
   popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.01 },
   popPromotionEpsilon: 1,
   popDemotionEpsilon: 1,
   popPromotionWealthCostByTargetStratum: { middle: 5, upper: 10 },
-  popMigrationMaxOutflowFractionPerHoldingPerMonth: 0.001,
-  popMigrationMaxInflowFractionPerHoldingPerMonth: 0.001,
-  popMigrationMaxOutflowPerHoldingPerMonthHardCap: 0.15,
-  popMigrationMaxInflowPerHoldingPerMonthHardCap: 0.15,
   popMigrationMonthlyRateByStratum: { lower: 0.01, middle: 0.005, upper: 0.002 },
   popMigrationPressureThreshold: 35,
   popMigrationScoreGapThreshold: 20,
