@@ -93,6 +93,8 @@ describe('handle_crisis 完了で Crisis を purge する (A6)', () => {
     expect(next.state.crises[crisis.id]).toBeUndefined()
     expect(next.state.crisisIndex.byHolding[HOLDING as string]).toBeUndefined()
     expect(next.state.crisisIndex.byProject[projectId]).toBeUndefined()
+    // v0.60.4: handle_crisis 完了時の残予算(20)は担当者(supervisor)へ。旧仕様では消滅していた。
+    expect(next.state.persons[SUPERVISOR]?.wealth).toBe(20)
   })
 })
 

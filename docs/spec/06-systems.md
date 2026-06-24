@@ -1881,7 +1881,7 @@ active Project の immediate stage を即時解決する。毎 tick 実行（int
 - **終了保証（2 本）**: ① ラウンド最小回収 — `rawRaised < requiredRemaining × projectFundingRoundMinCollectionFraction` または `rawRaised ≤ 0` で `status='failed', terminalReason='funding_failed'`。② 最大ラウンド — §6.40 が `fundingRoundCount ≥ projectMaxFundingRounds` で `budget_exhausted`。成功時は `fundingRoundCount++`・`majorContributors`（累積拠出記録・pop 除く・amount 降順上位 `projectMajorContributorTrackLimit` 件）更新・final stage 復帰。**deadline 延長は非 crisis kind のみ** `deadlineWeek = max(absoluteWeek, deadlineWeek) + projectFundingDeadlineExtensionWeeks`。**handle_crisis は延長しない**（非 disrepair は `Crisis.deadlineWeek` を単一の真実とし、disrepair は deadline 無し（v0.48.1）— raise_funds で上書きするとこの不変を壊すため既存 deadlineWeek を保持する）。**budget 加算は `applyPledgeDrains` が返す実 drain 合計**を使い（pledge が stock を超えても貨幣創造にならない保存則防御）、各 pledge は acquire のみ requiredRemaining 比で比例縮小（material-sink は cap せず・上記）。
 - **mutable draft**: `runProjectStageSystem` は draft に `popGroups` slice を追加（applyPledgeDrains が POP.money を書き戻すため。漏れると元 state 破壊＝determinism/integrity 違反）。
 - **acquire_real_estate の seller 決済（保存則整合）**: ProjectOutcomeSystem の完了処理で seller（terminal Polity）への支払いを `project.salePrice` から **`budget.allocated`（実際に集めた額）** へ変更。満額 funded 時は `allocated == required == salePrice` で従来同値、under-funded 完了時も drained 量と一致＝保存則を保つ。
-- **balance-defer**: 失敗時 refund（ProjectOutcomeSystem）が `budget.remaining` を **owner にのみ**返すため、external 拠出（POP/関連 Person 等）を owner が回収する fairness regression がある。拠出見返り（funder rewards）が未実装ゆえ容認し、将来そこで対処する（§4）。config 既定値（insider 率・**insiderAbilityFloor**・能力指数・POP horizon・最小回収率・最大ラウンド・初期 fraction・拠出上限率）は控えめ＝balance-defer。
+- **balance-defer**: 終了時の残予算 `budget.remaining` は **担当者（supervisor）が総取り**する（v0.60.4・上記「残予算の還付」一般則。成功・失敗とも・不在時 owner フォールバック）。external 拠出（POP/関連 Person 等）は拠出見返り（funder rewards）が未実装のため出資分が戻らないが、回収先が owner から担当者へ移っただけで fairness は依然未解決＝将来 funder rewards でまとめて対処する（§4）。config 既定値（insider 率・**insiderAbilityFloor**・能力指数・POP horizon・最小回収率・最大ラウンド・初期 fraction・拠出上限率）は控えめ＝balance-defer。
 
 ### 6.39 ProjectTaskGenerationSystem（毎週）
 
@@ -1931,18 +1931,19 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - **義務系 Project（v0.53、§6.70）**: `seize_real_estate_income` completed → `createRealEstateSeizureMut` で RealEstateSeizure（status=active）を作成。`withhold_land_contract_tax` completed → `createLandContractDefaultMut` で `origin='tax_default'` の LandContractDefault を作成。`enforce_obligation` completed → 対象 seizure/default を resolved にし、active enforce 追跡（`entity.activeEnforceProjectId`）を解除。これら 3 kind は self-executed で reputation を付与しない（`PROJECT_REPUTATION_CATEGORY_MAP[kind] = undefined`）。作成に伴い `realEstateSeizures` / `landContractDefaults` collection・index・`next*Id` を mutable draft writeback slice に含める
-- **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（budget 返金は develop_holding と同一一般化）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
+- **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（残予算は v0.60.4 一般則で担当者へ還付＝旧仕様の「成功時消滅」保存則漏れを解消）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
 - **成果経験・評判付与（v0.44）**: 非外交 Project は削除直前に supervisor へ即時成長 + PersonReputation を付与する（§6.66）。terminal Project の `terminalReason` が未設定なら throw（terminal サイトのセット漏れを fail-fast で顕在化。年末 integrity は flush 後で検出できないため）
+- **残予算（budget.remaining）の還付（v0.60.4）**: budget 持ち 5 種は終了時（成功・失敗とも）の残予算を **担当者（supervisorPersonId）の wealth に全額還付**する（「予算には担当者報酬が含まれる」前近代的な業務委託の見立て＝成功でも失敗でも担当者の総取り）。担当者が死亡/不在のときは **owner（polity treasury / house wealth）へフォールバック**し保存則（money は移動のみ）を守る。**acquire_real_estate の成功時のみ除外**＝budget は購入代金で成功時は売り手へ `budget.allocated` 全額支払い済みのため還付しない（二重払い＝貨幣創造防止）。acquire の失敗（売り手未払い）は還付対象。集約箇所 = `creditResidualBudgetToSupervisorMut`（projectOutcomeSystem）。旧仕様（〜v0.60.2）は develop 系のみ成功→supervisor・upgrade 成功→owner house・handle_crisis 成功→消滅（保存則漏れ）・全種失敗→owner とバラついていたのを統一した
 - Project を state.projects / projectIndex から削除
 
 **develop_holding completed 時の追加処理**:
 1. HoldingImprovement を作成（新規）または level up（既存）
-2. `budget.remaining` → `supervisor.wealth`（成功報酬・節約分の取り分）
+2. 残予算 `budget.remaining` の還付は上記「残予算の還付（v0.60.4）」一般則に集約（担当者総取り・不在時 owner フォールバック）
 3. `project_completed` PersonActivityLog を supervisor に追加（params に improvementKind / targetLevel / holdingId）
 4. creator → supervisor / owner leader → supervisor の respect を小幅上昇（`projectCompletedRespectGain`）
 
 **develop_holding failed 時の追加処理**:
-1. `budget.remaining` → owner に返金
+1. 残予算 `budget.remaining` の還付は上記「残予算の還付（v0.60.4）」一般則に集約（v0.60.4 以前は owner 返金だった）
 2. `project_failed` PersonActivityLog を supervisor に追加
 
 ### 6.42 DiplomaticPlaySystem（4週ごと）
