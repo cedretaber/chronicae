@@ -99,7 +99,11 @@ export function BattleReplayPanel({
       if (r.owner.kind === 'polity') {
         return <PolityLink polityId={r.owner.id} world={worldState} onClick={onPolityClick} />
       }
-      return <HouseLink houseId={r.owner.id} houses={worldState.houses} onClick={onHouseClick} />
+      if (r.owner.kind === 'house') {
+        return <HouseLink houseId={r.owner.id} houses={worldState.houses} onClick={onHouseClick} />
+      }
+      // v0.61: 商会は連隊 owner にならない。
+      return null
     }
     return null
   }

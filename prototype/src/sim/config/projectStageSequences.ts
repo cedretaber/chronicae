@@ -151,6 +151,33 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'open_diplomatic_play', type: 'immediate' },
     { key: 'negotiate', type: 'final' },
   ],
+
+  // v0.61 商会 Project: develop_real_estate と同型 (find_supervisor → secure_budget →
+  //   execute_project + raise_funds back-edge)。§17.5。
+  upgrade_company_headquarters: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+    { key: 'raise_funds', type: 'immediate' },
+  ],
+  build_company_branch: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+    { key: 'raise_funds', type: 'immediate' },
+  ],
+  open_trade_route: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+    { key: 'raise_funds', type: 'immediate' },
+  ],
+  upgrade_trade_route: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'execute_project', type: 'final' },
+    { key: 'raise_funds', type: 'immediate' },
+  ],
 }
 
 export function getInitialProjectStageKey(kind: ProjectKind): ProjectStageKey {

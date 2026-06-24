@@ -1,13 +1,25 @@
-import type { PolityId, HouseId, PersonId, HouseShareId, OfficeAssignmentId } from './ids'
+import type {
+  PolityId,
+  HouseId,
+  PersonId,
+  HouseShareId,
+  OfficeAssignmentId,
+  MerchantCompanyId,
+} from './ids'
 
-export type OrganizationKind = 'polity' | 'house'
+// v0.61: merchant_company を第三の組織種として追加。office の所属先になれる。
+//   war/diplomacy では商会 actor を構築しない (integrity が actor.kind!=='polity' を弾く)。
+export type OrganizationKind = 'polity' | 'house' | 'merchant_company'
 
-// 組織 (polity / house) への共通参照。office / share の所属先であると同時に、
+// 組織 (polity / house / merchant_company) への共通参照。office / share の所属先であると同時に、
 // 外交・戦争・叛乱の主体 (旧 PoliticalActorRef、v0.41 で統合) としても用いる。
-// 型としては polity と house を両方サポートするが、外交・戦争では実動の Intent 生成・
-// DiplomaticPlay initiator として有効なのは polity のみ。house actor は selector の
-// 対応だけ用意し、IntentGenerationSystem から生成は行わない (spec §8.7)。
-export type OrganizationRef = { kind: 'polity'; id: PolityId } | { kind: 'house'; id: HouseId }
+// 型としては全組織種をサポートするが、外交・戦争では実動の Intent 生成・
+// DiplomaticPlay initiator として有効なのは polity のみ。house / merchant_company actor は
+// selector の対応だけ用意し、IntentGenerationSystem から生成は行わない (spec §8.7 / §6.4)。
+export type OrganizationRef =
+  | { kind: 'polity'; id: PolityId }
+  | { kind: 'house'; id: HouseId }
+  | { kind: 'merchant_company'; id: MerchantCompanyId }
 
 // v0.42c §4.1: 旧 OrganizationShare を HouseShare に縮小・改名。
 // polity share は全廃 (Polity Influence は read-model)。holder は Person のみ。

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 import { createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
@@ -184,6 +185,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

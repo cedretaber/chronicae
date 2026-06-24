@@ -175,7 +175,11 @@ export function WarDetail({
     if (actor.kind === 'polity') {
       return <PolityLink polityId={actor.id} world={worldState} onClick={onPolityClick} />
     }
-    return <HouseLink houseId={actor.id} houses={houses} onClick={onHouseClick} />
+    if (actor.kind === 'house') {
+      return <HouseLink houseId={actor.id} houses={houses} onClick={onHouseClick} />
+    }
+    // v0.61: 商会は戦争 actor にならない。
+    return <span className="text-gray-500">&mdash;</span>
   }
 
   const started = weekToYearMonthWeek(war.startedWeek)

@@ -17,6 +17,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runIntegritySystem, collectIntegrityErrors } from './integritySystem'
 import { generateWorld } from '../worldgen/generateWorld'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -231,6 +232,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -439,6 +441,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -629,6 +632,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -819,6 +823,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -1010,6 +1015,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -1188,6 +1194,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }
@@ -1367,6 +1374,7 @@ describe('runIntegritySystem', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }

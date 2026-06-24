@@ -12,6 +12,7 @@
 //   const s4 = bindProvinceToPolity(s3, 'pr-1', 'c-1')
 
 import type { WorldState } from './types/world'
+import { createEmptyMerchantWorldSlices } from './mutations/merchantMutations'
 import type { Province } from './types/province'
 import type { StateRegion } from './types/stateRegion'
 import type { Polity } from './types/polity'
@@ -146,6 +147,8 @@ export function makeEmptyV016State(): WorldState {
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
     nextRealEstateAssetId: 0,
+    // v0.61 商会・交易システム
+    ...createEmptyMerchantWorldSlices(),
     // v0.54 資源経済 read-model
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},

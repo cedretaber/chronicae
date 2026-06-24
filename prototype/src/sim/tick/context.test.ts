@@ -6,6 +6,7 @@ import { createTickContext, makeEventId, makePersonId, toResult } from './contex
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { buildLivingPersonIds } from '../testFixtures'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -156,6 +157,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

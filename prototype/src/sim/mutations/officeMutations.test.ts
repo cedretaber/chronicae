@@ -8,6 +8,7 @@ import {
 import type { PolityId, HouseId, PersonId, OfficeAssignmentId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { expireOfficeTermAssignment } from './officeMutations'
+import { createEmptyMerchantWorldSlices } from './merchantMutations'
 
 const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
@@ -226,6 +227,7 @@ function makeOfficeState(): {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

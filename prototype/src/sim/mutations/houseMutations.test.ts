@@ -13,6 +13,7 @@ import {
   addHouselessPerson,
 } from './houseMutations'
 import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
+import { createEmptyMerchantWorldSlices } from './merchantMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -181,6 +182,7 @@ function makeFixture(): {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

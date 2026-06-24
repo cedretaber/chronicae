@@ -233,3 +233,30 @@ export type LandContractDefaultId = Branded<string, 'LandContractDefaultId'>
 export function createLandContractDefaultId(n: number): LandContractDefaultId {
   return ('lcd-' + n) as LandContractDefaultId
 }
+
+// v0.61 商会・交易システム。既存 prefix と衝突しない単調カウンタ。
+//   MerchantCompany=`mc-` / TradeRoute=`tr-` / MerchantCompanyEstablishment=`me-` /
+//   MerchantCompanyShare=`ms-`。
+export type MerchantCompanyId = Branded<string, 'MerchantCompanyId'>
+
+export function createMerchantCompanyId(n: number): MerchantCompanyId {
+  return ('mc-' + n) as MerchantCompanyId
+}
+
+export type TradeRouteId = Branded<string, 'TradeRouteId'>
+
+export function createTradeRouteId(n: number): TradeRouteId {
+  return ('tr-' + n) as TradeRouteId
+}
+
+export type MerchantCompanyEstablishmentId = Branded<string, 'MerchantCompanyEstablishmentId'>
+
+export function createMerchantCompanyEstablishmentId(n: number): MerchantCompanyEstablishmentId {
+  return ('me-' + n) as MerchantCompanyEstablishmentId
+}
+
+export type MerchantCompanyShareId = Branded<string, 'MerchantCompanyShareId'>
+
+export function createMerchantCompanyShareId(n: number): MerchantCompanyShareId {
+  return ('ms-' + n) as MerchantCompanyShareId
+}

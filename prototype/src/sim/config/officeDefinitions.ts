@@ -2,7 +2,10 @@ import type { OrganizationKind, OfficeRole, OfficeDefinition } from '@sim/types/
 
 type OfficeKey = `${OrganizationKind}:${OfficeRole}`
 
-export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
+// merchant_company は leader(会長)/administrator(番頭) のみ定義する (§6.2)。
+//   treasurer/military/advisor は v0.61 では未定義 → Partial で表現する。
+//   getOfficeDefinition は noUncheckedIndexedAccess により元々 undefined-safe。
+export const OFFICE_DEFINITIONS: Partial<Record<OfficeKey, OfficeDefinition>> = {
   'polity:leader': {
     organizationKind: 'polity',
     role: 'leader',
@@ -112,6 +115,29 @@ export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
     baseDignityPower: 35,
     adminLoad: 1,
     coordinationLoad: 3,
+  },
+  // v0.61 商会 (§8)。会長=share 由来で別途同期、番頭=appointmentSystem。
+  'merchant_company:leader': {
+    organizationKind: 'merchant_company',
+    role: 'leader',
+    displayName: 'Chairman',
+    maxHolders: 1,
+    baseSalary: 0,
+    baseAuthorityPower: 70,
+    baseDignityPower: 75,
+    adminLoad: 0,
+    coordinationLoad: 0,
+  },
+  'merchant_company:administrator': {
+    organizationKind: 'merchant_company',
+    role: 'administrator',
+    displayName: 'Chief Clerk',
+    maxHolders: 1,
+    baseSalary: 15,
+    baseAuthorityPower: 55,
+    baseDignityPower: 35,
+    adminLoad: 3,
+    coordinationLoad: 5,
   },
 }
 

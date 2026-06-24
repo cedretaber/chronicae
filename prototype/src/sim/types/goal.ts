@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
   StateRegionId,
   TaskId,
+  MerchantCompanyId,
 } from './ids'
 import type { PoliticalRightTargetRef } from './politicalRight'
 import type { OfficeRole, OrganizationRef } from './office'
@@ -23,6 +24,8 @@ export type DecisionSubjectRef =
   | { kind: 'polity'; id: PolityId }
   | { kind: 'house'; id: HouseId }
   | { kind: 'person'; id: PersonId }
+  // v0.61: 商会は Goal / Aim / Project owner になれる。active 判定は company.status==='active'。
+  | { kind: 'merchant_company'; id: MerchantCompanyId }
 
 export function decisionSubjectKey(ref: DecisionSubjectRef): string {
   return `${ref.kind}:${ref.id}`

@@ -19,8 +19,11 @@ export function checkDiplomacyWarRegiment(
       const p = state.polities[actor.id]
       return Boolean(p && p.active)
     }
-    const h = state.houses[actor.id]
-    return Boolean(h && h.active)
+    if (actor.kind === 'house') {
+      const h = state.houses[actor.id]
+      return Boolean(h && h.active)
+    }
+    return state.merchantCompanies[actor.id]?.status === 'active'
   }
 
   // DiplomaticPlay integrity (§20)

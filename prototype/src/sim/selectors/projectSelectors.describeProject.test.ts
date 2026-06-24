@@ -13,6 +13,9 @@ import type {
   LandContractId,
   RealEstateSeizureId,
   LandContractDefaultId,
+  MerchantCompanyId,
+  TradeRouteId,
+  StateRegionId,
 } from '../types/ids'
 
 // describeProject は純粋関数 (state を引かない) なので、各 kind の最小 fixture で網羅する。
@@ -258,14 +261,55 @@ const samples: Record<ProjectKind, Project> = {
     leverage: 0,
     commitment: 0,
   },
+  upgrade_company_headquarters: {
+    ...base,
+    kind: 'upgrade_company_headquarters',
+    owner: { kind: 'merchant_company', id: 'mc-1' as MerchantCompanyId },
+    companyId: 'mc-1' as MerchantCompanyId,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
+  build_company_branch: {
+    ...base,
+    kind: 'build_company_branch',
+    owner: { kind: 'merchant_company', id: 'mc-1' as MerchantCompanyId },
+    companyId: 'mc-1' as MerchantCompanyId,
+    targetHoldingId: 'hld-1' as HoldingId,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
+  open_trade_route: {
+    ...base,
+    kind: 'open_trade_route',
+    owner: { kind: 'merchant_company', id: 'mc-1' as MerchantCompanyId },
+    companyId: 'mc-1' as MerchantCompanyId,
+    sourceStateId: 'sr-0' as StateRegionId,
+    targetStateId: 'sr-1' as StateRegionId,
+    resource: 'grain',
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
+  upgrade_trade_route: {
+    ...base,
+    kind: 'upgrade_trade_route',
+    owner: { kind: 'merchant_company', id: 'mc-1' as MerchantCompanyId },
+    companyId: 'mc-1' as MerchantCompanyId,
+    targetTradeRouteId: 'tr-1' as TradeRouteId,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
 }
 
 describe('describeProject', () => {
   const kinds = Object.keys(samples) as ProjectKind[]
 
-  it('covers all 28 project kinds', () => {
-    expect(kinds.length).toBe(28)
+  it('covers all 32 project kinds', () => {
+    expect(kinds.length).toBe(32)
   })
+
+  // v0.61: merchant_company / trade_route は EntityRef に無いため、これらの商会 Project は
+  //   P1 では空 descriptor (会社/路線リンクは EntityRef 拡張時=P5/P8 で付与)。≥1 field 検査の例外。
+  const EMPTY_DESCRIPTOR_KINDS: ReadonlySet<ProjectKind> = new Set([
+    'upgrade_company_headquarters',
+    'open_trade_route',
+    'upgrade_trade_route',
+  ])
 
   it.each(kinds)('returns a descriptor for kind=%s without throwing', (kind) => {
     const project = samples[kind]
@@ -275,8 +319,10 @@ describe('describeProject', () => {
     if (descriptor.primary) {
       expect(descriptor.primary).toBe(descriptor.fields[0])
     }
-    // この fixture 群は全 kind が最低 1 フィールドを持つよう構成している。
-    expect(descriptor.fields.length).toBeGreaterThan(0)
+    // この fixture 群は (上記例外を除き) 全 kind が最低 1 フィールドを持つよう構成している。
+    if (!EMPTY_DESCRIPTOR_KINDS.has(kind)) {
+      expect(descriptor.fields.length).toBeGreaterThan(0)
+    }
   })
 
   it('resolves develop_holding primary to its target holding + budget', () => {

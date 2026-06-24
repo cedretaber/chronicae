@@ -13,6 +13,7 @@ import { getPolityPersonIds } from './polityRelations'
 import { getRepublicPoliticalCandidatePersons } from './republicSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
+import { getMerchantCompanyCandidatePersonIds } from './merchantSelectors'
 
 // 関連エンティティ「索引」(byTarget) 用の per-kind ref 列挙。表示用の describeProject() と
 // 種別 switch が似るが意味は意図的に別物なので統合しないこと:
@@ -166,6 +167,18 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // v0.53 義務強制: target は seizure/default (EntityRef 非対応)。索引は entity 側
     //   activeEnforceProjectId で引くため related は持たない。
     case 'enforce_obligation':
+      return []
+
+    // v0.61 商会 Project: company/route は EntityRef 非対応。expressible な holding/state のみ。
+    case 'build_company_branch':
+      return [{ kind: 'holding', id: project.targetHoldingId }]
+    case 'open_trade_route':
+      return [
+        { kind: 'state', id: project.sourceStateId },
+        { kind: 'state', id: project.targetStateId },
+      ]
+    case 'upgrade_company_headquarters':
+    case 'upgrade_trade_route':
       return []
   }
 }
@@ -576,6 +589,15 @@ export function describeProject(project: Project): ProjectDescriptor {
       return descriptor(fields)
     }
 
+    // v0.61 商会 Project の表示記述子。merchant_company / trade_route は EntityRef に無いため
+    //   P1 では最小の空 descriptor。P5/P8 で resource enum 等を充実させる。
+    case 'build_company_branch':
+      return descriptor([ent('targetHolding', { kind: 'holding', id: project.targetHoldingId })])
+    case 'open_trade_route':
+    case 'upgrade_company_headquarters':
+    case 'upgrade_trade_route':
+      return descriptor([])
+
     default: {
       const _exhaustive: never = project
       return _exhaustive
@@ -622,6 +644,11 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   withhold_land_contract_tax: 'warCommand',
   enforce_obligation: 'warCommand',
   enforce_land_contract_default: 'diplomacy',
+  // v0.61 商会 Project: 商業経営実務 = stewardship
+  upgrade_company_headquarters: 'stewardship',
+  build_company_branch: 'stewardship',
+  open_trade_route: 'stewardship',
+  upgrade_trade_route: 'stewardship',
 }
 
 export function getPersonProjectWorkload(
@@ -686,6 +713,9 @@ function getCandidatePersonIds(
     const house = state.houses[owner.id]
     if (!house || !house.active) return []
     return [...house.memberIds]
+  }
+  if (owner.kind === 'merchant_company') {
+    return getMerchantCompanyCandidatePersonIds(state, owner.id)
   }
   return [owner.id]
 }

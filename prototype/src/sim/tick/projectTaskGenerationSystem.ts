@@ -219,8 +219,8 @@ function generateNegotiateTaskMut(
 
   const taskId: TaskId = createTaskId(ws.nextTaskId)
   const actor = side === 'initiator' ? play.initiator : play.target
-  const owner: DecisionSubjectRef =
-    actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
+  // OrganizationRef は DecisionSubjectRef の部分集合なので直接代入できる。
+  const owner: DecisionSubjectRef = actor
 
   const task: Task = {
     id: taskId,
@@ -294,8 +294,8 @@ function generateRevoltNegotiateTasksMut(
 
       const taskId: TaskId = createTaskId(ws.nextTaskId)
       const actor = side === 'initiator' ? currentPlay.initiator : currentPlay.target
-      const owner: DecisionSubjectRef =
-        actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
+      // OrganizationRef は DecisionSubjectRef の部分集合なので直接代入できる。
+      const owner: DecisionSubjectRef = actor
 
       const task: Task = {
         id: taskId,

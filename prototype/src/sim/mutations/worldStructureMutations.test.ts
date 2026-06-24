@@ -8,6 +8,7 @@ import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
 import { extinctHouse } from './worldStructureMutations'
+import { createEmptyMerchantWorldSlices } from './merchantMutations'
 
 const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
@@ -237,6 +238,7 @@ function makeMinimalWorld(): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

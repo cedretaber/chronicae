@@ -477,6 +477,14 @@ function creditResidualBudgetToSupervisorMut(ws: WorldState, project: Project): 
     if (house) {
       ws.houses[project.owner.id] = { ...house, wealth: house.wealth + remaining }
     }
+  } else if (project.owner.kind === 'merchant_company') {
+    const company = ws.merchantCompanies[project.owner.id]
+    if (company) {
+      ws.merchantCompanies[project.owner.id] = {
+        ...company,
+        treasury: company.treasury + remaining,
+      }
+    }
   } else {
     // owner.kind === 'person'
     const owner = ws.persons[project.owner.id]

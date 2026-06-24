@@ -1283,14 +1283,9 @@ function resolveOpenDiplomaticPlay(
         ? 'diplomatic_land_claim'
         : 'diplomatic_contract_revision'
 
-    const sourceRef: DecisionSubjectRef =
-      play.initiator.kind === 'polity'
-        ? { kind: 'polity', id: play.initiator.id }
-        : { kind: 'house', id: play.initiator.id }
-    const targetRef: DecisionSubjectRef =
-      play.target.kind === 'polity'
-        ? { kind: 'polity', id: play.target.id }
-        : { kind: 'house', id: play.target.id }
+    // OrganizationRef (polity/house/merchant) は DecisionSubjectRef の部分集合なので直接代入できる。
+    const sourceRef: DecisionSubjectRef = play.initiator
+    const targetRef: DecisionSubjectRef = play.target
 
     createPressureMut(ws, {
       kind: pressureKind,
@@ -1381,18 +1376,13 @@ function resolveChooseStance(
 
   if (pressure.target.kind === 'person') return false
 
-  const targetActor: OrganizationRef =
-    pressure.target.kind === 'polity'
-      ? { kind: 'polity', id: pressure.target.id }
-      : { kind: 'house', id: pressure.target.id }
+  // person を除いた DecisionSubjectRef は OrganizationRef (polity/house/merchant) に等しい。
+  const targetActor: OrganizationRef = pressure.target
 
   let stance: PressureResponseStance = 'negotiate'
 
   if (pressure.source.kind !== 'person') {
-    const sourceActor: OrganizationRef =
-      pressure.source.kind === 'polity'
-        ? { kind: 'polity', id: pressure.source.id }
-        : { kind: 'house', id: pressure.source.id }
+    const sourceActor: OrganizationRef = pressure.source
     // 開始ゲート (diplomaticPlayCreation) と同一式を共有する単一の真実。
     stance = predictPressureResponseStance(ws, config, sourceActor, targetActor)
   }

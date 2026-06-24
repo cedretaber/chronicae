@@ -5,6 +5,7 @@ import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
 import { buildLivingPersonIds } from '../testFixtures'
 import { runMortalitySystem } from './mortalitySystem'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -185,6 +186,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     },
@@ -359,6 +361,7 @@ describe('runMortalitySystem', () => {
           },
           nextLandContractDefaultId: 0,
           nextRealEstateAssetId: 0,
+          ...createEmptyMerchantWorldSlices(),
           marketResourcePrices: {},
           monthlyHoldingResourceRevenue: {},
         },
@@ -548,6 +551,7 @@ describe('runMortalitySystem', () => {
           },
           nextLandContractDefaultId: 0,
           nextRealEstateAssetId: 0,
+          ...createEmptyMerchantWorldSlices(),
           marketResourcePrices: {},
           monthlyHoldingResourceRevenue: {},
         },

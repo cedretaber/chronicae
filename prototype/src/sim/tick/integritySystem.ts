@@ -12,6 +12,7 @@ import { checkPoliticalRights } from './integrityRightChecks'
 import { checkInfluenceModifiers } from './integrityInfluenceModifierChecks'
 import { checkPersonReputations } from './integrityReputationChecks'
 import { checkResourceEconomy } from './integrityResourceEconomyChecks'
+import { checkMerchant } from './integrityMerchantChecks'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -75,6 +76,7 @@ export function collectIntegrityErrors(
   checkInfluenceModifiers(state, errors)
   checkPersonReputations(state, errors)
   checkResourceEconomy(state, errors, config)
+  checkMerchant(state, errors)
 
   return errors
 }

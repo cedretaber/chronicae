@@ -12,6 +12,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { expireOfficeTermAssignment } from '../mutations/officeMutations'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
@@ -147,6 +148,7 @@ function makeBaseState(): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }
@@ -791,6 +793,7 @@ describe('expireOfficeTermAssignment', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }

@@ -36,6 +36,10 @@ import type {
   RealEstateAssetId,
   RealEstateSeizureId,
   LandContractDefaultId,
+  MerchantCompanyId,
+  MerchantCompanyEstablishmentId,
+  TradeRouteId,
+  MerchantCompanyShareId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -57,6 +61,16 @@ import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { Clan } from './clan'
 import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImprovement'
 import type { RealEstateAsset, RealEstateAssetIndex } from './realEstateAsset'
+import type {
+  MerchantCompany,
+  MerchantCompanyEstablishment,
+  TradeRoute,
+  MerchantCompanyShare,
+  MerchantCompanyIndex,
+  MerchantCompanyEstablishmentIndex,
+  TradeRouteIndex,
+  MerchantCompanyShareIndex,
+} from './merchant'
 import type { MarketResourcePriceState, HoldingResourceRevenueSnapshot } from './resourceEconomy'
 import type { MonthlyPopMobilitySnapshot } from './popMobility'
 import type { MonthlyPopChangeSnapshot } from './popChange'
@@ -124,6 +138,25 @@ export type WorldState = {
   realEstateAssets: Record<RealEstateAssetId, RealEstateAsset>
   realEstateAssetIndex: RealEstateAssetIndex
   nextRealEstateAssetId: number
+  // v0.61 商会・交易システム
+  merchantCompanies: Record<MerchantCompanyId, MerchantCompany>
+  merchantCompanyIndex: MerchantCompanyIndex
+  nextMerchantCompanyId: number
+  merchantCompanyEstablishments: Record<
+    MerchantCompanyEstablishmentId,
+    MerchantCompanyEstablishment
+  >
+  merchantCompanyEstablishmentIndex: MerchantCompanyEstablishmentIndex
+  nextMerchantCompanyEstablishmentId: number
+  tradeRoutes: Record<TradeRouteId, TradeRoute>
+  tradeRouteIndex: TradeRouteIndex
+  nextTradeRouteId: number
+  merchantCompanyShares: Record<MerchantCompanyShareId, MerchantCompanyShare>
+  merchantCompanyShareIndex: MerchantCompanyShareIndex
+  nextMerchantCompanyShareId: number
+  // §20.7 再興 cooldown 追跡 (dissolved record は purge されるため明示保持)。
+  //   StateRegionId → 最後の dissolution / refounding 週。
+  merchantFoundingCooldownByState: Record<string, number>
   // v0.54 資源経済 read-model (ResourceEconomySystem が月次出力。next*Id 不要)
   marketResourcePrices: Record<string, MarketResourcePriceState>
   monthlyHoldingResourceRevenue: Record<HoldingId, HoldingResourceRevenueSnapshot>

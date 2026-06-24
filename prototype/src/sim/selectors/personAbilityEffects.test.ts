@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 import {
   createPolityId,
   createHouseId,
@@ -256,6 +257,7 @@ function makeWorldState(
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

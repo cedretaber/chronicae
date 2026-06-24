@@ -109,7 +109,7 @@ describe('getEffectiveOfficeMaxHolders', () => {
       'leader',
     )
     const def = OFFICE_DEFINITIONS['polity:leader']
-    expect(result).toBe(def.maxHolders)
+    expect(result).toBe(def?.maxHolders)
   })
 
   it('applies province factor for polity non-leader roles', () => {

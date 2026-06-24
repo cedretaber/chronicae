@@ -104,6 +104,11 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     enforce_obligation: undefined,
     // 外交系: Play 側で delegate に評価が付くため map は undefined (isDiplomaticProjectKind 経路)
     enforce_land_contract_default: undefined,
+    // v0.61 商会 Project: 商業経営の統治実績 = administration
+    upgrade_company_headquarters: 'administration',
+    build_company_branch: 'administration',
+    open_trade_route: 'administration',
+    upgrade_trade_route: 'administration',
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']
@@ -386,7 +391,10 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
         const affiliatedOrgs = reputationOrgs.filter((org) =>
           org.kind === 'house'
             ? ws.persons[recipient.personId]?.houseId === org.id
-            : isPersonAffiliatedWithPolityForReputation(ws, recipient.personId, org.id),
+            : org.kind === 'polity'
+              ? isPersonAffiliatedWithPolityForReputation(ws, recipient.personId, org.id)
+              : // v0.61: 商会は war reputation org にならない。
+                false,
         )
         if (affiliatedOrgs.length === 0) {
           awardPersonReputationMut(

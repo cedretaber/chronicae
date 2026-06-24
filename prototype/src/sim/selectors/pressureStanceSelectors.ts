@@ -4,6 +4,7 @@ import type { OrganizationRef } from '../types/office'
 import type { PressureResponseStance } from '../types/pressure'
 import { getOrganizationMilitaryPower } from './organizationSelectors'
 import { getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
+import { getMerchantCompanyDecisionMaker } from './merchantSelectors'
 import { normalizedTrait } from './personAbilityEffects'
 
 // 圧力 (外交劇) に対する被圧力側 (target) の応答 stance を、彼我の軍事力比から予測する。
@@ -32,7 +33,9 @@ function getDecisionMakerTraits(
   const leaderId =
     actor.kind === 'polity'
       ? getPolityLeader(state, actor.id)
-      : getHouseDecisionMaker(state, actor.id)
+      : actor.kind === 'house'
+        ? getHouseDecisionMaker(state, actor.id)
+        : getMerchantCompanyDecisionMaker(state, actor.id)
   const person = leaderId ? state.persons[leaderId] : undefined
   if (!person || !person.alive) return { ambition: 0.5, caution: 0.5 }
   return { ambition: person.traits.ambition, caution: person.traits.caution }

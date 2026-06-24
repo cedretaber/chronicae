@@ -41,6 +41,8 @@ export function getOrganizationOfficeEntityRefs(org: OrganizationRef): EventEnti
       return [entityRef('polity', org.id, 'organization')]
     case 'house':
       return []
+    case 'merchant_company':
+      return [entityRef('merchant_company', org.id, 'organization')]
     default: {
       const _exhaustive: never = org
       throw new Error(
@@ -240,6 +242,26 @@ function getOfficeHolderPower(state: WorldState, office: OfficeAssignment): numb
 
       return clamp(power, 0.01, Infinity)
     }
+    case 'merchant_company': {
+      // v0.61: 会長/番頭とも maxHolders=1 なので getPrimaryOfficeHolder が早期 return し
+      //   本関数は実際には到達しないが、exhaustive のため house に倣った決定的 power を返す。
+      //   share rawPower 比率 + prestige + tenure (org respect は v0.61 では未計上)。
+      const companyId = org.id
+      const shareIds = state.merchantCompanyShareIndex.byCompany[companyId as string] ?? []
+      let total = 0
+      let mine = 0
+      for (const sid of shareIds) {
+        const s = state.merchantCompanyShares[sid]
+        if (!s) continue
+        total += s.rawPower
+        if ((s.holderPersonId as string) === (person.id as string)) mine += s.rawPower
+      }
+      const personSharePct = total > 0 ? (mine / total) * 100 : 0
+      const prestige = person.legacyPrestige
+      const tenure = clamp((state.currentYear - office.startYear) * 0.01, 0, 0.1)
+      const power = 1 + (personSharePct / 100) * 0.7 + (prestige / 100) * 0.15 + tenure
+      return clamp(power, 0.01, Infinity)
+    }
     default: {
       const _exhaustive: never = org
       throw new Error(`getOfficeHolderPower: unexpected organization ${String(_exhaustive)}`)
@@ -350,6 +372,13 @@ export function getEffectiveOfficeMaxHolders(
   switch (organization.kind) {
     case 'house':
       return role === 'leader' ? baseMax : 1
+    case 'merchant_company': {
+      // active company のみ office を持つ (§8.1)。非 active は shell (max 0)。
+      //   leader/administrator とも OFFICE_DEFINITIONS の maxHolders(=1) をそのまま使う。
+      const company = state.merchantCompanies[organization.id]
+      if (!company || company.status !== 'active') return 0
+      return baseMax
+    }
     case 'polity': {
       const polity = state.polities[organization.id]
       if (!polity || !polity.active) return baseMax

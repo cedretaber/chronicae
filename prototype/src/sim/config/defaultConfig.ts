@@ -6,6 +6,7 @@ import type { PopClass, PopStratum } from '../types/popGroup'
 import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
+import type { MerchantEstablishmentKind } from '../types/merchant'
 import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature, TerrainTraitDefinition } from '../types/province'
 import type { NeedTier } from '../types/needCategory'
@@ -1031,6 +1032,8 @@ export type SimulationConfig = {
   officeTermYears: {
     polity: Record<Exclude<OfficeRole, 'leader'>, number>
     house: Record<Exclude<OfficeRole, 'leader'>, number>
+    // v0.61: 商会 office 任期 (番頭 = administrator のみ実用。leader は share 同期で任期なし)。
+    merchant_company: Record<Exclude<OfficeRole, 'leader'>, number>
   }
   provinceOfficeTermYears: {
     bailiff: number
@@ -1556,6 +1559,25 @@ export type SimulationConfig = {
   realEstateSeizureEnforceResistanceThreshold: number
   landContractDefaultEnforcePowerThreshold: number
   terminalObligationRetentionWeeks: number
+  // v0.61 商会・交易システム (§23)。初期値はバランス調整前提の仮置き。
+  merchantCompanyTradeRouteSlotsPerHeadquartersLevel: number
+  tradeRouteThroughputByLevel: Record<number, number>
+  tradeRouteSpreadCaptureRate: number
+  tradeRouteServiceMarginRate: number
+  tradeRouteTransportCostPerUnit: number
+  tradeRouteFixedMaintenanceCostByLevel: Record<number, number>
+  merchantCompanyInitialRouteGraceWeeks: number
+  merchantCompanyWageShare: number
+  merchantCompanyUpperDividendShare: number
+  merchantCompanyOwnerDividendRate: number
+  merchantEstablishmentCommerceShareByKind: Record<MerchantEstablishmentKind, number>
+  merchantCommerceRevenueCapByEstablishmentKind: Record<MerchantEstablishmentKind, number>
+  merchantCompanyBankruptcyTreasuryThreshold: number
+  merchantCompanyBankruptcyGraceMonths: number
+  merchantCompanyRefoundingCooldownWeeks: number
+  merchantCompanyMinimumMarketValueForFounding: number
+  merchantCompanyFoundingTreasury: number
+  terminalMerchantRetentionWeeks: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2552,6 +2574,7 @@ export const defaultConfig: SimulationConfig = {
   officeTermYears: {
     polity: { administrator: 4, treasurer: 4, military: 3, advisor: 3 },
     house: { administrator: 4, treasurer: 4, military: 3, advisor: 3 },
+    merchant_company: { administrator: 4, treasurer: 4, military: 3, advisor: 3 },
   },
   provinceOfficeTermYears: {
     bailiff: 3,
@@ -3220,4 +3243,23 @@ export const defaultConfig: SimulationConfig = {
   realEstateSeizureEnforceResistanceThreshold: 40,
   landContractDefaultEnforcePowerThreshold: 40,
   terminalObligationRetentionWeeks: 48,
+  // v0.61 商会・交易システム (§23)。長期実行で調整する仮値。
+  merchantCompanyTradeRouteSlotsPerHeadquartersLevel: 4,
+  tradeRouteThroughputByLevel: { 1: 5, 2: 10, 3: 18, 4: 30 },
+  tradeRouteSpreadCaptureRate: 0.5,
+  tradeRouteServiceMarginRate: 0.05,
+  tradeRouteTransportCostPerUnit: 0.1,
+  tradeRouteFixedMaintenanceCostByLevel: { 1: 1, 2: 2, 3: 3, 4: 4 },
+  merchantCompanyInitialRouteGraceWeeks: 52,
+  merchantCompanyWageShare: 0.4,
+  merchantCompanyUpperDividendShare: 0.05,
+  merchantCompanyOwnerDividendRate: 0.2,
+  merchantEstablishmentCommerceShareByKind: { headquarters: 0.02, branch: 0.01 },
+  merchantCommerceRevenueCapByEstablishmentKind: { headquarters: 50, branch: 25 },
+  merchantCompanyBankruptcyTreasuryThreshold: -50,
+  merchantCompanyBankruptcyGraceMonths: 12,
+  merchantCompanyRefoundingCooldownWeeks: 260,
+  merchantCompanyMinimumMarketValueForFounding: 0,
+  merchantCompanyFoundingTreasury: 100,
+  terminalMerchantRetentionWeeks: 104,
 }

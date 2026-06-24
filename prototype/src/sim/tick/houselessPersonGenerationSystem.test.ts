@@ -10,6 +10,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { buildLivingPersonIds } from '../testFixtures'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 function makeBaseState(): WorldState {
   const dummyHoldings: Record<HoldingId, Holding> = {}
@@ -143,6 +144,7 @@ function makeBaseState(): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

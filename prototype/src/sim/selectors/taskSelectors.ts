@@ -196,6 +196,11 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   withhold_land_contract_tax: 'command',
   enforce_obligation: 'command',
   enforce_land_contract_default: 'charisma',
+  // v0.61 商会 Project: 商業実務 = numeracy (帳簿・採算)
+  upgrade_company_headquarters: 'numeracy',
+  build_company_branch: 'numeracy',
+  open_trade_route: 'numeracy',
+  upgrade_trade_route: 'numeracy',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。

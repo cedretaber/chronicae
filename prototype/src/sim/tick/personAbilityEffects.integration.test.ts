@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import type { TickContext } from './context'
@@ -496,6 +497,7 @@ describe('runControlSystem — capital province maxControl', () => {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     }

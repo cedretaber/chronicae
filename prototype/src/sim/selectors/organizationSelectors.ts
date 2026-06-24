@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { ProvinceId, PersonId, PolityId, HouseId } from '../types/ids'
+import type { ProvinceId, PersonId, PolityId, HouseId, MerchantCompanyId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
 import { getPolityLeader, getHouseLeader } from './officeSelectors'
 import { calcPolityMilitaryPower, calcHouseMilitaryPower } from './militarySelectors'
@@ -9,6 +9,7 @@ import {
   getHouseControlledProvinceIds,
 } from './landContractSelectors'
 import { getPolityNameRefForEmit } from './nameRefSelectors'
+import { getMerchantCompanyDecisionMaker } from './merchantSelectors'
 
 // OrganizationRef.kind (polity / house) に対する分岐を 1 箇所に集約するための utility selector。
 // v0.18/v0.34 で war/diplomacy の「主体 (actor)」分岐集約として導入したが、実体は組織 (polity /
@@ -17,21 +18,39 @@ import { getPolityNameRefForEmit } from './nameRefSelectors'
 // だが、selector レベルでは house も同等に扱える。
 
 export function getOrganizationName(state: WorldState, actor: OrganizationRef): string {
-  if (actor.kind === 'polity') {
-    if (!state.polities[actor.id]) return 'Unknown Polity'
-    return getPolityNameRefForEmit(state, actor.id).nameKey
+  switch (actor.kind) {
+    case 'polity':
+      if (!state.polities[actor.id]) return 'Unknown Polity'
+      return getPolityNameRefForEmit(state, actor.id).nameKey
+    case 'house':
+      return state.houses[actor.id]?.nameKey ?? 'Unknown House'
+    case 'merchant_company':
+      return state.merchantCompanies[actor.id]?.nameKey ?? 'Unknown Company'
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(`getOrganizationName: unexpected organization ${String(_exhaustive)}`)
+    }
   }
-  return state.houses[actor.id]?.nameKey ?? 'Unknown House'
 }
 
 export function getOrganizationLeaderPersonId(
   state: WorldState,
   actor: OrganizationRef,
 ): PersonId | undefined {
-  if (actor.kind === 'polity') {
-    return getPolityLeader(state, actor.id)
+  switch (actor.kind) {
+    case 'polity':
+      return getPolityLeader(state, actor.id)
+    case 'house':
+      return getHouseLeader(state, actor.id)
+    case 'merchant_company':
+      return getMerchantCompanyDecisionMaker(state, actor.id)
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(
+        `getOrganizationLeaderPersonId: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
   }
-  return getHouseLeader(state, actor.id)
 }
 
 export function getOrganizationMilitaryPower(
@@ -39,29 +58,61 @@ export function getOrganizationMilitaryPower(
   config: SimulationConfig,
   actor: OrganizationRef,
 ): number {
-  if (actor.kind === 'polity') {
-    return calcPolityMilitaryPower(state, config, actor.id)
+  switch (actor.kind) {
+    case 'polity':
+      return calcPolityMilitaryPower(state, config, actor.id)
+    case 'house':
+      return calcHouseMilitaryPower(state, config, actor.id)
+    case 'merchant_company':
+      // v0.61 商会は私兵を持たない (商会私兵は future)。
+      return 0
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(
+        `getOrganizationMilitaryPower: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
   }
-  return calcHouseMilitaryPower(state, config, actor.id)
 }
 
 export function getOrganizationResourceAmount(state: WorldState, actor: OrganizationRef): number {
-  if (actor.kind === 'polity') {
-    return state.polities[actor.id]?.treasury ?? 0
+  switch (actor.kind) {
+    case 'polity':
+      return state.polities[actor.id]?.treasury ?? 0
+    case 'house':
+      return state.houses[actor.id]?.wealth ?? 0
+    case 'merchant_company':
+      return state.merchantCompanies[actor.id]?.treasury ?? 0
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(
+        `getOrganizationResourceAmount: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
   }
-  return state.houses[actor.id]?.wealth ?? 0
 }
 
 // Polity: terminal grantee Province を返す
 // House: 当 House が控除権 (controlled) を持つ Province を返す
+// merchant_company: v0.61 では領域を持たない (空)。
 export function getOrganizationRelevantProvinceIds(
   state: WorldState,
   actor: OrganizationRef,
 ): ProvinceId[] {
-  if (actor.kind === 'polity') {
-    return getPolityTerminalProvinceIds(state, actor.id)
+  switch (actor.kind) {
+    case 'polity':
+      return getPolityTerminalProvinceIds(state, actor.id)
+    case 'house':
+      return getHouseControlledProvinceIds(state, actor.id)
+    case 'merchant_company':
+      return []
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(
+        `getOrganizationRelevantProvinceIds: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
   }
-  return getHouseControlledProvinceIds(state, actor.id)
 }
 
 // v0.34: OrganizationRef を index key 文字列に変換する共有 helper。
@@ -75,12 +126,22 @@ export function organizationKey(ref: OrganizationRef): string {
 // v0.34: organization (Polity / House) が存在し active かを判定する共有 helper。
 // IntegrityCheck §14.4 の active-participant 要求と、War lifecycle system の dead-participant guard で使う。
 export function isOrganizationActive(state: WorldState, actor: OrganizationRef): boolean {
-  if (actor.kind === 'polity') {
-    const p = state.polities[actor.id]
-    return Boolean(p && p.active)
+  switch (actor.kind) {
+    case 'polity': {
+      const p = state.polities[actor.id]
+      return Boolean(p && p.active)
+    }
+    case 'house': {
+      const h = state.houses[actor.id]
+      return Boolean(h && h.active)
+    }
+    case 'merchant_company':
+      return state.merchantCompanies[actor.id]?.status === 'active'
+    default: {
+      const _exhaustive: never = actor
+      throw new Error(`isOrganizationActive: unexpected organization ${String(_exhaustive)}`)
+    }
   }
-  const h = state.houses[actor.id]
-  return Boolean(h && h.active)
 }
 
 // 同一 organization かを比較する helper (kind+id で一致)。
@@ -97,4 +158,8 @@ export function polityOrganization(id: PolityId): OrganizationRef {
 
 export function houseOrganization(id: HouseId): OrganizationRef {
   return { kind: 'house', id }
+}
+
+export function merchantCompanyOrganization(id: MerchantCompanyId): OrganizationRef {
+  return { kind: 'merchant_company', id }
 }

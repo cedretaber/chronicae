@@ -21,6 +21,7 @@ import type {
 } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import { getOrganizationName } from '../selectors/organizationSelectors'
 import { isContractEliminationRate } from '../selectors/landContractSelectors'
 import {
   getWarPrimaryAttacker,
@@ -33,19 +34,26 @@ import {
 //   ここで append まで行う (conflictResolutionSystem.ts の local emitEvent と同パターン)。
 
 function actorEntityKind(actor: OrganizationRef): EventEntityKind {
-  return actor.kind === 'polity' ? 'polity' : 'house'
+  switch (actor.kind) {
+    case 'polity':
+      return 'polity'
+    case 'house':
+      return 'house'
+    case 'merchant_company':
+      return 'merchant_company'
+  }
 }
 
 function actorNameKey(state: WorldState, actor: OrganizationRef): string {
-  if (actor.kind === 'polity') return getPolityNameRefForEmit(state, actor.id).nameKey
-  return state.houses[actor.id]?.nameKey ?? actor.id
+  return getOrganizationName(state, actor)
 }
 
 // v0.41 (§7.2): nameParam の emit category。holding 由来 Polity は 'polity' でなく
 // 'province'/'city' になるため、actor.kind ではなくこの helper で category を決める。
 function actorEmitCategory(state: WorldState, actor: OrganizationRef): string {
   if (actor.kind === 'polity') return getPolityNameRefForEmit(state, actor.id).category
-  return 'house'
+  if (actor.kind === 'house') return 'house'
+  return 'merchant_company'
 }
 
 function emit(

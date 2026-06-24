@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
@@ -433,6 +434,7 @@ describe('runSuccessionSystem', () => {
         },
         nextLandContractDefaultId: 0,
         nextRealEstateAssetId: 0,
+        ...createEmptyMerchantWorldSlices(),
         marketResourcePrices: {},
         monthlyHoldingResourceRevenue: {},
       },
@@ -636,6 +638,7 @@ describe('runSuccessionSystem', () => {
         },
         nextLandContractDefaultId: 0,
         nextRealEstateAssetId: 0,
+        ...createEmptyMerchantWorldSlices(),
         marketResourcePrices: {},
         monthlyHoldingResourceRevenue: {},
       },

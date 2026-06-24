@@ -5,6 +5,7 @@ import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
 import { buildLivingPersonIds } from '../testFixtures'
 import { isForbiddenMarriagePair } from './kinshipSelectors'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -171,6 +172,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     },
     nextLandContractDefaultId: 0,
     nextRealEstateAssetId: 0,
+    ...createEmptyMerchantWorldSlices(),
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
   }

@@ -18,6 +18,8 @@ import {
 export function getOwnerNameKey(state: WorldState, owner: DecisionSubjectRef): string {
   if (owner.kind === 'polity') return getPolityNameRefForEmit(state, owner.id).nameKey
   if (owner.kind === 'house') return state.houses[owner.id]?.nameKey ?? owner.id
+  if (owner.kind === 'merchant_company')
+    return state.merchantCompanies[owner.id]?.nameKey ?? owner.id
   return state.persons[owner.id]?.nameKey ?? owner.id
 }
 
@@ -28,5 +30,10 @@ export function getOwnerNameKey(state: WorldState, owner: DecisionSubjectRef): s
 export function getOwnerNameRefForEmit(state: WorldState, owner: DecisionSubjectRef): SimNameRef {
   if (owner.kind === 'polity') return getPolityNameRefForEmit(state, owner.id)
   if (owner.kind === 'house') return getHouseNameRefForEmit(state, owner.id)
+  if (owner.kind === 'merchant_company')
+    return {
+      category: 'merchant_company',
+      nameKey: state.merchantCompanies[owner.id]?.nameKey ?? owner.id,
+    }
   return { category: 'person', nameKey: state.persons[owner.id]?.nameKey ?? owner.id }
 }

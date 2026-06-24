@@ -6,6 +6,7 @@ import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
 import { runBirthSystem } from './birthSystem'
 import { makeEmptyV016State } from '../testFixtures'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -222,6 +223,7 @@ describe('runBirthSystem', () => {
         },
         nextLandContractDefaultId: 0,
         nextRealEstateAssetId: 0,
+        ...createEmptyMerchantWorldSlices(),
         marketResourcePrices: {},
         monthlyHoldingResourceRevenue: {},
       },
@@ -389,6 +391,7 @@ describe('runBirthSystem', () => {
         },
         nextLandContractDefaultId: 0,
         nextRealEstateAssetId: 0,
+        ...createEmptyMerchantWorldSlices(),
         marketResourcePrices: {},
         monthlyHoldingResourceRevenue: {},
       },
@@ -551,6 +554,7 @@ describe('runBirthSystem', () => {
         },
         nextLandContractDefaultId: 0,
         nextRealEstateAssetId: 0,
+        ...createEmptyMerchantWorldSlices(),
         marketResourcePrices: {},
         monthlyHoldingResourceRevenue: {},
       },
@@ -717,6 +721,7 @@ describe('runBirthSystem', () => {
           },
           nextLandContractDefaultId: 0,
           nextRealEstateAssetId: 0,
+          ...createEmptyMerchantWorldSlices(),
           marketResourcePrices: {},
           monthlyHoldingResourceRevenue: {},
         },
@@ -864,6 +869,7 @@ describe('runBirthSystem', () => {
           },
           nextLandContractDefaultId: 0,
           nextRealEstateAssetId: 0,
+          ...createEmptyMerchantWorldSlices(),
           marketResourcePrices: {},
           monthlyHoldingResourceRevenue: {},
         },

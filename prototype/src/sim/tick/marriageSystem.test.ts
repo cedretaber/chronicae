@@ -7,6 +7,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { defaultConfig } from '../config/defaultConfig'
 import { buildLivingPersonIds } from '../testFixtures'
 import { runMarriageSystem } from './marriageSystem'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -171,6 +172,7 @@ function makeBaseCtx(
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     },

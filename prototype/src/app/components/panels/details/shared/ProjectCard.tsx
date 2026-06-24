@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { Project } from '@/sim/types/project'
 import type { WorldState } from '@/sim/types/world'
-import type { EntityRef } from '@/sim/types/goal'
+import type { EntityRef, DecisionSubjectRef } from '@/sim/types/goal'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import {
   describeProject,
@@ -23,12 +23,18 @@ export type NavigateHandler = (entityType: EntityType, id: string) => void
 // EntityRef.kind のうちパネルを持つもの → EntityType。これ以外は describeProject が
 // entity ではなく enum/number で返すため、ここに来ない。リンク可能 kind の集合は
 // sim 側 PANEL_ENTITY_KINDS を単一情報源として共有する (5 kind はすべて EntityType の部分集合)。
-function panelTypeOf(ref: EntityRef): EntityType | undefined {
-  return PANEL_ENTITY_KINDS.has(ref.kind) ? (ref.kind as EntityType) : undefined
+// v0.61: owner/contributor/pressure source 等は DecisionSubjectRef (merchant_company を含む)。
+//   EntityRefLink は両方を受ける。パネルを持たない kind は default でプレーンテキスト。
+type LinkableRef = EntityRef | DecisionSubjectRef
+
+function panelTypeOf(ref: LinkableRef): EntityType | undefined {
+  return PANEL_ENTITY_KINDS.has(ref.kind as EntityRef['kind'])
+    ? (ref.kind as EntityType)
+    : undefined
 }
 
 function resolveEntityName(
-  ref: EntityRef,
+  ref: LinkableRef,
   worldState: WorldState,
   resolveName: ReturnType<typeof useEntityName>,
 ): string {
@@ -48,6 +54,10 @@ function resolveEntityName(
     case 'province': {
       const province = worldState.provinces[ref.id]
       return province ? resolveName('province', province.nameKey, province.nameKey) : ref.id
+    }
+    case 'merchant_company': {
+      const company = worldState.merchantCompanies[ref.id]
+      return company ? resolveName('merchant_company', company.nameKey, company.nameKey) : ref.id
     }
     default:
       return ref.kind
@@ -82,7 +92,7 @@ export function EntityRefLink({
   worldState,
   onNavigate,
 }: {
-  entityRef: EntityRef
+  entityRef: LinkableRef
   worldState: WorldState
   onNavigate: NavigateHandler
 }) {
@@ -184,6 +194,7 @@ const OWNER_KIND_BADGE: Record<Project['owner']['kind'], string> = {
   polity: 'bg-sky-900 text-sky-200',
   house: 'bg-amber-900 text-amber-200',
   person: 'bg-emerald-900 text-emerald-200',
+  merchant_company: 'bg-purple-900 text-purple-200',
 }
 
 export function ProjectCard({ project, worldState }: { project: Project; worldState: WorldState }) {

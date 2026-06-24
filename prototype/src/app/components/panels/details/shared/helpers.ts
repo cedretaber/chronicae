@@ -237,7 +237,10 @@ export function buildEntitySnapshot(
             orgName:
               o.organization.kind === 'polity'
                 ? polityNameKey(o.organization.id)
-                : houseNameKey(o.organization.id),
+                : o.organization.kind === 'house'
+                  ? houseNameKey(o.organization.id)
+                  : // v0.61 商会 office
+                    (ws?.merchantCompanies[o.organization.id]?.nameKey ?? o.organization.id),
             role: o.role,
             displayName:
               OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? null,

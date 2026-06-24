@@ -1,6 +1,12 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { OfficeAssignmentId, PolityId, HouseId, PersonId } from '@sim/types/ids'
+import type {
+  OfficeAssignmentId,
+  PolityId,
+  HouseId,
+  PersonId,
+  MerchantCompanyId,
+} from '@sim/types/ids'
 import type { SimEvent } from '@sim/types/event'
 import { entityRef } from '@sim/types/event'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
@@ -10,6 +16,7 @@ import type { WorldState } from '@sim/types/world'
 import type { Person } from '@sim/types/person'
 import type { Polity } from '@sim/types/polity'
 import type { House } from '@sim/types/house'
+import type { MerchantCompany } from '@sim/types/merchant'
 import type { OfficeAssignment } from '@sim/types/office'
 
 const COMPENSATION_CALLS_PER_YEAR = 12
@@ -22,6 +29,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
   const personsMut = { ...state.persons } as Record<PersonId, Person>
   const politiesMut = { ...state.polities } as Record<PolityId, Polity>
   const housesMut = { ...state.houses } as Record<HouseId, House>
+  const companiesMut = { ...state.merchantCompanies } as Record<MerchantCompanyId, MerchantCompany>
   const officesMut = { ...state.officeAssignments } as Record<OfficeAssignmentId, OfficeAssignment>
 
   let currentCtx = ctx
@@ -53,6 +61,12 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
         payerFunds = house.wealth
         break
       }
+      case 'merchant_company': {
+        const company = companiesMut[org.id]
+        if (!company) continue
+        payerFunds = company.treasury
+        break
+      }
       default: {
         const _exhaustive: never = org
         throw new Error(`officeCompensation: unexpected organization ${String(_exhaustive)}`)
@@ -71,6 +85,11 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       case 'house': {
         const house = housesMut[org.id]
         if (house) housesMut[org.id] = { ...house, wealth: house.wealth - paid }
+        break
+      }
+      case 'merchant_company': {
+        const company = companiesMut[org.id]
+        if (company) companiesMut[org.id] = { ...company, treasury: company.treasury - paid }
         break
       }
       default: {
@@ -134,6 +153,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
     persons: personsMut,
     polities: politiesMut,
     houses: housesMut,
+    merchantCompanies: companiesMut,
     officeAssignments: officesMut,
   }
 

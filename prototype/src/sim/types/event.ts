@@ -228,6 +228,10 @@ export type EventEntityKind =
   // 会戦再生 UI: major BATTLE_OCCURRED の ChronicleEntry から恒久 BattleLog へのリンク用 ref kind。
   //   index bucket は持たない (indexBucketForKind の default で無視) — ナビゲーション専用。
   | 'battleLog'
+  // v0.61 商会・交易 (§26.1)。商会設立/破産/休眠/消滅 → merchant_company、
+  //   交易路開設/拡張/閉鎖 → trade_route、支店開設/本店拡張 → merchant_company + holding。
+  | 'merchant_company'
+  | 'trade_route'
 
 export type EventEntityRef = {
   kind: EventEntityKind

@@ -3,6 +3,7 @@ import type { TickContext } from './context'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { advanceTime } from './advanceTime'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 function makeCtx(year: number, weekOfYear: number): TickContext {
   return {
@@ -125,6 +126,7 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       },
       nextLandContractDefaultId: 0,
       nextRealEstateAssetId: 0,
+      ...createEmptyMerchantWorldSlices(),
       marketResourcePrices: {},
       monthlyHoldingResourceRevenue: {},
     },

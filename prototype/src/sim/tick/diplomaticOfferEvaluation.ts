@@ -138,17 +138,22 @@ function canApplyDemand(
         const polity = state.polities[demand.from.id]
         if (!polity?.active) return { valid: false, reason: 'missing_actor' }
         if (polity.treasury < demand.amount) return { valid: false, reason: 'insufficient_funds' }
-      } else {
+      } else if (demand.from.kind === 'house') {
         const house = state.houses[demand.from.id]
         if (!house) return { valid: false, reason: 'missing_actor' }
         if (house.wealth < demand.amount) return { valid: false, reason: 'insufficient_funds' }
+      } else {
+        // v0.61: 商会は外交 actor にならない (integrity が弾く)。到達したら missing_actor。
+        return { valid: false, reason: 'missing_actor' }
       }
       if (demand.to.kind === 'polity') {
         const polity = state.polities[demand.to.id]
         if (!polity?.active) return { valid: false, reason: 'missing_actor' }
-      } else {
+      } else if (demand.to.kind === 'house') {
         const house = state.houses[demand.to.id]
         if (!house) return { valid: false, reason: 'missing_actor' }
+      } else {
+        return { valid: false, reason: 'missing_actor' }
       }
       return { valid: true }
     }

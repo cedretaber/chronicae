@@ -38,7 +38,10 @@ function isOrganizationActive(state: WorldState, actor: OrganizationRef): boolea
   if (actor.kind === 'polity') {
     return state.polities[actor.id]?.active === true
   }
-  return state.houses[actor.id]?.active === true
+  if (actor.kind === 'house') {
+    return state.houses[actor.id]?.active === true
+  }
+  return state.merchantCompanies[actor.id]?.status === 'active'
 }
 
 export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {

@@ -13,7 +13,11 @@ import type {
   CrisisId,
   RealEstateAssetId,
   LandContractDefaultId,
+  MerchantCompanyId,
+  TradeRouteId,
+  StateRegionId,
 } from './ids'
+import type { ResourceKind } from './resource'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
 import type { AbilityKey } from './person'
@@ -99,6 +103,12 @@ export type ProjectKind =
   // v0.53 Phase 4: LandContractDefault 強制 Project (diplomatic)。owner=claimant Polity。
   //   contract_tax_revision play → war 経由で default を resolved にする。
   | 'enforce_land_contract_default'
+  // v0.61 商会 Project。owner=merchant_company。budget=商会 treasury。
+  //   close/replace は ProjectKind にせず decision system が直接処理する (§17.4)。
+  | 'upgrade_company_headquarters'
+  | 'build_company_branch'
+  | 'open_trade_route'
+  | 'upgrade_trade_route'
 
 export type BaseProject = {
   id: ProjectId
@@ -407,6 +417,41 @@ export type EnforceObligationProject = BaseProject & {
   diplomaticPlayId?: DiplomaticPlayId
 }
 
+// v0.61 商会 Project (§18)。owner=merchant_company。budget=商会 treasury。
+//   find_supervisor → secure_budget → execute_project (+ raise_funds back-edge) で進行。
+export type UpgradeCompanyHeadquartersProject = BaseProject & {
+  kind: 'upgrade_company_headquarters'
+  owner: { kind: 'merchant_company'; id: MerchantCompanyId }
+  companyId: MerchantCompanyId
+  budget: ProjectBudget
+}
+
+export type BuildCompanyBranchProject = BaseProject & {
+  kind: 'build_company_branch'
+  owner: { kind: 'merchant_company'; id: MerchantCompanyId }
+  companyId: MerchantCompanyId
+  targetHoldingId: HoldingId
+  budget: ProjectBudget
+}
+
+export type OpenTradeRouteProject = BaseProject & {
+  kind: 'open_trade_route'
+  owner: { kind: 'merchant_company'; id: MerchantCompanyId }
+  companyId: MerchantCompanyId
+  sourceStateId: StateRegionId
+  targetStateId: StateRegionId
+  resource: ResourceKind
+  budget: ProjectBudget
+}
+
+export type UpgradeTradeRouteProject = BaseProject & {
+  kind: 'upgrade_trade_route'
+  owner: { kind: 'merchant_company'; id: MerchantCompanyId }
+  companyId: MerchantCompanyId
+  targetTradeRouteId: TradeRouteId
+  budget: ProjectBudget
+}
+
 export type Project =
   | DevelopHoldingProject
   | DevelopRealEstateProject
@@ -434,6 +479,10 @@ export type Project =
   | WithholdLandContractTaxProject
   | EnforceObligationProject
   | EnforceLandContractDefaultProject
+  | UpgradeCompanyHeadquartersProject
+  | BuildCompanyBranchProject
+  | OpenTradeRouteProject
+  | UpgradeTradeRouteProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

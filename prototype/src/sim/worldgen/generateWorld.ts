@@ -94,6 +94,7 @@ import {
 } from '../types/needCategory'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
+import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
 
 // v0.58: worldgen 初期 money 概算用。essential tier の need を「最も効率の良い (安い) 資源」で
 //   満たした場合の 1 pop・1 ヶ月あたりコストを basePrice で概算する (RNG 不使用・balance-defer)。
@@ -754,6 +755,8 @@ export function generateWorld(
     realEstateAssets: {},
     realEstateAssetIndex: { byHolding: {}, byOwner: {} },
     nextRealEstateAssetId: 0,
+    // v0.61 商会・交易システム (P3 worldgen seed まで空)
+    ...createEmptyMerchantWorldSlices(),
     // v0.54 資源経済 read-model
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},
@@ -1871,6 +1874,8 @@ export function generateWorld(
     realEstateAssets,
     realEstateAssetIndex: { byHolding: realEstateAssetIndexByHolding, byOwner: {} },
     nextRealEstateAssetId,
+    // v0.61 商会・交易システム (P3 worldgen seed まで空)
+    ...createEmptyMerchantWorldSlices(),
     // v0.54 資源経済 read-model
     marketResourcePrices: {},
     monthlyHoldingResourceRevenue: {},

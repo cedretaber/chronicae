@@ -55,12 +55,13 @@ export function scorePersonAimKind(
         organization: { kind: oa.organization.kind, id: oa.organization.id },
         role: oa.role,
       }
-    } else {
+    } else if (oa.organization.kind === 'house') {
       heldHouseOffice = {
         organization: { kind: oa.organization.kind, id: oa.organization.id },
         role: oa.role,
       }
     }
+    // v0.61: merchant_company office は held{Polity,House}Office に含めない (aim gate は P5 で設計)。
   }
 
   // v0.48: obtain_office の抑制判定は「実職 (収入を生む役職)」の有無で行う。

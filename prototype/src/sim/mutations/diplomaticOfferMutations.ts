@@ -116,7 +116,7 @@ function applyPayWealth(
         },
       },
     }
-  } else {
+  } else if (demand.from.kind === 'house') {
     const house = nextState.houses[demand.from.id]
     if (!house) return ctx
     nextState = {
@@ -129,6 +129,9 @@ function applyPayWealth(
         },
       },
     }
+  } else {
+    // v0.61: 商会は外交 actor にならない (integrity が弾く)。到達したら no-op。
+    return ctx
   }
 
   // Add to recipient
@@ -145,7 +148,7 @@ function applyPayWealth(
         },
       },
     }
-  } else {
+  } else if (demand.to.kind === 'house') {
     const house = nextState.houses[demand.to.id]
     if (!house) return { ...ctx, state: nextState }
     nextState = {
@@ -158,6 +161,9 @@ function applyPayWealth(
         },
       },
     }
+  } else {
+    // v0.61: 商会は外交 actor にならない。到達したら no-op。
+    return { ...ctx, state: nextState }
   }
 
   return { ...ctx, state: nextState }

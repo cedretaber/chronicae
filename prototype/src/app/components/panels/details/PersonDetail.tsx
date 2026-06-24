@@ -90,6 +90,10 @@ export function PersonDetail({
       const p = worldState.polities[org.id]
       return p ? getPolityShortName(worldState, resolveName, org.id) : org.id
     }
+    if (org.kind === 'merchant_company') {
+      const c = worldState.merchantCompanies[org.id]
+      return c ? resolveName('merchant_company', c.nameKey, c.nameKey) : org.id
+    }
     const h = worldState.houses[org.id]
     return getHouseDisplayName(resolveName, h, org.id)
   }
