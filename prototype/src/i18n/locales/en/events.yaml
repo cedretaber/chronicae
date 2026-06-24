@@ -421,3 +421,8 @@ enum:
     enforce_obligation: 'enforcing an obligation'
 merchant:
   company_dissolved: '{{company}} dissolved after losing its patron house.'
+  route_opened: '{{company}} opened a new trade route.'
+  route_upgraded: '{{company}} upgraded a trade route.'
+  route_closed: '{{company}} closed an unprofitable trade route.'
+  branch_built: '{{company}} established a new branch.'
+  hq_upgraded: '{{company}} expanded its headquarters.'

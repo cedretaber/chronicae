@@ -31,6 +31,7 @@ import { runMerchantCompanyShareUpdateSystem } from './merchantCompanyShareUpdat
 import { runMerchantCompanyOfficeSyncSystem } from './merchantCompanyOfficeSyncSystem'
 import { runTradePlanningSystem } from './tradePlanningSystem'
 import { runMerchantCompanyAccountingSystem } from './merchantCompanyAccountingSystem'
+import { runMerchantCompanyDecisionSystem } from './merchantCompanyDecisionSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
@@ -232,6 +233,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runMerchantCompanyAccountingSystem,
+  },
+  {
+    // v0.61 §17/§18: 年次。商会の自律 decision（route close/replace 即時 + build Project 生成）。
+    name: 'merchantCompanyDecisionSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runMerchantCompanyDecisionSystem,
   },
   {
     // v0.48 §4: 正イベント (BountifulHarvest) のみ。負イベントは crisisSystem に移設。

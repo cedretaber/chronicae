@@ -420,3 +420,8 @@ enum:
     enforce_obligation: '義務の強制'
 merchant:
   company_dissolved: '{{company}}が後ろ盾を失い解散した。'
+  route_opened: '{{company}}が新たな交易路を開設した。'
+  route_upgraded: '{{company}}が交易路を拡張した。'
+  route_closed: '{{company}}が不採算の交易路を閉鎖した。'
+  branch_built: '{{company}}が新たな支店を開設した。'
+  hq_upgraded: '{{company}}が本店を増築した。'

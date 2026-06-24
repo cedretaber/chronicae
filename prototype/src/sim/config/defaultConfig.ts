@@ -1582,6 +1582,14 @@ export type SimulationConfig = {
   merchantCompanyMinimumMarketValueForFounding: number
   merchantCompanyFoundingTreasury: number
   terminalMerchantRetentionWeeks: number
+  // v0.61 §17/§18 自律 decision。
+  merchantDecisionReviewIntervalWeeks: number
+  merchantRouteCloseSmoothedProfitThreshold: number
+  merchantBuildTreasuryFloor: number
+  merchantOpenRouteProjectBudget: number
+  merchantUpgradeRouteProjectBudget: number
+  merchantBuildBranchProjectBudget: number
+  merchantUpgradeHqProjectBudget: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -3267,4 +3275,12 @@ export const defaultConfig: SimulationConfig = {
   merchantCompanyMinimumMarketValueForFounding: 0,
   merchantCompanyFoundingTreasury: 100,
   terminalMerchantRetentionWeeks: 104,
+  // v0.61 §17/§18 自律 decision（balance-defer の仮値）。
+  merchantDecisionReviewIntervalWeeks: 48,
+  merchantRouteCloseSmoothedProfitThreshold: -1.5,
+  merchantBuildTreasuryFloor: 60,
+  merchantOpenRouteProjectBudget: 30,
+  merchantUpgradeRouteProjectBudget: 40,
+  merchantBuildBranchProjectBudget: 80,
+  merchantUpgradeHqProjectBudget: 120,
 }

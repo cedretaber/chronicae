@@ -43,6 +43,12 @@ import {
 } from '../selectors/nameRefSelectors'
 import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
+import {
+  createTradeRouteMut,
+  createMerchantCompanyEstablishmentMut,
+  setMerchantEstablishmentLevelMut,
+} from '../mutations/merchantMutations'
+import { getCompanyHeadquarters, getAdjacentStateRegionIds } from '../selectors/merchantSelectors'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
 import { createPoliticalRight, removePoliticalRight } from '../mutations/politicalRightMutations'
@@ -556,7 +562,143 @@ function applyNonDiplomaticEffectMut(
     case 'enforce_obligation':
       applyEnforceObligationMut(ws, project, emitEvent)
       break
+    // v0.61 商会 (§18): 完了時に route/branch を生成・level up。生成 guard は §24.1 invariant と同型。
+    case 'open_trade_route':
+      applyOpenTradeRouteMut(ws, config, project, emitEvent)
+      break
+    case 'upgrade_trade_route':
+      applyUpgradeTradeRouteMut(ws, project, emitEvent)
+      break
+    case 'build_company_branch':
+      applyBuildCompanyBranchMut(ws, project, emitEvent)
+      break
+    case 'upgrade_company_headquarters':
+      applyUpgradeCompanyHeadquartersMut(ws, project, emitEvent)
+      break
   }
+}
+
+// v0.61 §18: 商会 Project の outcome。生成時 invariant（source≠target・隣接・重複 active route 禁止・
+//   slot cap・level≤HQ.level・HQ/branch=city）を満たさなければ no-op（completed project でも整合を壊さない）。
+function applyOpenTradeRouteMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'open_trade_route') return
+  const company = ws.merchantCompanies[project.companyId]
+  if (!company || company.status !== 'active') return
+  if ((project.sourceStateId as string) === (project.targetStateId as string)) return
+  const adjacent = getAdjacentStateRegionIds(ws, project.sourceStateId)
+  if (!adjacent.some((s) => (s as string) === (project.targetStateId as string))) return
+  const activeRoutes = (ws.tradeRouteIndex.byCompany[project.companyId as string] ?? [])
+    .map((id) => ws.tradeRoutes[id])
+    .filter((r): r is NonNullable<typeof r> => !!r && r.status === 'active')
+  if (
+    activeRoutes.some(
+      (r) =>
+        (r.sourceStateId as string) === (project.sourceStateId as string) &&
+        (r.targetStateId as string) === (project.targetStateId as string) &&
+        r.resource === project.resource,
+    )
+  )
+    return
+  const hq = getCompanyHeadquarters(ws, project.companyId)
+  const cap = (hq?.level ?? 0) * config.merchantCompanyTradeRouteSlotsPerHeadquartersLevel
+  if (activeRoutes.length >= cap) return
+  createTradeRouteMut(ws, {
+    companyId: project.companyId,
+    sourceStateId: project.sourceStateId,
+    targetStateId: project.targetStateId,
+    resource: project.resource,
+    level: 1,
+    createdWeek: ws.absoluteWeek,
+  })
+  emitEvent({
+    type: 'MERCHANT_ROUTE_OPENED',
+    importance: 'minor',
+    messageKey: 'merchant.route_opened',
+    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
+  })
+}
+
+function applyUpgradeTradeRouteMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'upgrade_trade_route') return
+  const company = ws.merchantCompanies[project.companyId]
+  if (!company || company.status !== 'active') return
+  const route = ws.tradeRoutes[project.targetTradeRouteId]
+  if (!route || route.status !== 'active') return
+  const hq = getCompanyHeadquarters(ws, project.companyId)
+  if (!hq || route.level >= hq.level) return // level ≤ HQ.level invariant
+  ws.tradeRoutes[project.targetTradeRouteId] = { ...route, level: route.level + 1 }
+  emitEvent({
+    type: 'MERCHANT_ROUTE_UPGRADED',
+    importance: 'minor',
+    messageKey: 'merchant.route_upgraded',
+    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
+  })
+}
+
+function applyBuildCompanyBranchMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'build_company_branch') return
+  const company = ws.merchantCompanies[project.companyId]
+  if (!company || company.status !== 'active') return
+  if (ws.holdings[project.targetHoldingId]?.kind !== 'city') return // branch=city invariant
+  // 同一 holding に既存 active establishment があれば no-op（重複禁止 invariant）。
+  const dup = (ws.merchantCompanyEstablishmentIndex.byCompany[project.companyId as string] ?? [])
+    .map((id) => ws.merchantCompanyEstablishments[id])
+    .some(
+      (e) =>
+        !!e &&
+        e.status === 'active' &&
+        (e.holdingId as string) === (project.targetHoldingId as string),
+    )
+  if (dup) return
+  createMerchantCompanyEstablishmentMut(ws, {
+    companyId: project.companyId,
+    holdingId: project.targetHoldingId,
+    kind: 'branch',
+    level: 1,
+    createdWeek: ws.absoluteWeek,
+  })
+  emitEvent({
+    type: 'MERCHANT_BRANCH_BUILT',
+    importance: 'minor',
+    messageKey: 'merchant.branch_built',
+    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
+  })
+}
+
+function applyUpgradeCompanyHeadquartersMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'upgrade_company_headquarters') return
+  const company = ws.merchantCompanies[project.companyId]
+  if (!company || company.status !== 'active') return
+  const hq = getCompanyHeadquarters(ws, project.companyId)
+  if (!hq) return
+  setMerchantEstablishmentLevelMut(ws, hq.id, hq.level + 1)
+  emitEvent({
+    type: 'MERCHANT_HQ_UPGRADED',
+    importance: 'minor',
+    messageKey: 'merchant.hq_upgraded',
+    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
+  })
 }
 
 // v0.53 上納拒否 outcome (§7.2/§11.2)。owner Polity が自身の terminal contract の上納を拒否。
