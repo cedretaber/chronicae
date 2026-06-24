@@ -69,6 +69,7 @@ succession:
 office:
   assigned_polity: '{{person}} was appointed as {{role}} of {{polity}}.'
   assigned_house: '{{person}} was appointed as {{role}} of {{house}}.'
+  assigned_merchant_company: '{{person}} was appointed as {{role}} of {{company}}.'
   revoked: "Office of {{role}} in {{organization}} was revoked as the holder's house no longer holds province in this polity."
   revoked_houseless: 'Office of {{role}} in {{organization}} was revoked as the holder, now without a house or faction backing, lost eligibility.'
   revoked_capacity: 'Office of {{role}} in {{organization}} was revoked due to reduced office capacity.'

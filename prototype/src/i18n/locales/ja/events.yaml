@@ -68,6 +68,7 @@ succession:
 office:
   assigned_polity: '{{person}}が{{polity}}の{{role}}に任命された。'
   assigned_house: '{{person}}が{{house}}の{{role}}に任命された。'
+  assigned_merchant_company: '{{person}}が{{company}}の{{role}}に任命された。'
   revoked: '{{organization}}における{{role}}の職が、保持者の家門が領地を持たなくなったため解任された。'
   revoked_houseless: '{{organization}}における{{role}}の職が、保持者が無家となり派閥の後ろ盾も失ったため解任された。'
   revoked_capacity: '{{organization}}における{{role}}の職が、定員削減のため解任された。'

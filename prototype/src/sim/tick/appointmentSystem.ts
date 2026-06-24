@@ -22,7 +22,11 @@ import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeH
 import { getAppointmentTaskModifier } from '../selectors/appointmentTaskSelectors'
 import { getAppointmentReputationModifier } from '../selectors/personReputationSelectors'
 
-import type { PersonId, PolityId, HouseId } from '../types/ids'
+import type { PersonId, PolityId, HouseId, MerchantCompanyId } from '../types/ids'
+import {
+  getMerchantCompanyDecisionMaker,
+  getMerchantCompanyCandidatePersonIds,
+} from '../selectors/merchantSelectors'
 import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -59,6 +63,8 @@ import { getOfficeDefinition } from '../config/officeDefinitions'
 
 const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
+// v0.61: 商会は番頭 (administrator) のみ appoint する。会長 (leader) は share 同期 (§8.1)。
+const MERCHANT_COMPANY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator']
 
 // polity / house 任命の共通前処理: 当該 organization/role の現職のうち
 // 死亡 (or 不在) している者の役職を罷免し、更新後の ctx を返す。
@@ -770,6 +776,73 @@ function tryAppointHouseOffice(
   return currentCtx
 }
 
+// v0.61 §8.2: 商会 office (番頭 = administrator) の軽量任命。
+//   候補 = ownerHouse の生存 normal メンバー ∪ share holder、現会長 (decisionMaker) は除外。
+//   right / faction 機構 (polity 専用) は使わず、stewardship 相当の ability で決定的に選ぶ。
+function tryAppointMerchantCompanyOffice(
+  ctx: TickContext,
+  companyId: MerchantCompanyId,
+  role: OfficeRole,
+): TickContext {
+  const config = ctx.config
+  const ref: OrganizationRef = { kind: 'merchant_company', id: companyId }
+
+  let currentCtx = revokeDeadOfficeHolders(ctx, ref, role)
+
+  const activeHolders = getActiveOfficeHolders(currentCtx.state, ref, role)
+  const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, ref, role)
+  if (activeHolders.length >= effectiveMax) return currentCtx
+
+  const company = currentCtx.state.merchantCompanies[companyId]
+  if (!company) return currentCtx
+
+  const chairman = getMerchantCompanyDecisionMaker(currentCtx.state, companyId)
+  const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+
+  // 候補プール: 会社の候補人物 (会長/番頭/share holder/ownerHouse member) から、現会長と
+  //   既任命者を除外する (小規模商家で会長＝番頭になるのを防ぐ。§8.2)。
+  const candidates = getMerchantCompanyCandidatePersonIds(currentCtx.state, companyId).filter(
+    (id) =>
+      (chairman === undefined || (id as string) !== (chairman as string)) &&
+      !alreadyHolding.has(id as string),
+  )
+
+  const selectBest = (gate: boolean): { id: PersonId; score: number } | undefined => {
+    const scored = candidates
+      .filter((id) => !gate || isRoleEligibleBySex(currentCtx.state, config, id))
+      .map((id) => ({ id, score: getRelevantStat(currentCtx.state, id, role) }))
+    return pickBestScored(scored, config.minAppointmentScore)
+  }
+
+  let best = selectBest(true)
+  if (!best && config.allowFemaleRolesWhenNoMaleCandidate) best = selectBest(false)
+  if (!best) return currentCtx
+
+  const newState = createOfficeAssignment(currentCtx.state, ref, role, best.id)
+  currentCtx = { ...currentCtx, state: newState }
+
+  const person = currentCtx.state.persons[best.id]
+  if (person) {
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
+      type: 'OFFICE_ASSIGNED',
+      importance: 'normal',
+      messageKey: 'office.assigned_merchant_company',
+      messageParams: {
+        person: nameParam('person', person.nameKey),
+        role: nameParam('role', `merchant_company_${role}`),
+        company: nameParam('merchant_company', company.nameKey),
+      },
+      entityRefs: [
+        entityRef('person', best.id, 'appointee', person.nameKey),
+        entityRef('merchant_company', companyId, 'organization', company.nameKey),
+      ],
+    })
+    currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
+  }
+
+  return currentCtx
+}
+
 export function runAppointmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
@@ -823,6 +896,18 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
 
     for (const role of HOUSE_APPOINTABLE_ROLES) {
       currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role, projectedAnnualIncome)
+    }
+  }
+
+  // v0.61 §8.2: 商会 offices。番頭 (administrator) のみ appoint する (会長 = leader は
+  //   merchantCompanyOfficeSyncSystem が share から同期)。active company のみ対象。
+  for (const companyId of Object.keys(
+    currentCtx.state.merchantCompanies,
+  ).sort() as MerchantCompanyId[]) {
+    const company = currentCtx.state.merchantCompanies[companyId]
+    if (!company || company.status !== 'active') continue
+    for (const role of MERCHANT_COMPANY_APPOINTABLE_ROLES) {
+      currentCtx = tryAppointMerchantCompanyOffice(currentCtx, companyId, role)
     }
   }
 

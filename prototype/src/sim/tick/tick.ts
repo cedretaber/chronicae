@@ -27,6 +27,8 @@ import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
 import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
+import { runMerchantCompanyShareUpdateSystem } from './merchantCompanyShareUpdateSystem'
+import { runMerchantCompanyOfficeSyncSystem } from './merchantCompanyOfficeSyncSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
@@ -319,6 +321,13 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runHouseShareUpdateSystem,
   },
   {
+    // v0.61 §9.2: 商会 share の年次更新 (deceased holder purge)。houseShareUpdateSystem と同型。
+    name: 'merchantCompanyShareUpdateSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runMerchantCompanyShareUpdateSystem,
+  },
+  {
     // v0.46 §5.2.2: 任期 leader 交代。年次・AppointmentSystem より前 (交代後に同年の
     //   AppointmentSystem が新 leader を踏まえて通常 office appointment を行える)。
     name: 'republicLeadershipSystem',
@@ -574,6 +583,15 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runOrganizationConsistencySystem,
+  },
+  {
+    // v0.61 §8.1: 会長 (share 由来 decisionMaker) を merchant_company:leader office に同期する。
+    //   weekly・death を生む全 system の後・cleanup/integrity の前 (House leader 救済と同型の配慮)。
+    //   §24.1 の leader holder liveness を year-end integrity 前に成立させる。
+    name: 'merchantCompanyOfficeSyncSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runMerchantCompanyOfficeSyncSystem,
   },
   {
     // v0.34 §7.9 / §B advisor①: consistency 系の後ろに置き、PeaceSettlement 起因で
