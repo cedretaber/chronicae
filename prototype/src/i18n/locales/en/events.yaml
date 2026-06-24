@@ -302,7 +302,6 @@ enum:
     diplomatic_play: 'diplomatic negotiation'
     war: 'war'
     revolt: 'a popular revolt'
-    duty: 'their duties'
     natural: 'daily practice'
   geniusType:
     commander: 'a great commander'

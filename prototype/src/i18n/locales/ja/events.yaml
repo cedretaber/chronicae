@@ -301,7 +301,6 @@ enum:
     diplomatic_play: '外交交渉'
     war: '戦争'
     revolt: '民衆反乱'
-    duty: '職務経験'
     natural: '日々の研鑽'
   geniusType:
     commander: '名将'

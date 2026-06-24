@@ -57,7 +57,8 @@ export function abilityOutputFactor(roleScore: number, config: SimulationConfig)
 }
 
 // 天賦が平均(abilityAptitudeMean)を超えるほど年齢軸を前倒しする早熟係数。平均以下は 1.0
-// (従来カーブのまま)。分母 100 は天賦スケール(0..120)に対する正規化。
+// (従来カーブのまま)。分母 100 は「平均から 100 ポイント上で +talentEarlyBloomStrength」という
+// 較正用の正規化スケール (talentEarlyBloomStrength と一体で調整する独立軸。ABILITY_* 定数とは無関係)。
 function talentBloomMultiplier(aptitude: number, config: SimulationConfig): number {
   return (
     1 + config.talentEarlyBloomStrength * Math.max(0, (aptitude - config.abilityAptitudeMean) / 100)
