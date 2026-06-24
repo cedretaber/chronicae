@@ -3053,3 +3053,27 @@ tax-0 子契約 + `revolt_seizure` specialStatus を廃止し、`taxRateToGranto
 #### Config（保守的初期値・balance 保留）
 
 `*PrescriptionYears`=20 / `*OpportunityThreshold`=40 / 各 `*ProjectCooldownWeeks`=96 / `revoltOccupationNominalTaxRate`=0.5 / `seizeResistanceReference`=150 / `withholdMilitaryAdvantageFactor`=0.6 / `violenceOpportunityTargetWeaknessWeight`=0.2 / `violenceOpportunityPrizeWeight`=0.04 / `*EnforceResistanceThreshold` 系=40 / `terminalObligationRetentionWeeks`=48。観察メモ: 初期値での seize 起案頻度は seed により 16〜115 件/150年と高め（enforce 経由 resolved / 20年 prescription 経由 legalized は全 seed で観測）。頻度の絞り込みは balance phase へ defer（プロトタイプ方針 §4）。
+
+### 6.71 商会・交易（MerchantCompany / TradeRoute・v0.61）
+
+StateRegion 単位の市場（§6.55+）は state 間で資源が流通せず、価格 probe で全資源が state 横断で構造的価格差を持つ。v0.61 は **商会（MerchantCompany）と交易路（TradeRoute）** を導入し、商会を polity / house と並ぶ第三の組織種（`OrganizationKind='merchant_company'`・`DecisionSubjectRef` 統合）として正規化する。設計詳細は `docs/drafts/spec-v061-update.md`（git 管理外・working tree に存置）。本節は**実装された挙動**と、設計ドラフトからの **lean 逸脱**を記録する（実装→spec 同期 §3）。
+
+**エンティティ（§3 系）**: `MerchantCompany`(mc-)・`MerchantCompanyEstablishment`(me-・本店 headquarters / 支店 branch)・`TradeRoute`(tr-)・`MerchantCompanyShare`(ms-)。商会 owner は専用の **runtime House（`dh-` 名前空間・kind='normal'）**で、worldgen seed / runtime 再興のいずれも新規に作る（worldgen `h-` と非衝突・person は `pe-` 共有）。
+
+**worldgen seed**: 各 StateRegion の city holding に商会 1 社 + 本店 + ownerHouse(3 名) + share + 会頭(share decisionMaker)/番頭(office) + 初期 route 1 本（source 産出 argmax × 隣接 state）。`seedOneMerchantCompany` を worldgen と再興で共有。
+
+**市場 injection（§14）**: `tradePlanningSystem`（resourceEconomy 直前・月次）が前月 snapshot から各 active route の `plannedQuantity = min(throughput, sourceExportable, targetImportDemand)` を算出。resourceEconomy で **非対称注入**: source 側 export 需要を清算前 demand へ、target 側 import 供給を `computeResourcePrice` 直前のローカル sell へ加算。これで route が price を均す方向に作用する。
+
+**会計（§15/§16）**: `merchantCompanyAccountingSystem`（月次）が route profit（当月清算価格 × quantity の arbitrage+serviceFee−transport−maintenance）+ commerce revenue（前月 snapshot・施設 kind 別 cap）を gross に集計し、§16.6 で **wage（雇用 POP へ mint）/ upper 配当（雇用 patricians へ mint）/ owner 配当（House.wealth）/ retained（treasury）** へ分配。**carve==mint**（mint 先不在 pool は treasury 残置で money 保存）。
+
+**雇用 provider（§16.6）**: 商会施設の popType 別雇用枠（本店 patricians:merchants:scribes:laborers=1:3:3:3 / 支店 merchants:scribes:laborers=2:2:2 × level）を `getHoldingMerchantEmploymentSlots` で集計し、`computeHoldingPopTypeCapacity` 等に `merchantTerm` として holding 雇用 capacity へ統合。**二重給与回避**: asset 賃金は asset-only share のまま・商会枠は別 denominator。同 popType の集約 POP が asset 賃金と商会賃金の両 pool を受けるのは既存の asset+infra 賃金 pooling と同型（money 保存・per-capita 分配は balance-defer）。
+
+**自律化（§17/§18）**: `merchantCompanyDecisionSystem`（年次）が treasury / smoothedProfit / 市場シグナルで route 開設・拡張・閉鎖（**close/replace は即時**）・支店建設・本店増築を決める。**lean 逸脱①**: 設計ドラフトは商会を Goal/Aim の owner として統合する想定だったが、実装は crisis と同じ **system-origin の born-complete Project**（status=completed で生成→次 tick の projectOutcomeSystem が 4 ProjectKind outcome を発火→route/branch 生成→purge）を採り、Goal/Aim entity を介さない。cost は生成時に treasury から drain（投資額）。multi-week 実行・funding 集金（`projectFundingSelectors` の merchant_company 分岐）は未配線（future）。
+
+**lifecycle（§20）**: `cleanupMerchantSystem`（weekly）が破産（accounting の `distressSince` で treasury<閾値 & smoothedProfit<0 の連続週を追跡）→ dormant 化 + terminal entity（closed route/branch・dormant/dissolved 商会＋share）の retention purge。`merchantCompanyFoundingSystem`（年次）が active 商会ゼロの state へ cooldown + production gate で再興（**ctx.rng で person 生成**・ID は `ctx.nextPersonIndex/nextHouseIndex` の live カウンタから採る＝state.nextPersonIndex は worldgen 専用で stale）。house 断絶時は `worldStructureExtinction` が owner 商会を dissolved 化（§20.4・同 tick）。
+
+**determinism（§25 改訂）**: **lean 逸脱②**: 当初「商会 ON の rng カウンタ = pre-merchant baseline」で「既存世界を 1ビットも変えない」を証明する設計だったが、商会 House メンバーは normal Person で mortality 等が処理し既存 draw をずらすため **P3 以降達成不可**。プロトタイプ方針（§4：機能完成後にまとめて balance 調整）に照らし過剰なため撤去し、達成可能な **(a) OFF==baseline（`merchantSystemEnabled=false` flag）/ (b) reproducibility / (c) 150年×4seed integrity** に再定義。§25 の「runtime merchant system は共有 RNG 非消費」も撤回（隔離 rng は worldgen seed のみ・再興は ctx.rng）。
+
+**lean 逸脱③ / balance-defer**: share holder 死亡時の share 再発行機構が無く ~50年で shares が枯渇する（商会は ownerHouse decision-maker fallback で機能継続・非クラッシュ。share 相続は future）。商家/貴族排他 guard（§10.3 `canHouseOwnMerchantCompany` 等）は未配線だが、商会 owner が常に専用 dh- House（polity 非所有・所有権移転機構なし）のため排他は**構造的に成立済み**。全 config 既定値は balance-defer。
+
+**UI（§22）**: `MerchantCompanyDetail`（所有家・会頭/番頭・財務・本支店・交易路）+ HouseDetail の「商会」セクションから導線。`EntityType='merchant_company'`。
