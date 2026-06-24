@@ -475,6 +475,8 @@
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、employed=true の POP） |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
+| ~~perCapitaFoodNeed~~ | — | v0.60.3 廃止（固定 1.0 の per-capita 食料需要）。carrying capacity の per-capita 需要は `popEssentialNeedScale` から人口加重で導出（`getPerCapitaFoodNeed`、§6.2.1a） |
+| popEssentialNeedScale | 0.9 | essential 食料 desire スケール兼**人口密度ダイヤル**。需要と食料扶養力の双方を決める（高い=低密度）。v0.60.3 で 0.5→0.9（§6.2.1a / §6.6 v0.60.3 注記） |
 | ~~productivityByClass~~ | — | v0.54 廃止（旧 getPopProduction の per-class 生産性。生産は ResourceEconomySystem の recipe×labor に置換、§6.3c） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
 | baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別） |
@@ -544,16 +546,15 @@
 | abilityHeritability | 0.5 | 両親平均 vs populationMean のブレンド比率 |
 | abilityAptitudeNoiseStddev | 8 | 遺伝時のガウスノイズ標準偏差 |
 | abilityInitialNoiseStddev | 3 | ability 初期値サンプル時のガウスノイズ標準偏差 |
-| ageCurveLifelongMaxFraction | 0.70 | 終生成長曲線の最大到達比率 |
 | ageCurveLifelongAgeConstant | 30 | 終生成長曲線の時定数 |
-| ageCurveYouthMaxFraction | 0.75 | 若年期ピーク曲線の最大到達比率 |
 | ageCurveYouthPeakAge | 30 | 若年期ピーク曲線のピーク年齢 |
 | ageCurveYouthDeclineConstant | 40 | 若年期ピーク曲線のピーク後減衰時定数 |
-| ageCurveMidLifeMaxFraction | 0.70 | 壮年期ピーク曲線の最大到達比率 |
 | ageCurveMidLifePeakAge | 45 | 壮年期ピーク曲線のピーク年齢 |
 | ageCurveMidLifeDeclineConstant | 60 | 壮年期ピーク曲線のピーク後減衰時定数 |
-| abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
-| abilityGrowthGapFactor | 0.1 | v0.45 成長成功時の伸び幅係数 (ギャップ比例・最低 +1) |
+| talentEarlyBloomStrength | 1.5 | 天賦による年齢曲線上昇側の前倒し(早熟)の強さ。0=従来カーブ |
+| naturalGrowthTaperFraction | 0.8 | 自然成長の到達上限 = この割合 × 天賦。0.8→1.0 は成果(award)成長のみ |
+| abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、naturalCeil との比率で減衰） |
+| abilityGrowthGapFactor | 0.15 | v0.45 成長成功時の伸び幅係数 (ギャップ比例・最低 +1) |
 | abilityDeclineChanceBase | 5 | 衰退判定の基礎確率（%） |
 | abilityActiveDeclineMultiplier | 0.30 | 経験あり人物の衰退速度倍率（鈍化） |
 | estateBaseRecoveryRate | 0.5 | 家回収率の基礎値（Share=0 のとき） |
@@ -693,6 +694,18 @@
 | projectDeadlineWeeksDiplomatic | 24 | 外交系 Project のデフォルト deadline（週） |
 | prepareProjectPartialTargetProgressPenalty | 10 | prepare_project 部分成功時の targetProgress ペナルティ |
 | projectCooldownWeeks | 4 | Project 着手のクールダウン（週） |
+| **v0.60 Project 資金集めフェーズ** | | |
+| projectInitialReserveFraction | 0.3 | secure_budget で初期確保する required の割合（残りは raise_funds で集める） §6.38 |
+| projectMaxFundingRounds | 3 | budget 枯渇時の raise_funds ラウンド上限（超えると budget_exhausted）§6.40 |
+| projectFundingRoundMinCollectionFraction | 0.15 | 1 ラウンドの最小回収率（requiredRemaining 比）。未満で funding_failed §6.38 |
+| projectFundingDeadlineExtensionWeeks | 48 | 資金集め成功時の deadline 延長（週）= 1 年 §6.38 |
+| fundraisingMaxContributionFractionByContributorKind | polity 0.2 / house 0.2 / person 0.25 / pop 0.15 | external 拠出の kind 別上限率（stock 比）。能力×関係で減衰 §6.38 |
+| insiderMaxContributionFraction | 0.5 | insider（owner/creator/supervisor/代官）の最大拠出率（stock 比）。v0.60.2 で能力スケール（下記 floor〜本値）§6.38 |
+| insiderAbilityFloor | 0.5 | insider 拠出率の能力 floor（v0.60.2）。`insiderMax × (floor + (1−floor)×abilityFactor)`。能力 0 でも floor 倍は出す・関係非依存 §6.38 |
+| popContributionHorizonMonths | 3 | POP が拠出前に確保する生活費の月数（これを超える余剰のみ拠出）§6.38 |
+| fundraisingAbilityExponent | 1.4 | external 拠出の能力係数の指数 `(diplomacy score/50)^exp` §6.38 |
+| projectMajorContributorTrackLimit | 5 | majorContributors に記録する累積上位件数（建造 Chronicle 用）§6.38 |
+| localWealthyPopContributorLimit | 8 | ローカル POP 拠出候補の上限件数（予約・現状全列挙）§6.38 |
 | **Task 成否判定** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
 | **HoldingImprovement / ProjectBudget** | | |

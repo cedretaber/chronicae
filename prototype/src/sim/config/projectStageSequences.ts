@@ -11,6 +11,9 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'find_supervisor', type: 'immediate' },
     { key: 'secure_budget', type: 'immediate' },
     { key: 'execute_project', type: 'final' },
+    // v0.60: budget 枯渇時に projectMaintenanceSystem が遷移させる back-edge ステージ。
+    // resolver が手動で execute_project へ戻すため getNextProjectStageKey の対象にしない。
+    { key: 'raise_funds', type: 'immediate' },
   ],
 
   promote_policy_shift: [{ key: 'execute_project', type: 'final' }],
@@ -95,6 +98,8 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'find_supervisor', type: 'immediate' },
     { key: 'secure_budget', type: 'immediate' },
     { key: 'execute_project', type: 'final' },
+    // v0.60: budget 枯渇時の back-edge ステージ (resolver が手動遷移)。
+    { key: 'raise_funds', type: 'immediate' },
   ],
 
   // v0.52 不動産取得: develop_real_estate と同型
@@ -102,6 +107,8 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'find_supervisor', type: 'immediate' },
     { key: 'secure_budget', type: 'immediate' },
     { key: 'execute_project', type: 'final' },
+    // v0.60: budget 枯渇時の back-edge ステージ (resolver が手動遷移)。
+    { key: 'raise_funds', type: 'immediate' },
   ],
 
   // v0.52 所有不動産増築: develop_real_estate と同型
@@ -109,6 +116,8 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'find_supervisor', type: 'immediate' },
     { key: 'secure_budget', type: 'immediate' },
     { key: 'execute_project', type: 'final' },
+    // v0.60: budget 枯渇時の back-edge ステージ (resolver が手動遷移)。
+    { key: 'raise_funds', type: 'immediate' },
   ],
 
   // v0.48 Crisis: develop_holding に倣う。find_supervisor → secure_budget (treasury 前借り) →
@@ -117,6 +126,8 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'find_supervisor', type: 'immediate' },
     { key: 'secure_budget', type: 'immediate' },
     { key: 'mitigate', type: 'final' },
+    // v0.60: budget 枯渇時の back-edge ステージ (resolver が手動遷移)。
+    { key: 'raise_funds', type: 'immediate' },
   ],
 
   // v0.53 押領・上納拒否・義務強制: prepare_argument → execute_project の 2 段 (C2)。
@@ -150,7 +161,12 @@ export function getNextProjectStageKey(project: Project): ProjectStageKey | unde
   const seq = PROJECT_STAGE_SEQUENCES[project.kind]
   const idx = seq.findIndex((e) => e.key === project.currentStageKey)
   if (idx < 0 || idx >= seq.length - 1) return undefined
-  return seq[idx + 1]!.key
+  const next = seq[idx + 1]!
+  // v0.60: raise_funds は final stage の後ろに置く back-edge 専用ステージ。linear 遷移
+  //   (例: execute_project の「次」) には絶対に出さない。遷移は resolver/maintenance が手動で行う。
+  //   これにより final stage の linear next は従来どおり undefined のまま (caller 全体の不変条件を維持)。
+  if (next.key === 'raise_funds') return undefined
+  return next.key
 }
 
 export function isProjectStageValid(project: Project): boolean {

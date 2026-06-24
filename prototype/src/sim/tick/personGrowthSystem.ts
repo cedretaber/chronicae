@@ -28,14 +28,12 @@ function averageLivingParentAbility(
   return values.reduce((a, b) => a + b, 0) / values.length
 }
 
-// 自然成長の emit 用レコード。duty = hadRelevantExperience による上限解放が
-// なければ起こり得なかった成長 (oldValue >= naturalCeil の帯)。
+// 自然成長の emit 用レコード。
 type NaturalGrowthRecord = {
   personId: PersonId
   key: AbilityKey
   oldValue: number
   newValue: number
-  duty: boolean
 }
 
 export function runPersonGrowthSystem(ctx: TickContext): TickContext {
@@ -55,17 +53,18 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
       const ability = newAbilities[k]
       const aptitude = person.aptitudes[k]
 
-      const naturalCeil = aptitude * naturalFraction(k, person.age, ctx.config)
-      const experienced = hadRelevantExperience(ctx.state, person.id, k)
-      const effectiveCeil = experienced ? aptitude : naturalCeil
+      // 自然成長の天井 = aptitude × naturalFraction (天賦比例の早熟 ＋ 0.8 taper)。0.8 超 (→ aptitude)
+      //   は award 成長 (applyImmediateAbilityGrowthMut) のみで到達する。経験 (hadRelevantExperience)
+      //   による天井解放は撤廃 (衰退倍率には引き続き使用)。
+      const naturalCeil = aptitude * naturalFraction(k, person.age, aptitude, ctx.config)
 
       let grew = false
 
       // Growth
-      if (ability < effectiveCeil && effectiveCeil > 0) {
-        let gainChance = ctx.config.abilityGrowthChanceBase * (1 - ability / effectiveCeil)
+      if (ability < naturalCeil && naturalCeil > 0) {
+        let gainChance = ctx.config.abilityGrowthChanceBase * (1 - ability / naturalCeil)
         // v0.40 §6.3: childhood/adolescence は living 親能力が自分より高い ability で成長 chance に加点。
-        //   aptitudes/effectiveCeil/naturalFraction は不変（age-curve には触れない）。
+        //   aptitudes/naturalCeil/naturalFraction は不変（age-curve には触れない）。
         if (person.lifeStage === 'childhood' || person.lifeStage === 'adolescence') {
           const parentalAbility = averageLivingParentAbility(ctx.state, person, k)
           if (parentalAbility !== undefined && parentalAbility > ability) {
@@ -75,16 +74,15 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
         const { value: roll, rng: nextRng } = randomFloat(rng)
         rng = nextRng
         if (roll < gainChance / 100) {
-          // v0.45: 成長量はギャップ比例 (成功時最低 +1)。天井近くでは従来どおり +1、
-          //   天井と大きく離れている (天才の幼少期・登用直後の上限解放) ほど大きく伸びる。
-          //   新値は round(effectiveCeil) を超えない (従来の +1 overshoot 幅は維持)。
+          // v0.45: 成長量はギャップ比例 (成功時最低 +1)。天井近くでは +1、天井と大きく離れている
+          //   (天才の幼少期) ほど大きく伸びる。新値は round(naturalCeil) を超えない。
           const gapAmount = Math.max(
             1,
-            Math.round((effectiveCeil - ability) * ctx.config.abilityGrowthGapFactor),
+            Math.round((naturalCeil - ability) * ctx.config.abilityGrowthGapFactor),
           )
           newAbilities[k] = Math.min(
             ability + gapAmount,
-            Math.max(Math.round(effectiveCeil), ability + 1),
+            Math.max(Math.round(naturalCeil), ability + 1),
             ABILITY_HARD_CAP,
           )
           changed = true
@@ -94,9 +92,6 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
             key: k,
             oldValue: ability,
             newValue: newAbilities[k],
-            // naturalCeil 以上の帯での成長は experienced による上限解放がなければ
-            // 起こり得なかった = 職務 (経験) 由来の成長として区別する
-            duty: experienced && ability >= naturalCeil,
           })
         }
       }
@@ -104,7 +99,10 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
       // Decline (only if no growth this step)
       if (!grew) {
         const curve = ABILITY_AGE_CURVES[k]
-        if (ability > naturalCeil && (curve === 'youthPeak' || curve === 'midLifePeak')) {
+        // 衰退基準は taper 前の年齢カーブ (aptitude × ageShape)。naturalCeil(0.8×…) を基準にすると
+        //   award で 0.8 超に伸ばした能力が毎 tick 削られるため、0.8→1.0 を dead band として保持する。
+        const declineRef = naturalCeil / ctx.config.naturalGrowthTaperFraction
+        if (ability > declineRef && (curve === 'youthPeak' || curve === 'midLifePeak')) {
           let declineChance = ctx.config.abilityDeclineChanceBase
           if (hadRelevantExperience(ctx.state, person.id, k)) {
             declineChance *= ctx.config.abilityActiveDeclineMultiplier
@@ -161,7 +159,7 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
         ability: record.key,
         oldValue: record.oldValue,
         newValue: record.newValue,
-        sourceKind: record.duty ? 'duty' : 'natural',
+        sourceKind: 'natural',
       },
       entityRefs: [entityRef('person', record.personId, 'subject', person.nameKey)],
       reasons: [],

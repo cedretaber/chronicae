@@ -137,6 +137,10 @@ export type EventType =
   | 'PROJECT_COMPLETED'
   | 'PROJECT_FAILED'
   | 'PROJECT_CANCELLED'
+  // v0.60: 資金集めラウンドが成立し budget に上乗せされた
+  | 'PROJECT_FUNDED'
+  // v0.60: 建設・取得系 Project が完成し「誰が建てたか」を Chronicle に残す (development)
+  | 'PROJECT_BUILT'
   // v0.29 Phase C Pressure
   | 'PRESSURE_CREATED'
   | 'PRESSURE_RESOLVED'

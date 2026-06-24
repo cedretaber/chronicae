@@ -13,6 +13,7 @@ import {
   inheritAptitudes,
   sampleAbilitiesFromAptitudes,
   getRoleScore,
+  naturalFraction,
 } from './abilitySelectors'
 
 const DEFAULT_ABILITIES: AbilityScores = {
@@ -278,6 +279,49 @@ describe('getRoleScore', () => {
     const state = { persons: {} } as unknown as import('../types/world').WorldState
     const score = getRoleScore(state, 'nonexistent' as PersonId, 'governance')
     expect(score).toBe(0)
+  })
+
+  describe('naturalFraction 早熟＋taper', () => {
+    const age = 18
+
+    it('ピーク年齢で naturalGrowthTaperFraction(0.8) に到達する', () => {
+      // midLifePeak(command) のピークは ageCurveMidLifePeakAge=45。
+      // 平均天賦(50)なら bloomMult=1.0 なので age=45 で shape=1.0 → 0.8。
+      const f = naturalFraction('command', 45, 50, defaultConfig)
+      expect(f).toBeCloseTo(0.8, 5)
+    })
+
+    it('高天賦ほど若年での到達割合が高い (早熟)', () => {
+      const lowTalent = naturalFraction('command', age, 50, defaultConfig)
+      const highTalent = naturalFraction('command', age, 100, defaultConfig)
+      expect(highTalent).toBeGreaterThan(lowTalent)
+    })
+
+    it('平均天賦(50)は warp の影響を受けない (bloomMult=1.0)', () => {
+      const a = naturalFraction('command', age, 50, defaultConfig)
+      const b = naturalFraction('command', age, 50, {
+        ...defaultConfig,
+        talentEarlyBloomStrength: 5,
+      })
+      expect(b).toBeCloseTo(a, 10)
+    })
+
+    it('自然到達は天賦の 0.8 を超えない (どの年齢・天賦でも)', () => {
+      for (const k of ['valor', 'command', 'numeracy'] as const) {
+        for (const ap of [50, 100, 120]) {
+          for (const ag of [5, 18, 30, 45, 70]) {
+            expect(naturalFraction(k, ag, ap, defaultConfig)).toBeLessThanOrEqual(0.8 + 1e-9)
+          }
+        }
+      }
+    })
+
+    it('衰退側もピーク値0.8から連続 (ピーク直後 < 0.8)', () => {
+      const peak = naturalFraction('command', 45, 50, defaultConfig)
+      const after = naturalFraction('command', 60, 50, defaultConfig)
+      expect(after).toBeLessThan(peak)
+      expect(peak).toBeCloseTo(0.8, 5)
+    })
   })
 
   it('caps at ABILITY_HARD_CAP when weighted sum exceeds cap', () => {

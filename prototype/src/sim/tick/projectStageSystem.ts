@@ -6,6 +6,10 @@ import { isLivingPerson } from '../types/person'
 import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
+  Project,
+  ProjectKind,
+  ProjectStageKey,
+  ProjectContributorRecord,
   DevelopHoldingProject,
   DevelopRealEstateProject,
   AcquireRealEstateProject,
@@ -20,6 +24,15 @@ import type {
   RequestRankPromotionProject,
   ConsolidateInternalContractsProject,
 } from '../types/project'
+import type { ResourceKind } from '../types/resource'
+import {
+  getProjectFundingStakeholders,
+  computeContributorPledge,
+  type FundingContributor,
+} from '../selectors/projectFundingSelectors'
+import { getProjectMarketKey } from '../selectors/projectMaterialSelectors'
+import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import { applyLandGrantMut } from '../mutations/landGrantMutations'
 import { applyCadetBranchTitleTransferMut } from '../mutations/titleTransferMutations'
 import { applyRepublicHouseFoundationMut } from '../mutations/republicHouseMutations'
@@ -52,6 +65,7 @@ import {
 } from '../mutations/diplomaticPlayCreation'
 import { createPressureMut } from '../mutations/pressureMutations'
 import {
+  PROJECT_STAGE_SEQUENCES,
   getProjectStageType,
   getNextProjectStageKey,
   getInitialProjectStageKey,
@@ -97,6 +111,9 @@ export function runProjectStageSystem(ctx: TickContext): TickContext {
     polities: { ...ctx.state.polities },
     houses: { ...ctx.state.houses },
     persons: { ...ctx.state.persons },
+    // v0.60: raise_funds の applyPledgeDrains が popGroups.money を書き戻すため draft slice する
+    //   (漏れると元 state を破壊し determinism/integrity 違反 — mutable draft write-back slices)。
+    popGroups: { ...ctx.state.popGroups },
     officeAssignments: { ...ctx.state.officeAssignments },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     aims: { ...ctx.state.aims },
@@ -211,6 +228,19 @@ function resolveImmediateStage(
     if (project.currentStageKey === 'secure_budget') {
       return resolveUpgradeOwnedSecureBudget(ws, config, project, projectId, absoluteWeek)
     }
+  }
+
+  // v0.60: budget 持ち 5 種の資金集めラウンド (back-edge ステージ)。projectMaintenanceSystem が
+  //   budget 枯渇時に currentStageKey='raise_funds' へ遷移させ、ここで決定的に集金して final へ戻す。
+  if (
+    (project.kind === 'develop_holding' ||
+      project.kind === 'develop_real_estate' ||
+      project.kind === 'acquire_real_estate' ||
+      project.kind === 'upgrade_owned_real_estate' ||
+      project.kind === 'handle_crisis') &&
+    project.currentStageKey === 'raise_funds'
+  ) {
+    return resolveRaiseFunds(ws, config, projectId, absoluteWeek, emitEvent)
   }
 
   if (project.currentStageKey === 'open_diplomatic_play') {
@@ -770,11 +800,18 @@ function resolveSecureBudget(
   if (project.owner.kind !== 'polity') return false
   const polityId = project.owner.id
   const polity = ws.polities[polityId]
-  if (!polity || polity.treasury < project.budget.required) return false
+  if (!polity) return false
 
+  // v0.60: 初期確保は required の一部のみ (stock 不足でもハード失敗せず確保分で開始)。
+  //   不足分は budget 枯渇時の raise_funds ラウンドで集める (開始ハードルの引き下げ)。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, polity.treasury))
   ws.polities = {
     ...ws.polities,
-    [polityId]: { ...polity, treasury: polity.treasury - project.budget.required },
+    [polityId]: { ...polity, treasury: polity.treasury - take },
   }
 
   // v0.48 Crisis: handle_crisis の実行 deadline は Crisis.deadlineWeek を単一の真実とする
@@ -807,8 +844,8 @@ function resolveSecureBudget(
     ...project,
     budget: {
       ...project.budget,
-      allocated: project.budget.required,
-      remaining: project.budget.required,
+      allocated: take,
+      remaining: take,
     },
     currentStageKey: nextKey,
   }
@@ -831,11 +868,19 @@ function resolveAcquireRealEstateSecureBudget(
 ): boolean {
   if (project.owner.kind !== 'house') return false
   const house = ws.houses[project.owner.id]
-  if (!house || !house.active || house.wealth < project.salePrice) return false
+  if (!house || !house.active) return false
 
+  // v0.60: 初期確保は salePrice (= budget.required) の一部のみ。stock 不足でもハード失敗せず開始し、
+  //   不足分は raise_funds で集める。完了時の seller 支払いは budget.allocated (実集金額) に依拠する
+  //   ため、保存則は funded 量と一致する (projectOutcomeSystem の seller 決済を参照)。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, house.wealth))
   ws.houses = {
     ...ws.houses,
-    [project.owner.id]: { ...house, wealth: house.wealth - project.salePrice },
+    [project.owner.id]: { ...house, wealth: house.wealth - take },
   }
 
   const nextKey = getNextProjectStageKey(project)
@@ -857,7 +902,7 @@ function resolveAcquireRealEstateSecureBudget(
     ...project,
     currentStageKey: nextKey,
     deadlineWeek,
-    budget: { ...project.budget, allocated: project.salePrice, remaining: project.salePrice },
+    budget: { ...project.budget, allocated: take, remaining: take },
   }
   ws.projects[projectId] = updated
   addProjectToIndexMut(ws, updated)
@@ -901,11 +946,17 @@ function resolveUpgradeOwnedSecureBudget(
 ): boolean {
   if (project.owner.kind !== 'house') return false
   const house = ws.houses[project.owner.id]
-  if (!house || !house.active || house.wealth < project.budget.required) return false
+  if (!house || !house.active) return false
 
+  // v0.60: 初期確保は required の一部のみ。stock 不足でもハード失敗せず開始し raise_funds で補う。
+  const target = Math.min(
+    Math.ceil(project.budget.required * config.projectInitialReserveFraction),
+    project.budget.required,
+  )
+  const take = Math.max(0, Math.min(target, house.wealth))
   ws.houses = {
     ...ws.houses,
-    [project.owner.id]: { ...house, wealth: house.wealth - project.budget.required },
+    [project.owner.id]: { ...house, wealth: house.wealth - take },
   }
 
   const nextKey = getNextProjectStageKey(project)
@@ -929,12 +980,257 @@ function resolveUpgradeOwnedSecureBudget(
     deadlineWeek,
     budget: {
       ...project.budget,
-      allocated: project.budget.required,
-      remaining: project.budget.required,
+      allocated: take,
+      remaining: take,
     },
   }
   ws.projects[projectId] = updated
   addProjectToIndexMut(ws, updated)
+  return true
+}
+
+// ─── v0.60 raise_funds (資金集めラウンド) ──────────────────────────────────────
+
+type Pledge = { contributor: FundingContributor; amount: number }
+
+// ProjectBudget (構造体予算) を持つ funding 対象 5 種。budget:number の petition 系と区別する。
+type FundingBudgetProject =
+  | DevelopHoldingProject
+  | DevelopRealEstateProject
+  | AcquireRealEstateProject
+  | UpgradeOwnedRealEstateProject
+  | HandleCrisisProject
+
+function isFundingBudgetProject(project: Project): project is FundingBudgetProject {
+  return (
+    project.kind === 'develop_holding' ||
+    project.kind === 'develop_real_estate' ||
+    project.kind === 'acquire_real_estate' ||
+    project.kind === 'upgrade_owned_real_estate' ||
+    project.kind === 'handle_crisis'
+  )
+}
+
+// 対象 kind の final stage key を返す (handle_crisis→mitigate、他→execute_project)。
+function getFinalStageKey(kind: ProjectKind): ProjectStageKey {
+  return PROJECT_STAGE_SEQUENCES[kind].find((e) => e.type === 'final')!.key
+}
+
+// holding→province→stateId を marketKey として smoothedPrice を引く (resourceEconomySystem と統一)。
+function makeProjectPriceLookup(ws: WorldState, project: Project): (r: ResourceKind) => number {
+  const marketKey = getProjectMarketKey(ws, project)
+  return (resource: ResourceKind) => {
+    if (marketKey === null) return getSmoothedPriceOrBase(undefined, resource)
+    const ps = ws.marketResourcePrices[marketResourcePriceKey(marketKey, resource)]
+    return getSmoothedPriceOrBase(ps?.smoothedPrice, resource)
+  }
+}
+
+// pledge を出し手の stock から実減算し、**実際に引いた合計額**を返す。
+//   各 stock の現在値で clamp し (delta = min(amount, stock))、その delta を加算する。
+//   返り値を budget の加算額に使うことで「drain 合計 == budget 増加」を構造的に保証する
+//   (pledge が stock を超えても貨幣創造にならない・保存則の防御層)。
+function applyPledgeDrains(ws: WorldState, pledges: Pledge[]): number {
+  let drained = 0
+  for (const { contributor, amount } of pledges) {
+    if (contributor.kind === 'polity') {
+      const p = ws.polities[contributor.id]
+      if (!p) continue
+      const d = Math.min(amount, p.treasury)
+      ws.polities[contributor.id] = { ...p, treasury: p.treasury - d }
+      drained += d
+    } else if (contributor.kind === 'house') {
+      const h = ws.houses[contributor.id]
+      if (!h) continue
+      const d = Math.min(amount, h.wealth)
+      ws.houses[contributor.id] = { ...h, wealth: h.wealth - d }
+      drained += d
+    } else if (contributor.kind === 'person') {
+      const pe = ws.persons[contributor.id]
+      if (!pe) continue
+      const d = Math.min(amount, pe.wealth)
+      ws.persons[contributor.id] = { ...pe, wealth: pe.wealth - d }
+      drained += d
+    } else {
+      const pop = ws.popGroups[contributor.id]
+      if (!pop) continue
+      const d = Math.min(amount, pop.money)
+      ws.popGroups[contributor.id] = { ...pop, money: pop.money - d }
+      drained += d
+    }
+  }
+  return drained
+}
+
+// cumulative 主要拠出記録を更新する (pop は DecisionSubjectRef に載らないため除外・amount 降順上位 limit)。
+function mergeMajorContributors(
+  existing: ProjectContributorRecord[],
+  pledges: Pledge[],
+  limit: number,
+): ProjectContributorRecord[] {
+  const map = new Map<string, ProjectContributorRecord>()
+  for (const r of existing) map.set(`${r.subject.kind}:${r.subject.id}`, { ...r })
+  for (const { contributor, amount } of pledges) {
+    if (contributor.kind === 'pop') continue
+    let subject: DecisionSubjectRef
+    if (contributor.kind === 'polity') subject = { kind: 'polity', id: contributor.id }
+    else if (contributor.kind === 'house') subject = { kind: 'house', id: contributor.id }
+    else subject = { kind: 'person', id: contributor.id }
+    const key = `${subject.kind}:${subject.id}`
+    const prev = map.get(key)
+    map.set(key, { subject, amount: (prev?.amount ?? 0) + amount })
+  }
+  return [...map.values()]
+    .sort(
+      (a, b) =>
+        b.amount - a.amount ||
+        `${a.subject.kind}:${a.subject.id}`.localeCompare(`${b.subject.kind}:${b.subject.id}`),
+    )
+    .slice(0, limit)
+}
+
+function emitProjectFunded(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const ownerRef = getOwnerNameRefForEmit(ws, project.owner)
+  const supervisorNameKey = ws.persons[project.supervisorPersonId]?.nameKey ?? ''
+  emitEvent({
+    type: 'PROJECT_FUNDED',
+    importance: 'minor',
+    messageKey: 'project.funded',
+    messageParams: {
+      owner: nameParam(ownerRef.category, ownerRef.nameKey),
+      supervisor: nameParam('person', supervisorNameKey),
+      kind: project.kind,
+    },
+    entityRefs: [],
+  })
+}
+
+function emitProjectFundingFailed(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const ownerRef = getOwnerNameRefForEmit(ws, project.owner)
+  emitEvent({
+    type: 'PROJECT_FAILED',
+    importance: 'minor',
+    messageKey: 'project.failed.funding',
+    messageParams: {
+      owner: nameParam(ownerRef.category, ownerRef.nameKey),
+      kind: project.kind,
+    },
+    entityRefs: [],
+  })
+}
+
+// v0.60: 資金集めラウンド本体。ステークホルダーから決定的に pledge を集め、最小回収未満なら
+//   funding_failed、十分なら budget へ上乗せ (required を超えないよう比例 cap)・deadline 延長・
+//   final stage へ復帰する。RNG 不使用・保存則維持。
+function resolveRaiseFunds(
+  ws: WorldState,
+  config: SimulationConfig,
+  projectId: ProjectId,
+  absoluteWeek: number,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const project = ws.projects[projectId]
+  if (!project || project.status !== 'active') return false
+  if (!isFundingBudgetProject(project)) return false
+
+  const priceLookup = makeProjectPriceLookup(ws, project)
+  const stakeholders = getProjectFundingStakeholders(ws, config, project)
+  const requiredRemaining = Math.max(0, project.budget.required - project.budget.allocated)
+  const minNeeded = requiredRemaining * config.projectFundingRoundMinCollectionFraction
+
+  const pledges: Pledge[] = []
+  let rawRaised = 0
+  for (const c of stakeholders) {
+    const amt = computeContributorPledge(ws, config, project, c, priceLookup)
+    if (amt > 0) {
+      pledges.push({ contributor: c, amount: amt })
+      rawRaised += amt
+    }
+  }
+
+  // 失敗: 最小回収に満たない → funding_failed (Project 頓挫・終了保証 1)。
+  if (rawRaised <= 0 || rawRaised < minNeeded) {
+    ws.projects[projectId] = {
+      ...project,
+      status: 'failed',
+      terminalReason: 'funding_failed',
+    }
+    emitProjectFundingFailed(ws, project, emitEvent)
+    return true
+  }
+
+  // over-collection cap: acquire_real_estate のみ allocated が required を超えないよう各 pledge を
+  //   比例縮小する (seller 決済が budget.allocated に依拠するため、超過は seller 過払い=貨幣創造)。
+  //   v0.60.1: material-sink 4 種 (develop_holding/develop_real_estate/upgrade_owned_real_estate/
+  //   handle_crisis) は余剰 budget が建築資材消費 or 完了時還付に回り保存則安全なため cap しない。
+  //   建設資材の品薄で真の所要額が required (margin 2 倍) を超え、cap が required で頭打ちにして
+  //   budget_exhausted を量産していた構造を解消する (required は smoothedPrice 非依存の見積りで、
+  //   実消費は smoothedPrice 評価ゆえ価格上昇分だけ不足する)。
+  const capToRequired = project.kind === 'acquire_real_estate'
+  const scale = capToRequired && rawRaised > requiredRemaining ? requiredRemaining / rawRaised : 1
+  if (scale !== 1) {
+    for (const p of pledges) {
+      p.amount = p.amount * scale
+    }
+  }
+
+  // budget へ加算するのは「実際に stock から引いた合計」(applyPledgeDrains の返り値)。
+  //   こうすることで pledge が stock を超えるケースでも「drain 合計 == budget 増加」が構造的に成立する。
+  const raised = applyPledgeDrains(ws, pledges)
+
+  const finalKey = getFinalStageKey(project.kind)
+  // v0.60: deadline の延長は非 crisis kind のみ。handle_crisis は Crisis.deadlineWeek を単一の真実とし
+  //   (非 disrepair)、disrepair は deadline 無し (v0.48.1)。raise_funds で上書きするとそれらを壊すため
+  //   project の既存 deadlineWeek を保持する (spread で維持)。
+  const updated = {
+    ...project,
+    budget: {
+      ...project.budget,
+      allocated: project.budget.allocated + raised,
+      remaining: project.budget.remaining + raised,
+    },
+    fundingRoundCount: (project.fundingRoundCount ?? 0) + 1,
+    majorContributors: mergeMajorContributors(
+      project.majorContributors ?? [],
+      pledges,
+      config.projectMajorContributorTrackLimit,
+    ),
+    currentStageKey: finalKey,
+  }
+  if (project.kind !== 'handle_crisis') {
+    const baseDeadline = Math.max(absoluteWeek, project.deadlineWeek ?? absoluteWeek)
+    updated.deadlineWeek = baseDeadline + config.projectFundingDeadlineExtensionWeeks
+  }
+  ws.projects[projectId] = updated
+
+  const log = createLogger(config.debug)
+  // insider/external 内訳 (debug 専用診断・ability 依存が実際に効いているかの計測用)。
+  let insiderRaised = 0
+  for (const p of pledges) {
+    if (p.contributor.kind !== 'pop' && p.contributor.insider) insiderRaised += p.amount
+  }
+  log.log('PROJECT_RAISE_FUNDS', {
+    projectId,
+    kind: project.kind,
+    round: updated.fundingRoundCount,
+    raised,
+    insiderRaised,
+    externalRaised: raised - insiderRaised,
+    allocated: updated.budget.allocated,
+    required: updated.budget.required,
+  })
+
+  // raised が実質ゼロ (allocated が既に required に到達済みで requiredRemaining=0 等) のラウンドでは
+  //   「資金を集めた」イベントは誤解を招くため出さない (round 加算は終了保証のため継続する)。
+  if (raised > 0) emitProjectFunded(ws, updated, emitEvent)
   return true
 }
 

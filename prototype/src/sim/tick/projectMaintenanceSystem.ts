@@ -1,10 +1,10 @@
 import type { TickContext } from './context'
 import type { CreateSimEventInput } from './context'
-import type { SimEvent } from '../types/event'
+import type { SimEvent, EventMessageParams } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
-import type { EventId } from '../types/ids'
+import type { EventId, PersonId } from '../types/ids'
 import type {
   LandClaimProject,
   ContractRevisionProject,
@@ -139,7 +139,9 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 3b. Budget exhausted (develop_holding / handle_crisis — budget 持ち holding Project, v0.48 一般化)
+    // 3b. Budget 枯渇 (budget 持ち 5 種)。v0.60: 即失敗でなく raise_funds へ back-edge し、
+    //   進捗を保ったまま資金集めラウンドへ移す。ラウンド上限到達時のみ budget_exhausted で失敗する
+    //   (終了保証: 最大ラウンド)。次 tick の projectStageSystem.resolveRaiseFunds が集金して final へ戻す。
     if (
       ((project.kind === 'develop_holding' && project.currentStageKey === 'execute_project') ||
         (project.kind === 'develop_real_estate' && project.currentStageKey === 'execute_project') ||
@@ -150,6 +152,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       project.budget.remaining <= 0 &&
       project.progress < project.targetProgress
     ) {
+      const rounds = project.fundingRoundCount ?? 0
+      if (rounds < config.projectMaxFundingRounds) {
+        ws.projects[project.id] = { ...project, currentStageKey: 'raise_funds' }
+        continue
+      }
       ws.projects[project.id] = { ...project, status: 'failed', terminalReason: 'budget_exhausted' }
       emitProjectEvent(
         ws,
@@ -225,6 +232,10 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
         project.kind,
         emitEvent,
       )
+      // v0.60: 建設・取得系 5 種は「誰が建てたか」を Chronicle に残す (development)。
+      if (FUNDING_BUILD_KINDS.has(project.kind)) {
+        emitProjectBuilt(ws, project, emitEvent)
+      }
       continue
     }
   }
@@ -250,6 +261,49 @@ function isOwnerActive(ws: WorldState, owner: DecisionSubjectRef): boolean {
     return person !== undefined && person.alive
   }
   return false
+}
+
+// v0.60: 建設・取得系 (budget 持ち 5 種)。完成時に建造 Chronicle を残す対象。
+const FUNDING_BUILD_KINDS: ReadonlySet<string> = new Set([
+  'develop_holding',
+  'develop_real_estate',
+  'acquire_real_estate',
+  'upgrade_owned_real_estate',
+  'handle_crisis',
+])
+
+// v0.60: 完成した建設・取得 Project の「監督者＋主要出資者による建造」を Chronicle へ投影するための
+//   PROJECT_BUILT イベント (development)。majorContributors[0] (累積最大の出資者) を patron として載せる。
+//   patron が居なければ supervisor のみの template に切り替える。messageParams は nameKey/raw のみ。
+function emitProjectBuilt(
+  ws: WorldState,
+  project: { owner: DecisionSubjectRef; kind: string; supervisorPersonId: PersonId } & {
+    majorContributors?: { subject: DecisionSubjectRef; amount: number }[]
+  },
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const ownerRef = getOwnerNameRefForEmit(ws, project.owner)
+  const ownerNameKey = getOwnerNameKey(ws, project.owner)
+  const supervisorNameKey = ws.persons[project.supervisorPersonId]?.nameKey ?? ''
+  const messageParams: EventMessageParams = {
+    owner: nameParam(ownerRef.category, ownerNameKey),
+    supervisor: nameParam('person', supervisorNameKey),
+    kind: project.kind,
+  }
+  let messageKey = 'project.built'
+  const top = project.majorContributors?.[0]
+  if (top) {
+    const cRef = getOwnerNameRefForEmit(ws, top.subject)
+    messageParams.contributor = nameParam(cRef.category, cRef.nameKey)
+    messageKey = 'project.built_with_patron'
+  }
+  emitEvent({
+    type: 'PROJECT_BUILT',
+    importance: 'minor',
+    messageKey,
+    messageParams,
+    entityRefs: [entityRef(project.owner.kind, project.owner.id, 'owner', ownerNameKey)],
+  })
 }
 
 function emitProjectEvent(

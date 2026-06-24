@@ -5,8 +5,6 @@
       "Edit",
       "Write",
       "Bash(ls *)",
-      "Bash(grep *)",
-      "Bash(find *)",
       "Bash(cat *)",
       "Bash(head *)",
       "Bash(tail *)",

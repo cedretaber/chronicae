@@ -135,7 +135,7 @@ Key simulation decisions are written to **stderr** in a tagged `key=value` forma
 [DEBUG:YEAR] year=5 persons=87 houses=6 countries=3
 ```
 
-Tags can be extracted by script: `grep '\[DEBUG:SUCCESSION\]'`, `grep '\[DEBUG:YEAR\]'`, etc.
+Tags can be extracted by script: `rg '\[DEBUG:SUCCESSION\]'`, `rg '\[DEBUG:YEAR\]'`, etc.
 
 **3. Non-fatal integrity errors**
 

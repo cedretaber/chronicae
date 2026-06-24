@@ -180,6 +180,15 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
         applyNonDiplomaticEffectMut(ws, config, project, emitEvent)
         addAimProgressForCompletedProjectMut(ws, config, project)
       }
+      // v0.60.4: 完了時の残予算は担当者総取り。acquire は成功時に売り手へ全額支払い済みのため除外。
+      if (
+        project.kind === 'develop_holding' ||
+        project.kind === 'develop_real_estate' ||
+        project.kind === 'upgrade_owned_real_estate' ||
+        project.kind === 'handle_crisis'
+      ) {
+        creditResidualBudgetToSupervisorMut(ws, project)
+      }
       if (project.kind === 'respond_to_pressure') {
         const pressure = ws.pressures[project.pressureId]
         if (pressure && pressure.status === 'active') {
@@ -211,23 +220,8 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
           project.kind === 'handle_crisis') &&
         project.budget.remaining > 0
       ) {
-        if (project.owner.kind === 'polity') {
-          const polity = ws.polities[project.owner.id]
-          if (polity) {
-            ws.polities[project.owner.id] = {
-              ...polity,
-              treasury: polity.treasury + project.budget.remaining,
-            }
-          }
-        } else if (project.owner.kind === 'house') {
-          const house = ws.houses[project.owner.id]
-          if (house) {
-            ws.houses[project.owner.id] = {
-              ...house,
-              wealth: house.wealth + project.budget.remaining,
-            }
-          }
-        }
+        // v0.60.4: 失敗/中断時の残予算も担当者 (supervisor) 総取り (旧: owner 還付)。acquire 失敗を含む。
+        creditResidualBudgetToSupervisorMut(ws, project)
         // ProjectActivityLog for failed (develop_holding 固有フィールドを使うため kind ガード)
         if (project.status === 'failed' && project.kind === 'develop_holding') {
           const supervisor = ws.persons[project.supervisorPersonId]
@@ -442,6 +436,55 @@ function deriveProjectTargetPolity(ws: WorldState, project: Project): Organizati
 }
 
 // --- Non-diplomatic effect application ---
+
+// v0.60.4: Project 終了時 (成功・失敗とも) の残予算 budget.remaining を担当者 (supervisor) の
+//   wealth へ全額移す。「予算には担当者報酬が含まれる」前近代的な業務委託の見立てで、成功でも失敗でも
+//   担当者の総取りとする。担当者が死亡/不在のときは owner (polity treasury / house wealth) へ
+//   フォールバックし保存則 (money は移動のみで生成/消滅しない) を守る。
+//   acquire_real_estate の成功は budget=購入代金で売り手へ全額支払い済みのため呼ばない (二重払い=貨幣
+//   創造防止)。acquire の失敗 (売り手未払い) は呼んでよい。
+function creditResidualBudgetToSupervisorMut(ws: WorldState, project: Project): void {
+  // budget を持つ funded kind のみ対象 (union 絞り込み)。それ以外は no-op。
+  if (
+    project.kind !== 'develop_holding' &&
+    project.kind !== 'develop_real_estate' &&
+    project.kind !== 'acquire_real_estate' &&
+    project.kind !== 'upgrade_owned_real_estate' &&
+    project.kind !== 'handle_crisis'
+  ) {
+    return
+  }
+  const remaining = project.budget.remaining
+  if (remaining <= 0) return
+  const supervisor = ws.persons[project.supervisorPersonId]
+  if (supervisor && supervisor.alive) {
+    ws.persons[project.supervisorPersonId] = {
+      ...supervisor,
+      wealth: supervisor.wealth + remaining,
+    }
+    return
+  }
+  // フォールバック: supervisor 不在/死亡 → owner。owner は DecisionSubjectRef (polity/house/person)
+  //   を全て処理して保存則を exhaustive に守る (現 aim 種では acquire 以外も person owner にならないが、
+  //   将来 person-owned funded project が生じても money が消えないようにする防御)。
+  if (project.owner.kind === 'polity') {
+    const polity = ws.polities[project.owner.id]
+    if (polity) {
+      ws.polities[project.owner.id] = { ...polity, treasury: polity.treasury + remaining }
+    }
+  } else if (project.owner.kind === 'house') {
+    const house = ws.houses[project.owner.id]
+    if (house) {
+      ws.houses[project.owner.id] = { ...house, wealth: house.wealth + remaining }
+    }
+  } else {
+    // owner.kind === 'person'
+    const owner = ws.persons[project.owner.id]
+    if (owner) {
+      ws.persons[project.owner.id] = { ...owner, wealth: owner.wealth + remaining }
+    }
+  }
+}
 
 function applyNonDiplomaticEffectMut(
   ws: WorldState,
@@ -1063,16 +1106,7 @@ function applyDevelopHoldingMut(
     ws.nextHoldingImprovementId++
   }
 
-  // Budget remaining → supervisor.wealth
-  if (project.budget.remaining > 0) {
-    const supervisor = ws.persons[project.supervisorPersonId]
-    if (supervisor) {
-      ws.persons[project.supervisorPersonId] = {
-        ...supervisor,
-        wealth: supervisor.wealth + project.budget.remaining,
-      }
-    }
-  }
+  // 残予算 (budget.remaining) は完了処理の中央 (creditResidualBudgetToSupervisorMut) で担当者へ還付する。
 
   // Respect: creator → supervisor
   if ((project.creatorPersonId as string) !== (project.supervisorPersonId as string)) {
@@ -1183,15 +1217,7 @@ function applyDevelopRealEstateMut(
     })
   }
 
-  if (project.budget.remaining > 0) {
-    const supervisor = ws.persons[project.supervisorPersonId]
-    if (supervisor) {
-      ws.persons[project.supervisorPersonId] = {
-        ...supervisor,
-        wealth: supervisor.wealth + project.budget.remaining,
-      }
-    }
-  }
+  // 残予算は完了処理の中央 (creditResidualBudgetToSupervisorMut) で担当者へ還付する。
 
   const polityRef =
     project.owner.kind === 'polity' ? getPolityNameRefForEmit(ws, project.owner.id) : undefined
@@ -1227,9 +1253,12 @@ function applyAcquireRealEstateMut(
   if (terminalPolityId) {
     const polity = ws.polities[terminalPolityId]
     if (polity) {
+      // v0.60: seller への支払いは「実際に集めた額」= budget.allocated に依拠する (保存則)。
+      //   買い手側 (owner House の初期確保 + raise_funds 拠出) で実減算した総額と一致させ、
+      //   under-funded 完了でも貨幣創造にならないようにする。満額 funded 時は allocated==salePrice。
       ws.polities[terminalPolityId] = {
         ...polity,
-        treasury: polity.treasury + project.salePrice,
+        treasury: polity.treasury + project.budget.allocated,
       }
     }
   }
@@ -1278,15 +1307,7 @@ function applyUpgradeOwnedRealEstateMut(
 
   upgradeRealEstateAssetLevelMut(ws, project.targetRealEstateAssetId, project.targetRealEstateLevel)
 
-  if (project.budget.remaining > 0 && project.owner.kind === 'house') {
-    const house = ws.houses[project.owner.id]
-    if (house) {
-      ws.houses[project.owner.id] = {
-        ...house,
-        wealth: house.wealth + project.budget.remaining,
-      }
-    }
-  }
+  // 残予算は完了処理の中央 (creditResidualBudgetToSupervisorMut) で担当者へ還付する (旧: owner house)。
 
   const ownerNameKey =
     project.owner.kind === 'house' ? (ws.houses[project.owner.id]?.nameKey ?? '') : ''

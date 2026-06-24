@@ -675,3 +675,177 @@ describe('resolveFindSupervisor via resolveImmediateStages (develop_holding)', (
     expect(project.currentStageKey).not.toBe('find_supervisor')
   })
 })
+
+// ─── v0.60 secure_budget 軽量化 (初期 fraction 確保・ハード失敗撤廃) ──────────
+
+describe('v0.60 secure_budget 軽量化 (develop_holding)', () => {
+  const POLITY = 'c-sb' as PolityId
+  const HOUSE = 'hh-sb' as HouseId
+  const HOLDING = 'hl-sb' as HoldingId
+  const CREATOR = 'pe-sb-creator' as PersonId
+
+  function makeState(treasury: number): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: HOUSE, treasury })
+    ws = withPerson(ws, CREATOR, { houseId: HOUSE })
+    return ws
+  }
+
+  function makeProj(): DevelopHoldingProject {
+    return {
+      id: 'proj-sb' as ProjectId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: CREATOR,
+      supervisorPersonId: CREATOR,
+      status: 'active',
+      progress: 0,
+      targetProgress: 100,
+      currentStageKey: 'secure_budget',
+      createdWeek: 0,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'irrigation_infrastructure',
+      targetImprovementLevel: 1,
+      budget: { required: 1000, allocated: 0, remaining: 0, spent: 0, source: { kind: 'owner' } },
+    }
+  }
+
+  function run(ws: WorldState): DevelopHoldingProject {
+    ws.projects['proj-sb' as ProjectId] = makeProj()
+    resolveImmediateStages(ws, defaultConfig, 'proj-sb' as ProjectId, ws.absoluteWeek)
+    return ws.projects['proj-sb' as ProjectId] as DevelopHoldingProject
+  }
+
+  it('treasury が required 未満でも開始でき、確保額は fraction (300) と stock の小さい方', () => {
+    // required=1000, fraction=0.3 → target=300。treasury=300 → take=300。
+    const ws = makeState(300)
+    const project = run(ws)
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(300)
+    expect(project.budget.remaining).toBe(300)
+    expect(ws.polities[POLITY]?.treasury).toBe(0)
+    // budget.required は不変。
+    expect(project.budget.required).toBe(1000)
+  })
+
+  it('treasury 0 でも失敗せず execute へ進む (remaining=0)', () => {
+    const ws = makeState(0)
+    const project = run(ws)
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(0)
+    expect(project.budget.remaining).toBe(0)
+  })
+
+  it('treasury が target を超えるなら target(300) だけ確保する', () => {
+    const ws = makeState(5000)
+    const project = run(ws)
+    expect(project.budget.allocated).toBe(300)
+    expect(ws.polities[POLITY]?.treasury).toBe(4700)
+  })
+})
+
+// ─── v0.60 raise_funds resolver ────────────────────────────────────────────
+
+describe('v0.60 raise_funds resolver (develop_holding)', () => {
+  const POLITY = 'c-rf' as PolityId
+  const HOUSE = 'hh-rf' as HouseId
+  const HOLDING = 'hl-rf' as HoldingId
+  const CREATOR = 'pe-rf-creator' as PersonId
+  const SUPERVISOR = 'pe-rf-super' as PersonId
+
+  function makeState(opts: {
+    treasury: number
+    creatorWealth: number
+    supervisorWealth: number
+  }): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: HOUSE, treasury: opts.treasury })
+    ws = withPerson(ws, CREATOR, { houseId: HOUSE, wealth: opts.creatorWealth })
+    ws = withPerson(ws, SUPERVISOR, { houseId: HOUSE, wealth: opts.supervisorWealth })
+    return ws
+  }
+
+  function makeProj(budget: {
+    required: number
+    allocated: number
+    remaining: number
+    spent: number
+  }): DevelopHoldingProject {
+    return {
+      id: 'proj-rf' as ProjectId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: CREATOR,
+      supervisorPersonId: SUPERVISOR,
+      status: 'active',
+      progress: 40,
+      targetProgress: 100,
+      currentStageKey: 'raise_funds',
+      createdWeek: 0,
+      deadlineWeek: 500,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'irrigation_infrastructure',
+      targetImprovementLevel: 1,
+      budget: { ...budget, source: { kind: 'owner' } },
+    }
+  }
+
+  function run(ws: WorldState, project: DevelopHoldingProject): DevelopHoldingProject {
+    ws.projects[project.id] = project
+    resolveImmediateStages(ws, defaultConfig, project.id, 1000)
+    return ws.projects[project.id] as DevelopHoldingProject
+  }
+
+  it('十分な拠出が集まると budget に加算され execute_project へ戻り deadline が延びる', () => {
+    const ws = makeState({ treasury: 200, creatorWealth: 200, supervisorWealth: 200 })
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    // insider polity/creator/supervisor が各 0.5×stock=100 を拠出 → raised=300。
+    expect(project.currentStageKey).toBe('execute_project')
+    expect(project.budget.allocated).toBe(600)
+    expect(project.budget.remaining).toBe(300)
+    expect(project.fundingRoundCount).toBe(1)
+    expect(project.deadlineWeek).toBe(1000 + defaultConfig.projectFundingDeadlineExtensionWeeks)
+  })
+
+  it('保存則: 拠出者 stock 減少分の合計 == budget allocated 増加分', () => {
+    const ws = makeState({ treasury: 200, creatorWealth: 200, supervisorWealth: 200 })
+    const before = 200 + 200 + 200
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    const after =
+      (ws.polities[POLITY]?.treasury ?? 0) +
+      (ws.persons[CREATOR]?.wealth ?? 0) +
+      (ws.persons[SUPERVISOR]?.wealth ?? 0)
+    const drained = before - after
+    const allocatedIncrease = project.budget.allocated - 300
+    expect(drained).toBeCloseTo(allocatedIncrease, 6)
+  })
+
+  it('v0.60.1: material-sink (develop_holding) は over-collection cap されず required を超えて調達する', () => {
+    const ws = makeState({ treasury: 1000, creatorWealth: 1000, supervisorWealth: 1000 })
+    // 建設資材の品薄で真の所要額が required を超えるケースを救済するため、material-sink は cap しない。
+    // insider 3 者が各 0.5×1000=500 を拠出 → raised=1500 がそのまま allocated に乗る (cap なし)。
+    const project = run(ws, makeProj({ required: 1000, allocated: 950, remaining: 0, spent: 950 }))
+    expect(project.budget.allocated).toBeCloseTo(2450, 6)
+    const drained =
+      3000 -
+      ((ws.polities[POLITY]?.treasury ?? 0) +
+        (ws.persons[CREATOR]?.wealth ?? 0) +
+        (ws.persons[SUPERVISOR]?.wealth ?? 0))
+    expect(drained).toBeCloseTo(1500, 6)
+    // 保存則: drain 合計 == allocated 増加分。
+    expect(drained).toBeCloseTo(project.budget.allocated - 950, 6)
+  })
+
+  it('拠出が最小回収未満 (全 stock 枯渇) だと funding_failed', () => {
+    const ws = makeState({ treasury: 0, creatorWealth: 0, supervisorWealth: 0 })
+    const project = run(ws, makeProj({ required: 1000, allocated: 300, remaining: 0, spent: 300 }))
+    expect(project.status).toBe('failed')
+    expect(project.terminalReason).toBe('funding_failed')
+  })
+})

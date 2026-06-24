@@ -110,6 +110,8 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   CRISIS_EXPIRED: { category: 'disaster', retainRefKinds: ['holding'] },
   // Development
   COUNTRY_LAND_DEVELOPED: { category: 'development' },
+  // v0.60: 建設・取得系 Project の完成記録 (「誰が建てたか」を durable history に残す)。
+  PROJECT_BUILT: { category: 'development' },
   // Office / 行政 (v0.38 Phase 3)
   //   役職任命/任期終了は人物の「経歴」として byPerson 限定で投入する。
   //   person 以外 (house/polity) の ref を index から外し、Polity/House 国史を行政ログで埋めない。

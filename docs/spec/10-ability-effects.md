@@ -87,7 +87,7 @@ taxEfficiency = clamp(
 **Polity treasurer → Polity土地開発コスト**（**未実装＝設計のみ**。selector `calcTreasurerDevelopmentCostModifier` は
 コード上に存在しない。下記は将来配線する際の想定式であり、v0.49 では non-linear 化の対象に**含めなかった**）:
 ```ts
-// ⚠️ 以下は設計案。現状この selector も呼び出し元も存在しない（grep 0 件、2026-06-18 監査確認）。
+// ⚠️ 以下は設計案。現状この selector も呼び出し元も存在しない（rg 0 件、2026-06-18 監査確認）。
 costModifier = clamp(2 - abilityOutputFactor(getRoleScore(treasurer, 'stewardship'), config), 0.2, 2)
 effectiveCost = max(1, round(polityLandDevelopmentBaseCost * costModifier))
 // 有能(factor>1)ほどコスト<1。下限 0.2 で過剰割引を防ぐ
@@ -129,7 +129,7 @@ effectiveThreshold = clamp(
 
 ### 10.6 Polity 土地開発への効果
 
-確率試行による公共支出ベースの土地開発は存在しない。Polity の土地開発は Project システム（`develop_holding`）を通じて行う。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`)、および Polity administrator の ambition / caution 補正 (`calcChancellorLandDevelopmentScoreBonus`) selector は**いずれも未実装**（spec 上の設計のみで selector は存在しない。2026-06-18 監査で grep 0 件を確認）。消費するはずの config キー `chancellorAmbitionLandDevelopmentScoreEffect` / `chancellorCautionLandDevelopmentScoreEffect` は defaultConfig に残るが**読み手が無い dead key**。将来配線する際にこれらを実装する。
+確率試行による公共支出ベースの土地開発は存在しない。Polity の土地開発は Project システム（`develop_holding`）を通じて行う。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`)、および Polity administrator の ambition / caution 補正 (`calcChancellorLandDevelopmentScoreBonus`) selector は**いずれも未実装**（spec 上の設計のみで selector は存在しない。2026-06-18 監査で rg 0 件を確認）。消費するはずの config キー `chancellorAmbitionLandDevelopmentScoreEffect` / `chancellorCautionLandDevelopmentScoreEffect` は defaultConfig に残るが**読み手が無い dead key**。将来配線する際にこれらを実装する。
 
 ### 10.7 Task outcome 判定への能力効果
 
@@ -180,9 +180,9 @@ effectiveScore < threshold                  → failure
 
 ### 10.8 LifeStage と能力
 
-LifeStage は能力成長カーブには**直接関与しない**。`ABILITY_AGE_CURVES` + `naturalFraction(k, age, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。
+LifeStage は能力成長カーブには**直接関与しない**。`ABILITY_AGE_CURVES` + `naturalFraction(k, age, aptitude, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。早熟は LifeStage ではなく**天賦値**に比例して効く（`naturalFraction` 内の `bloomMult`・§6.24）。自然成長の到達上限は `naturalGrowthTaperFraction`（0.8）× 天賦で、0.8→1.0 は成果成長のみ（§6.66）。
 
-LifeStage が能力に加える唯一の効果は **親能力ボーナス**（§6.24 / §6.25）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
+LifeStage が能力に加える唯一の効果は **親能力ボーナス**（§6.24 / §6.25）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `naturalCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
 
 ---
 

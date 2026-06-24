@@ -716,9 +716,11 @@ export function checkGoalsAimsProjects(
         })
       }
 
-      // §19.3: pre-budget stages should have zero budget allocation
+      // §19.3: pre-budget stages should have zero budget allocation。
+      //   v0.60: raise_funds は budget 確保 *後* の immediate back-edge ステージなので budget を持つ。
+      //   この warn は find_supervisor/secure_budget 等「予算前」の immediate を対象にするため除外する。
       const stageType = getProjectStageType(project.kind, project.currentStageKey)
-      if (stageType === 'immediate') {
+      if (stageType === 'immediate' && project.currentStageKey !== 'raise_funds') {
         if (
           project.budget.allocated !== 0 ||
           project.budget.remaining !== 0 ||

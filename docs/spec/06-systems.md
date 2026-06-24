@@ -55,6 +55,24 @@ const employmentGrowthModifier =
 const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * employmentGrowthModifier
 ```
 
+**6.2.1a carrying capacity（食料扶養力）の導出（v0.60.3）**
+
+`pressure = state 人口 / carrying capacity`、`carrying capacity = foodSupply / 人口加重 per-capita 食料需要`。
+食料供給 `foodSupply` は state 食料市場の直近 clearing の `Σ food資源 sellOrders × FOOD_RESOURCE_VALUE`（`getStateFoodSupply`）。
+
+- **v0.55–v0.60**: per-capita 食料需要は config 定数 `perCapitaFoodNeed`（固定 1.0）だった。
+- **v0.60.3**: この固定値を廃止し、**需要側（needSatisfaction）と同一の導出値**へ統一した（`getPerCapitaFoodNeed`）。
+  1 人あたり需要 = `Σ over FOOD_NEED_CATEGORIES(staple_food/protein/fine_food) of amountPerPop × tierScale`、
+  `tierScale` は essential に `popEssentialNeedScale`・それ以外 1（§6.3c.5 の需要展開と同一）。食料カテゴリ内では
+  `FOOD_RESOURCE_VALUE[r] == contributionValue_r` のため資源選択 share が相殺し、price 非依存の純和になる。
+  state の扶養力はこれを **人口加重**（`getStateFoodRequirement = Σ pop.size × getPerCapitaFoodNeed(popType)`）した
+  平均で割る。
+- **狙い**: v0.55–60 は生存閾値（1.0）が実需要（~0.6）より高く、「**満腹なのに pressure≧1 で自然減**」する
+  校正ずれがあった（§6.6 v0.58 注記）。導出統一でこれを根治し、`pressure=1` が「食料生産＝実需要」を意味するように
+  なった。代償として均衡は subsistence 寄りになり needSatisfaction は下がる（demand-alignment の構造的コスト）。
+- **`popEssentialNeedScale` が人口密度ダイヤルを兼ねる**: 需要と扶養力の双方を動かすため、上げると 1 人あたり食料需要↑
+  →扶養力↓→均衡人口↓。tiny では **0.9**（人口/雇用が釣り合う密度。0.5 では扶養力過大で人口暴走）。§9 config 参照。
+
 **6.2.1b 人口増加時の overflow**
 
 人口増加分はまず元 POP に追加する。ただし就業（`employed: true`）POP で class capacity を超える場合、超過分は同 Holding / 同 class の未就業（`employed: false`）POP に移す。未就業 POP の増加はそのまま未就業 POP に留まる。
@@ -280,7 +298,7 @@ EmploymentRebalanceSystem の後・LandRevenueSystem の直前に実行する月
 #### 6.3c.2 v0.55 商品経済の拡張（DAG 清算・需要/投入カテゴリ・労働適性）
 
 - **resource level と DAG 1-pass**（`resourceGraph.ts`）: ProductionRecipe の input/output から resource dependency graph を構築。`raw resource`（input を持たない recipe の output、または誰の output でもない）= level 0、`recipe output` = `1 + max(level(input resource))`、複数 recipe が同じ resource を産むときは **max**。level は静的 config から**定義時に 1 回計算**（毎清算で再計算しない）。清算は level 昇順 1-pass で行い、各 level 内は `RESOURCE_KINDS` sorted order。**cycle は IntegrityCheck で error**（`integrityResourceEconomyChecks.ts`）。1-pass の既知近似（M9）: 下流の input demand は labor-based potential output 基準で立つ（上流 shortage で actual が減っても demand は減らない）。反復収束はしない方針。
-- **NeedCategory 需要展開（§5）**: POP は NeedCategory 単位で需要を持つ（`PopNeedProfile`: 12 PopType × 8 NeedCategory、`popNeedDefinitions.ts`）。category 内の ResourceKind 選択は **greedy ではなく utilityPerMoney 比率配分**（`utility_i = contributionValue_i / smoothedPrice_i`、`share_i = utility_i^β / Σ`、`needResourceChoiceBeta=2`）。これにより加工品（clothes は basic_clothing に contribution 2.0、smoked_fish/processed_meat は protein に 1.5）が必ず正の需要 share を得て死蔵を構造的に回避する。value→units 変換: `buyOrders_i = share_i × desiredCategoryValue / contributionValue_i`。**v0.58**: `desiredCategoryValue = amountPerPop × size × tierScale` の **full desired**（旧 `purchasingPowerFactor(tier)` は撤去）。`tierScale` は essential tier に `popEssentialNeedScale`（v0.58 balance=**0.5**）を掛け、それ以外は 1（過少消費是正の調整ダイヤル、後述）。予算制約は呼び出し側（resourceEconomySystem）が start-of-tick の `PopGroup.money` を **essential→ordinary→luxury の tier 優先**で充当し、placed buyOrders = full × `affordByTier`（一律スケールにしない＝貧困 POP は「食料満額・贅沢ゼロ」になる）。価格は終始 smoothedPrice で評価し burn ≤ budget（money は負にならない）。§6.3c.5。
+- **NeedCategory 需要展開（§5）**: POP は NeedCategory 単位で需要を持つ（`PopNeedProfile`: 12 PopType × 8 NeedCategory、`popNeedDefinitions.ts`）。category 内の ResourceKind 選択は **greedy ではなく utilityPerMoney 比率配分**（`utility_i = contributionValue_i / smoothedPrice_i`、`share_i = utility_i^β / Σ`、`needResourceChoiceBeta=2`）。これにより加工品（clothes は basic_clothing に contribution 2.0、smoked_fish/processed_meat は protein に 1.5）が必ず正の需要 share を得て死蔵を構造的に回避する。value→units 変換: `buyOrders_i = share_i × desiredCategoryValue / contributionValue_i`。**v0.58**: `desiredCategoryValue = amountPerPop × size × tierScale` の **full desired**（旧 `purchasingPowerFactor(tier)` は撤去）。`tierScale` は essential tier に `popEssentialNeedScale`（v0.58 balance=0.5 → **v0.60.3=0.9**。需要と食料扶養力を兼ねる人口密度ダイヤル、§6.2.1a）を掛け、それ以外は 1。予算制約は呼び出し側（resourceEconomySystem）が start-of-tick の `PopGroup.money` を **essential→ordinary→luxury の tier 優先**で充当し、placed buyOrders = full × `affordByTier`（一律スケールにしない＝貧困 POP は「食料満額・贅沢ゼロ」になる）。価格は終始 smoothedPrice で評価し burn ≤ budget（money は負にならない）。§6.3c.5。
 - **InputCategory（§6）**: recipe の inputs は InputCategory 参照（例 `textile_fiber` = flax 0.9 / wool 1.0）。市場 buyOrders への ResourceKind 選択は NeedCategory と同一の比率配分（`inputResourceChoiceBeta=2`）。単一 resource の category（metal=iron_ore 等）は share 1.0。
 - **複数 input / Liebig + floor（§12.4/§12.5）**: `inputFulfillmentScale = min over category ( Σ share_i × fulfillmentRatio_i )`。これを直接 actualOutput に掛けず、floor 付き `inputShortageModifier = inputShortageOutputFloor + (1−floor)×inputFulfillmentScale`（floor=0.25）へ変換。`actualOutput = potentialOutput × inputShortageModifier`、`actualInputConsumed_i = desiredInput_i × inputShortageModifier`、`actualInputCost_i = consumed_i × marketPrice_i`（律速側に合わせ pro-rate。満額課金しない）。raw recipe は modifier=1。
 - **労働構成と生産効果（v0.57 §雇用細分化で改訂）**: v0.55 の soft modifier（`laborTypeFulfillmentModifier`、floor 0.70 のヒストグラム交差）は撤去し、**施設駆動の PopType ハード枠 + 明示的な職能効果**に置換した。`RecipeLaborDemand`（`RECIPE_LABOR_PROFILES`、施設 kind 単位の構成）は `idealWeight`（雇用比率）/ `directOutputPower`（労働あたり産出倍率: 一次=1.0 / 熟練=1.5 / 非生産=0）/ `throughputBonus`（書記のスループット）を持つ。`computeLaborProduction`（`resourceProductionSelectors.ts`）が asset の実 PopType 構成から `effectiveLaborMult = Σ_t actualShare_t × directOutputPower_t` と `throughputMult = 1 + Σ_throughput(throughputBonus × coverage)`（coverage = min(actual/ideal, 1)）を算出。`basePotential = recipeLabor × effectiveLaborMult × baseOutputPerLabor × scale × facility × control`、**産出 = basePotential × throughputMult**、**入力は basePotential（throughput 適用前）で算出**（＝同原材料で産出のみ増える）。構成のズレはハード枠（rebalance の PopType 別容量・同数上限）が強制するため別 soft modifier は不要。旧 `inputEfficiencyBonus`（admin input 軽減）は throughput へ移行し未使用。
@@ -302,7 +320,7 @@ POP の財産を 0..100 wealth 指数から具体的な **money 残高(stock)** 
 - **money の人口保存（narrow conservation）**: money は extensive。移動/転職/雇用変更（`movePopSizeToKeyMut` / `movePopEmploymentMut`）は size 比で比例移送、merge（`addToOrCreatePopGroupMut` / 重複統合）は **sum**。死亡（size 減）は比例 burn、出生（size 増）は据え置き（per-capita 希釈・相続なし）。昇格コストは `moneyCostPerCapita` で移送 money から burn（sink）。global の money は非保存（mint/burn/死亡 burn/sub-epsilon 除去）だが「移動/merge で保存」は単体テストで担保。
 - **unrest/mobility の駆動**: unrest は popSystem が needSatisfaction（poverty/prosperity）で駆動。昇格/降格 gate は **per-capita money**（`computePopTypeMoneyQuantiles`、money/size の size 加重分位）。移住 pressure は needSatisfaction 低下、opportunity は移住先 needSatisfaction。revolt/warSupply の welfare 読み取りも needSatisfaction（`getProvinceAveragePopNeedSatisfaction` / `getPopNeedSatisfactionByClass`）。
 - **worldgen seed**: 初期 money = essential N ヶ月分（`worldgenPopMoneyMonthsOfEssential`=4）× stratum 倍率（lower 1.0 / middle 1.5 / upper 3.0）× size。
-- **config**: `wageShareOfNetRevenue`(0.5) / `upperDividendShareOfNetRevenue`(0.03) / `popEssentialNeedScale`(0.5) / `wageRoleWeightByRole` / `needSatisfactionTierWeight` / `needSatisfactionSmoothing` / `worldgenPopMoney*`。制約: `wageShareOfNetRevenue + upperDividendShareOfNetRevenue < 1`。
+- **config**: `wageShareOfNetRevenue`(0.5) / `upperDividendShareOfNetRevenue`(0.03) / `popEssentialNeedScale`(**0.9**, v0.60.3・§6.2.1a) / `wageRoleWeightByRole` / `needSatisfactionTierWeight` / `needSatisfactionSmoothing` / `worldgenPopMoney*`。制約: `wageShareOfNetRevenue + upperDividendShareOfNetRevenue < 1`。
 - **v0.58 balance 校正（過少消費の是正）**: 初版（wageRate 0.3・essentialScale 1.0）は **賃金が essential 消費 desire の ~15% しか賄えず全 POP が貧困床（needSatisfaction 中央値 ~5）に貼り付く過少消費**になっていた。構造原因は (1) 賃金=粗利の30%と労働分配率が低い (2) 粗利総額ですら essential desire の ~57% で賃金率単独では原理的に届かない、の 2 点。**essential 消費 desire を半減（`popEssentialNeedScale` 0.5）＋ 賃金率を 0.3→0.5（労働者が粗利の半分）** の併用で afford_essential を ~0.15→~0.6 に引上げ、needSatisfaction 中央値 ~5→~45（旧 wealth が想定していた ~50 域に着地、下流の rescaling 不整合も自然解消）、人口・雇用率が回復、不穏度は calm（high>50: 0/15）。150年×4seed integrity green・determinism bit-identical 維持。**upper 配当の追加（過少消費是正の続き）**: 上記の賃金是正後も upper(nobles/patricians) POP は production asset の雇用枠外で賃金ゼロ・needSatisfaction 0 だったため、**雇用 upper への配当チャネル**（`upperDividendShareOfNetRevenue`=0.03、上記 bullet）を追加。雇用 upper の needSatisfaction が 0→~45、明確な富の勾配（employed upper の money が庶民の数十倍）が出現。失業 upper は没落して降格。150年×4seed integrity green・determinism bit-identical 維持。**残課題（balance-defer）**: lower/middle の蓄財は依然 modest（中央値 subsistence ~0.2）。配当率は将来 Project 資金集め（死蔵 money の現地開発還流）が入れば引上げ余地あり（§13）。seed によっては生産・marketFill 不足で needSatisfaction が低い世界もある（high money/low needSat、配当非起因の pre-existing・seed 固有）。
 - **将来**: 労働需給に応じた動的賃金率、施設別の富格差可視化、Project 資金集めフェーズ（upper POP の死蔵 money を現地開発へ還流＋配当率引上げ）、完全保存市場（§13 将来課題）。
 
@@ -485,6 +503,8 @@ const droughtChance = config.droughtBaseChancePerYear
 > **v0.55 §B（飢饉・干魃の商品経済整合）**: 旧実装では famine も drought も pressureExcess（人口圧）駆動で発火し、固定率の人口ショックを直接与えていた。商品ベース経済では (1)「食料生産が人口を養えない」は carrying-capacity 経由で**慢性的に**既にモデル化されており（popSystem の `growthFactor = 1 − pressure²` が pressure>1 で負転、§6.5）、(2) market は価格上限で食料を実質無限購入させてしまう抽象化のため、生産不足が「餓死」に結びつかなかった。v0.55 で**消費（結果）を時間軸で分担**する: carrying-capacity が慢性の成長抑制を担い、**飢饉は急性の餓死を担う**。market fulfillment は購買力加重で「買えない＝飢える」層ほど需要が下がり充足が高く出る（逆向き）ため、信号には用いず物理的な pressure（perCapitaFoodNeed ベース）を使う。
 
 > **v0.58 balance（famineOnsetPressure 1.0→1.3）**: 過少消費是正で食料 desire を半減（`popEssentialNeedScale` 0.5、§6.3c.5）した結果、人口が食料生産限界まで増えて food pressure が平時から ~1 に張り付き、「**穀物は安値（需要半減で oversupply）なのに飢饉**」が頻発した（生存閾値 `perCapitaFoodNeed`=1.0 が実消費 ~0.6 より高く、満腹の POP まで餓死判定された）。飢饉は人口抑制の load-bearing な機構（消すと食料 cap 解放で人口爆発・失業・welfare 悪化）のため**消さず**、onset を 1.3 へ上げて**急性飢饉を深刻な不足（干魃等）のみに限定**し、平時の人口抑制は滑らかな `growthFactor` に委ねた。実測（tiny seed1）: 飢饉イベント -83%・雇用率 74→87%・人口安定。**残課題**: 食料の内訳（grain vs protein/fine_food）が乖離してくれば、飢饉を **grain 単独 × 低 survival 閾値**へ分離する案が「survival＝穀物」をより正しく表現できる（現状は grain が総食料の 76–90% で両者がほぼ連動するため効果小・将来の磨き込み）。
+
+> **v0.60.3 balance（生存閾値の需要整合 + `popEssentialNeedScale` 0.5→0.9）**: 上記 v0.58 の校正ずれ（生存閾値 1.0 vs 実需要 ~0.6）を根治した。固定 `perCapitaFoodNeed` を廃止し、carrying capacity の per-capita 食料需要を需要側と同一の導出値へ統一（§6.2.1a）。これで `pressure=1` が「食料生産＝実需要」を意味するようになり、「満腹なのに自然減」が消えた。**副作用**: 整合後は閾値が実需要（~0.6@scale0.5）まで下がり扶養力が過大化、人口が 150yr で未収束のまま暴走（tiny seed1: 3602→16408、就業率 75→41%）。これは「scale が需要と扶養力の双方を動かす」ためで、`popEssentialNeedScale` を **0.5→0.9** に上げて扶養力を絞り均衡密度を tiny に合わせた（4seed: 人口 875–4972・pressure 0.92–0.98 で収束・就業率 61–89%）。pressure は seed 横断でほぼ一定＝人口差は worldgen の食料生産差そのもの（carrying capacity が設計どおり機能）。**代償**: needSatisfaction が ~49→~27（subsistence 化、demand-alignment の構造コスト・scale 非依存）。`famineOnsetPressure`=1.3 は据え置き（整合で pressure の意味が明確になったため将来 1.0–1.1 へ戻す余地あり・balance-defer）。150年×4seed integrity green・determinism bit-identical 維持。
 
 - **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
@@ -1169,33 +1189,27 @@ newRawPower = houseShareBase
 
 **成長判定**:
 ```ts
-const naturalCeil    = aptitude[k] * naturalFraction(k, age, config)
-const effectiveCeil  = hadRelevantExperience(state, personId, k) ? aptitude[k] : naturalCeil
-if (ability[k] < effectiveCeil) {
-  const gainChance = abilityGrowthChanceBase * (1 - ability[k] / effectiveCeil)
+// naturalFraction = naturalGrowthTaperFraction(0.8) × 年齢shape(0..1)・上昇側は天賦比例の bloomMult で前倒し
+const naturalCeil = aptitude[k] * naturalFraction(k, age, aptitude[k], config)
+if (ability[k] < naturalCeil) {
+  const gainChance = abilityGrowthChanceBase * (1 - ability[k] / naturalCeil)
   if (rng < gainChance / 100) {
-    // v0.45: 成長量はギャップ比例 (成功時最低 +1)。round(effectiveCeil) と HARD_CAP で clamp
-    const amount = max(1, round((effectiveCeil - ability[k]) * abilityGrowthGapFactor))
-    ability[k] = min(ability[k] + amount, max(round(effectiveCeil), ability[k] + 1), ABILITY_HARD_CAP)
+    // v0.45: 成長量はギャップ比例 (成功時最低 +1)。round(naturalCeil) と HARD_CAP で clamp
+    const amount = max(1, round((naturalCeil - ability[k]) * abilityGrowthGapFactor))
+    ability[k] = min(ability[k] + amount, max(round(naturalCeil), ability[k] + 1), ABILITY_HARD_CAP)
   }
 }
 ```
 
-**ギャップ比例成長 (v0.45)**: 旧来の固定 +1 では「天井到達の時定数 ≒ 天井値 (年)」となり、高天賦 (80+) は寿命内に原理的に到達不能だった。成功時の伸び幅を天井との差に比例させる (`abilityGrowthGapFactor` 0.1) ことで、天井から遠いほど速く伸びる: 天才の幼少期 (天賦 110 × 年齢曲線の天井を毎年追走) や、登用直後の上限解放 (naturalCeil → aptitude) が高速成長として表現される。天井への漸近は依然遅く、天賦を使い切るのは稀なまま。
+**自然成長は天賦の 0.8 で頭打ち（才能による早熟）**: 自然成長は**経験の有無に関わらず** `aptitude × naturalFraction`（最大 `naturalGrowthTaperFraction` = 0.8 × 天賦）で頭打ちになる。0.8→1.0（= 天賦フル）は**成果成長（§6.66 award）のみ**で到達する（役職に就いただけでは解放されない＝「登用された天才が功績を重ねて大成する」）。早熟は天賦由来の `bloomMult`（= 1 + `talentEarlyBloomStrength` × max(0,(aptitude−mean)/100)）で年齢曲線の**上昇側のみ**前倒しするため、高天賦者は若くして 0.8 へ到達する（衰退側は実年齢のままで早熟≠早衰）。`bloomMult` は `geniusType` フラグではなく天賦値の連続関数なので、運良く高天賦を引いた非天才も同様に早熟する。
 
-* **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
-* **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
+**ギャップ比例成長 (v0.45)**: 旧来の固定 +1 では「天井到達の時定数 ≒ 天井値 (年)」となり、高天賦は寿命内に到達困難だった。成功時の伸び幅を天井との差に比例させる (`abilityGrowthGapFactor` 0.15) ことで、天井から遠いほど速く伸びる（天才の幼少期が高速成長として表現される）。
 
 **訓練経験 (v0.44 で廃止)**: 旧 `personTrainingExperience`（improve_ability Task 由来の gainChance bonus + 年次 decay）は v0.44 で全廃した。Task 完了は能力成長を直接発生させず、成果単位の即時成長（§6.66）に置き換えられている。
 
-**自然成長イベント (v0.44 追補)**: 成長判定で +1 が発生するたびに `PERSON_ABILITY_GREW` を emit する。`sourceKind` は成長の帯で出し分ける:
+**自然成長イベント (v0.44 追補)**: 成長判定で成長が発生するたびに `PERSON_ABILITY_GREW`（`sourceKind: 'natural'`）を emit する。importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor`（`isNotablePerson`）。メイン EventLog は major/critical のみ表示するため（§6.62 / EventLog `isMainLogEvent`）、これらは Person Chronicle（byPerson）にのみ蓄積される。RNG は消費しない（emit のみ・シミュレーション軌跡は不変）。
 
-- `'duty'`: 成長時の `ability >= naturalCeil`（= `hadRelevantExperience` による上限解放がなければ起こり得なかった、職務経験由来の成長）
-- `'natural'`: それ以外（年齢曲線内の自然成長）
-
-importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor`（`isNotablePerson`）。メイン EventLog は major/critical のみ表示するため（§6.62 / EventLog `isMainLogEvent`）、これらは Person Chronicle（byPerson）にのみ蓄積される。RNG は消費しない（emit のみ・シミュレーション軌跡は不変）。実測 (100年 seed 1): natural ≈ 351 件/年・duty ≈ 16 件/年で、Chronicle エントリの約 8 割を占める（観賞対象は人物詳細パネルの履歴）。
-
-**衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
+**衰退判定（dead band）**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > declineRef` の場合に発火する。`declineRef = naturalCeil / naturalGrowthTaperFraction`（= `aptitude × ageShape`、**taper 前**の年齢カーブ）。これにより **0.8→1.0 は成長も衰退もしない dead band** となり、award で得た 0.8 超の能力は加齢が来るまで保持される（衰退基準を `naturalCeil`(0.8×…) にすると award 由来の能力が衰退4能力でのみ毎年削られ非対称になるため、taper 前を基準にする）。ピーク後は `ageShape` が縮むため従来どおり加齢衰退に向かう。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
 
 **経験イベント対応表（hadRelevantExperience）**:
 
@@ -1240,7 +1254,7 @@ importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor
 
 #### 親能力ボーナス（PersonGrowthSystem §6.24 内）
 
-childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < effectiveCeil && effectiveCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `effectiveCeil = 0` で成長ブロックに入らずボーナスも効かない。
+childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < naturalCeil && naturalCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `naturalCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `naturalCeil = 0` で成長ブロックに入らずボーナスも効かない。
 
 #### 社会活動資格の `young_adulthood` 化
 
@@ -1844,12 +1858,24 @@ active Project の immediate stage を即時解決する。毎 tick 実行（int
 
 **immediate stage handler**:
 - `find_supervisor` (develop_holding): 対象 Holding に active な Bailiff がいればそれを supervisor に採用し、Project 期間中の任期交代から保護（termProtect）。Bailiff 不在時は `selectProjectSupervisor`（能力・workload ベース、母集合は owner の関係者＋食客 — §4.9 参照。v0.45.3: 性別役職適格ゲート §6.19 を適用、gated 空振り時は `allowFemaleRolesWhenNoMaleCandidate` が true の場合のみ ungated 再試行）で再選定し、候補ゼロなら creator に倒して必ず次 stage へ進む（creator 自己監督への倒れは gate 対象外 — 自分の project を自分で見るのは地位ではない）。旧実装の bailiff 候補探索カスケード（right holder 家→creator 派閥→owner 家→influence 家→influence 家系派閥の全メンバー）は廃止 — 旧仕様「担当者をそのまま代官に直接任命」の名残で、owner と無関係な人物（influence 家の派閥の平メンバー）まで負荷を見ずに supervisor へ引き込んでいた。候補ゼロ時に find_supervisor で永久 stall する経路も本変更で解消
-- `secure_budget` (develop_holding): owner treasury から budget 確保
+- `secure_budget` (develop_holding / develop_real_estate / acquire_real_estate / upgrade_owned_real_estate / handle_crisis): owner stock から budget 確保。**v0.60: 初期 fraction 確保へ軽量化** — 旧来は `required` 全額（acquire は salePrice）を owner stock から一括先払いし、不足なら secure_budget で stall していた。これを `take = min(ceil(required × projectInitialReserveFraction), stock, required)` だけ確保し、**stock 不足でもハード失敗せず開始**する方式に変更（`allocated = remaining = take`、`required` は不変）。不足分は後続の raise_funds ラウンドで集める＝Project の開始ハードルを下げる狙い
 - `open_diplomatic_play` (acquire_land / sell_land / improve_contract_terms / demand_tax_increase): DiplomaticPlay を作成し、Pressure を生成。preparation / leverage / commitment を DiplomaticPlay に転写。重複チェックあり（duplicate → Project failed）。play 作成と同時に initiator の初期 DiplomaticOffer を生成
 - `choose_stance` (respond_to_pressure): 軍事力比較で stance 決定（target < source×0.5 → concede、target ≥ source×1.2 → resist、else → negotiate）。この式は `selectors/pressureStanceSelectors.ts` の `predictPressureResponseStance`（閾値 `PRESSURE_CONCEDE_POWER_RATIO`=0.5 / `PRESSURE_RESIST_POWER_RATIO`=1.2）として外出しされ、外交劇の開始可否ゲート（減税系 aim 選定 §6.57、税改定 play 生成 §6.42）と**同一の式を共有**する。「開始時に予測する相手の応答」と「実際の応答」が必ず一致する単一の真実。**性格シフト（`personAbilityEffectsEnabled`、default ON）**: nominal power はそのままに、concede/resist の両境界を被圧力側（target）の意思決定者（polity=指導者 / house=当主）の性格で同量シフトする。「大胆さ」軸 `shift = ambition×pressureStanceAmbitionShift − caution×pressureStanceCautionShift`（各 0.1、`normalizedTrait` で中点 0.5 基準）を両境界から引く＝大胆な宗主は不利でも拒否しやすく譲歩しにくい / 慎重な宗主は早く譲歩する。両境界を同量動かすので concede < resist の順序は保たれる。OFF 時は厳密に従来挙動。開戦ゲート（§6.44）は regiment 勝率で別軸に判定するため、ここに regiment 戦力は持ち込まない（aim/play ゲートへ 0 動員エッジを波及させないため、勝率精度は開戦判断に閉じ込める意図的な非対称）。
 - `propose_initial_offer` (respond_to_pressure): target 側が stance に基づく counter-offer を生成。concede → initiator の offer demands をコピー、negotiate → 中間案（land_claim: pay_wealth ×1.3、contract_tax_revision: halfway rate）、resist → status_quo。counter-offer 作成時に progress += counterOfferProgressDelta
 
 **runtime fallback**: invalid な currentStageKey を持つ active Project に initial stage を補正する（防御的補正）。
+
+**v0.60: raise_funds（資金集めラウンド・budget 持ち 5 種の back-edge ステージ）**
+
+`raise_funds` (immediate) を `develop_holding / develop_real_estate / acquire_real_estate / upgrade_owned_real_estate / handle_crisis` の stage 列に **final（execute_project/mitigate）の後ろ**へ追加した。linear 遷移には出さない（`getNextProjectStageKey` は次要素が raise_funds なら undefined を返す＝final stage の linear next は従来どおり無し）。遷移は **§6.40 ProjectMaintenanceSystem が budget 枯渇時に手動で `currentStageKey='raise_funds'` をセット**し、次 tick で本 handler `resolveRaiseFunds` が解決して final へ戻す back-edge。
+
+- **ステークホルダー列挙**（`getProjectFundingStakeholders`・ID 昇順・重複排除・insider 優先）: **insider** = owner（polity/house/person）/ creator / supervisor / 現地代官（`getActiveBailiff`）。**external** = owner が polity なら関連 House/Person（`getPolityHouseIds` / `getPolityPersonIds`、commonwealth は `getRepublicPoliticalCandidatePersons` union で空にならない）、owner が house なら House メンバー、＋ローカル POP（`popIndex.byHolding`）。`acquire_real_estate` は私的取得のため POP・関連 Polity を含めず owner House＋メンバーのみ。
+- **pledge 算出**（`computeContributorPledge`・RNG 不使用・決定的）: **insider** = `stock × clamp01(insiderMaxContributionFraction × (insiderAbilityFloor + (1−insiderAbilityFloor) × abilityFactor))`（高率だが **v0.60.2 で能力に依存**: floor〜full にスケール・関係非依存。身内も説得/調整に supervisor の能力を要するが、動機が高いので能力ゼロでも `insiderAbilityFloor` 倍は出す）。`abilityFactor` は **上限を設けない**（external と同様）ため、diplomacy 50 で従来どおりの `insiderMaxContributionFraction`、それ以上に有能な監督者は `insiderMaxContributionFraction` を超えて集金し、飛び抜けた調達者は身内の金庫をほぼ空にできる（最終 `clamp01` で 1.0 が上限・**意図的な人物中心演出**）。**external** = `stock × clamp01(maxFractionByKind × abilityFactor × relationFactor)`。`maxFractionByKind` = `fundraisingMaxContributionFractionByContributorKind`（polity/house/person/pop）。`abilityFactor = (max(0,supervisor の diplomacy ロール score)/50)^fundraisingAbilityExponent`（**人物中心史観**: 有能な調達者ほど多く集める）。`relationFactor` = Person/POP のみ supervisor への attitude `clamp01((affection×0.6+respect×0.4)/100)`（House/Polity 組織は 1.0）。POP の stock は生活費 horizon（`getPopContributableSurplus` = `max(0, money − 需要金額 × popContributionHorizonMonths)`、需要金額 = `computePopNeedDemand` の `Σ buyOrders × smoothedPrice`）を超える**余剰のみ**。
+- **保存則**: 各 pledge を出し手 stock（treasury / wealth / money）から実減算し budget に加算（`allocated += raised`, `remaining += raised`、各 stock ≥0 を clamp）。**over-collection cap（v0.60.1 で acquire 限定に緩和）**: `acquire_real_estate` のみ `raised` を `requiredRemaining = required − allocated` に比例縮小し allocated が required を超えないようにする（seller 決済が `budget.allocated` に依拠するため、超過 = seller 過払い = 貨幣創造を防ぐ）。**material-sink 4 種（develop_holding / develop_real_estate / upgrade_owned_real_estate / handle_crisis）は cap しない**＝required を超えて調達できる。理由: `budget.required` は `computeImprovementProjectCost`（base × 各乗数 × `projectBudgetMarginMultiplier`）の **smoothedPrice 非依存の見積り**だが、実消費（`handleAdvanceProjectCompletionMut` の材料経路）は `desiredCost = Σ baseUnits × smoothedPrice`（現在市場価格）で評価されるため、建設資材が品薄で価格上昇すると真の所要額が required を超え、cap が required で頭打ちにすると **満額調達しても progress が目標に届かず `budget_exhausted` を量産**していた（v0.60 観察で develop_holding 成功率 ~5%・handle_crisis ~70%、cap で律速。pr-3 等は round1 で allocated=required まで満額調達後 round2/3 が scale=0 で raised=0 → 失敗）。material-sink は seller 不在で余剰 budget が材料消費 or 完了時還付（projectOutcomeSystem）に回り保存則安全なため、cap を外して price 上昇分（上限有界 ~1.75×basePrice）を補えるようにした。observed: cap 緩和で handle_crisis ~100%（→ disrepair 修繕が完遂し施設 condition が ~20→~75-88 に回復・churn も着工 2085→616 に激減）、develop_holding 5→16%（broke seed は funding_failed 律速で seed 依存）。market price lookup は `getProjectMarketKey`（holding→province→stateId）で resourceEconomySystem と統一。
+- **終了保証（2 本）**: ① ラウンド最小回収 — `rawRaised < requiredRemaining × projectFundingRoundMinCollectionFraction` または `rawRaised ≤ 0` で `status='failed', terminalReason='funding_failed'`。② 最大ラウンド — §6.40 が `fundingRoundCount ≥ projectMaxFundingRounds` で `budget_exhausted`。成功時は `fundingRoundCount++`・`majorContributors`（累積拠出記録・pop 除く・amount 降順上位 `projectMajorContributorTrackLimit` 件）更新・final stage 復帰。**deadline 延長は非 crisis kind のみ** `deadlineWeek = max(absoluteWeek, deadlineWeek) + projectFundingDeadlineExtensionWeeks`。**handle_crisis は延長しない**（非 disrepair は `Crisis.deadlineWeek` を単一の真実とし、disrepair は deadline 無し（v0.48.1）— raise_funds で上書きするとこの不変を壊すため既存 deadlineWeek を保持する）。**budget 加算は `applyPledgeDrains` が返す実 drain 合計**を使い（pledge が stock を超えても貨幣創造にならない保存則防御）、各 pledge は acquire のみ requiredRemaining 比で比例縮小（material-sink は cap せず・上記）。
+- **mutable draft**: `runProjectStageSystem` は draft に `popGroups` slice を追加（applyPledgeDrains が POP.money を書き戻すため。漏れると元 state 破壊＝determinism/integrity 違反）。
+- **acquire_real_estate の seller 決済（保存則整合）**: ProjectOutcomeSystem の完了処理で seller（terminal Polity）への支払いを `project.salePrice` から **`budget.allocated`（実際に集めた額）** へ変更。満額 funded 時は `allocated == required == salePrice` で従来同値、under-funded 完了時も drained 量と一致＝保存則を保つ。
+- **balance-defer**: 終了時の残予算 `budget.remaining` は **担当者（supervisor）が総取り**する（v0.60.4・上記「残予算の還付」一般則。成功・失敗とも・不在時 owner フォールバック）。external 拠出（POP/関連 Person 等）は拠出見返り（funder rewards）が未実装のため出資分が戻らないが、回収先が owner から担当者へ移っただけで fairness は依然未解決＝将来 funder rewards でまとめて対処する（§4）。config 既定値（insider 率・**insiderAbilityFloor**・能力指数・POP horizon・最小回収率・最大ラウンド・初期 fraction・拠出上限率）は控えめ＝balance-defer。
 
 ### 6.39 ProjectTaskGenerationSystem（毎週）
 
@@ -1877,7 +1903,7 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 **develop_holding 追加処理**:
 - find_supervisor / secure_budget の immediate stage の解決は ProjectStageSystem（§6.38、毎週）が担当する（本 system では retry しない）
 - deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）。deadline は `projectDeadlineWeeksDevelopment × (targetProgress / projectDefaultTargetProgress)` で算出。Level 2 (×2) / Level 3 (×3) の大規模工事に比例した期間を確保
-- budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
+- **v0.60: budget 枯渇 → raise_funds back-edge**（旧「budget.remaining 不足で即 failed」を置換）。budget 持ち 5 種で `budget.remaining ≤ 0 かつ progress < targetProgress` のとき、`fundingRoundCount < projectMaxFundingRounds` なら **進捗を保ったまま `currentStageKey='raise_funds'`** へ遷移（status は active 維持・次 tick の §6.38 resolveRaiseFunds が集金）。ラウンド上限到達時のみ従来どおり `failed, terminalReason='budget_exhausted'`。`raise_funds` は immediate stage のため deadline 適用外（resolveRaiseFunds が deadline を延長して final へ戻す）
 
 **v0.59 追補③: ボトルネック資源への生産性投資（`buildProjectFieldsForAim` の develop_holding 決定）**
 
@@ -1899,18 +1925,19 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - **義務系 Project（v0.53、§6.70）**: `seize_real_estate_income` completed → `createRealEstateSeizureMut` で RealEstateSeizure（status=active）を作成。`withhold_land_contract_tax` completed → `createLandContractDefaultMut` で `origin='tax_default'` の LandContractDefault を作成。`enforce_obligation` completed → 対象 seizure/default を resolved にし、active enforce 追跡（`entity.activeEnforceProjectId`）を解除。これら 3 kind は self-executed で reputation を付与しない（`PROJECT_REPUTATION_CATEGORY_MAP[kind] = undefined`）。作成に伴い `realEstateSeizures` / `landContractDefaults` collection・index・`next*Id` を mutable draft writeback slice に含める
-- **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（budget 返金は develop_holding と同一一般化）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
+- **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（残予算は v0.60.4 一般則で担当者へ還付＝旧仕様の「成功時消滅」保存則漏れを解消）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
 - **成果経験・評判付与（v0.44）**: 非外交 Project は削除直前に supervisor へ即時成長 + PersonReputation を付与する（§6.66）。terminal Project の `terminalReason` が未設定なら throw（terminal サイトのセット漏れを fail-fast で顕在化。年末 integrity は flush 後で検出できないため）
+- **残予算（budget.remaining）の還付（v0.60.4）**: budget 持ち 5 種は終了時（成功・失敗とも）の残予算を **担当者（supervisorPersonId）の wealth に全額還付**する（「予算には担当者報酬が含まれる」前近代的な業務委託の見立て＝成功でも失敗でも担当者の総取り）。担当者が死亡/不在のときは **owner（polity treasury / house wealth）へフォールバック**し保存則（money は移動のみ）を守る。**acquire_real_estate の成功時のみ除外**＝budget は購入代金で成功時は売り手へ `budget.allocated` 全額支払い済みのため還付しない（二重払い＝貨幣創造防止）。acquire の失敗（売り手未払い）は還付対象。集約箇所 = `creditResidualBudgetToSupervisorMut`（projectOutcomeSystem）。旧仕様（〜v0.60.2）は develop 系のみ成功→supervisor・upgrade 成功→owner house・handle_crisis 成功→消滅（保存則漏れ）・全種失敗→owner とバラついていたのを統一した
 - Project を state.projects / projectIndex から削除
 
 **develop_holding completed 時の追加処理**:
 1. HoldingImprovement を作成（新規）または level up（既存）
-2. `budget.remaining` → `supervisor.wealth`（成功報酬・節約分の取り分）
+2. 残予算 `budget.remaining` の還付は上記「残予算の還付（v0.60.4）」一般則に集約（担当者総取り・不在時 owner フォールバック）
 3. `project_completed` PersonActivityLog を supervisor に追加（params に improvementKind / targetLevel / holdingId）
 4. creator → supervisor / owner leader → supervisor の respect を小幅上昇（`projectCompletedRespectGain`）
 
 **develop_holding failed 時の追加処理**:
-1. `budget.remaining` → owner に返金
+1. 残予算 `budget.remaining` の還付は上記「残予算の還付（v0.60.4）」一般則に集約（v0.60.4 以前は owner 返金だった）
 2. `project_failed` PersonActivityLog を supervisor に追加
 
 ### 6.42 DiplomaticPlaySystem（4週ごと）
@@ -2843,8 +2870,8 @@ type PersonReputation = {
 
 #### 既存システムとの相互作用（設計時に検証済み・追加実装なし）
 
-- 自然成長上限は age-curve fraction（最大 0.7-0.75）× 天賦のため、天才も自然成長だけでは天賦の 7 割止まり。**天賦 80-120 を使い切るには職務経験（§6.24 の ceiling 解放）や成果成長（§6.66）が必要** — 「登用された天才だけが大成する」が創発する
-- 幼少期の天才は naturalCeil（= 高い天賦 × 年齢曲線）を毎年ギャップ比例で追走し、通常の子の約 2 倍の水準で育つ
+- 自然成長上限は `naturalGrowthTaperFraction`（0.8）× 天賦のため、天才も自然成長だけでは天賦の 8 割止まり。**0.8→天賦フルを使い切るには成果成長（§6.66 award）が必要**（職務経験では解放されない） — 「功績を重ねた天才だけが大成する」が創発する
+- 天才は天賦比例の `bloomMult` で年齢曲線の上昇側が前倒しされ、**若くして 0.8 へ到達**する（早熟）。0.8→1.0 は成長も衰退もしない dead band で、award で得た高水準は加齢まで保持される
 - `isNotablePerson` に `geniusType` 判定を追加（§6.25）。天才の成長ログは normal になり、死去は `IMPORTANT_PERSON_DIED` 対象になる
 - **死亡率補正（v0.45.1）**: 自然死判定率に `geniusMortalityMultiplier`（0.5）を乗じる（§6.7）。夭折率は約 26% → 約 15% に下がり、「才能を開花させる前に死ぬ」がデフォルトでなくなる（夭折の物語は稀に残る）
 - **在野刈り込みから除外（v0.45.1）**: `faded_from_history` の対象にしない（§6.18）。在野でも自然死はするため不死にはならない

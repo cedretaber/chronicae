@@ -6,7 +6,9 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
 import { clamp } from '../utils/math'
-import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
+import { FOOD_RESOURCE_VALUE, FOOD_NEED_CATEGORIES } from '../config/popFoodDefinitions'
+import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
+import { NEED_CATEGORY_TIER } from '../types/needCategory'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import {
   computeHoldingClassCapacity,
@@ -94,14 +96,63 @@ export function getStateFoodSupply(state: WorldState, stateId: StateRegionId): n
   return total
 }
 
-// v0.55 POP 再設計: state の「養える人口」= max(floor, foodSupply / perCapitaFoodNeed)。
+// v0.60.3: POP 1 人あたりの月次「食料需要」(value 単位)。供給側 getStateFoodSupply と同じ
+//   FOOD_NEED_CATEGORIES (staple_food/protein/fine_food) を、需要側 computePopNeedDemand と同じ
+//   tierScale (essential は popEssentialNeedScale) で合算する。食料カテゴリ内では
+//   FOOD_RESOURCE_VALUE[r] == contributionValue_r のため price 依存の資源選択 share が相殺し、
+//   per-capita 需要は profile×tierScale の純和になる (= 実消費量)。これにより carrying capacity の
+//   生存閾値が needSatisfaction の実需要と構造的に同一の物差しになり、config を触っても drift しない。
+export function getPerCapitaFoodNeed(config: SimulationConfig, popType: PopType): number {
+  const profile = POP_NEED_PROFILES[popType]
+  let need = 0
+  for (const cat of FOOD_NEED_CATEGORIES) {
+    const tierScale = NEED_CATEGORY_TIER[cat] === 'essential' ? config.popEssentialNeedScale : 1
+    need += profile[cat] * tierScale
+  }
+  return need
+}
+
+// v0.60.3: state 全 POP の月次食料需要総量 (= Σ size × getPerCapitaFoodNeed(popType))。
+//   getStatePopulation と同一の反復順 (provinceIds → holdingIds → byHolding) で決定的に合算する。
+export function getStateFoodRequirement(
+  state: WorldState,
+  config: SimulationConfig,
+  stateId: StateRegionId,
+): number {
+  const region = state.states[stateId]
+  if (!region) return 0
+  let total = 0
+  for (const provinceId of region.provinceIds) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const holdingId of province.holdingIds) {
+      const popIds = state.popIndex.byHolding[holdingId]
+      if (!popIds) continue
+      for (const popId of popIds) {
+        const pop = state.popGroups[popId]
+        if (!pop) continue
+        total += pop.size * getPerCapitaFoodNeed(config, pop.popType)
+      }
+    }
+  }
+  return total
+}
+
+// v0.60.3: state の「養える人口」= max(floor, foodSupply / 人口加重 per-capita 食料需要)。
+//   v0.55 の固定 perCapitaFoodNeed(=1.0) を、需要側と同じ導出値の人口加重平均へ置換し、
+//   「満腹なのに自然減」を生んでいた生存閾値(1.0)と実需要(~0.6)の校正ずれを解消する。
 export function getStateCarryingCapacity(
   state: WorldState,
   config: SimulationConfig,
   stateId: StateRegionId,
 ): number {
   const supply = getStateFoodSupply(state, stateId)
-  const cc = supply / Math.max(config.perCapitaFoodNeed, 0.0001)
+  const population = getStatePopulation(state, stateId)
+  const requirement = getStateFoodRequirement(state, config, stateId)
+  // 人口加重 per-capita 需要。人口ゼロ時は base profile (peasants) で代替 (pressure は 0 になるため無影響)。
+  const perCapita =
+    population > 0 ? requirement / population : getPerCapitaFoodNeed(config, 'peasants')
+  const cc = supply / Math.max(perCapita, 0.0001)
   return Math.max(config.minProvinceCarryingCapacity, cc)
 }
 

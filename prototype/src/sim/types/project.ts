@@ -48,6 +48,8 @@ export type ProjectTerminalReason =
   | 'target_destroyed'
   // v0.48.1: develop_holding 完了で improvement が再生され disrepair が解消、修理 Project が冗長化
   | 'target_repaired'
+  // v0.60: 資金集めラウンドが最小回収を満たせず Project が頓挫
+  | 'funding_failed'
 
 type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
 
@@ -116,7 +118,14 @@ export type BaseProject = {
   createdWeek: number
   deadlineWeek?: number
   reasonIds: DecisionReasonId[]
+  // v0.60: 資金集めラウンド回数 (preparatory の stageAttemptCount とは別概念)。
+  fundingRoundCount?: number
+  // v0.60: 主要拠出者 (cumulative・amount 降順上位 projectMajorContributorTrackLimit 件)。
+  majorContributors?: ProjectContributorRecord[]
 }
+
+// v0.60: 資金集めラウンドの主要拠出記録 (完成時イベント・Chronicle 用・上位 N に bounded)。
+export type ProjectContributorRecord = { subject: DecisionSubjectRef; amount: number }
 
 export type ProjectStageKey = string
 
