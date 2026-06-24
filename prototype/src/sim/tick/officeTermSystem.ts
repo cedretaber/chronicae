@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { OfficeAssignmentId } from '../types/ids'
-import { isOfficeTermExpired } from '../selectors/officeSelectors'
+import { isOfficeTermExpired, getOrganizationOfficeEntityRefs } from '../selectors/officeSelectors'
 import { expireOfficeTermAssignment } from '../mutations/officeMutations'
 import { nameParam, entityRef } from '../types/event'
 
@@ -33,9 +33,7 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
       entityRefs: [
         entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
         ...(holderHouseId ? [entityRef('house', holderHouseId, 'house')] : []),
-        ...(office.organization.kind === 'polity'
-          ? [entityRef('polity', office.organization.id, 'organization')]
-          : []),
+        ...getOrganizationOfficeEntityRefs(office.organization),
       ],
     })
     currentCtx = { ...ec, events: [...ec.events, event] }

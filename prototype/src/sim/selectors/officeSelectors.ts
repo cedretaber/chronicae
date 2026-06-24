@@ -16,16 +16,45 @@ import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitud
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 import { getRoleScore, abilityOutputFactor } from '@sim/selectors/abilitySelectors'
 import { getPolityTerminalProvinceIds } from '@sim/selectors/landContractSelectors'
+import { organizationKey } from '@sim/selectors/organizationSelectors'
+import { entityRef } from '@sim/types/event'
+import type { EventEntityRef } from '@sim/types/event'
 
-function orgKey(org: OrganizationRef): string {
-  return `${org.kind}:${org.id}`
+// organization (polity / house) の office 任期年数をテーブルから引く。
+// 第三の組織種を OrganizationKind に足すと officeTermYears の型 (kind 名キー) で
+// 欠落が compile error として表面化する。leader は呼び出し側で除外済み (任期なし)。
+export function getOrganizationTermYears(
+  config: SimulationConfig,
+  org: OrganizationRef,
+  role: Exclude<OfficeRole, 'leader'>,
+): number {
+  return config.officeTermYears[org.kind][role]
+}
+
+// office 関連イベントに付与する organization の entityRef を返す。
+// 現挙動を保存: polity は organization ref を 1 つ、house は付けない (省略) — v0.x の
+// event 形を維持する。merchant 等の組織種を足す際は、ここが entityRef 方針を決める
+// 唯一の判断点になる (switch 網羅で対応漏れが compile error 化する)。
+export function getOrganizationOfficeEntityRefs(org: OrganizationRef): EventEntityRef[] {
+  switch (org.kind) {
+    case 'polity':
+      return [entityRef('polity', org.id, 'organization')]
+    case 'house':
+      return []
+    default: {
+      const _exhaustive: never = org
+      throw new Error(
+        `getOrganizationOfficeEntityRefs: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
+  }
 }
 
 export function getOfficeAssignments(
   state: WorldState,
   organization: OrganizationRef,
 ): OfficeAssignment[] {
-  const key = orgKey(organization)
+  const key = organizationKey(organization)
   const ids = state.officeIndex.byOrganization[key] ?? []
   return ids.flatMap((id) => {
     const office = state.officeAssignments[id]
@@ -128,86 +157,93 @@ function getOfficeHolderPower(state: WorldState, office: OfficeAssignment): numb
 
   const org = office.organization
 
-  if (org.kind === 'polity') {
-    const countryId = org.id
-    const houseId = person.houseId
-    if (!houseId) return 0
-    const country = state.polities[countryId]
+  switch (org.kind) {
+    case 'polity': {
+      const countryId = org.id
+      const houseId = person.houseId
+      if (!houseId) return 0
+      const country = state.polities[countryId]
 
-    // v0.42 §19.2-1: 旧 houseSharePct 項 (×0.6) は polity share 廃止に伴い除去した。
-    // 本関数は同一 role 複数 holder の tie-break にのみ使われ (getPrimaryOfficeHolder)、
-    // config 非供給経路 (getPolityLeader など) から呼ばれるため influence 換算はできない
-    // (influenceSelectors への runtime import は循環依存になる)。tie-break は
-    // personShare / prestige / respect / tenure で引き続き決定的に機能する。
-    const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
-    const prestige = person.legacyPrestige
+      // v0.42 §19.2-1: 旧 houseSharePct 項 (×0.6) は polity share 廃止に伴い除去した。
+      // 本関数は同一 role 複数 holder の tie-break にのみ使われ (getPrimaryOfficeHolder)、
+      // config 非供給経路 (getPolityLeader など) から呼ばれるため influence 換算はできない
+      // (influenceSelectors への runtime import は循環依存になる)。tie-break は
+      // personShare / prestige / respect / tenure で引き続き決定的に機能する。
+      const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
+      const prestige = person.legacyPrestige
 
-    // v0.15: 旧 v0.14 では getPolityLeader (= polity:leader Office holder) を ruler 参照に使っていた。
-    // getPrimaryOfficeHolder が同じ Office について getOfficeHolderPower を再帰呼びするため、
-    // 同 Polity に複数 polity:leader Office が一時的に並存すると無限再帰する。
-    // v0.15 では Polity.ownerHouseId → その House の leader を ruler proxy とし、再帰を切る。
-    let rulerRespectScore = 0
-    const ownerHouseId = country?.ownerHouseId
-    const rulerId = ownerHouseId ? getHouseLeader(state, ownerHouseId) : undefined
-    if (rulerId && rulerId !== office.holderPersonId) {
-      const ruler = state.persons[rulerId]
-      if (ruler) {
-        const att = getAttitudeOrDefault(state, person, { kind: 'person', id: rulerId })
-        rulerRespectScore = attitudeValueToScore(att.respect) / 100
+      // v0.15: 旧 v0.14 では getPolityLeader (= polity:leader Office holder) を ruler 参照に使っていた。
+      // getPrimaryOfficeHolder が同じ Office について getOfficeHolderPower を再帰呼びするため、
+      // 同 Polity に複数 polity:leader Office が一時的に並存すると無限再帰する。
+      // v0.15 では Polity.ownerHouseId → その House の leader を ruler proxy とし、再帰を切る。
+      let rulerRespectScore = 0
+      const ownerHouseId = country?.ownerHouseId
+      const rulerId = ownerHouseId ? getHouseLeader(state, ownerHouseId) : undefined
+      if (rulerId && rulerId !== office.holderPersonId) {
+        const ruler = state.persons[rulerId]
+        if (ruler) {
+          const att = getAttitudeOrDefault(state, person, { kind: 'person', id: rulerId })
+          rulerRespectScore = attitudeValueToScore(att.respect) / 100
+        }
       }
-    }
 
-    let orgRespectScore = 0
-    if (country) {
-      const att = getAttitudeOrDefault(state, person, { kind: 'polity', id: countryId })
-      orgRespectScore = attitudeValueToScore(att.respect) / 100
-    }
-
-    const tenure = clamp((state.currentYear - office.startYear) * 0.01, 0, 0.1)
-
-    const power =
-      1 +
-      (personSharePct / 100) * 0.25 +
-      (prestige / 100) * 0.1 +
-      rulerRespectScore * 0.1 +
-      orgRespectScore * 0.1 +
-      tenure
-
-    return clamp(power, 0.01, Infinity)
-  } else {
-    const houseId = org.id
-    const house = state.houses[houseId]
-
-    const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
-    const prestige = person.legacyPrestige
-
-    let leaderRespectScore = 0
-    const leaderId = getHouseLeader(state, houseId)
-    if (leaderId && leaderId !== office.holderPersonId) {
-      const leader = state.persons[leaderId]
-      if (leader) {
-        const att = getAttitudeOrDefault(state, person, { kind: 'person', id: leaderId })
-        leaderRespectScore = attitudeValueToScore(att.respect) / 100
+      let orgRespectScore = 0
+      if (country) {
+        const att = getAttitudeOrDefault(state, person, { kind: 'polity', id: countryId })
+        orgRespectScore = attitudeValueToScore(att.respect) / 100
       }
+
+      const tenure = clamp((state.currentYear - office.startYear) * 0.01, 0, 0.1)
+
+      const power =
+        1 +
+        (personSharePct / 100) * 0.25 +
+        (prestige / 100) * 0.1 +
+        rulerRespectScore * 0.1 +
+        orgRespectScore * 0.1 +
+        tenure
+
+      return clamp(power, 0.01, Infinity)
     }
+    case 'house': {
+      const houseId = org.id
+      const house = state.houses[houseId]
 
-    let orgRespectScore = 0
-    if (house) {
-      const att = getAttitudeOrDefault(state, person, { kind: 'house', id: houseId })
-      orgRespectScore = attitudeValueToScore(att.respect) / 100
+      const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
+      const prestige = person.legacyPrestige
+
+      let leaderRespectScore = 0
+      const leaderId = getHouseLeader(state, houseId)
+      if (leaderId && leaderId !== office.holderPersonId) {
+        const leader = state.persons[leaderId]
+        if (leader) {
+          const att = getAttitudeOrDefault(state, person, { kind: 'person', id: leaderId })
+          leaderRespectScore = attitudeValueToScore(att.respect) / 100
+        }
+      }
+
+      let orgRespectScore = 0
+      if (house) {
+        const att = getAttitudeOrDefault(state, person, { kind: 'house', id: houseId })
+        orgRespectScore = attitudeValueToScore(att.respect) / 100
+      }
+
+      const tenure = clamp((state.currentYear - office.startYear) * 0.01, 0, 0.1)
+
+      const power =
+        1 +
+        (personSharePct / 100) * 0.7 +
+        (prestige / 100) * 0.15 +
+        leaderRespectScore * 0.1 +
+        orgRespectScore * 0.1 +
+        tenure
+
+      return clamp(power, 0.01, Infinity)
     }
-
-    const tenure = clamp((state.currentYear - office.startYear) * 0.01, 0, 0.1)
-
-    const power =
-      1 +
-      (personSharePct / 100) * 0.7 +
-      (prestige / 100) * 0.15 +
-      leaderRespectScore * 0.1 +
-      orgRespectScore * 0.1 +
-      tenure
-
-    return clamp(power, 0.01, Infinity)
+    default: {
+      const _exhaustive: never = org
+      throw new Error(`getOfficeHolderPower: unexpected organization ${String(_exhaustive)}`)
+    }
   }
 }
 
@@ -311,37 +347,47 @@ export function getEffectiveOfficeMaxHolders(
   const def = OFFICE_DEFINITIONS[`${organization.kind}:${role}`]
   const baseMax = def ? def.maxHolders : 1
 
-  if (organization.kind === 'house') return role === 'leader' ? baseMax : 1
+  switch (organization.kind) {
+    case 'house':
+      return role === 'leader' ? baseMax : 1
+    case 'polity': {
+      const polity = state.polities[organization.id]
+      if (!polity || !polity.active) return baseMax
+      if (role === 'leader') return baseMax
 
-  const polity = state.polities[organization.id]
-  if (!polity || !polity.active) return baseMax
-  if (role === 'leader') return baseMax
+      // v0.47 §6.5: titular Polity は leader 以外の office を持たない (effective max 0)。
+      //   毎 tick の任命→revoke churn を避けるための最後の安全網 (appointment 側でも prevention)。
+      if (getPolityTerritorialStatus(polity) === 'titular') return 0
 
-  // v0.47 §6.5: titular Polity は leader 以外の office を持たない (effective max 0)。
-  //   毎 tick の任命→revoke churn を避けるための最後の安全網 (appointment 側でも prevention)。
-  if (getPolityTerritorialStatus(polity) === 'titular') return 0
+      // commonwealth: rank に依らず全 role を解放し、席数は専用テーブルで rank に応じる。
+      //   province factor は掛けない (政体の格 = rank が席数を決める)。通常テーブル + factor では
+      //   rank 5 (≈1 province) で administrator/treasurer が必ず 1 に潰れ、権力闘争の余地が消えるため。
+      if (polity.kind === 'commonwealth') {
+        const cwRow = config.polityOfficeMaxByRankCommonwealth[polity.rank]
+        const cwCap = cwRow ? cwRow[role] : 1
+        return Math.max(1, Math.min(baseMax, cwCap))
+      }
 
-  // commonwealth: rank に依らず全 role を解放し、席数は専用テーブルで rank に応じる。
-  //   province factor は掛けない (政体の格 = rank が席数を決める)。通常テーブル + factor では
-  //   rank 5 (≈1 province) で administrator/treasurer が必ず 1 に潰れ、権力闘争の余地が消えるため。
-  if (polity.kind === 'commonwealth') {
-    const cwRow = config.polityOfficeMaxByRankCommonwealth[polity.rank]
-    const cwCap = cwRow ? cwRow[role] : 1
-    return Math.max(1, Math.min(baseMax, cwCap))
+      const rankRow = config.polityOfficeMaxByRank[polity.rank]
+      if (!rankRow) return baseMax
+      const rankCap = rankRow[role]
+      if (rankCap <= 0) return 0
+
+      const provinceCount = getPolityTerminalProvinceIds(state, organization.id).length
+      let factor: number
+      if (provinceCount <= 1) factor = config.polityOfficeMaxProvinceFactor.small
+      else if (provinceCount <= 3) factor = config.polityOfficeMaxProvinceFactor.medium
+      else factor = config.polityOfficeMaxProvinceFactor.large
+
+      return Math.max(1, Math.min(baseMax, Math.floor(rankCap * factor)))
+    }
+    default: {
+      const _exhaustive: never = organization
+      throw new Error(
+        `getEffectiveOfficeMaxHolders: unexpected organization ${String(_exhaustive)}`,
+      )
+    }
   }
-
-  const rankRow = config.polityOfficeMaxByRank[polity.rank]
-  if (!rankRow) return baseMax
-  const rankCap = rankRow[role]
-  if (rankCap <= 0) return 0
-
-  const provinceCount = getPolityTerminalProvinceIds(state, organization.id).length
-  let factor: number
-  if (provinceCount <= 1) factor = config.polityOfficeMaxProvinceFactor.small
-  else if (provinceCount <= 3) factor = config.polityOfficeMaxProvinceFactor.medium
-  else factor = config.polityOfficeMaxProvinceFactor.large
-
-  return Math.max(1, Math.min(baseMax, Math.floor(rankCap * factor)))
 }
 
 // v0.17 §6.5.1: office term expiration check (year-resolution)
@@ -351,10 +397,8 @@ export function isOfficeTermExpired(
   assignment: OfficeAssignment,
 ): boolean {
   if (assignment.role === 'leader') return false
-  const orgKind = assignment.organization.kind
   const role = assignment.role
-  const termYears =
-    orgKind === 'polity' ? config.officeTermYears.polity[role] : config.officeTermYears.house[role]
+  const termYears = getOrganizationTermYears(config, assignment.organization, role)
   return state.currentYear - assignment.startYear >= termYears
 }
 

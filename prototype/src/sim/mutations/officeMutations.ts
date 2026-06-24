@@ -2,6 +2,7 @@ import type { WorldState } from '@sim/types/world'
 import type { PersonId, OfficeAssignmentId } from '@sim/types/ids'
 import type { OrganizationRef, OfficeRole } from '@sim/types/office'
 import { createOfficeAssignmentId } from '@sim/types/ids'
+import { organizationKey } from '@sim/selectors/organizationSelectors'
 import type { StateResult } from './result'
 import { ok, err } from './result'
 
@@ -12,10 +13,6 @@ export type AssignOfficeInput = {
   replaceExisting?: boolean
 }
 
-function orgKey(org: OrganizationRef): string {
-  return `${org.kind}:${org.id}`
-}
-
 export function createOfficeAssignment(
   state: WorldState,
   organization: OrganizationRef,
@@ -23,7 +20,7 @@ export function createOfficeAssignment(
   holderPersonId: PersonId,
   slotIndex?: number,
 ): WorldState {
-  const orgKeyStr = orgKey(organization)
+  const orgKeyStr = organizationKey(organization)
 
   // v0.42 slot 単位任命権: 明示指定がなければ active な同 (org, role) の最小未使用番号を採番
   let resolvedSlotIndex = slotIndex
@@ -86,7 +83,7 @@ export function revokeOfficeAssignment(
   const office = state.officeAssignments[officeId]
   if (!office || !office.active) return state
 
-  const orgKeyStr = orgKey(office.organization)
+  const orgKeyStr = organizationKey(office.organization)
   const personKeyStr = office.holderPersonId as string
 
   const nextAssignments = { ...state.officeAssignments }
@@ -124,7 +121,7 @@ export function revokeOfficesByOrganization(
   organization: OrganizationRef,
   role?: OfficeRole,
 ): WorldState {
-  const orgKeyStr = orgKey(organization)
+  const orgKeyStr = organizationKey(organization)
   const ids = state.officeIndex.byOrganization[orgKeyStr] ?? []
   let current = state
   for (const id of ids) {

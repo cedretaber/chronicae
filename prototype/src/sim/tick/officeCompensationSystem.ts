@@ -4,6 +4,8 @@ import type { OfficeAssignmentId, PolityId, HouseId, PersonId } from '@sim/types
 import type { SimEvent } from '@sim/types/event'
 import { entityRef } from '@sim/types/event'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
+import { organizationKey } from '@sim/selectors/organizationSelectors'
+import { getOrganizationOfficeEntityRefs } from '@sim/selectors/officeSelectors'
 import type { WorldState } from '@sim/types/world'
 import type { Person } from '@sim/types/person'
 import type { Polity } from '@sim/types/polity'
@@ -38,25 +40,43 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
     let payerFunds: number
     const org = office.organization
 
-    if (org.kind === 'polity') {
-      const polity = politiesMut[org.id]
-      if (!polity) continue
-      payerFunds = polity.treasury
-    } else {
-      const house = housesMut[org.id]
-      if (!house) continue
-      payerFunds = house.wealth
+    switch (org.kind) {
+      case 'polity': {
+        const polity = politiesMut[org.id]
+        if (!polity) continue
+        payerFunds = polity.treasury
+        break
+      }
+      case 'house': {
+        const house = housesMut[org.id]
+        if (!house) continue
+        payerFunds = house.wealth
+        break
+      }
+      default: {
+        const _exhaustive: never = org
+        throw new Error(`officeCompensation: unexpected organization ${String(_exhaustive)}`)
+      }
     }
 
     const paid = Math.min(due, Math.max(0, payerFunds))
     const unpaid = due - paid
 
-    if (org.kind === 'polity') {
-      const polity = politiesMut[org.id]
-      if (polity) politiesMut[org.id] = { ...polity, treasury: polity.treasury - paid }
-    } else {
-      const house = housesMut[org.id]
-      if (house) housesMut[org.id] = { ...house, wealth: house.wealth - paid }
+    switch (org.kind) {
+      case 'polity': {
+        const polity = politiesMut[org.id]
+        if (polity) politiesMut[org.id] = { ...polity, treasury: polity.treasury - paid }
+        break
+      }
+      case 'house': {
+        const house = housesMut[org.id]
+        if (house) housesMut[org.id] = { ...house, wealth: house.wealth - paid }
+        break
+      }
+      default: {
+        const _exhaustive: never = org
+        throw new Error(`officeCompensation: unexpected organization ${String(_exhaustive)}`)
+      }
     }
 
     personsMut[office.holderPersonId] = { ...person, wealth: person.wealth + paid }
@@ -72,7 +92,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       const resPenalty =
         (config.officeUnpaidRespectPenalty / COMPENSATION_CALLS_PER_YEAR) * (1 - dignityReduction)
 
-      const attKey = org.kind === 'polity' ? `polity:${org.id}` : `house:${org.id}`
+      const attKey = organizationKey(org)
       const currentPerson = personsMut[office.holderPersonId]
       if (currentPerson) {
         const currentAtt = currentPerson.attitudes[attKey]
@@ -97,7 +117,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
         messageParams: {},
         entityRefs: [
           entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
-          ...(org.kind === 'polity' ? [entityRef('polity', org.id, 'organization')] : []),
+          ...getOrganizationOfficeEntityRefs(org),
         ],
       })
       events.push(event)
