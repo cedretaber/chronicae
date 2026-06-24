@@ -6,8 +6,10 @@ polity:
   improve_owned_contract_terms: 契約条件の改善
   demand_tax_increase_from_vassal: 臣下への増税要求
   eliminate_overlord_contract: 上位契約の取消し
+  withhold_overlord_tax: 上納の拒否
   eliminate_vassal_contract: 下位契約の取消し
   seek_rank_promotion: 陞爵の請願
+  seize_vulnerable_real_estate_income: 不動産収益の押領
 house:
   acquire_political_right: 政治的権利の獲得
   steer_polity_external_expansion: 国の対外拡張を主導

@@ -6,8 +6,10 @@ polity:
   improve_owned_contract_terms: Improve Contract Terms
   demand_tax_increase_from_vassal: Demand Tax Increase
   eliminate_overlord_contract: Eliminate Overlord Contract
+  withhold_overlord_tax: Withhold Overlord Tribute
   eliminate_vassal_contract: Eliminate Vassal Contract
   seek_rank_promotion: Petition for Rank Promotion
+  seize_vulnerable_real_estate_income: Seize Estate Income
 house:
   acquire_political_right: Acquire Political Right
   steer_polity_external_expansion: Steer Polity Toward Expansion
