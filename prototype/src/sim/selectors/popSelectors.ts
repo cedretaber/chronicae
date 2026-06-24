@@ -17,6 +17,7 @@ import {
   computeSlotOveruseModifier,
 } from './holdingImprovementSelectors'
 import { computeSlotCapacity } from './terrainTraitSelectors'
+import { getHoldingMerchantEmploymentSlots } from './merchantSelectors'
 import { popGroupChangeKey } from '../types/popChange'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 
@@ -360,7 +361,11 @@ function collectHoldingCapacityInputs(
   const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(assets.length, slotCap, config)
 
-  return { holding, province, improvements, assets, overuseMod }
+  // v0.61 §16.6: active 商会施設の popType 別雇用枠を capacity に統合する（二重給与回避の核＝
+  //   asset 枠と同じ denominator に入れる）。merchant 不在 holding では空。
+  const merchantSlots = getHoldingMerchantEmploymentSlots(state, holdingId)
+
+  return { holding, province, improvements, assets, overuseMod, merchantSlots }
 }
 
 export function getHoldingClassCapacity(
@@ -428,7 +433,7 @@ export function getHoldingPopTypeCapacity(
 ): number {
   const inputs = collectHoldingCapacityInputs(state, config, holdingId)
   if (!inputs) return 0
-  const { holding, province, improvements, assets, overuseMod } = inputs
+  const { holding, province, improvements, assets, overuseMod, merchantSlots } = inputs
   return computeHoldingPopTypeCapacity(
     holding.kind,
     holding.weight,
@@ -439,6 +444,7 @@ export function getHoldingPopTypeCapacity(
     popType,
     assets,
     overuseMod,
+    merchantSlots,
   )
 }
 
@@ -495,7 +501,7 @@ export function getHoldingAllPopTypeCapacities(
 ): Partial<Record<PopType, number>> {
   const inputs = collectHoldingCapacityInputs(state, config, holdingId)
   if (!inputs) return {}
-  const { holding, province, improvements, assets, overuseMod } = inputs
+  const { holding, province, improvements, assets, overuseMod, merchantSlots } = inputs
   return computeHoldingAllPopTypeCapacities(
     holding.weight,
     province.terrain,
@@ -504,6 +510,7 @@ export function getHoldingAllPopTypeCapacities(
     config,
     assets,
     overuseMod,
+    merchantSlots,
   )
 }
 

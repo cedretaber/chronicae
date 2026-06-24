@@ -9,9 +9,30 @@ import type {
 } from '../types/ids'
 import type { MerchantCompany, TradeRoute, MerchantCompanyEstablishment } from '../types/merchant'
 import type { ResourceKind } from '../types/resource'
+import type { PopType } from '../types/popGroup'
 import { isLivingPerson } from '../types/person'
 import { getHouseDecisionMaker, getActiveOfficeHolders } from './officeSelectors'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
+import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '../config/merchantDefinitions'
+
+// v0.61 §16.6: holding 内の active 商会施設が提供する popType 別雇用枠の合計。
+//   dormant/closed は除外（status 判定）。capacity 統合の merchantTerm として使う。
+export function getHoldingMerchantEmploymentSlots(
+  state: WorldState,
+  holdingId: HoldingId,
+): Partial<Record<PopType, number>> {
+  const result: Partial<Record<PopType, number>> = {}
+  for (const estId of state.merchantCompanyEstablishmentIndex.byHolding[holdingId as string] ??
+    []) {
+    const est = state.merchantCompanyEstablishments[estId]
+    if (!est || est.status !== 'active') continue
+    const perLevel = MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL[est.kind]
+    for (const [popType, slots] of Object.entries(perLevel) as [PopType, number][]) {
+      result[popType] = (result[popType] ?? 0) + slots * Math.max(0, est.level)
+    }
+  }
+  return result
+}
 
 // v0.61 商会 query selector。隣接 StateRegion 導出・会長選出・排他 guard を集約する。
 

@@ -5,13 +5,15 @@ import type { MerchantCompany, TradeRoute } from '../types/merchant'
 import type { House } from '../types/house'
 import type { ResourceKind } from '../types/resource'
 import { RESOURCE_KINDS } from '../types/resource'
+import type { PopType } from '../types/popGroup'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import { getMerchantEstablishmentEmploymentSlots } from '../config/merchantDefinitions'
 
 // v0.61 §15/§16: 月次。ResourceEconomySystem の後・houseSurplusDistribution の後に走り、
-//   route profit（当月清算価格）+ commerce revenue（前月 snapshot）を集計して
-//   ownerDividend（House.wealth）+ retained（treasury）へ分配する。
-//   wage / upper dividend mint は P6（employment provider 接続後）。RNG 非消費・決定的。
+//   route profit（当月清算価格）+ commerce revenue（前月 snapshot）を gross に集計し、§16.6 で
+//   wage（雇用 POP へ mint）/ upper 配当（雇用 patricians へ mint）/ owner 配当（House.wealth）/
+//   retained（treasury）へ分配する。carve==mint（mint 先不在 pool は treasury に残す）。RNG 非消費・決定的。
 
 const PROFIT_SMOOTH_ALPHA = 0.25
 
@@ -51,6 +53,20 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
   const companiesMut = { ...state.merchantCompanies } as Record<MerchantCompanyId, MerchantCompany>
   const routesMut = { ...state.tradeRoutes }
   const housesMut = { ...state.houses } as Record<HouseId, House>
+  const popGroupsMut = { ...state.popGroups }
+
+  // §16.6: holding 内の employed POP（popType 指定）に wage を mint する。実際に mint した額を返す
+  //   （carve==mint: 雇用 POP 不在なら 0 を返し、呼び出し側は carve しない＝treasury に残す）。
+  const mintToEmployed = (holdingId: HoldingId, popType: PopType, amount: number): number => {
+    if (amount <= 0) return 0
+    for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
+      const pop = popGroupsMut[pid]
+      if (!pop || pop.popType !== popType || !pop.employed) continue
+      popGroupsMut[pid] = { ...pop, money: pop.money + amount }
+      return amount
+    }
+    return 0
+  }
 
   for (const companyId of companyIds) {
     const company = companiesMut[companyId]
@@ -106,13 +122,60 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
       commerceTotal += Math.min(raw, cap)
     }
 
-    // --- 分配（§16）---
+    // --- 分配（§16.6）: gross>0 を wage（雇用 POP へ mint）/ upper 配当（雇用 patricians へ mint）/
+    //   owner 配当（House.wealth）/ retained（treasury）へ切り出す。carve==mint: mint 先 POP 不在の
+    //   pool は treasury に残す（money 消失を防ぐ）。施設 slot 比で各 establishment へ按分する。
     const gross = commerceTotal + routeNetTotal
     let treasuryDelta: number
     if (gross > 0) {
+      const activeEsts = (
+        state.merchantCompanyEstablishmentIndex.byCompany[companyId as string] ?? []
+      )
+        .map((id) => state.merchantCompanyEstablishments[id])
+        .filter((e): e is NonNullable<typeof e> => !!e && e.status === 'active')
+
+      // popType 別 slot 合計（按分の分母）。wage = merchants/scribes/laborers、upper = patricians。
+      const WAGE_TYPES: PopType[] = ['merchants', 'scribes', 'laborers']
+      let totalWageSlots = 0
+      let totalUpperSlots = 0
+      for (const est of activeEsts) {
+        for (const t of WAGE_TYPES) {
+          totalWageSlots += getMerchantEstablishmentEmploymentSlots(est.kind, t, est.level)
+        }
+        totalUpperSlots += getMerchantEstablishmentEmploymentSlots(
+          est.kind,
+          'patricians',
+          est.level,
+        )
+      }
+
+      const wagePool = gross * config.merchantCompanyWageShare
+      const upperPool = gross * config.merchantCompanyUpperDividendShare
+      let wageMinted = 0
+      let upperMinted = 0
+      if (totalWageSlots > 0 && wagePool > 0) {
+        for (const est of activeEsts) {
+          for (const t of WAGE_TYPES) {
+            const slots = getMerchantEstablishmentEmploymentSlots(est.kind, t, est.level)
+            if (slots <= 0) continue
+            wageMinted += mintToEmployed(est.holdingId, t, wagePool * (slots / totalWageSlots))
+          }
+        }
+      }
+      if (totalUpperSlots > 0 && upperPool > 0) {
+        for (const est of activeEsts) {
+          const slots = getMerchantEstablishmentEmploymentSlots(est.kind, 'patricians', est.level)
+          if (slots <= 0) continue
+          upperMinted += mintToEmployed(
+            est.holdingId,
+            'patricians',
+            upperPool * (slots / totalUpperSlots),
+          )
+        }
+      }
+
       const ownerDividend = gross * config.merchantCompanyOwnerDividendRate
-      // wage/upper pool は P6 まで carve しない（mint 先 POP がまだ無い）→ retained=gross-ownerDividend。
-      treasuryDelta = gross - ownerDividend
+      treasuryDelta = gross - ownerDividend - wageMinted - upperMinted
       const ownerHouse = housesMut[company.ownerHouseId]
       if (ownerHouse) {
         housesMut[company.ownerHouseId] = {
@@ -140,6 +203,7 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
       merchantCompanies: companiesMut,
       tradeRoutes: routesMut,
       houses: housesMut,
+      popGroups: popGroupsMut,
     },
   }
 }

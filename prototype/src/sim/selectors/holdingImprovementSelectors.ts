@@ -289,6 +289,8 @@ export function computeHoldingPopTypeCapacity(
   popType: PopType,
   assets?: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
   slotOveruseModifier?: number,
+  // v0.61 §16.6: 商会施設の popType 別雇用枠（weight/overuse を掛けない直接枠）。
+  merchantSlots?: Partial<Record<PopType, number>>,
 ): number {
   let assetTerm = 0
   if (assets && assets.length > 0) {
@@ -309,7 +311,7 @@ export function computeHoldingPopTypeCapacity(
 
   const infraTerm = improvementPopTypeCapacityTerm(improvements, config, (pt) => pt === popType)
 
-  return (assetTerm + infraTerm) * weight
+  return (assetTerm + infraTerm) * weight + (merchantSlots?.[popType] ?? 0)
 }
 
 // v0.57 §雇用細分化: holding の全 PopType 雇用容量を 1 パスで計算する (per-PopType 個別呼び出しの
@@ -322,9 +324,17 @@ export function computeHoldingAllPopTypeCapacities(
   config: SimulationConfig,
   assets: ReadonlyArray<{ realEstateKind: RealEstateKind; level: number }>,
   slotOveruseModifier?: number,
+  // v0.61 §16.6: 商会施設の popType 別雇用枠（weight/overuse を掛けない直接枠）。
+  merchantSlots?: Partial<Record<PopType, number>>,
 ): Partial<Record<PopType, number>> {
   const result: Partial<Record<PopType, number>> = {}
   const overuseMod = slotOveruseModifier ?? 1.0
+
+  if (merchantSlots) {
+    for (const [pt, n] of Object.entries(merchantSlots) as [PopType, number][]) {
+      result[pt] = (result[pt] ?? 0) + n
+    }
+  }
 
   for (const asset of assets) {
     const def = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
