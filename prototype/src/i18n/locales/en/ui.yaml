@@ -81,6 +81,21 @@ sidebar:
   play_tasks: 'Tasks'
 
 detail:
+  merchant:
+    owner: 'Owner House'
+    chairman: 'Chairman'
+    administrator: 'Chief Clerk'
+    treasury: 'Treasury'
+    smoothed_profit: 'Smoothed Profit'
+    establishments: 'Establishments'
+    routes: 'Trade Routes'
+    companies: 'Merchant Companies'
+    kind_headquarters: 'HQ'
+    kind_branch: 'Branch'
+    status_active: 'Active'
+    status_dormant: 'Dormant'
+    status_bankrupt: 'Bankrupt'
+    status_dissolved: 'Dissolved'
   annexed: 'Annexed'
   common:
     year: 'Year'

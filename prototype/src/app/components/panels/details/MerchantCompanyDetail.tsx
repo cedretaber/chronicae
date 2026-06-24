@@ -1,0 +1,147 @@
+import type { MerchantCompany } from '@/sim/types/merchant'
+import type { SimulationSession } from '@/sim/types/world'
+import type { StateRegionId } from '@/sim/types/ids'
+import { useTranslation } from 'react-i18next'
+import { PanelHeader, DetailSection } from './shared/widgets'
+import { HouseLink, PersonLink } from './shared/links'
+import type { ClickHandler } from './shared/helpers'
+import { useEntityName } from '@/app/hooks/useEntityName'
+import { formatAmount } from '@/app/utils/format'
+import {
+  getCompanyEstablishments,
+  getCompanyRoutes,
+  getMerchantCompanyDecisionMaker,
+} from '@sim/selectors/merchantSelectors'
+import { getActiveOfficeHolders } from '@sim/selectors/officeSelectors'
+
+// v0.61 §22: 商会の read-only detail パネル。所有家・会頭/番頭・財務・本支店・交易路を表示する。
+export function MerchantCompanyDetail({
+  company,
+  session,
+  onHouseClick,
+  onPersonClick,
+  onHoldingClick,
+}: {
+  company: MerchantCompany
+  session: SimulationSession | null
+  onHouseClick: ClickHandler
+  onPersonClick: (id: string) => void
+  onHoldingClick: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const state = session?.currentState ?? null
+
+  const companyName = resolveName('person', company.nameKey, company.id)
+  const establishments = state ? getCompanyEstablishments(state, company.id) : []
+  const routes = state ? getCompanyRoutes(state, company.id) : []
+  const chairman = state ? getMerchantCompanyDecisionMaker(state, company.id) : undefined
+  const administrator = state
+    ? getActiveOfficeHolders(
+        state,
+        { kind: 'merchant_company', id: company.id },
+        'administrator',
+      )[0]
+    : undefined
+
+  const stateName = (sid: StateRegionId): string =>
+    resolveName('region', state?.states[sid]?.nameKey, sid)
+  const holdingName = (hid: string): string =>
+    resolveName('holding', state?.holdings[hid as never]?.nameKey, hid)
+
+  const statusLabel = t(`detail.merchant.status_${company.status}`, {
+    defaultValue: company.status,
+  })
+
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <PanelHeader
+        title={companyName}
+        badge={<span className="text-xs text-gray-400">{statusLabel}</span>}
+      />
+
+      <div className="flex flex-col gap-0.5">
+        <div className="flex justify-between">
+          <span className="text-gray-500">
+            {t('detail.merchant.owner', { defaultValue: '所有家' })}
+          </span>
+          {state && (
+            <HouseLink
+              houseId={company.ownerHouseId}
+              houses={state.houses}
+              onClick={onHouseClick}
+            />
+          )}
+        </div>
+        {chairman && state && (
+          <div className="flex justify-between">
+            <span className="text-gray-500">
+              {t('detail.merchant.chairman', { defaultValue: '会頭' })}
+            </span>
+            <PersonLink personId={chairman} persons={state.persons} onClick={onPersonClick} />
+          </div>
+        )}
+        {administrator && state && (
+          <div className="flex justify-between">
+            <span className="text-gray-500">
+              {t('detail.merchant.administrator', { defaultValue: '番頭' })}
+            </span>
+            <PersonLink personId={administrator} persons={state.persons} onClick={onPersonClick} />
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span className="text-gray-500">
+            {t('detail.merchant.treasury', { defaultValue: '財庫' })}
+          </span>
+          <span className="text-gray-300 tabular-nums">{formatAmount(company.treasury)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">
+            {t('detail.merchant.smoothed_profit', { defaultValue: '平滑利益' })}
+          </span>
+          <span className="text-gray-300 tabular-nums">{company.smoothedProfit.toFixed(1)}</span>
+        </div>
+      </div>
+
+      <DetailSection
+        title={t('detail.merchant.establishments', { defaultValue: '店舗' })}
+        count={establishments.length}
+      />
+      <div className="flex flex-col gap-0.5">
+        {establishments.map((est) => (
+          <div key={est.id} className="flex justify-between">
+            <button
+              className="text-left text-sky-400 hover:underline"
+              onClick={() => onHoldingClick(est.holdingId)}
+            >
+              {t(`detail.merchant.kind_${est.kind}`, { defaultValue: est.kind })} @{' '}
+              {holdingName(est.holdingId as string)}
+            </button>
+            <span className="text-gray-400">
+              Lv{est.level}
+              {est.status !== 'active' ? ` (${est.status})` : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <DetailSection
+        title={t('detail.merchant.routes', { defaultValue: '交易路' })}
+        count={routes.length}
+      />
+      <div className="flex flex-col gap-0.5">
+        {routes.map((r) => (
+          <div key={r.id} className="flex justify-between gap-2">
+            <span className="text-gray-300">
+              {stateName(r.sourceStateId)} → {stateName(r.targetStateId)} ·{' '}
+              {t(`resource.${r.resource}`, { ns: 'ui', defaultValue: r.resource })} Lv{r.level}
+            </span>
+            <span className="text-gray-400 tabular-nums">
+              {r.status === 'active' ? r.smoothedProfit.toFixed(1) : r.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

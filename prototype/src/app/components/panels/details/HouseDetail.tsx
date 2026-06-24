@@ -82,6 +82,7 @@ export function HouseDetail({
   onClanClick,
   onOpenFamilyTree,
   onHoldingClick,
+  onMerchantCompanyClick,
   eventHistory,
 }: {
   house: House
@@ -96,6 +97,7 @@ export function HouseDetail({
   onClanClick?: (id: string) => void
   onOpenFamilyTree?: (houseId: string) => void
   onHoldingClick?: (id: string) => void
+  onMerchantCompanyClick?: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   void onHouseClick // v0.42c: ShareholderSection の person-only 化で未使用に (props API は維持)
@@ -161,6 +163,26 @@ export function HouseDetail({
           </>
         }
       />
+      {currentState &&
+        (currentState.merchantCompanyIndex.byOwnerHouse[house.id] ?? []).length > 0 && (
+          <div className="flex flex-col gap-0.5 text-sm">
+            <DetailSection title={t('detail.merchant.companies', { defaultValue: '商会' })} />
+            {(currentState.merchantCompanyIndex.byOwnerHouse[house.id] ?? []).map((cid) => {
+              const company = currentState.merchantCompanies[cid]
+              if (!company) return null
+              return (
+                <button
+                  key={cid}
+                  className="text-left text-sky-400 hover:underline"
+                  onClick={() => onMerchantCompanyClick?.(cid)}
+                >
+                  {resolveName('person', company.nameKey, cid)} (
+                  {t(`detail.merchant.status_${company.status}`, { defaultValue: company.status })})
+                </button>
+              )
+            })}
+          </div>
+        )}
 
       <div className="text-sm">
         <div className="flex justify-between">

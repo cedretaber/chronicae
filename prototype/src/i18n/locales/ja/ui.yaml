@@ -184,6 +184,21 @@ sidebar:
   play_tasks: 'タスク'
 
 detail:
+  merchant:
+    owner: '所有家'
+    chairman: '会頭'
+    administrator: '番頭'
+    treasury: '財庫'
+    smoothed_profit: '平滑利益'
+    establishments: '店舗'
+    routes: '交易路'
+    companies: '商会'
+    kind_headquarters: '本店'
+    kind_branch: '支店'
+    status_active: '営業中'
+    status_dormant: '休眠'
+    status_bankrupt: '破産'
+    status_dissolved: '解散'
   annexed: '併合済'
   common:
     year: '年'

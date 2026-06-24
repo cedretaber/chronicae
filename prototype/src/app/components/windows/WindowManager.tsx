@@ -15,6 +15,7 @@ import type {
   ProjectId,
   BattleLogId,
   RealEstateAssetId,
+  MerchantCompanyId,
 } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -31,6 +32,7 @@ import {
   BattleReplayPanel,
   MarketDetail,
   RealEstateDetail,
+  MerchantCompanyDetail,
 } from '@/app/components/panels/DetailPanel'
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
 import type { PolityId, HouseId, PersonId, ProvinceId, StateRegionId } from '@/sim/types/ids'
@@ -62,6 +64,7 @@ export function WindowManager() {
   const onHoldingClick = (id: string) => openDetailWindow('holding', id)
   const onRealEstateClick = (id: string) => openDetailWindow('realEstate', id)
   const onClanClick = (id: string) => openDetailWindow('clan', id)
+  const onMerchantCompanyClick = (id: string) => openDetailWindow('merchant_company', id)
   const onBattleLogClick = (id: string) => openDetailWindow('battleLog', id)
   const onOpenFamilyTree = (id: string) => openFamilyTree(id as HouseId)
   const onOpenFactionTree = (id: FactionId) => openFactionTree(id)
@@ -150,6 +153,7 @@ export function WindowManager() {
                 onClanClick={onClanClick}
                 onOpenFamilyTree={onOpenFamilyTree}
                 onHoldingClick={onHoldingClick}
+                onMerchantCompanyClick={onMerchantCompanyClick}
               />
             </DraggableWindow>
           )
@@ -300,6 +304,22 @@ export function WindowManager() {
                 onHouseClick={onHouseClick}
                 onPersonClick={onPersonClick}
                 onPolityClick={onPolityClick}
+                onHoldingClick={onHoldingClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'merchant_company') {
+          const company = state.merchantCompanies[entityId as MerchantCompanyId]
+          if (!company) return null
+          const companyName = resolveName('person', company.nameKey, entityId)
+          return (
+            <DraggableWindow key={win.id} win={win} title={`商会: ${companyName}`}>
+              <MerchantCompanyDetail
+                company={company}
+                session={session}
+                onHouseClick={onHouseClick}
+                onPersonClick={onPersonClick}
                 onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
