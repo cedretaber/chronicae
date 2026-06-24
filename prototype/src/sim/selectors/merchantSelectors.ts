@@ -227,7 +227,12 @@ export function estimateStateProductionPotential(
   return out
 }
 
-// 商家/貴族排他 guard (§10.3)。creation-time で候補列挙側に差す。
+// 商家/貴族排他 guard (§10.3)。
+// NOTE (v0.61 self-review): 現状この排他は **構造的に成立済み**で、これらの guard は未配線。
+//   商会 owner は worldgen seed / runtime 再興のいずれも専用の新規 `dh-` House として作られ、polity を
+//   持たない。商会所有権を既存の polity 所有 House へ移す機構も存在しない。したがって「polity 所有 House が
+//   商会も所有する」状態は発生しえない。将来 商会の所有権移転・買収を導入した時点で、候補列挙
+//   （worldgen distributeHouses / polity owner 選定 / merchantCompanyFoundingSystem）にこれらを差す。
 export function canHouseOwnMerchantCompany(state: WorldState, houseId: HouseId): boolean {
   const ids = state.polityIndex.byOwnerHouse[houseId] ?? []
   return ids.every((id) => !state.polities[id]?.active)

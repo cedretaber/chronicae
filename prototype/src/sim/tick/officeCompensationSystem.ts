@@ -64,6 +64,9 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       case 'merchant_company': {
         const company = companiesMut[org.id]
         if (!company) continue
+        // dissolve/bankrupt 直後の同 tick では office 失効が後続 system (merchantCompanyOfficeSync) まで
+        //   遅れるため、非 active 商会からの俸給支払い（dissolved entity の post-mortem payout）を防ぐ。
+        if (company.status !== 'active') continue
         payerFunds = company.treasury
         break
       }

@@ -343,6 +343,16 @@ function createMerchantProjectMut(
     ...ws,
     nextProjectId: ws.nextProjectId + 1,
     projects: { ...ws.projects, [projectId]: project },
+    // addProjectToIndexMut は projectIndex の各 bucket object へ key 代入する（in-place）。
+    //   共有 ctx.state を書き換えないよう bucket map を clone する（mutable-draft writeback hazard）。
+    projectIndex: {
+      byOwner: { ...ws.projectIndex.byOwner },
+      byAim: { ...ws.projectIndex.byAim },
+      byParentProject: { ...ws.projectIndex.byParentProject },
+      byCreatorPerson: { ...ws.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ws.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ws.projectIndex.byRelatedEntity },
+    },
     merchantCompanies: company
       ? { ...ws.merchantCompanies, [companyId]: { ...company, treasury: company.treasury - cost } }
       : ws.merchantCompanies,

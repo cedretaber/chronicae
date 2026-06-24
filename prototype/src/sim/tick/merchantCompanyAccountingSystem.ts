@@ -174,13 +174,14 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
         }
       }
 
-      const ownerDividend = gross * config.merchantCompanyOwnerDividendRate
-      treasuryDelta = gross - ownerDividend - wageMinted - upperMinted
+      // carve==mint: ownerHouse 不在なら配当を carve しない（wage/upper と同じ minted-only 規律）。
       const ownerHouse = housesMut[company.ownerHouseId]
+      const ownerDividendPaid = ownerHouse ? gross * config.merchantCompanyOwnerDividendRate : 0
+      treasuryDelta = gross - ownerDividendPaid - wageMinted - upperMinted
       if (ownerHouse) {
         housesMut[company.ownerHouseId] = {
           ...ownerHouse,
-          wealth: Math.max(0, ownerHouse.wealth + ownerDividend),
+          wealth: Math.max(0, ownerHouse.wealth + ownerDividendPaid),
         }
       }
     } else {

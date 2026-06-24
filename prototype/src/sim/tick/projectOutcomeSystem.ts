@@ -140,6 +140,30 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     personActivityLogIndex: {
       byPerson: { ...ctx.state.personActivityLogIndex.byPerson },
     },
+    // v0.61: 商会 build Project の outcome が route/establishment を作成・level up するため slice を含める
+    //   (createTradeRouteMut/createMerchantCompanyEstablishmentMut が共有 index を in-place 破壊しないように。
+    //   byStatus/byKind は push なので配列も clone する)。next*Id は spread でプリミティブ複製される。
+    tradeRoutes: { ...ctx.state.tradeRoutes },
+    tradeRouteIndex: {
+      byCompany: { ...ctx.state.tradeRouteIndex.byCompany },
+      bySourceState: { ...ctx.state.tradeRouteIndex.bySourceState },
+      byTargetState: { ...ctx.state.tradeRouteIndex.byTargetState },
+      byResource: { ...ctx.state.tradeRouteIndex.byResource },
+      byStatus: {
+        active: [...ctx.state.tradeRouteIndex.byStatus.active],
+        closing: [...ctx.state.tradeRouteIndex.byStatus.closing],
+        closed: [...ctx.state.tradeRouteIndex.byStatus.closed],
+      },
+    },
+    merchantCompanyEstablishments: { ...ctx.state.merchantCompanyEstablishments },
+    merchantCompanyEstablishmentIndex: {
+      byCompany: { ...ctx.state.merchantCompanyEstablishmentIndex.byCompany },
+      byHolding: { ...ctx.state.merchantCompanyEstablishmentIndex.byHolding },
+      byKind: {
+        headquarters: [...ctx.state.merchantCompanyEstablishmentIndex.byKind.headquarters],
+        branch: [...ctx.state.merchantCompanyEstablishmentIndex.byKind.branch],
+      },
+    },
   }
 
   const newEvents: SimEvent[] = []
