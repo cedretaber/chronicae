@@ -56,32 +56,44 @@ export function abilityOutputFactor(roleScore: number, config: SimulationConfig)
   return Math.pow(clamped / 50, config.abilityOutputExponent)
 }
 
-export function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number {
+// 天賦が平均(abilityAptitudeMean)を超えるほど年齢軸を前倒しする早熟係数。平均以下は 1.0
+// (従来カーブのまま)。分母 100 は天賦スケール(0..120)に対する正規化。
+function talentBloomMultiplier(aptitude: number, config: SimulationConfig): number {
+  return (
+    1 + config.talentEarlyBloomStrength * Math.max(0, (aptitude - config.abilityAptitudeMean) / 100)
+  )
+}
+
+// 年齢shape(0..1) × naturalGrowthTaperFraction(0.8) = 自然成長の到達割合。上昇側のみ天賦由来の
+// bloom で前倒しする(早熟)。衰退側は実年齢のまま(早熟≠早衰)。0.8→1.0 は award 成長のみで到達。
+export function naturalFraction(
+  k: AbilityKey,
+  age: number,
+  aptitude: number,
+  config: SimulationConfig,
+): number {
   const curve = ABILITY_AGE_CURVES[k]
+  const bloom = talentBloomMultiplier(aptitude, config)
+  const taper = config.naturalGrowthTaperFraction
   if (curve === 'lifelongGrowth') {
-    return (
-      config.ageCurveLifelongMaxFraction * (1 - Math.exp(-age / config.ageCurveLifelongAgeConstant))
-    )
+    const eff = age * bloom
+    return taper * (1 - Math.exp(-eff / config.ageCurveLifelongAgeConstant))
   }
   if (curve === 'youthPeak') {
     const peakAge = config.ageCurveYouthPeakAge
     if (age <= peakAge) {
-      return config.ageCurveYouthMaxFraction * Math.sqrt(age / peakAge)
+      const eff = Math.min(age * bloom, peakAge)
+      return taper * Math.sqrt(eff / peakAge)
     }
-    return (
-      config.ageCurveYouthMaxFraction *
-      Math.exp(-(age - peakAge) / config.ageCurveYouthDeclineConstant)
-    )
+    return taper * Math.exp(-(age - peakAge) / config.ageCurveYouthDeclineConstant)
   }
   // midLifePeak
   const peakAge = config.ageCurveMidLifePeakAge
   if (age <= peakAge) {
-    return config.ageCurveMidLifeMaxFraction * Math.sqrt(age / peakAge)
+    const eff = Math.min(age * bloom, peakAge)
+    return taper * Math.sqrt(eff / peakAge)
   }
-  return (
-    config.ageCurveMidLifeMaxFraction *
-    Math.exp(-(age - peakAge) / config.ageCurveMidLifeDeclineConstant)
-  )
+  return taper * Math.exp(-(age - peakAge) / config.ageCurveMidLifeDeclineConstant)
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -136,7 +148,7 @@ export function sampleAbilitiesFromAptitudes(
   let currentRng = rng
   const scores: Partial<AbilityScores> = {}
   for (const k of ABILITY_KEYS) {
-    const fraction = naturalFraction(k, age, config)
+    const fraction = naturalFraction(k, age, aptitudes[k], config)
     const base = aptitudes[k] * fraction
     const { value, rng: nextRng } = randomGaussian(
       currentRng,

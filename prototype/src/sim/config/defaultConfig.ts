@@ -933,19 +933,20 @@ export type SimulationConfig = {
   abilityHeritability: number
   abilityAptitudeNoiseStddev: number
   abilityInitialNoiseStddev: number
-  // v0.14 Age curves
-  ageCurveLifelongMaxFraction: number
+  // v0.14 Age curves（最大到達割合は naturalGrowthTaperFraction に一本化済み）
   ageCurveLifelongAgeConstant: number
-  ageCurveYouthMaxFraction: number
   ageCurveYouthPeakAge: number
   ageCurveYouthDeclineConstant: number
-  ageCurveMidLifeMaxFraction: number
   ageCurveMidLifePeakAge: number
   ageCurveMidLifeDeclineConstant: number
+  // 才能による早熟: 天賦が平均を超えるほど年齢曲線の上昇側を前倒しする強さ (0=従来カーブ)
+  talentEarlyBloomStrength: number
+  // 自然成長の到達上限 = この割合 × 天賦。0.8→1.0 (天賦フル) は成果(award)成長のみで到達
+  naturalGrowthTaperFraction: number
   // v0.14 Growth / Decline
   abilityGrowthChanceBase: number
-  // v0.45: 成長成功時の伸び幅係数。amount = max(1, round((effectiveCeil - ability) * factor))。
-  // 天井と離れているほど大きく伸びる (天才の幼少期・登用直後の上限解放が高速化する)
+  // v0.45: 成長成功時の伸び幅係数。amount = max(1, round((naturalCeil - ability) * factor))。
+  // 天井と離れているほど大きく伸びる (天才の幼少期が高速化する)
   abilityGrowthGapFactor: number
   abilityDeclineChanceBase: number
   abilityActiveDeclineMultiplier: number
@@ -2444,18 +2445,17 @@ export const defaultConfig: SimulationConfig = {
   abilityHeritability: 0.5,
   abilityAptitudeNoiseStddev: 8,
   abilityInitialNoiseStddev: 3,
-  // v0.14 Age curves
-  ageCurveLifelongMaxFraction: 0.7,
+  // v0.14 Age curves（最大到達割合は naturalGrowthTaperFraction に一本化）
   ageCurveLifelongAgeConstant: 30,
-  ageCurveYouthMaxFraction: 0.75,
   ageCurveYouthPeakAge: 30,
   ageCurveYouthDeclineConstant: 40,
-  ageCurveMidLifeMaxFraction: 0.7,
   ageCurveMidLifePeakAge: 45,
   ageCurveMidLifeDeclineConstant: 60,
+  talentEarlyBloomStrength: 1.5,
+  naturalGrowthTaperFraction: 0.8,
   // v0.14 Growth / Decline
   abilityGrowthChanceBase: 100,
-  abilityGrowthGapFactor: 0.1,
+  abilityGrowthGapFactor: 0.15,
   abilityDeclineChanceBase: 5,
   abilityActiveDeclineMultiplier: 0.3,
   // v0.14 Estate Settlement

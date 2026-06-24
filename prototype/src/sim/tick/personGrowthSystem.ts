@@ -55,7 +55,7 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
       const ability = newAbilities[k]
       const aptitude = person.aptitudes[k]
 
-      const naturalCeil = aptitude * naturalFraction(k, person.age, ctx.config)
+      const naturalCeil = aptitude * naturalFraction(k, person.age, aptitude, ctx.config)
       const experienced = hadRelevantExperience(ctx.state, person.id, k)
       const effectiveCeil = experienced ? aptitude : naturalCeil
 
