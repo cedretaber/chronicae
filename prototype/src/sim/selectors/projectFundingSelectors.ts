@@ -41,7 +41,8 @@ export function getPopContributableSurplus(
 }
 
 // v0.60: 資金集めの拠出候補 (ステークホルダー)。insider = owner/creator/supervisor/現地代官
-//   (高率・能力非依存)。external = 関連 House/Person・ローカル POP (能力×関係で減衰)。
+//   (高率・能力で floor〜full スケール・関係非依存)。external = 関連 House/Person・ローカル POP
+//   (能力×関係で減衰)。
 export type FundingContributor =
   | { kind: 'polity'; id: PolityId; insider: boolean }
   | { kind: 'house'; id: HouseId; insider: boolean }
@@ -135,6 +136,15 @@ function supervisorAbilityFactor(
   return Math.pow(clamped / 50, config.fundraisingAbilityExponent)
 }
 
+// v0.60.2: insider (owner/creator/supervisor/代官) の拠出率。身内は動機が高いので関係には
+//   依存しないが、説得・調整には supervisor の能力が要るため ability で floor〜full にスケール。
+//   floor=insiderAbilityFloor。abilityFactor=0 でも floor 倍 (動機分) は出し、full 能力で max。
+function insiderWillingness(state: WorldState, config: SimulationConfig, project: Project): number {
+  const floor = clamp01(config.insiderAbilityFloor)
+  const factor = supervisorAbilityFactor(state, config, project)
+  return clamp01(config.insiderMaxContributionFraction * (floor + (1 - floor) * factor))
+}
+
 // contributor → supervisor への attitude (friendly ほど高い [0,1])。Person/POP のみ。
 function relationFactorToSupervisor(
   state: WorldState,
@@ -149,7 +159,7 @@ function relationFactorToSupervisor(
 }
 
 // v0.60: 1 contributor が当ラウンドで拠出する額 (決定的・stock 以下に clamp)。
-//   insider = stock × insiderMaxContributionFraction (能力非依存・高率)。
+//   insider = stock × insiderWillingness (能力で floor〜full スケール・関係非依存)。
 //   external = stock × maxFractionByKind × supervisorAbilityFactor × relationFactor。
 //   POP の stock は生活費 horizon を超える余剰のみ。RNG 不使用。
 export function computeContributorPledge(
@@ -168,21 +178,21 @@ export function computeContributorPledge(
     if (!polity) return 0
     spare = polity.treasury
     willingness = contributor.insider
-      ? clamp01(config.insiderMaxContributionFraction)
+      ? insiderWillingness(state, config, project)
       : clamp01(frac.polity * supervisorAbilityFactor(state, config, project)) // 組織は relation=1
   } else if (contributor.kind === 'house') {
     const house = state.houses[contributor.id]
     if (!house || !house.active) return 0
     spare = house.wealth
     willingness = contributor.insider
-      ? clamp01(config.insiderMaxContributionFraction)
+      ? insiderWillingness(state, config, project)
       : clamp01(frac.house * supervisorAbilityFactor(state, config, project)) // 家も relation=1
   } else if (contributor.kind === 'person') {
     const person = state.persons[contributor.id]
     if (!person || !person.alive) return 0
     spare = person.wealth
     willingness = contributor.insider
-      ? clamp01(config.insiderMaxContributionFraction)
+      ? insiderWillingness(state, config, project)
       : clamp01(
           frac.person *
             supervisorAbilityFactor(state, config, project) *

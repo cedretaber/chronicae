@@ -1179,6 +1179,7 @@ export type SimulationConfig = {
     pop: number
   }
   insiderMaxContributionFraction: number
+  insiderAbilityFloor: number
   popContributionHorizonMonths: number
   fundraisingAbilityExponent: number
   projectMajorContributorTrackLimit: number
@@ -2755,6 +2756,7 @@ export const defaultConfig: SimulationConfig = {
     pop: 0.15,
   },
   insiderMaxContributionFraction: 0.5,
+  insiderAbilityFloor: 0.5,
   popContributionHorizonMonths: 3,
   fundraisingAbilityExponent: 1.4,
   projectMajorContributorTrackLimit: 5,

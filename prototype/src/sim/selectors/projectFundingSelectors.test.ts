@@ -202,10 +202,10 @@ describe('v0.60 ステークホルダー列挙', () => {
 describe('v0.60 pledge 算出', () => {
   const noPrice = () => 1
 
-  it('insider Person は wealth × insiderMaxContributionFraction を拠出 (能力非依存)', () => {
+  it('v0.60.2 insider Person は能力 0 だと floor 分のみ拠出 (関係非依存)', () => {
     let s = makeEmptyV016State()
     s = withHouse(s, HOUSE, {})
-    // supervisor の能力を 0 にしても insider は高率で拠出する。
+    // supervisor の能力を 0 にすると insider でも floor (insiderAbilityFloor) 倍まで縮む。
     s = withPerson(s, SUPERVISOR, {
       houseId: HOUSE,
       abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
@@ -214,9 +214,40 @@ describe('v0.60 pledge 算出', () => {
     const project = makeDevelopHoldingProject()
     const c: FundingContributor = { kind: 'person', id: MEMBER, insider: true }
     expect(computeContributorPledge(s, defaultConfig, project, c, noPrice)).toBeCloseTo(
+      1000 * defaultConfig.insiderMaxContributionFraction * defaultConfig.insiderAbilityFloor,
+      6,
+    )
+  })
+
+  it('v0.60.2 insider Person は supervisor 能力が高いほど多く拠出する', () => {
+    function pledgeWithAbility(zero: boolean): number {
+      let s = makeEmptyV016State()
+      s = withHouse(s, HOUSE, {})
+      s = zero
+        ? withPerson(s, SUPERVISOR, {
+            houseId: HOUSE,
+            abilities: {
+              valor: 0,
+              command: 0,
+              numeracy: 0,
+              learning: 0,
+              charisma: 0,
+              insight: 0,
+            },
+          })
+        : withPerson(s, SUPERVISOR, { houseId: HOUSE }) // default = diplomacy 50 → factor 1.0
+      s = withPerson(s, MEMBER, { houseId: HOUSE, wealth: 1000 })
+      const project = makeDevelopHoldingProject()
+      const c: FundingContributor = { kind: 'person', id: MEMBER, insider: true }
+      return computeContributorPledge(s, defaultConfig, project, c, noPrice)
+    }
+    // 能力 50 の supervisor は full (insiderMaxContributionFraction) 倍まで拠出。
+    expect(pledgeWithAbility(false)).toBeCloseTo(
       1000 * defaultConfig.insiderMaxContributionFraction,
       6,
     )
+    // 能力 0 の supervisor は floor 倍に留まり、より少ない。
+    expect(pledgeWithAbility(false)).toBeGreaterThan(pledgeWithAbility(true))
   })
 
   it('external Person は supervisor 能力 0 だと拠出ほぼ 0', () => {

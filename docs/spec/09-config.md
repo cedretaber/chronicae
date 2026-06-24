@@ -699,7 +699,8 @@
 | projectFundingRoundMinCollectionFraction | 0.15 | 1 ラウンドの最小回収率（requiredRemaining 比）。未満で funding_failed §6.38 |
 | projectFundingDeadlineExtensionWeeks | 48 | 資金集め成功時の deadline 延長（週）= 1 年 §6.38 |
 | fundraisingMaxContributionFractionByContributorKind | polity 0.2 / house 0.2 / person 0.25 / pop 0.15 | external 拠出の kind 別上限率（stock 比）。能力×関係で減衰 §6.38 |
-| insiderMaxContributionFraction | 0.5 | insider（owner/creator/supervisor/代官）の拠出率（stock 比・能力非依存）§6.38 |
+| insiderMaxContributionFraction | 0.5 | insider（owner/creator/supervisor/代官）の最大拠出率（stock 比）。v0.60.2 で能力スケール（下記 floor〜本値）§6.38 |
+| insiderAbilityFloor | 0.5 | insider 拠出率の能力 floor（v0.60.2）。`insiderMax × (floor + (1−floor)×abilityFactor)`。能力 0 でも floor 倍は出す・関係非依存 §6.38 |
 | popContributionHorizonMonths | 3 | POP が拠出前に確保する生活費の月数（これを超える余剰のみ拠出）§6.38 |
 | fundraisingAbilityExponent | 1.4 | external 拠出の能力係数の指数 `(diplomacy score/50)^exp` §6.38 |
 | projectMajorContributorTrackLimit | 5 | majorContributors に記録する累積上位件数（建造 Chronicle 用）§6.38 |
