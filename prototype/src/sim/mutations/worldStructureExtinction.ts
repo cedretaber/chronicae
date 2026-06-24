@@ -19,6 +19,7 @@ import {
 import { syncClanActive } from './clanMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
 import { changeRealEstateAssetOwnerMut } from './realEstateAssetMutations'
+import { dissolveMerchantCompaniesOfHouseMut } from './merchantMutations'
 import { assetOwnerKey } from '../types/realEstateAsset'
 import { getHouseAggregateInfluenceInPolity } from '../selectors/influenceSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -231,6 +232,58 @@ function handleNormalHouseExtinction(
       changeRealEstateAssetOwnerMut(raDraft, assetId, undefined)
     }
     currentCtx = { ...currentCtx, state: raDraft }
+  }
+
+  // v0.61 §20.4: 絶家が所有する商会を dissolved 化する（House 断絶と同 tick で処理し、
+  //   §24.1「非 dissolved company → active ownerHouse」の dangling throw を構造回避）。
+  const ownedCompanyIds = [
+    ...(currentCtx.state.merchantCompanyIndex.byOwnerHouse[houseId as string] ?? []),
+  ]
+  if (ownedCompanyIds.length > 0) {
+    const week = currentCtx.state.absoluteWeek
+    // dissolve 前に company 名を控える（Chronicle emit 用）。
+    const companyNames = new Map<string, string>()
+    for (const cid of ownedCompanyIds) {
+      const c = currentCtx.state.merchantCompanies[cid]
+      if (c) companyNames.set(cid, c.nameKey)
+    }
+    const mcDraft: WorldState = {
+      ...currentCtx.state,
+      merchantCompanies: { ...currentCtx.state.merchantCompanies },
+      merchantCompanyIndex: {
+        byOwnerHouse: { ...currentCtx.state.merchantCompanyIndex.byOwnerHouse },
+        byStatus: {
+          active: [...currentCtx.state.merchantCompanyIndex.byStatus.active],
+          bankrupt: [...currentCtx.state.merchantCompanyIndex.byStatus.bankrupt],
+          dormant: [...currentCtx.state.merchantCompanyIndex.byStatus.dormant],
+          dissolved: [...currentCtx.state.merchantCompanyIndex.byStatus.dissolved],
+        },
+      },
+      tradeRoutes: { ...currentCtx.state.tradeRoutes },
+      tradeRouteIndex: {
+        ...currentCtx.state.tradeRouteIndex,
+        byStatus: {
+          active: [...currentCtx.state.tradeRouteIndex.byStatus.active],
+          closing: [...currentCtx.state.tradeRouteIndex.byStatus.closing],
+          closed: [...currentCtx.state.tradeRouteIndex.byStatus.closed],
+        },
+      },
+      merchantCompanyEstablishments: { ...currentCtx.state.merchantCompanyEstablishments },
+    }
+    const dissolvedIds = dissolveMerchantCompaniesOfHouseMut(mcDraft, houseId, week)
+    currentCtx = { ...currentCtx, state: mcDraft }
+    for (const cid of dissolvedIds) {
+      const { event, ctx: ec } = createSimEvent(currentCtx, {
+        type: 'MERCHANT_COMPANY_DISSOLVED',
+        importance: 'normal',
+        messageKey: 'merchant.company_dissolved',
+        messageParams: {
+          company: nameParam('merchant_company', companyNames.get(cid) ?? cid),
+        },
+        entityRefs: [entityRef('merchant_company', cid, 'company')],
+      })
+      currentCtx = { ...ec, events: [...ec.events, event] }
+    }
   }
 
   // members の移籍先 (narrative のみ — 土地は polityReceivers で個別に動く): 先頭 Polity の

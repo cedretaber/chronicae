@@ -95,6 +95,7 @@ import {
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 import { createEmptyMerchantWorldSlices } from '../mutations/merchantMutations'
+import { seedMerchantCompanies } from './seedMerchantCompanies'
 
 // v0.58: worldgen 初期 money 概算用。essential tier の need を「最も効率の良い (安い) 資源」で
 //   満たした場合の 1 pop・1 ヶ月あたりコストを basePrice で概算する (RNG 不使用・balance-defer)。
@@ -1982,5 +1983,13 @@ export function generateWorld(
     nextPolityIndex: initialIdIndices.nextPolityIndex,
   }
 
-  return seedInitialDecisions(world, seedText, rng)
+  const seeded = seedInitialDecisions(world, seedText, rng)
+  // v0.61 §19/§25: 商会を最後に seed する。共有 rng（= session rng になる seeded.rng）は消費せず、
+  //   隔離 rng で生成するため t=0 では既存 entity が bit-identical に保たれる（商会分のみ差分）。
+  //   merchantSystemEnabled=false なら seed をスキップし pre-v0.61 と完全一致。
+  if (!config.merchantSystemEnabled) {
+    return seeded
+  }
+  const withMerchants = seedMerchantCompanies(seeded.world, seedText, config, namePoolService)
+  return { world: withMerchants, rng: seeded.rng }
 }

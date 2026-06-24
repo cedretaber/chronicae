@@ -419,3 +419,5 @@ enum:
     seize_real_estate_income: 'seizing estate income'
     withhold_land_contract_tax: 'withholding tribute'
     enforce_obligation: 'enforcing an obligation'
+merchant:
+  company_dissolved: '{{company}} dissolved after losing its patron house.'

@@ -76,7 +76,7 @@ export function collectIntegrityErrors(
   checkInfluenceModifiers(state, errors)
   checkPersonReputations(state, errors)
   checkResourceEconomy(state, errors, config)
-  checkMerchant(state, errors)
+  checkMerchant(state, errors, config)
 
   return errors
 }

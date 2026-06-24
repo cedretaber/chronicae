@@ -1560,6 +1560,10 @@ export type SimulationConfig = {
   landContractDefaultEnforcePowerThreshold: number
   terminalObligationRetentionWeeks: number
   // v0.61 商会・交易システム (§23)。初期値はバランス調整前提の仮置き。
+  // worldgen 商会 seed と全 merchant system のマスタースイッチ。OFF (false) で worldgen は
+  //   商会を seed せず全 merchant system が自然 no-op になり、pre-v0.61 と完全に bit-identical
+  //   (RNG カウンタ含む) になる。ON/OFF 回帰診断と determinism gate に使う。開発中は既定 ON。
+  merchantSystemEnabled: boolean
   merchantCompanyTradeRouteSlotsPerHeadquartersLevel: number
   tradeRouteThroughputByLevel: Record<number, number>
   tradeRouteSpreadCaptureRate: number
@@ -3244,6 +3248,7 @@ export const defaultConfig: SimulationConfig = {
   landContractDefaultEnforcePowerThreshold: 40,
   terminalObligationRetentionWeeks: 48,
   // v0.61 商会・交易システム (§23)。長期実行で調整する仮値。
+  merchantSystemEnabled: true,
   merchantCompanyTradeRouteSlotsPerHeadquartersLevel: 4,
   tradeRouteThroughputByLevel: { 1: 5, 2: 10, 3: 18, 4: 30 },
   tradeRouteSpreadCaptureRate: 0.5,

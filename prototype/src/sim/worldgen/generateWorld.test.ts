@@ -31,9 +31,15 @@ describe('generateWorld', () => {
     expect(rank2).toEqual(1)
     expect(rank3).toEqual(2)
     expect(rank4).toEqual(6)
-    const normalHouseCount = Object.values(world.houses).filter((h) => h?.kind !== 'system').length
+    // v0.61: 商会 owner House（dh- 名前空間）を除いた封建 House 数を検査する。
+    const merchantHouseIds = new Set(
+      Object.values(world.merchantCompanies).map((c) => c.ownerHouseId as string),
+    )
+    const feudalHouseCount = Object.values(world.houses).filter(
+      (h) => h?.kind !== 'system' && !merchantHouseIds.has(h?.id as string),
+    ).length
     const systemHouseCount = Object.values(world.houses).filter((h) => h?.kind === 'system').length
-    expect(normalHouseCount).toEqual(9)
+    expect(feudalHouseCount).toEqual(9)
     expect(systemHouseCount).toEqual(0)
   })
 

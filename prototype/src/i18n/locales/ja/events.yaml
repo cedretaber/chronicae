@@ -418,3 +418,5 @@ enum:
     seize_real_estate_income: '不動産収益の押領'
     withhold_land_contract_tax: '上納の拒否'
     enforce_obligation: '義務の強制'
+merchant:
+  company_dissolved: '{{company}}が後ろ盾を失い解散した。'

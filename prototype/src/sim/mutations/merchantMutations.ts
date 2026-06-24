@@ -341,6 +341,40 @@ export function createMerchantCompanyShareMut(
   return share
 }
 
+// §20.4: ownerHouse 断絶時に、当該 House 所有の全商会を dissolved 化する。
+//   active route / branch / HQ を closed にし、status=dissolved + closedWeek を立てる。
+//   dissolved record の retention purge は cleanupMerchantSystem (P7)。返り値は dissolve した companyId 群。
+export function dissolveMerchantCompaniesOfHouseMut(
+  ws: WorldState,
+  houseId: HouseId,
+  week: number,
+): MerchantCompanyId[] {
+  const companyIds = [...(ws.merchantCompanyIndex.byOwnerHouse[houseId as string] ?? [])]
+  const dissolved: MerchantCompanyId[] = []
+  for (const companyId of companyIds) {
+    const company = ws.merchantCompanies[companyId]
+    if (!company || company.status === 'dissolved') continue
+    // routes を closed に
+    for (const routeId of [...(ws.tradeRouteIndex.byCompany[companyId as string] ?? [])]) {
+      const route = ws.tradeRoutes[routeId]
+      if (route && route.status !== 'closed') setTradeRouteStatusMut(ws, routeId, 'closed', week)
+    }
+    // establishments (HQ/branch) を closed に
+    for (const estId of [
+      ...(ws.merchantCompanyEstablishmentIndex.byCompany[companyId as string] ?? []),
+    ]) {
+      const est = ws.merchantCompanyEstablishments[estId]
+      if (est && est.status !== 'closed')
+        setMerchantEstablishmentStatusMut(ws, estId, 'closed', week)
+    }
+    const updated = ws.merchantCompanies[companyId]
+    if (updated) ws.merchantCompanies[companyId] = { ...updated, closedWeek: week }
+    setMerchantCompanyStatusMut(ws, companyId, 'dissolved')
+    dissolved.push(companyId)
+  }
+  return dissolved
+}
+
 export function removeMerchantCompanyShareMut(
   ws: WorldState,
   shareId: MerchantCompanyShareId,

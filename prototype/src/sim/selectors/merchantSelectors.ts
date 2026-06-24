@@ -1,8 +1,17 @@
 import type { WorldState } from '../types/world'
-import type { MerchantCompanyId, HouseId, PersonId, StateRegionId } from '../types/ids'
+import type {
+  MerchantCompanyId,
+  HouseId,
+  PersonId,
+  StateRegionId,
+  HoldingId,
+  ProductionRecipeId,
+} from '../types/ids'
 import type { MerchantCompany, TradeRoute, MerchantCompanyEstablishment } from '../types/merchant'
+import type { ResourceKind } from '../types/resource'
 import { isLivingPerson } from '../types/person'
 import { getHouseDecisionMaker, getActiveOfficeHolders } from './officeSelectors'
+import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 
 // v0.61 商会 query selector。隣接 StateRegion 導出・会長選出・排他 guard を集約する。
 
@@ -143,6 +152,58 @@ export function getAdjacentStateRegionIds(
     }
   }
   return [...adjacent].sort().map((s) => s as StateRegionId)
+}
+
+// state 内の代表 city Holding（最小 id）。本店設置先（§19.1）。
+export function getStateCityHoldingId(
+  state: WorldState,
+  stateId: StateRegionId,
+): HoldingId | undefined {
+  const region = state.states[stateId]
+  if (!region) return undefined
+  const cityIds: HoldingId[] = []
+  for (const provinceId of region.provinceIds) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const hid of province.holdingIds) {
+      const holding = state.holdings[hid]
+      if (holding && holding.kind === 'city') cityIds.push(hid)
+    }
+  }
+  cityIds.sort((a, b) => (a as string).localeCompare(b))
+  return cityIds[0]
+}
+
+// state の資源生産ポテンシャル推定（§19.4）。確定済み RealEstateAsset の recipe 出力 × level を
+//   resource ごとに集計する。worldgen 時点（価格履歴なし）の初期 route heuristic に使う。
+export function estimateStateProductionPotential(
+  state: WorldState,
+  stateId: StateRegionId,
+): Partial<Record<ResourceKind, number>> {
+  const out: Partial<Record<ResourceKind, number>> = {}
+  const region = state.states[stateId]
+  if (!region) return out
+  for (const provinceId of region.provinceIds) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const hid of province.holdingIds) {
+      const assetIds = state.realEstateAssetIndex.byHolding[hid as string] ?? []
+      for (const aid of assetIds) {
+        const asset = state.realEstateAssets[aid]
+        if (!asset) continue
+        for (const recipeId of Object.keys(asset.recipeSlots) as ProductionRecipeId[]) {
+          const weight = asset.recipeSlots[recipeId] ?? 0
+          if (weight <= 0) continue
+          const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+          if (!recipe) continue
+          for (const o of recipe.outputs) {
+            out[o.resource] = (out[o.resource] ?? 0) + o.amount * asset.level * weight
+          }
+        }
+      }
+    }
+  }
+  return out
 }
 
 // 商家/貴族排他 guard (§10.3)。creation-time で候補列挙側に差す。
