@@ -1257,7 +1257,7 @@ type WorldState = {
 }
 ```
 
-terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.51）。`politicalActorKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
+terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.51）。`organizationKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
 
 **War Maneuver の型（`src/sim/types/war.ts`）**:
 
@@ -1334,7 +1334,7 @@ type WorldState = {
   ...
   regiments: Record<RegimentId, Regiment>
   regimentIndex: {
-    byOwner: Record<string, RegimentId[]>          // key = politicalActorKey（"polity:p-1"）
+    byOwner: Record<string, RegimentId[]>          // key = organizationKey（"polity:p-1"）
     byWar: Record<WarId, RegimentId[]>             // 動員中のみ。demobilize / destroy で外す
     byHomeProvince: Record<ProvinceId, RegimentId[]>
     byHomeHolding: Record<HoldingId, RegimentId[]>
@@ -1345,7 +1345,7 @@ type WorldState = {
 
 戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.45 の battle 入力）:
 (a) 動員中 active Regiment があればその有効戦力の合計（participant 不問 — byWar 索引ベースなので supporter の連隊も自然に含まれる）、
-(b) 動員ゼロのときのみ **participant ごとに** fallback して合算する（v0.43）: Regiment record を 1 つも所有しない participant（byOwner 空）は `getActorMilitaryPower`、byOwner 非空だが動員可能な active が無い participant は 0（fallback しない）。participant が primary 1 件のみの War では v0.36 の挙動と同値。
+(b) 動員ゼロのときのみ **participant ごとに** fallback して合算する（v0.43）: Regiment record を 1 つも所有しない participant（byOwner 空）は `getOrganizationMilitaryPower`、byOwner 非空だが動員可能な active が無い participant は 0（fallback しない）。participant が primary 1 件のみの War では v0.36 の挙動と同値。
 
 ### 3.9c Battle（戦闘）
 

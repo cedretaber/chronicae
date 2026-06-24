@@ -196,9 +196,9 @@ getWarSidePolityActors(war, sideKey): PolityId[]            // v0.43: side の�
 buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInput[]  // commander PersonId[] を battle sim 入力へ変換。v0.49 で fieldCommandScore/breakthroughScore に加え pursuitScore(=command·0.5+insight·0.35+valor·0.15) と command/insight/valor 個別値を付与（突破/追撃の現場指揮官能力。§6.45）
 ```
 
-戦力は `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
+戦力は `getOrganizationMilitaryPower`（organizationSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
 
-**開戦前勝率推定セレクター（`warEstimateSelectors.ts`。§6.44 開戦ゲートで使用）**: `estimateWarSidePower(state, config, actor)` は**実戦闘と同じ戦力源**（動員可能な常設連隊＝`status==='active'` かつ `currentWarId===undefined` の `getRegimentEffectivePower` 合計、連隊記録ゼロ時のみ `getActorMilitaryPower` フォールバック、記録ありで動員可能ゼロは 0）で推定する。`estimateAttackerWinChance` = `atk/(atk+def)`。WarManeuver は動員後の `getRegimentPowerForWarSide`（byWar 索引）を使うのに対し、開戦前は byOwner から動員可能分を見る点が異なる（同じ effectivePower 規則を共有）。
+**開戦前勝率推定セレクター（`warEstimateSelectors.ts`。§6.44 開戦ゲートで使用）**: `estimateWarSidePower(state, config, actor)` は**実戦闘と同じ戦力源**（動員可能な常設連隊＝`status==='active'` かつ `currentWarId===undefined` の `getRegimentEffectivePower` 合計、連隊記録ゼロ時のみ `getOrganizationMilitaryPower` フォールバック、記録ありで動員可能ゼロは 0）で推定する。`estimateAttackerWinChance` = `atk/(atk+def)`。WarManeuver は動員後の `getRegimentPowerForWarSide`（byWar 索引）を使うのに対し、開戦前は byOwner から動員可能分を見る点が異なる（同じ effectivePower 規則を共有）。
 
 ### 4.5 Status セレクター
 
@@ -283,6 +283,10 @@ function getAdministrativeLoad(state: WorldState, config: SimulationConfig, poli
 // 行政効率: clamp(capacity / load, minAdministrativeEfficiency, maxAdministrativeEfficiency)
 function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
+
+**組織多態 selector（`organizationSelectors.ts`）**: `OrganizationRef`（`polity | house`）の kind 分岐を 1 箇所に集約する共有モジュール。war / diplomacy（actor）と office（assignment.organization）の双方が使う。元は war 用の `actorSelectors.ts` だったが、実体が組織多態であるため v0.61 R0 で `organizationSelectors.ts` へ改名した（`getActor*`→`getOrganization*` / `politicalActorKey`→`organizationKey` / `isActorActive`→`isOrganizationActive` / `polityActor`→`polityOrganization` 等）。主な helper: `organizationKey`（`${kind}:${id}` index/attitude key）/ `isOrganizationActive` / `getOrganizationResourceAmount`（treasury or wealth）/ `getOrganizationName` / `getOrganizationLeaderPersonId` / `getOrganizationMilitaryPower` / `getOrganizationRelevantProvinceIds` / `polityOrganization` / `houseOrganization`。
+
+**office の二値前提解消（v0.61 R0）**: office の polity/house 分岐は上記 helper と office 固有 helper（`getOrganizationTermYears` = `officeTermYears[kind][role]` / `getOrganizationOfficeEntityRefs` = イベントの organization entityRef。現状 polity のみ付与し house は省略＝将来 entityRef 方針を決める唯一の判断点）を経由する。`getOfficeHolderPower` / `getEffectiveOfficeMaxHolders` / officeCompensation の funds 等、kind ごとにロジックが異なる箇所は `switch (org.kind) { … default: { const _exhaustive: never = org } }` の網羅 switch にしてあり、`OrganizationKind` に第三の組織種（宗教団体・商会など）を足すと全該当サイトが compile error として表面化する。これは純リファクタで挙動不変（dump-world bit-identical・rng 込み）。
 
 ### 4.6a2 Polity Influence / PoliticalRight selector（v0.42）
 
