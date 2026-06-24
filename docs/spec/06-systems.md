@@ -1189,33 +1189,27 @@ newRawPower = houseShareBase
 
 **成長判定**:
 ```ts
-const naturalCeil    = aptitude[k] * naturalFraction(k, age, config)
-const effectiveCeil  = hadRelevantExperience(state, personId, k) ? aptitude[k] : naturalCeil
-if (ability[k] < effectiveCeil) {
-  const gainChance = abilityGrowthChanceBase * (1 - ability[k] / effectiveCeil)
+// naturalFraction = naturalGrowthTaperFraction(0.8) × 年齢shape(0..1)・上昇側は天賦比例の bloomMult で前倒し
+const naturalCeil = aptitude[k] * naturalFraction(k, age, aptitude[k], config)
+if (ability[k] < naturalCeil) {
+  const gainChance = abilityGrowthChanceBase * (1 - ability[k] / naturalCeil)
   if (rng < gainChance / 100) {
-    // v0.45: 成長量はギャップ比例 (成功時最低 +1)。round(effectiveCeil) と HARD_CAP で clamp
-    const amount = max(1, round((effectiveCeil - ability[k]) * abilityGrowthGapFactor))
-    ability[k] = min(ability[k] + amount, max(round(effectiveCeil), ability[k] + 1), ABILITY_HARD_CAP)
+    // v0.45: 成長量はギャップ比例 (成功時最低 +1)。round(naturalCeil) と HARD_CAP で clamp
+    const amount = max(1, round((naturalCeil - ability[k]) * abilityGrowthGapFactor))
+    ability[k] = min(ability[k] + amount, max(round(naturalCeil), ability[k] + 1), ABILITY_HARD_CAP)
   }
 }
 ```
 
-**ギャップ比例成長 (v0.45)**: 旧来の固定 +1 では「天井到達の時定数 ≒ 天井値 (年)」となり、高天賦 (80+) は寿命内に原理的に到達不能だった。成功時の伸び幅を天井との差に比例させる (`abilityGrowthGapFactor` 0.1) ことで、天井から遠いほど速く伸びる: 天才の幼少期 (天賦 110 × 年齢曲線の天井を毎年追走) や、登用直後の上限解放 (naturalCeil → aptitude) が高速成長として表現される。天井への漸近は依然遅く、天賦を使い切るのは稀なまま。
+**自然成長は天賦の 0.8 で頭打ち（才能による早熟）**: 自然成長は**経験の有無に関わらず** `aptitude × naturalFraction`（最大 `naturalGrowthTaperFraction` = 0.8 × 天賦）で頭打ちになる。0.8→1.0（= 天賦フル）は**成果成長（§6.66 award）のみ**で到達する（役職に就いただけでは解放されない＝「登用された天才が功績を重ねて大成する」）。早熟は天賦由来の `bloomMult`（= 1 + `talentEarlyBloomStrength` × max(0,(aptitude−mean)/100)）で年齢曲線の**上昇側のみ**前倒しするため、高天賦者は若くして 0.8 へ到達する（衰退側は実年齢のままで早熟≠早衰）。`bloomMult` は `geniusType` フラグではなく天賦値の連続関数なので、運良く高天賦を引いた非天才も同様に早熟する。
 
-* **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
-* **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
+**ギャップ比例成長 (v0.45)**: 旧来の固定 +1 では「天井到達の時定数 ≒ 天井値 (年)」となり、高天賦は寿命内に到達困難だった。成功時の伸び幅を天井との差に比例させる (`abilityGrowthGapFactor` 0.15) ことで、天井から遠いほど速く伸びる（天才の幼少期が高速成長として表現される）。
 
 **訓練経験 (v0.44 で廃止)**: 旧 `personTrainingExperience`（improve_ability Task 由来の gainChance bonus + 年次 decay）は v0.44 で全廃した。Task 完了は能力成長を直接発生させず、成果単位の即時成長（§6.66）に置き換えられている。
 
-**自然成長イベント (v0.44 追補)**: 成長判定で +1 が発生するたびに `PERSON_ABILITY_GREW` を emit する。`sourceKind` は成長の帯で出し分ける:
+**自然成長イベント (v0.44 追補)**: 成長判定で成長が発生するたびに `PERSON_ABILITY_GREW`（`sourceKind: 'natural'`）を emit する。importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor`（`isNotablePerson`）。メイン EventLog は major/critical のみ表示するため（§6.62 / EventLog `isMainLogEvent`）、これらは Person Chronicle（byPerson）にのみ蓄積される。RNG は消費しない（emit のみ・シミュレーション軌跡は不変）。
 
-- `'duty'`: 成長時の `ability >= naturalCeil`（= `hadRelevantExperience` による上限解放がなければ起こり得なかった、職務経験由来の成長）
-- `'natural'`: それ以外（年齢曲線内の自然成長）
-
-importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor`（`isNotablePerson`）。メイン EventLog は major/critical のみ表示するため（§6.62 / EventLog `isMainLogEvent`）、これらは Person Chronicle（byPerson）にのみ蓄積される。RNG は消費しない（emit のみ・シミュレーション軌跡は不変）。実測 (100年 seed 1): natural ≈ 351 件/年・duty ≈ 16 件/年で、Chronicle エントリの約 8 割を占める（観賞対象は人物詳細パネルの履歴）。
-
-**衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
+**衰退判定（dead band）**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > declineRef` の場合に発火する。`declineRef = naturalCeil / naturalGrowthTaperFraction`（= `aptitude × ageShape`、**taper 前**の年齢カーブ）。これにより **0.8→1.0 は成長も衰退もしない dead band** となり、award で得た 0.8 超の能力は加齢が来るまで保持される（衰退基準を `naturalCeil`(0.8×…) にすると award 由来の能力が衰退4能力でのみ毎年削られ非対称になるため、taper 前を基準にする）。ピーク後は `ageShape` が縮むため従来どおり加齢衰退に向かう。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
 
 **経験イベント対応表（hadRelevantExperience）**:
 
@@ -1260,7 +1254,7 @@ importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor
 
 #### 親能力ボーナス（PersonGrowthSystem §6.24 内）
 
-childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < effectiveCeil && effectiveCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `effectiveCeil = 0` で成長ブロックに入らずボーナスも効かない。
+childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < naturalCeil && naturalCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `naturalCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `naturalCeil = 0` で成長ブロックに入らずボーナスも効かない。
 
 #### 社会活動資格の `young_adulthood` 化
 
@@ -2876,8 +2870,8 @@ type PersonReputation = {
 
 #### 既存システムとの相互作用（設計時に検証済み・追加実装なし）
 
-- 自然成長上限は age-curve fraction（最大 0.7-0.75）× 天賦のため、天才も自然成長だけでは天賦の 7 割止まり。**天賦 80-120 を使い切るには職務経験（§6.24 の ceiling 解放）や成果成長（§6.66）が必要** — 「登用された天才だけが大成する」が創発する
-- 幼少期の天才は naturalCeil（= 高い天賦 × 年齢曲線）を毎年ギャップ比例で追走し、通常の子の約 2 倍の水準で育つ
+- 自然成長上限は `naturalGrowthTaperFraction`（0.8）× 天賦のため、天才も自然成長だけでは天賦の 8 割止まり。**0.8→天賦フルを使い切るには成果成長（§6.66 award）が必要**（職務経験では解放されない） — 「功績を重ねた天才だけが大成する」が創発する
+- 天才は天賦比例の `bloomMult` で年齢曲線の上昇側が前倒しされ、**若くして 0.8 へ到達**する（早熟）。0.8→1.0 は成長も衰退もしない dead band で、award で得た高水準は加齢まで保持される
 - `isNotablePerson` に `geniusType` 判定を追加（§6.25）。天才の成長ログは normal になり、死去は `IMPORTANT_PERSON_DIED` 対象になる
 - **死亡率補正（v0.45.1）**: 自然死判定率に `geniusMortalityMultiplier`（0.5）を乗じる（§6.7）。夭折率は約 26% → 約 15% に下がり、「才能を開花させる前に死ぬ」がデフォルトでなくなる（夭折の物語は稀に残る）
 - **在野刈り込みから除外（v0.45.1）**: `faded_from_history` の対象にしない（§6.18）。在野でも自然死はするため不死にはならない

@@ -477,9 +477,10 @@ export type AppliedRoleKey =
 // 応用ロールの基礎能力からの重み付き和を返す（0..120 を保証、ABILITY_HARD_CAP でクランプ）
 function getRoleScore(state: WorldState, personId: PersonId, role: AppliedRoleKey): number
 
-// 能力 k における年齢 age での「自然到達水準」を返す（0..1 の係数）
-// 各能力の AGE_CURVE （lifelongGrowth / youthPeak / midLifePeak）に基づく
-function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number
+// 能力 k における年齢 age での「自然到達水準」を返す（= naturalGrowthTaperFraction(0.8) × 年齢shape(0..1)）
+// 各能力の AGE_CURVE （lifelongGrowth / youthPeak / midLifePeak）に基づく。上昇側のみ天賦由来の
+// bloomMult（= 1 + talentEarlyBloomStrength × max(0,(aptitude−mean)/100)）で前倒し（早熟）。衰退側は実年齢のまま
+function naturalFraction(k: AbilityKey, age: number, aptitude: number, config: SimulationConfig): number
 
 // aptitude（才能上限）を独立ガウス分布でサンプル。値域 [0, ABILITY_GENERATION_MAX=100]
 function sampleAptitudes(rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
@@ -487,11 +488,11 @@ function sampleAptitudes(rng: RngState, config: SimulationConfig): RngResult<Abi
 // 両親平均と populationMean(=50) を heritability で混合して子の aptitude を生成
 function inheritAptitudes(father: Person, mother: Person, rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
 
-// 年齢曲線に基づき aptitude * naturalFraction(age) を中央値として ability をサンプル
+// 年齢曲線に基づき aptitude * naturalFraction(k, age, aptitude) を中央値として ability をサンプル
 // 不変条件: ability ≤ aptitude
 function sampleAbilitiesFromAptitudes(aptitudes: AbilityScores, age: number, rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
 
-// 能力 k について、当該 person が「関連経験」を持つか判定（PersonGrowthSystem の effectiveCeiling 切替に使用）
+// 能力 k について、当該 person が「関連経験」を持つか判定（PersonGrowthSystem の衰退速度倍率に使用）
 function hadRelevantExperience(state: WorldState, personId: PersonId, k: AbilityKey): boolean
 ```
 

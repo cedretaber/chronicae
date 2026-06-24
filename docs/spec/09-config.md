@@ -546,16 +546,15 @@
 | abilityHeritability | 0.5 | 両親平均 vs populationMean のブレンド比率 |
 | abilityAptitudeNoiseStddev | 8 | 遺伝時のガウスノイズ標準偏差 |
 | abilityInitialNoiseStddev | 3 | ability 初期値サンプル時のガウスノイズ標準偏差 |
-| ageCurveLifelongMaxFraction | 0.70 | 終生成長曲線の最大到達比率 |
 | ageCurveLifelongAgeConstant | 30 | 終生成長曲線の時定数 |
-| ageCurveYouthMaxFraction | 0.75 | 若年期ピーク曲線の最大到達比率 |
 | ageCurveYouthPeakAge | 30 | 若年期ピーク曲線のピーク年齢 |
 | ageCurveYouthDeclineConstant | 40 | 若年期ピーク曲線のピーク後減衰時定数 |
-| ageCurveMidLifeMaxFraction | 0.70 | 壮年期ピーク曲線の最大到達比率 |
 | ageCurveMidLifePeakAge | 45 | 壮年期ピーク曲線のピーク年齢 |
 | ageCurveMidLifeDeclineConstant | 60 | 壮年期ピーク曲線のピーク後減衰時定数 |
-| abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
-| abilityGrowthGapFactor | 0.1 | v0.45 成長成功時の伸び幅係数 (ギャップ比例・最低 +1) |
+| talentEarlyBloomStrength | 1.5 | 天賦による年齢曲線上昇側の前倒し(早熟)の強さ。0=従来カーブ |
+| naturalGrowthTaperFraction | 0.8 | 自然成長の到達上限 = この割合 × 天賦。0.8→1.0 は成果(award)成長のみ |
+| abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、naturalCeil との比率で減衰） |
+| abilityGrowthGapFactor | 0.15 | v0.45 成長成功時の伸び幅係数 (ギャップ比例・最低 +1) |
 | abilityDeclineChanceBase | 5 | 衰退判定の基礎確率（%） |
 | abilityActiveDeclineMultiplier | 0.30 | 経験あり人物の衰退速度倍率（鈍化） |
 | estateBaseRecoveryRate | 0.5 | 家回収率の基礎値（Share=0 のとき） |

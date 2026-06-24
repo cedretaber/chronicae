@@ -180,9 +180,9 @@ effectiveScore < threshold                  → failure
 
 ### 10.8 LifeStage と能力
 
-LifeStage は能力成長カーブには**直接関与しない**。`ABILITY_AGE_CURVES` + `naturalFraction(k, age, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。
+LifeStage は能力成長カーブには**直接関与しない**。`ABILITY_AGE_CURVES` + `naturalFraction(k, age, aptitude, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。早熟は LifeStage ではなく**天賦値**に比例して効く（`naturalFraction` 内の `bloomMult`・§6.24）。自然成長の到達上限は `naturalGrowthTaperFraction`（0.8）× 天賦で、0.8→1.0 は成果成長のみ（§6.66）。
 
-LifeStage が能力に加える唯一の効果は **親能力ボーナス**（§6.24 / §6.25）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
+LifeStage が能力に加える唯一の効果は **親能力ボーナス**（§6.24 / §6.25）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `naturalCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
 
 ---
 
