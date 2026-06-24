@@ -103,7 +103,7 @@ npm run lint -- src/sim/tick/someFile.ts
 仕様書を読む・編集する前に、まず **`docs/SPEC.md`（目次）を開く**。ファイル名は推測しない（過去に実在しない spec ファイル名を幻覚してコミットメッセージに書いた手戻りがある）。
 
 - **spec は章別構成**（機能別ファイルではない）。全サブシステムは `docs/spec/06-systems.md` に集約される（例: IntegrityCheck = §6.24、War ライフサイクル = §6.27a-d）。`12-war-lifecycle.md` のような直感的なファイルは**存在しない**。
-- **コードコメント・エラーメッセージ・型定義の `§X` は作業ドラフト (`docs/drafts/spec-v0XX-update.md`) の番号**で、統合 spec の §番号とは一致しない。さらにドラフト本体は git 管理外で repo に無いことがある（v0.34 の `spec-v034-update.md` は実在しない）。spec 上の該当箇所は **§番号で探さず、キーワードで内容検索する**（例: `grep "WarGoal" docs/spec/06-systems.md`）。コードの `(§X)` は引用ではなく主張として扱い、裏取りする。
+- **コードコメント・エラーメッセージ・型定義の `§X` は作業ドラフト (`docs/drafts/spec-v0XX-update.md`) の番号**で、統合 spec の §番号とは一致しない。さらにドラフト本体は git 管理外で repo に無いことがある（v0.34 の `spec-v034-update.md` は実在しない）。spec 上の該当箇所は **§番号で探さず、キーワードで内容検索する**（例: `rg "WarGoal" docs/spec/06-systems.md`）。コードの `(§X)` は引用ではなく主張として扱い、裏取りする。
 - **実装→spec 同期（§3 の責務）は `docs/spec/`（git 管理の正本）に対して行う**。§3 本文は「ドラフト spec を更新」とあるが、ドラフトが repo に無い場合は統合 spec の対応章（多くは `06-systems.md`）を更新するのが正しい同期先。
 - コミットメッセージやレポートに spec のパス・§番号・「spec ではこうなっている」と書く前に、**引用元を実際に開いて実在と内容を確認する**。
 
@@ -258,7 +258,7 @@ YEARS=200。timeout-minutes 20 に収まらなければ 150 に戻す)。300年�
 整合性エラーが発生した場合、`--debug` フラグで原因システムを特定する：
 
 ```bash
-cd prototype && npm run cli -- --years 50 --seed 1 --debug 2>&1 | grep INTEGRITY_VIOLATION | head -5
+cd prototype && npm run cli -- --years 50 --seed 1 --debug 2>&1 | rg INTEGRITY_VIOLATION | head -5
 ```
 
 最初に `after=XXX` が出たシステムが原因。詳細は「状態整合性バグのデバッグ手法」を参照。
@@ -311,7 +311,7 @@ const id = person.id
 **Step 1: `--integrity-per-system` フラグで CLI を実行する**
 
 ```bash
-cd prototype && node src/cli/run.mjs --years 20 --seed 1 --integrity-per-system 2>&1 | grep INTEGRITY_AFTER | head -5
+cd prototype && node src/cli/run.mjs --years 20 --seed 1 --integrity-per-system 2>&1 | rg INTEGRITY_AFTER | head -5
 ```
 
 このフラグは各 system 実行後に `runIntegritySystem` を try-catch で走らせ、違反があれば `[DEBUG:INTEGRITY_AFTER] system=XXX year=Y week=Z error=...` を stderr に出力する。
@@ -323,7 +323,7 @@ cd prototype && node src/cli/run.mjs --years 20 --seed 1 --integrity-per-system 
 **Step 2: 中間状態の violation と本物の violation を区別する**
 
 一部の violation は正常な中間状態（例: mortalitySystem 後に dead person の wealth が残る → estateSettlementSystem が処理する）。
-同じ violation が最終 system まで残っていれば本物のバグ。grep 出力の `system=` を見て、どの system で初出し、どの system で解消されるかを追跡する。
+同じ violation が最終 system まで残っていれば本物のバグ。rg 出力の `system=` を見て、どの system で初出し、どの system で解消されるかを追跡する。
 
 **Step 3: 違反が指すエンティティの「状態」を、修正方針を立てる前に実測する**
 
@@ -468,3 +468,12 @@ run('newSystem', runNewSystem)
 ```
 
 `run` ヘルパーは debug モード時のみ `performance.now()` で前後を計測し `[PERF:newSystem] ms=X.XXX` を stderr に出力する。非 debug モードではオーバーヘッドなし。
+
+---
+
+## ローカル設定の取り込み
+
+以下は git 管理外の手元固有設定 (LSP セットアップ、環境依存の注意書きなど)。
+この環境では `CLAUDE.local.md` が自動ロードされないため、明示インポートで文脈に取り込む。
+
+@CLAUDE.local.md
