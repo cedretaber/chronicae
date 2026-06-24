@@ -42,7 +42,8 @@ Options:
   --json                Output each tick as NDJSON
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --integrity-per-system  Run integrity check after every system (very slow, for diagnosis)
-  --dump-world          Dump full WorldState as JSON to stderr after simulation ends
+  --dump-world          Dump { meta, rng, config, state } as JSON to stderr after simulation ends
+                        (state = full WorldState; rng = final RNG state for determinism diffing)
   --digest              Output WorldDigest summary as JSON to stdout after simulation
   --config <json>       Override config values with a JSON object (e.g. '{"taxRevisionTaxChangeAmount":0.10}')
   --report <path>       Write Activity Report (4-axis observation JSON) to <path>; use "-" for stdout
@@ -1005,7 +1006,24 @@ async function main(): Promise<void> {
   }
 
   if (args.dumpWorld) {
-    process.stderr.write(JSON.stringify(state, null, 2) + '\n')
+    // state だけでなく、決定性 diff のための最終 RNG 状態と再現用の解決済み config も含める。
+    //   - rng: merchant 等の新 system が ctx.rng を撹乱しないこと (RNG 隔離) を、entity 分岐を
+    //     待たず最終カウンタ 1 値で直接アサートできる (bit-identical determinism gate の強化)。
+    //   - config: --preset / --config の解決結果。dump 単体で素性が分かり再現可能になる。
+    const dump = {
+      meta: {
+        seed: args.seed,
+        preset: args.preset ?? 'default',
+        years: args.years,
+        finalYear: state.currentYear,
+        finalWeekOfYear: state.currentWeekOfYear,
+        finalAbsoluteWeek: state.absoluteWeek,
+      },
+      rng: currentRng,
+      config,
+      state,
+    }
+    process.stderr.write(JSON.stringify(dump, null, 2) + '\n')
   }
 
   if (args.reportPath !== undefined) {
