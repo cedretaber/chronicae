@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PersonId, StateRegionId, ProvinceId, HouseId, MerchantCompanyId } from '../types/ids'
+import type { PersonId, StateRegionId, ProvinceId } from '../types/ids'
 import { createHouseId, createPersonId, createMerchantCompanyId } from '../types/ids'
 import type { Sex } from '../types/person'
 import type { ResourceKind } from '../types/resource'
@@ -55,19 +55,11 @@ function computeShareRawPower(age: number, governanceish: number, isHead: boolea
   return base + Math.min(40, age * 0.4) + governanceish * 0.3
 }
 
-export function seedMerchantCompanies(
-  world: WorldState,
-  seedText: string,
-  config: SimulationConfig,
-  namePoolService?: NamePoolService,
-): WorldState {
-  let rng = createRng(seedText + ':merchant')
-
-  // 触る slice を clone（merchant mutation は in-place、office は immutable）。
-  let state: WorldState = {
+// merchant の 4 collection + index を clone する（in-place mutation 前提）。persons/houses は含まない
+//   ので、それらを触る seed 系（worldgen / 再興）は別途 clone する。cleanup は merchant slice のみで足りる。
+export function cloneMerchantSlicesOnly(world: WorldState): WorldState {
+  return {
     ...world,
-    persons: { ...world.persons },
-    houses: { ...world.houses },
     merchantCompanies: { ...world.merchantCompanies },
     merchantCompanyIndex: {
       byOwnerHouse: { ...world.merchantCompanyIndex.byOwnerHouse },
@@ -105,168 +97,185 @@ export function seedMerchantCompanies(
       byHolder: { ...world.merchantCompanyShareIndex.byHolder },
     },
   }
+}
 
-  let nextPersonIndex = world.nextPersonIndex ?? 0
-  let nextHouseIndex = world.nextHouseIndex ?? 0
-  const createdWeek = world.absoluteWeek
+// 1 つの StateRegion に商会 1 社を seed する（House[dh-]+members[pe-]+Company+HQ+shares+route+offices）。
+//   worldgen（隔離 rng）と runtime 再興（ctx.rng）の両方が呼ぶ。counters は in-place で進める。
+//   state は clone 済み slice を持つ前提。city holding が無ければ null。
+export function seedOneMerchantCompany(
+  stateIn: WorldState,
+  stateId: StateRegionId,
+  rngIn: RngState,
+  config: SimulationConfig,
+  namePoolService: NamePoolService | undefined,
+  counters: { nextPersonIndex: number; nextHouseIndex: number },
+): { state: WorldState; rng: RngState } | null {
+  let state = stateIn
+  let rng = rngIn
+  const createdWeek = state.absoluteWeek
 
-  // 後で office を付ける company を記録（merchant entity 作成 → office 作成の順）。
-  const pending: { companyId: MerchantCompanyId; houseId: HouseId; headId: PersonId }[] = []
+  const cityHoldingId = getStateCityHoldingId(state, stateId)
+  if (!cityHoldingId) return null
+  const cityHolding = state.holdings[cityHoldingId]
+  if (!cityHolding) return null
+  const seatProvinceId: ProvinceId = cityHolding.provinceId
+
+  // --- merchant House + members（runtime 名前空間 dh-・person は pe-）---
+  const houseId = createHouseId('dh', counters.nextHouseIndex++)
+  const memberIds: PersonId[] = []
+  const memberMeta: { id: PersonId; age: number; gov: number }[] = []
+  for (let i = 0; i < MERCHANT_HOUSE_MEMBER_COUNT; i++) {
+    const personId = createPersonId('pe', counters.nextPersonIndex++)
+    const sexRoll = randomFloat(rng)
+    rng = sexRoll.rng
+    const sex: Sex = sexRoll.value < config.maleBirthChance ? 'male' : 'female'
+    const ageRoll = randomInt(rng, 30, 55)
+    rng = ageRoll.rng
+    const age = ageRoll.value
+    const ambRoll = randomFloat(rng)
+    rng = ambRoll.rng
+    const cauRoll = randomFloat(rng)
+    rng = cauRoll.rng
+    const nameRes = pickName(sex, rng, namePoolService)
+    rng = nameRes.rng
+    const sampled = samplePerson(rng, config, {
+      id: personId,
+      nameKey: nameRes.nameKey,
+      sex,
+      age,
+      houseId,
+      birthStatus: 'unknown',
+      traits: { ambition: ambRoll.value, caution: cauRoll.value },
+    })
+    rng = sampled.rng
+    const person = sampled.value
+    state.persons[personId] = person
+    memberIds.push(personId)
+    const gov = (person.abilities.learning + person.abilities.numeracy) / 2
+    memberMeta.push({ id: personId, age, gov })
+  }
+  state.livingPersonIds = [...state.livingPersonIds, ...memberIds].sort((a, b) =>
+    (a as string).localeCompare(b),
+  )
+
+  const houseNameRes = pickName('male', rng, namePoolService)
+  rng = houseNameRes.rng
+  state.houses[houseId] = {
+    id: houseId,
+    nameKey: houseNameRes.nameKey,
+    active: true,
+    kind: 'normal',
+    memberIds,
+    deceasedMemberIds: [],
+    cadetHouseIds: [],
+    legacyPrestige: 0,
+    wealth: 0,
+    seatProvinceId,
+  }
+
+  // --- Company + HQ（HQ を先に作り headquartersEstablishmentId を確定値で持たせる）---
+  const hq = createMerchantCompanyEstablishmentMut(state, {
+    companyId: createMerchantCompanyId(state.nextMerchantCompanyId),
+    holdingId: cityHoldingId,
+    kind: 'headquarters',
+    level: 1,
+    createdWeek,
+  })
+  const company = createMerchantCompanyMut(state, {
+    nameKey: houseNameRes.nameKey,
+    ownerHouseId: houseId,
+    treasury: config.merchantCompanyFoundingTreasury,
+    createdWeek,
+    headquartersEstablishmentId: hq.id,
+  })
+
+  // --- Shares（RNG-free・person 属性ベース）---
+  for (let i = 0; i < memberMeta.length; i++) {
+    const m = memberMeta[i]!
+    createMerchantCompanyShareMut(state, {
+      companyId: company.id,
+      holderPersonId: m.id,
+      rawPower: computeShareRawPower(m.age, m.gov, i === 0),
+    })
+  }
+
+  // --- 初期 route（§19.4 簡易版: source 産出 argmax × 最小 id 隣接 state）---
+  const adjacent = getAdjacentStateRegionIds(state, stateId)
+  if (adjacent.length > 0) {
+    const targetStateId = adjacent[0]!
+    const potential = estimateStateProductionPotential(state, stateId)
+    let bestResource: ResourceKind | undefined
+    let bestVal = 0
+    for (const r of RESOURCE_KINDS) {
+      const v = potential[r] ?? 0
+      if (v > bestVal) {
+        bestVal = v
+        bestResource = r
+      }
+    }
+    if (bestResource) {
+      createTradeRouteMut(state, {
+        companyId: company.id,
+        sourceStateId: stateId,
+        targetStateId,
+        resource: bestResource,
+        level: 1,
+        createdWeek,
+      })
+    }
+  }
+
+  // --- Office: house:leader（core integrity）+ 会頭/番頭 ---
+  state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', memberMeta[0]!.id)
+  const ref = { kind: 'merchant_company' as const, id: company.id }
+  const chairman = getMerchantCompanyDecisionMaker(state, company.id)
+  if (chairman) state = createOfficeAssignment(state, ref, 'leader', chairman)
+  let bestAdmin: PersonId | undefined
+  let bestGov = -1
+  for (const pid of [...memberIds].sort((a, b) => (a as string).localeCompare(b))) {
+    if (chairman && (pid as string) === (chairman as string)) continue
+    const p = state.persons[pid]
+    if (!p || !p.alive || p.kind === 'placeholder') continue
+    const gov = (p.abilities.learning + p.abilities.numeracy) / 2
+    if (gov > bestGov) {
+      bestGov = gov
+      bestAdmin = pid
+    }
+  }
+  if (bestAdmin) state = createOfficeAssignment(state, ref, 'administrator', bestAdmin)
+
+  return { state, rng }
+}
+
+export function seedMerchantCompanies(
+  world: WorldState,
+  seedText: string,
+  config: SimulationConfig,
+  namePoolService?: NamePoolService,
+): WorldState {
+  let rng = createRng(seedText + ':merchant')
+  let state: WorldState = {
+    ...cloneMerchantSlicesOnly(world),
+    persons: { ...world.persons },
+    houses: { ...world.houses },
+  }
+  const counters = {
+    nextPersonIndex: world.nextPersonIndex ?? 0,
+    nextHouseIndex: world.nextHouseIndex ?? 0,
+  }
 
   for (const stateId of (Object.keys(state.states) as StateRegionId[]).sort((a, b) =>
     (a as string).localeCompare(b),
   )) {
-    const cityHoldingId = getStateCityHoldingId(state, stateId)
-    if (!cityHoldingId) continue
-    const cityHolding = state.holdings[cityHoldingId]
-    if (!cityHolding) continue
-    const seatProvinceId: ProvinceId = cityHolding.provinceId
-
-    // --- merchant House + members ---
-    // 家は runtime 名前空間 `dh-` を使う（worldgen `h-` と衝突させない。nextHouseIndex は dh- 採番器）。
-    const houseId = createHouseId('dh', nextHouseIndex++)
-    const memberIds: PersonId[] = []
-    const memberMeta: { id: PersonId; age: number; gov: number }[] = []
-    for (let i = 0; i < MERCHANT_HOUSE_MEMBER_COUNT; i++) {
-      const personId = createPersonId('pe', nextPersonIndex++)
-      const sexRoll = randomFloat(rng)
-      rng = sexRoll.rng
-      const sex: Sex = sexRoll.value < config.maleBirthChance ? 'male' : 'female'
-      const ageRoll = randomInt(rng, 30, 55)
-      rng = ageRoll.rng
-      const age = ageRoll.value
-      const ambRoll = randomFloat(rng)
-      rng = ambRoll.rng
-      const cauRoll = randomFloat(rng)
-      rng = cauRoll.rng
-      const nameRes = pickName(sex, rng, namePoolService)
-      rng = nameRes.rng
-      const sampled = samplePerson(rng, config, {
-        id: personId,
-        nameKey: nameRes.nameKey,
-        sex,
-        age,
-        houseId,
-        birthStatus: 'unknown',
-        traits: { ambition: ambRoll.value, caution: cauRoll.value },
-      })
-      rng = sampled.rng
-      const person = sampled.value
-      state.persons[personId] = person
-      memberIds.push(personId)
-      const gov = (person.abilities.learning + person.abilities.numeracy) / 2
-      memberMeta.push({ id: personId, age, gov })
-    }
-    state.livingPersonIds = [...state.livingPersonIds, ...memberIds]
-
-    // 家名: person 名と同じ pool（worldgen 既存 house は別 pool だが、商会家は person pool 流用で可）。
-    const houseNameRes = pickName('male', rng, namePoolService)
-    rng = houseNameRes.rng
-    state.houses[houseId] = {
-      id: houseId,
-      nameKey: houseNameRes.nameKey,
-      active: true,
-      kind: 'normal',
-      memberIds,
-      deceasedMemberIds: [],
-      cadetHouseIds: [],
-      legacyPrestige: 0,
-      wealth: 0,
-      seatProvinceId,
-    }
-
-    // --- Company + HQ ---
-    // HQ を先に作って company を後で作る（headquartersEstablishmentId を確定値で持たせる）。
-    const hq = createMerchantCompanyEstablishmentMut(state, {
-      companyId: createMerchantCompanyId(state.nextMerchantCompanyId), // 直後に作る company の id を先取り
-      holdingId: cityHoldingId,
-      kind: 'headquarters',
-      level: 1,
-      createdWeek,
-    })
-    const company = createMerchantCompanyMut(state, {
-      nameKey: houseNameRes.nameKey,
-      ownerHouseId: houseId,
-      treasury: config.merchantCompanyFoundingTreasury,
-      createdWeek,
-      headquartersEstablishmentId: hq.id,
-    })
-
-    // --- Shares（RNG-free・person 属性ベース）---
-    for (let i = 0; i < memberMeta.length; i++) {
-      const m = memberMeta[i]!
-      createMerchantCompanyShareMut(state, {
-        companyId: company.id,
-        holderPersonId: m.id,
-        rawPower: computeShareRawPower(m.age, m.gov, i === 0),
-      })
-    }
-
-    // --- 初期 route（§19.4 簡易版: source 産出 argmax × 最小 id 隣接 state。需要考慮は balance-defer）---
-    const adjacent = getAdjacentStateRegionIds(state, stateId)
-    if (adjacent.length > 0) {
-      const targetStateId = adjacent[0]!
-      const potential = estimateStateProductionPotential(state, stateId)
-      let bestResource: ResourceKind | undefined
-      let bestVal = 0
-      for (const r of RESOURCE_KINDS) {
-        const v = potential[r] ?? 0
-        if (v > bestVal) {
-          bestVal = v
-          bestResource = r
-        }
-      }
-      if (bestResource) {
-        createTradeRouteMut(state, {
-          companyId: company.id,
-          sourceStateId: stateId,
-          targetStateId,
-          resource: bestResource,
-          level: 1,
-          createdWeek,
-        })
-      }
-    }
-
-    pending.push({ companyId: company.id, houseId, headId: memberMeta[0]!.id })
+    const res = seedOneMerchantCompany(state, stateId, rng, config, namePoolService, counters)
+    if (!res) continue
+    state = res.state
+    rng = res.rng
   }
 
-  // 永続 next index 更新 + livingPersonIds を canonical（string-sort）に戻す（§ integrity 整合）。
-  state = {
+  return {
     ...state,
-    nextPersonIndex,
-    nextHouseIndex,
-    livingPersonIds: [...state.livingPersonIds].sort((a, b) => (a as string).localeCompare(b)),
+    nextPersonIndex: counters.nextPersonIndex,
+    nextHouseIndex: counters.nextHouseIndex,
   }
-
-  // --- Office ---
-  for (const { companyId, houseId, headId } of pending) {
-    // merchant House は normal House なので house:leader が必要（core integrity）。head member を当主に。
-    state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', headId)
-
-    // 会長 = share decisionMaker → merchant_company:leader / 番頭 → administrator。
-    const ref = { kind: 'merchant_company' as const, id: companyId }
-    const chairman = getMerchantCompanyDecisionMaker(state, companyId)
-    if (chairman) {
-      state = createOfficeAssignment(state, ref, 'leader', chairman)
-    }
-    const houseMembers = state.houses[houseId]?.memberIds ?? []
-    let bestAdmin: PersonId | undefined
-    let bestGov = -1
-    for (const pid of [...houseMembers].sort((a, b) => (a as string).localeCompare(b))) {
-      if (chairman && (pid as string) === (chairman as string)) continue
-      const p = state.persons[pid]
-      if (!p || !p.alive || p.kind === 'placeholder') continue
-      const gov = (p.abilities.learning + p.abilities.numeracy) / 2
-      if (gov > bestGov) {
-        bestGov = gov
-        bestAdmin = pid
-      }
-    }
-    if (bestAdmin) {
-      state = createOfficeAssignment(state, ref, 'administrator', bestAdmin)
-    }
-  }
-
-  return state
 }

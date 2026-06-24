@@ -187,12 +187,27 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
       treasuryDelta = gross // 赤字は treasury が吸収
     }
 
+    const newTreasury = company.treasury + treasuryDelta
+    const newSmoothed =
+      company.smoothedProfit * (1 - PROFIT_SMOOTH_ALPHA) + gross * PROFIT_SMOOTH_ALPHA
+    // §20.1: 経営難の連続週を distressSince で追う（status 変更は cleanupMerchantSystem の責務＝
+    //   byStatus index を一括同期させるため）。回復で distressSince をクリア。
+    const distressed =
+      newTreasury < config.merchantCompanyBankruptcyTreasuryThreshold && newSmoothed < 0
+    const distressSince = distressed ? (company.distressSince ?? state.absoluteWeek) : undefined
+
     companiesMut[companyId] = {
       ...company,
-      treasury: company.treasury + treasuryDelta,
+      treasury: newTreasury,
       lastProfit: gross,
-      smoothedProfit:
-        company.smoothedProfit * (1 - PROFIT_SMOOTH_ALPHA) + gross * PROFIT_SMOOTH_ALPHA,
+      smoothedProfit: newSmoothed,
+      ...(distressSince !== undefined ? { distressSince } : {}),
+    }
+    if (distressSince === undefined && company.distressSince !== undefined) {
+      // 回復: distressSince を消す。
+      const recovered = { ...companiesMut[companyId] }
+      delete recovered.distressSince
+      companiesMut[companyId] = recovered
     }
   }
 

@@ -425,3 +425,5 @@ merchant:
   route_closed: '{{company}}が不採算の交易路を閉鎖した。'
   branch_built: '{{company}}が新たな支店を開設した。'
   hq_upgraded: '{{company}}が本店を増築した。'
+  company_bankrupt: '{{company}}が破産し、店を畳んだ。'
+  company_founded: '{{company}}が新たに興った。'

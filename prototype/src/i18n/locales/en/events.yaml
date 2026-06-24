@@ -426,3 +426,5 @@ merchant:
   route_closed: '{{company}} closed an unprofitable trade route.'
   branch_built: '{{company}} established a new branch.'
   hq_upgraded: '{{company}} expanded its headquarters.'
+  company_bankrupt: '{{company}} went bankrupt and shuttered.'
+  company_founded: '{{company}} was newly founded.'

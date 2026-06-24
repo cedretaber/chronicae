@@ -32,6 +32,8 @@ import { runMerchantCompanyOfficeSyncSystem } from './merchantCompanyOfficeSyncS
 import { runTradePlanningSystem } from './tradePlanningSystem'
 import { runMerchantCompanyAccountingSystem } from './merchantCompanyAccountingSystem'
 import { runMerchantCompanyDecisionSystem } from './merchantCompanyDecisionSystem'
+import { runCleanupMerchantSystem } from './cleanupMerchantSystem'
+import { runMerchantCompanyFoundingSystem } from './merchantCompanyFoundingSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
@@ -240,6 +242,20 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runMerchantCompanyDecisionSystem,
+  },
+  {
+    // v0.61 §20: weekly。経営難商会の dormant 化 + terminal entity の retention purge。
+    name: 'cleanupMerchantSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCleanupMerchantSystem,
+  },
+  {
+    // v0.61 §20.7: 年次。active 商会ゼロの state へ再興（ctx.rng で person 生成）。
+    name: 'merchantCompanyFoundingSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runMerchantCompanyFoundingSystem,
   },
   {
     // v0.48 §4: 正イベント (BountifulHarvest) のみ。負イベントは crisisSystem に移設。

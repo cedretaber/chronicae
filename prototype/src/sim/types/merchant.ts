@@ -34,6 +34,10 @@ export type MerchantCompany = {
   lastProfit: number
   smoothedProfit: number
 
+  // v0.61 §20.1: 経営難（treasury<閾値 かつ smoothedProfit<0）が始まった週。回復で undefined に戻る。
+  //   (week - distressSince) >= graceWeeks で bankrupt 判定。
+  distressSince?: number
+
   headquartersEstablishmentId: MerchantCompanyEstablishmentId
 }
 
