@@ -342,8 +342,8 @@ describe('runResourceEconomySystem — production & market', () => {
     // upper はどの asset にも雇用されない (§13.4) ため純粋な需要源にできる。
     // v0.58: money 制約があるため afford=1 となる潤沢な money を与える。
     state = withEmployedPop(state, hd, 'upper', 400, 50, true, undefined, 400000) // food 需要のみ
-    // v0.58 balance: default の popEssentialNeedScale=0.5 では需要が半減し price==base になるため、
-    //   essential 需要が価格を押し上げる構造そのものを検証するこのテストは scale=1 で確認する。
+    // v0.58/v0.60.3 balance: default の popEssentialNeedScale では essential 需要がスケールされるため、
+    //   essential 需要が価格を押し上げる構造そのものを純粋に検証するこのテストは scale=1 で確認する。
     const result = runEcon(state, { ...defaultConfig, popEssentialNeedScale: 1 })
     const snap = result.monthlyHoldingResourceRevenue[hd]!
     const ar = snap.assetResults.find((r) => (r.assetId as string) === (a.assetId as string))!

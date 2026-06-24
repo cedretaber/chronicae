@@ -5,7 +5,8 @@ import { NEED_CATEGORY_CONTRIBUTIONS } from '../types/needCategory'
 // v0.55 POP 再設計: carrying capacity の「食料」= staple_food/protein/fine_food カテゴリの寄与資源。
 //   各資源の food value = それら food カテゴリにおける contribution 値の合計。
 //   NEED_CATEGORY_CONTRIBUTIONS から導出し、需要定義との drift を防ぐ (basic_drink 等は食料に含めない)。
-const FOOD_NEED_CATEGORIES: NeedCategory[] = ['staple_food', 'protein', 'fine_food']
+// v0.60.3: 需要側 (getPerCapitaFoodNeed) と供給側 (FOOD_RESOURCE_VALUE) が同一カテゴリを数えるため export。
+export const FOOD_NEED_CATEGORIES: NeedCategory[] = ['staple_food', 'protein', 'fine_food']
 
 function buildFoodResourceValue(): Partial<Record<ResourceKind, number>> {
   const out: Partial<Record<ResourceKind, number>> = {}

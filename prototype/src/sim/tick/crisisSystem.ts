@@ -570,7 +570,7 @@ function runAnnualSpawn(
     const pressure = getProvincePopulationPressure(ws, config, provinceId)
     const pressureExcess = Math.max(0, pressure - config.populationPressureThreshold)
 
-    // v0.55: 飢饉は「食料生産が物理的扶養力 (perCapitaFoodNeed ベース) を割った結果」として発火する。
+    // v0.55/v0.60.3: 飢饉は「食料生産が物理的扶養力 (需要側と同一の導出 per-capita 食料需要ベース) を割った結果」として発火する。
     //   信号は購買力中立の pressure (= 人口 / 扶養力)。扶養力超過の不足分 (pressure − famineOnsetPressure)
     //   に比例して発火確率が上がる。market fulfillment は購買力加重で「買えない=飢える」層ほど需要が
     //   下がり充足が高く出る (逆向き) ため使わない。base は既定 0 (任意の背景飢饉率ノブ)。

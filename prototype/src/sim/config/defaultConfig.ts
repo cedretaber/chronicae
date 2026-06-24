@@ -215,8 +215,8 @@ export type SimulationConfig = {
   popSystemEnabled: boolean
   minPopSizeByClass: Record<PopStratum, number>
   minProvinceCarryingCapacity: number
-  // v0.55 POP 再設計: carrying capacity = 食料市場供給 / perCapitaFoodNeed。1人あたり月次食料需要の基準。
-  perCapitaFoodNeed: number
+  // v0.60.3: carrying capacity の per-capita 食料需要は config 定数ではなく POP_NEED_PROFILES から
+  //   人口加重で導出する (getPerCapitaFoodNeed)。旧 perCapitaFoodNeed (固定 1.0) は廃止。
   manpowerFactorByClass: Record<PopStratum, number>
   baseMonthlyGrowthByClass: Record<PopStratum, number>
   populationPressureThreshold: number
@@ -1514,6 +1514,9 @@ export type SimulationConfig = {
   // v0.58 balance: essential tier の消費 desire 全体スケール。賃金(粗利の wageShareOfNetRevenue)
   //   が essential desire の ~15% しか賄えず全 POP が貧困床に貼り付く過少消費を是正する調整ダイヤル。
   //   POP_NEED_PROFILES の PopType 間比率は保ったまま essential 量を一律倍する (1.0=従来)。
+  // v0.60.3: 食料 carrying capacity の per-capita 食料需要 (getPerCapitaFoodNeed) もこの値から導出する
+  //   ようになったため、これは「1 人を養うのに要する食料」= 人口扶養力の閾値も兼ねる。低い=高密度・
+  //   高い=低密度。0.5→0.9 へ引き上げ (tiny ワールドで人口/雇用が釣り合う密度。詳細は famineOnsetPressure 注記)。
   popEssentialNeedScale: number
   // recipe slot
   realEstateRecipeSlotCount: number
@@ -1733,7 +1736,6 @@ export const defaultConfig: SimulationConfig = {
   popSystemEnabled: true,
   minPopSizeByClass: { lower: 5, middle: 1, upper: 1 },
   minProvinceCarryingCapacity: 50,
-  perCapitaFoodNeed: 1.0,
   manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
   baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,
@@ -1818,11 +1820,12 @@ export const defaultConfig: SimulationConfig = {
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,
   // v0.55 飢饉: 食料不足の結果として発火・餓死。pressure ベース (購買力中立)。
-  // v0.58 balance: 1.0→1.3。過少消費是正で食料 desire を半減(popEssentialNeedScale 0.5)した結果、
-  //   人口が食料生産限界まで増え food pressure が常時 ~1 となり「満腹なのに飢饉」が頻発していた。
-  //   平時の人口抑制は滑らかな growthFactor=1−pressure²(pressure>1 で負成長)に委ね、急性飢饉は
-  //   深刻な食料不足(pressure>1.3＝干魃等)のみで発火させる。実測: 飢饉イベント -83%・雇用率 74→87%・
-  //   人口は安定。将来 grain 単独×低 survival 閾値への分離も検討(食料内訳が分かれた時に有効、§6.6)。
+  // v0.58 balance: 1.0→1.3。過少消費是正で食料 desire を半減(popEssentialNeedScale 0.5)したが
+  //   生存閾値 perCapitaFoodNeed は固定 1.0 のままだったため、実需要(~0.6)との校正ずれで food
+  //   pressure が常時 ~1 となり「満腹なのに飢饉」が頻発していた。1.3 への引き上げはその対症療法。
+  // v0.60.3: 生存閾値を需要側と同一の導出値 (getPerCapitaFoodNeed) へ揃え、校正ずれを根治した。
+  //   pressure=1 が「食料生産=実需要」を意味するようになったため、1.3 の妥当性は観察で再評価する
+  //   (校正ずれが消えた分、1.0〜1.1 へ戻せる可能性がある。balance-defer)。
   famineOnsetPressure: 1.3,
   famineMortalityPerDeficit: 0.3,
   famineMaxMortalityRate: 0.15,
@@ -3184,7 +3187,10 @@ export const defaultConfig: SimulationConfig = {
   recipeSwitchIntervalWeeks: 12,
   needSatisfactionTierWeight: { essential: 0.6, ordinary: 0.3, luxury: 0.1 },
   needSatisfactionSmoothing: 0.5,
-  popEssentialNeedScale: 0.5,
+  // v0.60.3: 0.5→0.9。需要と food carrying capacity の閾値を同一導出に統一 (getPerCapitaFoodNeed) した
+  //   ため、この値が人口扶養力 (養える人口) も決める。0.5 では扶養力が高すぎ人口が暴走 (150yr で未収束)
+  //   だったため、tiny で人口/雇用が釣り合う 0.9 へ。代償として needSat は ~49→~27 (subsistence 化)。
+  popEssentialNeedScale: 0.9,
   realEstateRecipeSlotCount: 20,
   resourceEconomyControlModifierMin: 0.5,
   realEstateProductionFacilityModifiers: REAL_ESTATE_PRODUCTION_FACILITY_MODIFIERS,

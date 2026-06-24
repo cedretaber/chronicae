@@ -475,6 +475,8 @@
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、employed=true の POP） |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
+| ~~perCapitaFoodNeed~~ | — | v0.60.3 廃止（固定 1.0 の per-capita 食料需要）。carrying capacity の per-capita 需要は `popEssentialNeedScale` から人口加重で導出（`getPerCapitaFoodNeed`、§6.2.1a） |
+| popEssentialNeedScale | 0.9 | essential 食料 desire スケール兼**人口密度ダイヤル**。需要と食料扶養力の双方を決める（高い=低密度）。v0.60.3 で 0.5→0.9（§6.2.1a / §6.6 v0.60.3 注記） |
 | ~~productivityByClass~~ | — | v0.54 廃止（旧 getPopProduction の per-class 生産性。生産は ResourceEconomySystem の recipe×labor に置換、§6.3c） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
 | baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別） |
