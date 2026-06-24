@@ -29,6 +29,8 @@ import { runAppointmentSystem } from './appointmentSystem'
 import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
 import { runMerchantCompanyShareUpdateSystem } from './merchantCompanyShareUpdateSystem'
 import { runMerchantCompanyOfficeSyncSystem } from './merchantCompanyOfficeSyncSystem'
+import { runTradePlanningSystem } from './tradePlanningSystem'
+import { runMerchantCompanyAccountingSystem } from './merchantCompanyAccountingSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
@@ -169,6 +171,13 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runPopEmploymentNormalizeSystem,
   },
+  // v0.61 §13: ResourceEconomySystem の直前。前月 snapshot から各 active route の plannedQuantity を算出。
+  {
+    name: 'tradePlanningSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runTradePlanningSystem,
+  },
   // v0.54: 資源生産・市場・売却益を月次 snapshot に出力 (landRevenue が同月直後に読む)。
   {
     name: 'resourceEconomySystem',
@@ -216,6 +225,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runHouseSurplusDistributionSystem,
+  },
+  {
+    // v0.61 §15: houseSurplusDistribution の後。route profit + commerce → treasury / owner dividend。
+    name: 'merchantCompanyAccountingSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runMerchantCompanyAccountingSystem,
   },
   {
     // v0.48 §4: 正イベント (BountifulHarvest) のみ。負イベントは crisisSystem に移設。

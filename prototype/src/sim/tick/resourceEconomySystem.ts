@@ -1,4 +1,5 @@
 import type { TickContext } from './context'
+import { computeExternalTradeOrders } from './tradePlanningSystem'
 import type {
   StateRegionId,
   HoldingId,
@@ -248,7 +249,12 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   // §16: staple/ordinary の充足率・価格を POP wealth/unrest に反映する。
   const newPopGroups: Record<PopGroupId, PopGroup> = { ...state.popGroups }
 
+  // v0.61 §14: active TradeRoute の plannedQuantity を market injection 用に state 別集計。
+  //   source は需要↑（価格↑）、target は供給↑（価格↓）の非対称注入（§14.3）。
+  const externalTrade = computeExternalTradeOrders(state)
+
   for (const market of markets) {
+    const ext = externalTrade.get(market.marketKey)
     // v0.58: needSatisfaction/burn の market-fill 評価用 smoothedPrice lookup (pass1 と同じ前月価格)。
     const marketPriceLookup = (resource: ResourceKind): number => {
       const ps = state.marketResourcePrices[marketResourcePriceKey(market.marketKey, resource)]
@@ -273,7 +279,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
     // 清算で全 resource を level ごとに必ず再代入する。init は型のため (sentinel: 需要ゼロ扱い)。
     for (const r of RESOURCE_KINDS) {
       fulfillment[r] = { fulfillmentRatio: 1, shortage: false, shortageSeverity: 0 }
-      buyOrders[r] = market.demand[r]
+      // v0.61 §14.1: source 側 export 需要を清算前 demand へ注入（価格↑）。
+      buyOrders[r] = market.demand[r] + (ext?.exportDemand[r] ?? 0)
     }
 
     // recipe の input fulfillment scale (Liebig 最小律 §12.4)。input が無ければ 1。
@@ -315,6 +322,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           if (pot === undefined) continue
           sell += pot * inputShortageModifier(rec) * droughtOutputScale(rec.holdingId, resource)
         }
+        // v0.61 §14.2: target 側 import 供給を price 計算直前のローカル sell へ注入（価格↓・shortage 緩和）。
+        sell += ext?.importSupply[resource] ?? 0
         const buy = buyOrders[resource]
         price[resource] = computeResourcePrice(resource, sell, buy, config)
         fulfillment[resource] = computeMarketFulfillment(sell, buy, config)
