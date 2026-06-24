@@ -6,13 +6,13 @@ import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from '../type
 import type { OrganizationRef } from '../types/office'
 import type { WarSideKey } from '../types/war'
 import { createRegimentId } from '../types/ids'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import { removeRightsByTargetMut } from './politicalRightMutations'
 
 // --- index ---
 
 function addRegimentToIndexMut(ws: WorldState, regiment: Regiment): void {
-  const ownerKey = politicalActorKey(regiment.owner)
+  const ownerKey = organizationKey(regiment.owner)
   ws.regimentIndex.byOwner[ownerKey] = [...(ws.regimentIndex.byOwner[ownerKey] ?? []), regiment.id]
 
   if (regiment.homeProvinceId !== undefined) {
@@ -131,7 +131,7 @@ export function mobilizeRegimentsForWar(
   for (const p of sideObj.participants) {
     if (p.actor.kind !== 'polity') continue
     const polityId = p.actor.id
-    const ids = ws.regimentIndex.byOwner[politicalActorKey(p.actor)] ?? []
+    const ids = ws.regimentIndex.byOwner[organizationKey(p.actor)] ?? []
     for (const rid of ids) {
       const r = ws.regiments[rid]
       if (!r || r.status !== 'active' || r.currentWarId !== undefined) continue
@@ -175,7 +175,7 @@ export function reassignRegimentOwnerMut(
   const r = ws.regiments[regimentId]
   if (!r) return
 
-  const oldOwnerKey = politicalActorKey(r.owner)
+  const oldOwnerKey = organizationKey(r.owner)
   const ids = ws.regimentIndex.byOwner[oldOwnerKey]
   if (!ids) {
     /* nothing */
@@ -190,7 +190,7 @@ export function reassignRegimentOwnerMut(
 
   ws.regiments[regimentId] = { ...r, owner: newOwner }
 
-  const newOwnerKey = politicalActorKey(newOwner)
+  const newOwnerKey = organizationKey(newOwner)
   ws.regimentIndex.byOwner[newOwnerKey] = [
     ...(ws.regimentIndex.byOwner[newOwnerKey] ?? []),
     regimentId,

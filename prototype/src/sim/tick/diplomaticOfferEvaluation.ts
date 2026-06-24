@@ -13,8 +13,8 @@ import type {
   ContractTaxRevisionIssue,
 } from '../types/diplomaticPlay'
 import type { OrganizationRef } from '../types/office'
-import { isSameActor } from '../selectors/actorSelectors'
-import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { isSameOrganization } from '../selectors/organizationSelectors'
+import { getOrganizationMilitaryPower } from '../selectors/organizationSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
 import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
 import {
@@ -51,8 +51,8 @@ export function validateOffer(
   if (offer.status !== 'pending') return { valid: false, reason: 'offer_not_pending' }
 
   if (
-    !isSameActor(offer.proposedBy, play.initiator) &&
-    !isSameActor(offer.proposedBy, play.target)
+    !isSameOrganization(offer.proposedBy, play.initiator) &&
+    !isSameOrganization(offer.proposedBy, play.target)
   ) {
     return { valid: false, reason: 'missing_actor' }
   }
@@ -170,7 +170,7 @@ function canApplyDemand(
 // ─── Evaluator resolution ───
 
 export function getOfferEvaluator(play: DiplomaticPlay, offer: DiplomaticOffer): OrganizationRef {
-  if (isSameActor(offer.proposedBy, play.initiator)) {
+  if (isSameOrganization(offer.proposedBy, play.initiator)) {
     return play.target
   }
   return play.initiator
@@ -269,7 +269,7 @@ export function evaluateOffer(
 }
 
 function getEvaluatorNegotiationBonus(play: DiplomaticPlay, evaluator: OrganizationRef): number {
-  const isInitiator = isSameActor(evaluator, play.initiator)
+  const isInitiator = isSameOrganization(evaluator, play.initiator)
   const prep = isInitiator ? play.initiatorPreparation : play.targetPreparation
   const lev = isInitiator ? play.initiatorLeverage : play.targetLeverage
   const commit = isInitiator ? play.initiatorCommitment : play.targetCommitment
@@ -324,7 +324,7 @@ function evaluateLandClaimOffer(
   }
 
   const params = extractLandClaimOfferParams(offer)
-  const evaluatorIsInitiator = isSameActor(evaluator, play.initiator)
+  const evaluatorIsInitiator = isSameOrganization(evaluator, play.initiator)
 
   const selfActor = evaluatorIsInitiator ? play.initiator : play.target
   const opponentActor = evaluatorIsInitiator ? play.target : play.initiator
@@ -341,10 +341,10 @@ function evaluateLandClaimOffer(
 
   const selfTreasuryNeed = computeDefenderTreasuryNeed(selfPolity.treasury)
   const opponentPower =
-    getActorMilitaryPower(state, config, opponentActor) *
+    getOrganizationMilitaryPower(state, config, opponentActor) *
     calcGeneralWarPowerModifier(state, opponentActor.id, config)
   const selfPower =
-    getActorMilitaryPower(state, config, selfActor) *
+    getOrganizationMilitaryPower(state, config, selfActor) *
     calcGeneralWarPowerModifier(state, selfActor.id, config)
   const provinceValue = computeProvinceValue(
     getProvinceDevelopmentFromHoldings(state, provinceId, config),
@@ -429,16 +429,16 @@ function evaluateContractTaxRevisionOffer(
 
   const newRate = params.newTaxRateToGrantor ?? currentRate
   const isReduction = newRate < currentRate
-  const evaluatorIsInitiator = isSameActor(evaluator, play.initiator)
+  const evaluatorIsInitiator = isSameOrganization(evaluator, play.initiator)
 
   const opponentActor = evaluatorIsInitiator ? play.target : play.initiator
   const selfActor = evaluatorIsInitiator ? play.initiator : play.target
 
   const opponentPower =
-    getActorMilitaryPower(state, config, opponentActor) *
+    getOrganizationMilitaryPower(state, config, opponentActor) *
     calcGeneralWarPowerModifier(state, opponentActor.id, config)
   const selfPower =
-    getActorMilitaryPower(state, config, selfActor) *
+    getOrganizationMilitaryPower(state, config, selfActor) *
     calcGeneralWarPowerModifier(state, selfActor.id, config)
 
   const rateImbalance = isReduction

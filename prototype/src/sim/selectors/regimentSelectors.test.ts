@@ -12,7 +12,7 @@ import {
   mobilizeRegimentMut,
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
-import { getActorMilitaryPower } from './actorSelectors'
+import { getOrganizationMilitaryPower } from './organizationSelectors'
 import type { Regiment } from '../types/regiment'
 import type { War } from '../types/war'
 import type { OrganizationRef } from '../types/office'
@@ -232,7 +232,7 @@ describe('getRegimentPowerForWarSide', () => {
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(200)
   })
 
-  it('(a) no record => legacy fallback: polity with no regiments uses getActorMilitaryPower', () => {
+  it('(a) no record => legacy fallback: polity with no regiments uses getOrganizationMilitaryPower', () => {
     let state = makeEmptyV016State()
     const war = makeWar('w-1' as WarId, pA, pB)
 
@@ -240,7 +240,7 @@ describe('getRegimentPowerForWarSide', () => {
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
 
     // pA owns NO regiments
-    const fallback = getActorMilitaryPower(state, defaultConfig, pA)
+    const fallback = getOrganizationMilitaryPower(state, defaultConfig, pA)
     expect(fallback).toBeGreaterThan(0)
 
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(fallback)
@@ -288,8 +288,8 @@ describe('getRegimentPowerForWarSide', () => {
     state = withPolity(state, 'po-3' as PolityId, { adminPower: 1000 })
 
     // 両方 record 無 → nominal の合算
-    const nominalPrimary = getActorMilitaryPower(state, defaultConfig, pA)
-    const nominalSup = getActorMilitaryPower(state, defaultConfig, pSup)
+    const nominalPrimary = getOrganizationMilitaryPower(state, defaultConfig, pA)
+    const nominalSup = getOrganizationMilitaryPower(state, defaultConfig, pSup)
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(
       nominalPrimary + nominalSup,
     )
@@ -351,7 +351,7 @@ describe('getRegimentPowerForWarSide', () => {
     let state = makeEmptyV016State()
     const war = makeWar('w-1' as WarId, pA, pB)
 
-    // Add polity with adminPower so getActorMilitaryPower > 0
+    // Add polity with adminPower so getOrganizationMilitaryPower > 0
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
 
     const r1 = createRegiment(state, {
@@ -376,9 +376,9 @@ describe('getRegimentPowerForWarSide', () => {
     destroyRegimentMut(state, r1.id, 0)
 
     // Sanity: fallback WOULD be positive
-    expect(getActorMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
+    expect(getOrganizationMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
 
-    // owns a destroyed regiment record => byOwner non-empty => 0 power, does NOT fall back even though getActorMilitaryPower > 0 (§10.4 case d)
+    // owns a destroyed regiment record => byOwner non-empty => 0 power, does NOT fall back even though getOrganizationMilitaryPower > 0 (§10.4 case d)
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBe(0)
   })
 })

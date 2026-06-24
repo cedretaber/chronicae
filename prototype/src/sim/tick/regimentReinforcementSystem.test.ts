@@ -9,7 +9,7 @@ import {
   mobilizeRegimentMut,
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { War } from '../types/war'
 import type { PolityId, HoldingId, ProvinceId, WarId, PopGroupId } from '../types/ids'
@@ -141,7 +141,7 @@ describe('RegimentReinforcementSystem — 平時/戦時/動員中の係数差', 
   it('owner が active war 参加中 (未動員) なら平時より遅い (warMultiplier)', () => {
     const state = baseState()
     state.wars['w-1' as WarId] = makeWar('w-1' as WarId, 'active')
-    state.warIndex.byParticipant[politicalActorKey({ kind: 'polity', id: PO1 })] = ['w-1' as WarId]
+    state.warIndex.byParticipant[organizationKey({ kind: 'polity', id: PO1 })] = ['w-1' as WarId]
     const r = addReg(state, { strength: 50 })
     const next = runRegimentReinforcementSystem(ctx(state)).state
     // 4.0 × 1.0 × warMultiplier(0.4) = 1.6
@@ -151,7 +151,7 @@ describe('RegimentReinforcementSystem — 平時/戦時/動員中の係数差', 
   it('動員中の Regiment はさらに遅い (war×mobilized)', () => {
     const state = baseState()
     state.wars['w-1' as WarId] = makeWar('w-1' as WarId, 'active')
-    state.warIndex.byParticipant[politicalActorKey({ kind: 'polity', id: PO1 })] = ['w-1' as WarId]
+    state.warIndex.byParticipant[organizationKey({ kind: 'polity', id: PO1 })] = ['w-1' as WarId]
     const r = addReg(state, { strength: 50 })
     mobilizeRegimentMut(state, r.id, 'w-1' as WarId, 'attacker', PO1, 0)
     const next = runRegimentReinforcementSystem(ctx(state)).state

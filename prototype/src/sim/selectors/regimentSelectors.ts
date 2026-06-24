@@ -6,8 +6,8 @@ import type { PopClass } from '../types/popGroup'
 import type { War, WarSideKey } from '../types/war'
 import type { OrganizationRef } from '../types/office'
 import { clamp } from '../utils/math'
-import { politicalActorKey } from './actorSelectors'
-import { getActorMilitaryPower } from './actorSelectors'
+import { organizationKey } from './organizationSelectors'
+import { getOrganizationMilitaryPower } from './organizationSelectors'
 import { getHoldingPopSizeByClass } from './popSelectors'
 
 export function getRegimentEffectivePower(regiment: Regiment): number {
@@ -18,7 +18,7 @@ export function getRegimentEffectivePower(regiment: Regiment): number {
 }
 
 export function getRegimentsForActor(state: WorldState, actor: OrganizationRef): Regiment[] {
-  const key = politicalActorKey(actor)
+  const key = organizationKey(actor)
   const ids = state.regimentIndex.byOwner[key] ?? []
   const out: Regiment[] = []
   for (const id of ids) {
@@ -61,9 +61,9 @@ export function getRegimentPowerForWarSide(
   //    participant 1 件 (primary のみ) の War では旧実装と同値。
   let total = 0
   for (const p of sideObj.participants) {
-    const owned = state.regimentIndex.byOwner[politicalActorKey(p.actor)] ?? []
+    const owned = state.regimentIndex.byOwner[organizationKey(p.actor)] ?? []
     if (owned.length === 0) {
-      total += getActorMilitaryPower(state, config, p.actor)
+      total += getOrganizationMilitaryPower(state, config, p.actor)
     }
   }
   return total

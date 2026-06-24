@@ -7,7 +7,7 @@ import {
   regimentOwnerSyncTarget,
   syncRegimentOwnerToHomeTerminalMut,
 } from '../mutations/regimentMutations'
-import { isActorActive } from '../selectors/actorSelectors'
+import { isOrganizationActive } from '../selectors/organizationSelectors'
 
 // v0.36 §14 RegimentMaintenanceSystem
 //
@@ -73,7 +73,7 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
     if (!r || r.status !== 'active') continue
 
     // 3. owner inactive → disband (§14.4)
-    if (!isActorActive(ws, r.owner)) {
+    if (!isOrganizationActive(ws, r.owner)) {
       ensureDraft()
       disbandRegimentMut(ws, rid)
       continue

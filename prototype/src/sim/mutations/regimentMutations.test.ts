@@ -11,7 +11,7 @@ import {
   reformRegimentMut,
   mobilizeRegimentsForWar,
 } from './regimentMutations'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { OrganizationRef } from '../types/office'
 import type { War } from '../types/war'
@@ -58,7 +58,7 @@ describe('createRegiment', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
 
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toContain(r.id)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
   })
 
   it('adds regiment to byHomeHolding index', () => {
@@ -140,8 +140,8 @@ describe('reassignRegimentOwnerMut', () => {
     reassignRegimentOwnerMut(state, r.id, pB)
 
     expect(state.regiments[r.id]!.owner).toEqual(pB)
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toBeUndefined()
-    expect(state.regimentIndex.byOwner[politicalActorKey(pB)]).toContain(r.id)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]).toBeUndefined()
+    expect(state.regimentIndex.byOwner[organizationKey(pB)]).toContain(r.id)
   })
 })
 
@@ -164,8 +164,8 @@ describe('disbandRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
     expect(state.regimentIndex.byWar['w-1' as WarId]).toBeUndefined()
 
     // byOwner STILL contains r.id
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]!.length).toBe(1)
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toContain(r.id)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]!.length).toBe(1)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
 
     // byHomeHolding STILL contains r.id
     expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
@@ -195,8 +195,8 @@ describe('destroyRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
     expect(state.regimentIndex.byWar['w-1' as WarId]).toBeUndefined()
 
     // byOwner STILL contains r.id
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]!.length).toBe(1)
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toContain(r.id)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]!.length).toBe(1)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
 
     // byHomeHolding STILL contains r.id
     expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
@@ -229,7 +229,7 @@ describe('reformRegimentMut — destroyed を active に戻す', () => {
     expect(reformed.lastReinforcedWeek).toBe(34)
 
     // index は destroy 後も byOwner/byHomeHolding に残っていて reform でも不変。
-    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toContain(r.id)
+    expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
     expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
     // byWar には居ない (destroy で外れたまま)。
     expect(Object.keys(state.regimentIndex.byWar).length).toBe(0)

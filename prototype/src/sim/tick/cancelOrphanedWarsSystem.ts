@@ -7,7 +7,7 @@ import {
   getWarPrimaryDefender,
   removeWarParticipantMut,
 } from '../mutations/warMutations'
-import { isActorActive } from '../selectors/actorSelectors'
+import { isOrganizationActive } from '../selectors/organizationSelectors'
 import { emitWarEnded } from './warEvents'
 import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
 
@@ -52,7 +52,8 @@ export function runCancelOrphanedWarsSystem(ctx: TickContext): TickContext {
     // 経路 A (§15.2): primary inactive → War cancel (既存)。
     const atk = getWarPrimaryAttacker(war)?.actor
     const def = getWarPrimaryDefender(war)?.actor
-    const orphaned = !atk || !def || !isActorActive(ws, atk) || !isActorActive(ws, def)
+    const orphaned =
+      !atk || !def || !isOrganizationActive(ws, atk) || !isOrganizationActive(ws, def)
     if (orphaned) {
       updateWar(ws, wid, { status: 'cancelled', endedWeek: absoluteWeek })
       cancelled.push(wid)
@@ -62,7 +63,7 @@ export function runCancelOrphanedWarsSystem(ctx: TickContext): TickContext {
     for (const side of [war.attacker, war.defender]) {
       for (const p of side.participants) {
         if (p.primary) continue
-        if (isActorActive(ws, p.actor)) continue
+        if (isOrganizationActive(ws, p.actor)) continue
         if (removeWarParticipantMut(ws, wid, p.actor)) removedSupporters++
       }
     }

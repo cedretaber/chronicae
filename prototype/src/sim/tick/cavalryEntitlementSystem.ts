@@ -3,7 +3,7 @@ import type { WorldState } from '../types/world'
 import type { RegimentId, PolityId } from '../types/ids'
 import { getPolityTerritorialStatus } from '../types/polity'
 import { disbandRegimentMut, createRegiment } from '../mutations/regimentMutations'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 
 export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
   let ws: WorldState = ctx.state
@@ -61,7 +61,7 @@ export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
     const entitlement = config.cavalryEntitlementByRank[polity.rank] ?? 0
     if (entitlement <= 0) continue
 
-    const ownerKey = politicalActorKey({ kind: 'polity', id: polityId })
+    const ownerKey = organizationKey({ kind: 'polity', id: polityId })
     const ownedIds = ws.regimentIndex.byOwner[ownerKey] ?? []
 
     const activeCav: RegimentId[] = []

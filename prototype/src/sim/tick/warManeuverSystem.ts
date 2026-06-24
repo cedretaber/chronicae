@@ -25,7 +25,7 @@ import {
 } from '../mutations/regimentMutations'
 import { createBattle } from '../mutations/battleMutations'
 import { createBattleLogMut, battleLogImportance } from '../mutations/battleLogMutations'
-import { isActorActive } from '../selectors/actorSelectors'
+import { isOrganizationActive } from '../selectors/organizationSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import {
@@ -439,7 +439,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     const atkActor = getWarPrimaryAttacker(war)?.actor
     const defActor = getWarPrimaryDefender(war)?.actor
     if (!atkActor || !defActor) continue
-    if (!isActorActive(ws, atkActor) || !isActorActive(ws, defActor)) continue
+    if (!isOrganizationActive(ws, atkActor) || !isOrganizationActive(ws, defActor)) continue
 
     // step 2: lastWarWeek 更新 (active polity actor 両陣営。house は no-op)。step 2 前で early-continue 禁止。
     for (const actor of [atkActor, defActor]) {

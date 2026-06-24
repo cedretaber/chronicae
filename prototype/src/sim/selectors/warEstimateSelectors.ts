@@ -11,7 +11,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { OrganizationRef } from '../types/office'
-import { politicalActorKey, getActorMilitaryPower } from './actorSelectors'
+import { organizationKey, getOrganizationMilitaryPower } from './organizationSelectors'
 import { getRegimentEffectivePower } from './regimentSelectors'
 
 // 開戦判断側の戦力推定。getRegimentPowerForWarSide は byWar キーで動員済み連隊を見る別物なので
@@ -21,10 +21,10 @@ export function estimateWarSidePower(
   config: SimulationConfig,
   actor: OrganizationRef,
 ): number {
-  const ids = state.regimentIndex.byOwner[politicalActorKey(actor)] ?? []
+  const ids = state.regimentIndex.byOwner[organizationKey(actor)] ?? []
   if (ids.length === 0) {
     // 連隊記録が無い参加者は §10.4(a) と同じく nominal power にフォールバック。
-    return getActorMilitaryPower(state, config, actor)
+    return getOrganizationMilitaryPower(state, config, actor)
   }
   let total = 0
   for (const id of ids) {

@@ -5,7 +5,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
 import { createRegiment, mobilizeRegimentMut } from '../mutations/regimentMutations'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { War } from '../types/war'
 import type { PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
@@ -136,12 +136,8 @@ describe('RegimentMaintenanceSystem §14.6 owner 付け替え (advisor 強制ケ
     expect(rr.status).toBe('active') // disband されない
     expect(rr.owner).toEqual({ kind: 'polity', id: PO2 }) // 付け替え
     // byOwner index も移動
-    expect(
-      next.regimentIndex.byOwner[politicalActorKey({ kind: 'polity', id: PO1 })],
-    ).toBeUndefined()
-    expect(next.regimentIndex.byOwner[politicalActorKey({ kind: 'polity', id: PO2 })]).toContain(
-      r.id,
-    )
+    expect(next.regimentIndex.byOwner[organizationKey({ kind: 'polity', id: PO1 })]).toBeUndefined()
+    expect(next.regimentIndex.byOwner[organizationKey({ kind: 'polity', id: PO2 })]).toContain(r.id)
     // war 動員状態は不変 (§14.6: currentWarId 等は触らない)
     expect(rr.currentWarId).toBe('w-1')
     expect(rr.currentSide).toBe('attacker')

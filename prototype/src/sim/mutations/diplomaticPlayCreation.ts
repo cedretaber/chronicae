@@ -20,7 +20,7 @@ import {
   selectTargetHoldingInProvince,
 } from '../selectors/landContractSelectors'
 import { canTransferLandContract } from './landContractMutations'
-import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { getOrganizationMilitaryPower } from '../selectors/organizationSelectors'
 import { predictPressureResponseStance } from '../selectors/pressureStanceSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
@@ -110,8 +110,8 @@ function createEnforceLandContractDefaultPlayFromProjectMut(
   if (existingPlayKeys.has(dedupeKey)) return { kind: 'duplicate' }
 
   const currentRate = contract.terms.taxRateToGrantor
-  const initiatorPower = getActorMilitaryPower(ws, config, initiator)
-  const targetPower = getActorMilitaryPower(ws, config, target)
+  const initiatorPower = getOrganizationMilitaryPower(ws, config, initiator)
+  const targetPower = getOrganizationMilitaryPower(ws, config, target)
   const hasAdvantage = initiatorPower > targetPower
 
   const playId: DiplomaticPlayId = createDiplomaticPlayId(ws.nextDiplomaticPlayId)
@@ -429,8 +429,8 @@ function createContractRevisionPlayFromProjectMut(
   const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
   if (existingPlayKeys.has(dedupeKey)) return { kind: 'duplicate' }
 
-  const initiatorPower = getActorMilitaryPower(ws, config, initiator)
-  const targetPower = getActorMilitaryPower(ws, config, target)
+  const initiatorPower = getOrganizationMilitaryPower(ws, config, initiator)
+  const targetPower = getOrganizationMilitaryPower(ws, config, target)
   const hasAdvantage = initiatorPower > targetPower
 
   const playId: DiplomaticPlayId = createDiplomaticPlayId(ws.nextDiplomaticPlayId)

@@ -18,7 +18,7 @@ import { emitWarDeclared, emitWarAverted, emitWarParticipantJoined } from './war
 import { estimateAttackerWinChance } from '../selectors/warEstimateSelectors'
 import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
 import { isPolityInActiveWar } from '../selectors/diplomaticSupportSelectors'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { createLogger } from '../debug/logger'
 import type { OrganizationRef } from '../types/office'
@@ -86,7 +86,7 @@ function collectWarSupporters(
   const result: WarSupporterInput[] = []
   for (const s of supporters) {
     if (s.actor.kind !== 'polity') continue
-    const key = politicalActorKey(s.actor)
+    const key = organizationKey(s.actor)
     if (acceptedKeys.has(key)) continue
     if (ws.polities[s.actor.id]?.active !== true) continue
     if (isPolityInActiveWar(ws, s.actor.id)) continue
@@ -225,8 +225,8 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     // v0.43 §10.3a: supporter copy filter。play は 1 件ずつ処理し、createWar (= byParticipant
     //   登録) 完了後に次の play を評価するため、同一 supporter の 2 war 同時参戦レースは起きない。
     const acceptedKeys = new Set<string>([
-      politicalActorKey(play.initiator),
-      politicalActorKey(play.target),
+      organizationKey(play.initiator),
+      organizationKey(play.target),
     ])
     const attackerSupporters = collectWarSupporters(
       ws,
@@ -253,8 +253,8 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     })
     log.log('WAR_PARTICIPANTS', {
       warId: war.id,
-      attackers: war.attacker.participants.map((p) => politicalActorKey(p.actor)).join(','),
-      defenders: war.defender.participants.map((p) => politicalActorKey(p.actor)).join(','),
+      attackers: war.attacker.participants.map((p) => organizationKey(p.actor)).join(','),
+      defenders: war.defender.participants.map((p) => organizationKey(p.actor)).join(','),
       droppedSupporters:
         play.initiatorSupporters.length +
         play.targetSupporters.length -

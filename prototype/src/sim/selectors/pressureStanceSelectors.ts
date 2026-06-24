@@ -2,7 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { OrganizationRef } from '../types/office'
 import type { PressureResponseStance } from '../types/pressure'
-import { getActorMilitaryPower } from './actorSelectors'
+import { getOrganizationMilitaryPower } from './organizationSelectors'
 import { getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
 import { normalizedTrait } from './personAbilityEffects'
 
@@ -13,7 +13,7 @@ import { normalizedTrait } from './personAbilityEffects'
 //   - 外交劇の開始ゲート (createContractRevisionPlayFromProjectMut が起こすべきか)
 //   の両方がこの 1 関数を呼ぶ。開始時の「相手が応じる見込み」と実際の応答が必ず一致する。
 //
-// 将来「大国の動員制約」等で getActorMilitaryPower の算出が変わると、
+// 将来「大国の動員制約」等で getOrganizationMilitaryPower の算出が変わると、
 // 予測と実応答の両方へ自動的に反映される (修正はこの式 1 箇所)。
 //
 // v0.42: nominal power のまま、concede/resist 境界を target の意思決定者の性格でシフトする。
@@ -44,8 +44,8 @@ export function predictPressureResponseStance(
   sourceActor: OrganizationRef,
   targetActor: OrganizationRef,
 ): PressureResponseStance {
-  const targetPower = getActorMilitaryPower(state, config, targetActor)
-  const sourcePower = getActorMilitaryPower(state, config, sourceActor)
+  const targetPower = getOrganizationMilitaryPower(state, config, targetActor)
+  const sourcePower = getOrganizationMilitaryPower(state, config, sourceActor)
 
   // 「大胆さ」軸: ambition 高 / caution 低 ほど境界が下がり、不利でも拒否しやすく譲歩しにくい。
   //   両境界を同量シフトするので concede < resist の順序は保たれる。

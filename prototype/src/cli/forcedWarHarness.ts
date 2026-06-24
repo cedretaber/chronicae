@@ -12,7 +12,7 @@ import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { createWar } from '@sim/mutations/warMutations'
 import { disbandRegimentMut } from '@sim/mutations/regimentMutations'
 import { getHoldingTerminalPolityId } from '@sim/selectors/landContractSelectors'
-import { politicalActorKey } from '@sim/selectors/actorSelectors'
+import { organizationKey } from '@sim/selectors/organizationSelectors'
 import type { WorldState } from '@sim/types/world'
 import type { PolityId, HoldingId, WarId } from '@sim/types/ids'
 
@@ -49,7 +49,7 @@ function pick(
 //   keepRatio=0 は全 disband (0連隊 auto-resolve)。
 function perturbSide(world: WorldState, polity: PolityId, keepRatio: number): void {
   const ids = [
-    ...(world.regimentIndex.byOwner[politicalActorKey({ kind: 'polity', id: polity })] ?? []),
+    ...(world.regimentIndex.byOwner[organizationKey({ kind: 'polity', id: polity })] ?? []),
   ]
   const active = ids.filter((rid) => world.regiments[rid]?.status === 'active')
   const keep = Math.floor(active.length * keepRatio)

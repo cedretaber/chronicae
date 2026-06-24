@@ -12,7 +12,7 @@ import {
   createWarGoalFromDiplomaticPlay,
 } from './warMutations'
 import { createWarId } from '../types/ids'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type {
   PolityId,
   HouseId,
@@ -36,10 +36,10 @@ describe('createWarId', () => {
   })
 })
 
-describe('politicalActorKey', () => {
+describe('organizationKey', () => {
   it('builds kind:id key for polity and house', () => {
-    expect(politicalActorKey({ kind: 'polity', id: 'po-1' as PolityId })).toBe('polity:po-1')
-    expect(politicalActorKey({ kind: 'house', id: 'h-3' as HouseId })).toBe('house:h-3')
+    expect(organizationKey({ kind: 'polity', id: 'po-1' as PolityId })).toBe('polity:po-1')
+    expect(organizationKey({ kind: 'house', id: 'h-3' as HouseId })).toBe('house:h-3')
   })
 })
 

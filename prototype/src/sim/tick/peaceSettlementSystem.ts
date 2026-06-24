@@ -3,7 +3,7 @@ import type { WarId, PolityId } from '../types/ids'
 import type { War, WarGoal, ChangeContractTaxRateWarGoal } from '../types/war'
 import type { WorldState } from '../types/world'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '../mutations/warMutations'
-import { isActorActive } from '../selectors/actorSelectors'
+import { isOrganizationActive } from '../selectors/organizationSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import {
   applyLandContractTransferGoal,
@@ -267,7 +267,7 @@ export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
     const atk = getWarPrimaryAttacker(war)?.actor
     const def = getWarPrimaryDefender(war)?.actor
     if (!atk || !def) continue
-    if (!isActorActive(next.state, atk) || !isActorActive(next.state, def)) continue
+    if (!isOrganizationActive(next.state, atk) || !isOrganizationActive(next.state, def)) continue
 
     // §8.8: WarGoal が stale (参照先消失) なら warScore/timeout を待たず白紙和平で安全終結する。
     if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
@@ -337,7 +337,7 @@ export function runStaleWarGoalSweepSystem(ctx: TickContext): TickContext {
     const atk = getWarPrimaryAttacker(war)?.actor
     const def = getWarPrimaryDefender(war)?.actor
     if (!atk || !def) continue
-    if (!isActorActive(next.state, atk) || !isActorActive(next.state, def)) continue
+    if (!isOrganizationActive(next.state, atk) || !isOrganizationActive(next.state, def)) continue
     if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
       next = settleWhitePeace(next, wid)
     }

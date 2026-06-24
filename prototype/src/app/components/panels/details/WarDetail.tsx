@@ -130,7 +130,7 @@ export function WarDetail({
   }
 
   // v0.36: WarSide ごとの動員連隊数と連隊戦力。power は mobilized active Regiment の effective power 合計
-  //   (getRegimentPowerForWarSide。動員ゼロかつ owner が regiment 非保有なら getActorMilitaryPower へ fallback)。
+  //   (getRegimentPowerForWarSide。動員ゼロかつ owner が regiment 非保有なら getOrganizationMilitaryPower へ fallback)。
   const renderSideMobilization = (label: string, sideKey: import('@sim/types/war').WarSideKey) => {
     const mobilizedCount = getRegimentsForWarSide(worldState, war.id, sideKey).filter(
       (r) => r.status === 'active',

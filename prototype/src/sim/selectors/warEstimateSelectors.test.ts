@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeEmptyV016State, withPolity } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { estimateWarSidePower, estimateAttackerWinChance } from './warEstimateSelectors'
-import { getActorMilitaryPower } from './actorSelectors'
+import { getOrganizationMilitaryPower } from './organizationSelectors'
 import {
   createRegiment,
   mobilizeRegimentMut,
@@ -39,10 +39,10 @@ function addRegiment(state: ReturnType<typeof makeEmptyV016State>, owner: Organi
 // ---------------------------------------------------------------------------
 
 describe('estimateWarSidePower', () => {
-  it('連隊記録ゼロ → nominal フォールバック (getActorMilitaryPower と一致)', () => {
+  it('連隊記録ゼロ → nominal フォールバック (getOrganizationMilitaryPower と一致)', () => {
     let state = makeEmptyV016State()
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
-    const fallback = getActorMilitaryPower(state, defaultConfig, pA)
+    const fallback = getOrganizationMilitaryPower(state, defaultConfig, pA)
     expect(fallback).toBeGreaterThan(0)
     expect(estimateWarSidePower(state, defaultConfig, pA)).toBeCloseTo(fallback)
   })
@@ -60,7 +60,7 @@ describe('estimateWarSidePower', () => {
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
     const r = addRegiment(state, pA)
     mobilizeRegimentMut(state, r.id, 'w-other' as WarId, 'attacker', 'po-1' as PolityId, 0)
-    expect(getActorMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
+    expect(getOrganizationMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
     expect(estimateWarSidePower(state, defaultConfig, pA)).toBe(0)
   })
 
@@ -69,7 +69,7 @@ describe('estimateWarSidePower', () => {
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
     const r = addRegiment(state, pA)
     destroyRegimentMut(state, r.id, 0)
-    expect(getActorMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
+    expect(getOrganizationMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)
     expect(estimateWarSidePower(state, defaultConfig, pA)).toBe(0)
   })
 })

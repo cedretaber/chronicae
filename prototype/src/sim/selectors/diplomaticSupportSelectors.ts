@@ -13,7 +13,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, ProvinceId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticPlaySideKey } from '../types/diplomaticPlay'
 import type { OrganizationRef } from '../types/office'
-import { politicalActorKey } from './actorSelectors'
+import { organizationKey } from './organizationSelectors'
 import { politiesShareOwnerHouse } from './polityRelations'
 import { estimateWarSidePower } from './warEstimateSelectors'
 import { getPolityTerminalProvinceIds } from './landContractSelectors'
@@ -230,7 +230,7 @@ function collectOtherPlaySupporterKeys(state: WorldState, excludePlayId: string)
     if (!play) continue
     if (play.status !== 'active' && play.status !== 'escalated') continue
     for (const s of [...play.initiatorSupporters, ...play.targetSupporters]) {
-      keys.add(politicalActorKey(s.actor))
+      keys.add(organizationKey(s.actor))
     }
   }
   return keys
@@ -271,7 +271,7 @@ export function enumerateSupportCandidates(
 
   const existingSupporterKeys = new Set<string>()
   for (const s of [...play.initiatorSupporters, ...play.targetSupporters]) {
-    existingSupporterKeys.add(politicalActorKey(s.actor))
+    existingSupporterKeys.add(organizationKey(s.actor))
   }
   const otherPlaySupporterKeys = collectOtherPlaySupporterKeys(state, play.id)
   const initiatorOverlords = getPolityOverlordPolityIds(state, initiatorId)

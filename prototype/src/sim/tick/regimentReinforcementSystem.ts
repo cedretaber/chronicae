@@ -27,7 +27,7 @@ import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
 import { updateRegimentMut, reformRegimentMut } from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
-import { politicalActorKey, isActorActive } from '../selectors/actorSelectors'
+import { organizationKey, isOrganizationActive } from '../selectors/organizationSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
 // homeHolding の terminal Polity が現 owner Polity と一致するか (二値)。holding 消失・terminal 不明・
@@ -49,7 +49,7 @@ function warStateFactor(ws: WorldState, config: SimulationConfig, r: Regiment): 
       config.regimentReinforcementWarMultiplier * config.regimentReinforcementMobilizedMultiplier
     )
   }
-  const warIds = ws.warIndex.byParticipant[politicalActorKey(r.owner)] ?? []
+  const warIds = ws.warIndex.byParticipant[organizationKey(r.owner)] ?? []
   for (const wid of warIds) {
     const war = ws.wars[wid]
     if (war && war.status === 'active') return config.regimentReinforcementWarMultiplier
@@ -162,7 +162,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     if (r.status === 'destroyed' && r.destroyedWeek !== undefined) {
       if (week - r.destroyedWeek < config.destroyedRegimentReformDelayWeeks) continue
       if (homeControlFactor(ws, r) <= 0) continue
-      if (!isActorActive(ws, r.owner)) continue
+      if (!isOrganizationActive(ws, r.owner)) continue
       const popFactor = getRegimentHomeRecruitmentFactor(ws, config, r)
       if (popFactor < config.destroyedRegimentReformMinPopFactor) continue
       const polity = ws.polities[r.owner.id]

@@ -2,7 +2,7 @@ import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from './ids'
 import type { OrganizationRef } from './office'
 import type { WarSideKey } from './war'
 
-// v0.36: persistent Regiment。これまで getActorMilitaryPower で抽象的に扱っていた軍事力を、
+// v0.36: persistent Regiment。これまで getOrganizationMilitaryPower で抽象的に扱っていた軍事力を、
 //   平時から state 上に存在する軍事動員単位 (1 Holding = 1 Regiment) として表現する。
 //   (spec docs/drafts/spec-v036-update.md §3-6)
 
@@ -83,7 +83,7 @@ export type Regiment = {
 }
 
 // §6 regimentIndex (WorldState に保持)。
-//   byOwner の key は既存 politicalActorKey(ref) を流用 ("polity:p-1" / "house:h-3")。
+//   byOwner の key は既存 organizationKey(ref) を流用 ("polity:p-1" / "house:h-3")。
 //   mutation は warMutations 規約 (add/remove mutating helper + 空配列 delete purge) に倣う。
 //   disbanded / destroyed も byOwner / byHomeProvince / byHomeHolding には残す。byWar からは demobilize 時に外す。
 export type RegimentIndex = {

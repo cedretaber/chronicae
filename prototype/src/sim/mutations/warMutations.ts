@@ -11,7 +11,7 @@ import type { WarId, DiplomaticPlayId, HoldingId, PolityId, ProvinceId } from '.
 import type { OrganizationRef } from '../types/office'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { createWarId } from '../types/ids'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 
 // v0.34: War entity の生成・index 管理・参照 helper。
@@ -25,7 +25,7 @@ import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 export function addWarToIndexMut(ws: WorldState, war: War): void {
   for (const side of [war.attacker, war.defender]) {
     for (const p of side.participants) {
-      const key = politicalActorKey(p.actor)
+      const key = organizationKey(p.actor)
       ws.warIndex.byParticipant[key] = [...(ws.warIndex.byParticipant[key] ?? []), war.id]
     }
   }
@@ -37,7 +37,7 @@ export function addWarToIndexMut(ws: WorldState, war: War): void {
 export function removeWarFromIndexMut(ws: WorldState, war: War): void {
   for (const side of [war.attacker, war.defender]) {
     for (const p of side.participants) {
-      const key = politicalActorKey(p.actor)
+      const key = organizationKey(p.actor)
       const ids = ws.warIndex.byParticipant[key]
       if (!ids) continue
       const filtered = ids.filter((id) => (id as string) !== (war.id as string))
@@ -143,10 +143,10 @@ export function removeWarParticipantMut(
 ): boolean {
   const war = ws.wars[warId]
   if (!war) return false
-  const key = politicalActorKey(actor)
+  const key = organizationKey(actor)
   for (const sideKey of ['attacker', 'defender'] as const) {
     const side = war[sideKey]
-    const idx = side.participants.findIndex((p) => politicalActorKey(p.actor) === key)
+    const idx = side.participants.findIndex((p) => organizationKey(p.actor) === key)
     if (idx === -1) continue
     if (side.participants[idx]!.primary) return false
     const participants = side.participants.filter((_, i) => i !== idx)

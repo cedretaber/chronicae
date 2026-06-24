@@ -34,7 +34,7 @@ import {
 
 const TERMINAL_PLAY_SET = new Set<TerminalDiplomaticPlayStatus>(TERMINAL_DIPLOMATIC_PLAY_STATUSES)
 
-function isActorActive(state: WorldState, actor: OrganizationRef): boolean {
+function isOrganizationActive(state: WorldState, actor: OrganizationRef): boolean {
   if (actor.kind === 'polity') {
     return state.polities[actor.id]?.active === true
   }
@@ -52,7 +52,10 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
   for (const idStr of Object.keys(plays)) {
     const play = plays[idStr as DiplomaticPlayId]
     if (!play) continue
-    if (!isActorActive(ctx.state, play.initiator) || !isActorActive(ctx.state, play.target)) {
+    if (
+      !isOrganizationActive(ctx.state, play.initiator) ||
+      !isOrganizationActive(ctx.state, play.target)
+    ) {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
       removedPlayIds.add(idStr)
@@ -131,8 +134,10 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       const play = base[idStr as DiplomaticPlayId]
       if (!play) continue
       if (TERMINAL_PLAY_SET.has(play.status as TerminalDiplomaticPlayStatus)) continue
-      const initKeep = play.initiatorSupporters.filter((s) => isActorActive(ctx.state, s.actor))
-      const targKeep = play.targetSupporters.filter((s) => isActorActive(ctx.state, s.actor))
+      const initKeep = play.initiatorSupporters.filter((s) =>
+        isOrganizationActive(ctx.state, s.actor),
+      )
+      const targKeep = play.targetSupporters.filter((s) => isOrganizationActive(ctx.state, s.actor))
       if (
         initKeep.length !== play.initiatorSupporters.length ||
         targKeep.length !== play.targetSupporters.length

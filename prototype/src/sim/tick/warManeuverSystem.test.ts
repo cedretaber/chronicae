@@ -9,7 +9,7 @@ import { generateCandidateBattlefield } from '../selectors/warManeuverSelectors'
 import { getRegimentEffectivePower } from '../selectors/regimentSelectors'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import type { WorldState } from '../types/world'
 import type { War, BattlefieldKind } from '../types/war'
@@ -436,7 +436,7 @@ describe('generateCandidateBattlefield (§6.3)', () => {
 //   Regiment を必ず所有するため、defender 側で mobilize / power / damage / destroy を検証する。
 describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
   function ownerRegimentIds(world: WorldState, owner: PolityId): RegimentId[] {
-    return world.regimentIndex.byOwner[politicalActorKey({ kind: 'polity', id: owner })] ?? []
+    return world.regimentIndex.byOwner[organizationKey({ kind: 'polity', id: owner })] ?? []
   }
 
   it('per-war prologue で owner Regiment を defender side に mobilize し byWar に登録する (§9.1)', () => {
@@ -523,7 +523,7 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
       expect(byWar.includes(rid)).toBe(false)
     }
     // byOwner には残る (§10.4 (d) の 0-power 判定に必要)
-    const ownerKey = politicalActorKey({ kind: 'polity', id: owner })
+    const ownerKey = organizationKey({ kind: 'polity', id: owner })
     expect(next.state.regimentIndex.byOwner[ownerKey] ?? []).toHaveLength(ownerRegs.length)
   })
 })

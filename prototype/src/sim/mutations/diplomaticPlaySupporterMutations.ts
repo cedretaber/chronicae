@@ -2,7 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { DiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlaySupporter, DiplomaticPlaySideKey } from '../types/diplomaticPlay'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 
 // v0.43 §6: DiplomaticPlay supporter の追加 mutation。
@@ -37,8 +37,8 @@ export function addDiplomaticPlaySupporterMut(
   if (actor.kind !== 'polity') return 'non_polity_actor'
   if (ws.polities[actor.id]?.active !== true) return 'inactive_polity'
 
-  const actorKey = politicalActorKey(actor)
-  if (politicalActorKey(play.initiator) === actorKey || politicalActorKey(play.target) === actorKey)
+  const actorKey = organizationKey(actor)
+  if (organizationKey(play.initiator) === actorKey || organizationKey(play.target) === actorKey)
     return 'primary_actor'
 
   // v0.45.2 同家戦争防止ゲート (安全網): 反対側 primary と同じ支配家の polity は参加不可。
@@ -53,8 +53,8 @@ export function addDiplomaticPlaySupporterMut(
 
   const sameSide = side === 'initiator' ? play.initiatorSupporters : play.targetSupporters
   const otherSide = side === 'initiator' ? play.targetSupporters : play.initiatorSupporters
-  if (sameSide.some((s) => politicalActorKey(s.actor) === actorKey)) return 'duplicate'
-  if (otherSide.some((s) => politicalActorKey(s.actor) === actorKey)) return 'opposite_side'
+  if (sameSide.some((s) => organizationKey(s.actor) === actorKey)) return 'duplicate'
+  if (otherSide.some((s) => organizationKey(s.actor) === actorKey)) return 'opposite_side'
 
   if (sameSide.length >= config.maxDiplomaticSupportersPerSide) return 'max_supporters_reached'
 

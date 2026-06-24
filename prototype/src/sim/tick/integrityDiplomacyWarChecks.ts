@@ -1,6 +1,6 @@
 import type { DiplomaticPlayId, WarId, RegimentId, BattleId, BattleLogId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
@@ -78,10 +78,7 @@ export function checkDiplomacyWarRegiment(
     //   - initiator / target が supporters に混入しない
     //   - 同 side 内・両 side 跨ぎの重複なし
     {
-      const primaryKeys = new Set([
-        politicalActorKey(play.initiator),
-        politicalActorKey(play.target),
-      ])
+      const primaryKeys = new Set([organizationKey(play.initiator), organizationKey(play.target)])
       const seenKeys = new Set<string>()
       const sides: Array<[string, typeof play.initiatorSupporters]> = [
         ['initiatorSupporters', play.initiatorSupporters],
@@ -89,7 +86,7 @@ export function checkDiplomacyWarRegiment(
       ]
       for (const [sideName, supporters] of sides) {
         for (const s of supporters) {
-          const key = politicalActorKey(s.actor)
+          const key = organizationKey(s.actor)
           if (s.actor.kind !== 'polity') {
             errors.push({
               code: 'INTEGRITY_VIOLATION',
@@ -531,12 +528,12 @@ export function checkDiplomacyWarRegiment(
         if (p.actor.kind !== 'polity') {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `War ${idStr} ${sideName} participant ${politicalActorKey(p.actor)} is not a polity (v0.43 §14.4)`,
+            message: `War ${idStr} ${sideName} participant ${organizationKey(p.actor)} is not a polity (v0.43 §14.4)`,
           })
         }
       }
       // v0.43 W4: 同一 side 内の actor 重複なし。
-      const sideKeys = side.participants.map((p) => politicalActorKey(p.actor))
+      const sideKeys = side.participants.map((p) => organizationKey(p.actor))
       if (new Set(sideKeys).size !== sideKeys.length) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
@@ -550,7 +547,7 @@ export function checkDiplomacyWarRegiment(
           if (!isActiveActor(p.actor)) {
             errors.push({
               code: 'INTEGRITY_VIOLATION',
-              message: `active War ${idStr} ${sideName} actor ${politicalActorKey(p.actor)} is not active (§14.4)`,
+              message: `active War ${idStr} ${sideName} actor ${organizationKey(p.actor)} is not active (§14.4)`,
             })
           }
         }
@@ -574,12 +571,12 @@ export function checkDiplomacyWarRegiment(
 
     // v0.43 W5: 両 side をまたいだ actor 重複なし (同一 polity が攻守両陣営にいることはない)。
     {
-      const attackerKeys = new Set(war.attacker.participants.map((p) => politicalActorKey(p.actor)))
+      const attackerKeys = new Set(war.attacker.participants.map((p) => organizationKey(p.actor)))
       for (const p of war.defender.participants) {
-        if (attackerKeys.has(politicalActorKey(p.actor))) {
+        if (attackerKeys.has(organizationKey(p.actor))) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `War ${idStr} participant ${politicalActorKey(p.actor)} appears on both sides (v0.43 §14.4)`,
+            message: `War ${idStr} participant ${organizationKey(p.actor)} appears on both sides (v0.43 §14.4)`,
           })
         }
       }
@@ -719,7 +716,7 @@ export function checkDiplomacyWarRegiment(
         continue
       }
       const keys = [...war.attacker.participants, ...war.defender.participants].map((p) =>
-        politicalActorKey(p.actor),
+        organizationKey(p.actor),
       )
       if (!keys.includes(participantKey)) {
         errors.push({
@@ -736,7 +733,7 @@ export function checkDiplomacyWarRegiment(
     if (!war || war.status !== 'active') continue
     for (const side of [war.attacker, war.defender]) {
       for (const p of side.participants) {
-        const key = politicalActorKey(p.actor)
+        const key = organizationKey(p.actor)
         const indexed = state.warIndex.byParticipant[key] ?? []
         if (!indexed.includes(warId)) {
           errors.push({
@@ -945,10 +942,10 @@ export function checkDiplomacyWarRegiment(
           code: 'INTEGRITY_VIOLATION',
           message: `regimentIndex.byOwner[${ownerKey}] references missing Regiment ${rid as string} (§18.3)`,
         })
-      } else if (politicalActorKey(r.owner) !== ownerKey) {
+      } else if (organizationKey(r.owner) !== ownerKey) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `regimentIndex.byOwner[${ownerKey}] entry ${rid as string} has owner ${politicalActorKey(r.owner)} (§18.3)`,
+          message: `regimentIndex.byOwner[${ownerKey}] entry ${rid as string} has owner ${organizationKey(r.owner)} (§18.3)`,
         })
       }
     }

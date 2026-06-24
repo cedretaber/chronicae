@@ -6,7 +6,7 @@ import {
   syncRegimentOwnerToHomeTerminalMut,
   updateRegimentMut,
 } from './regimentMutations'
-import { politicalActorKey } from '../selectors/actorSelectors'
+import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { PolityId, HoldingId, ProvinceId } from '../types/ids'
 
@@ -104,10 +104,10 @@ describe('syncRegimentOwnerToHomeTerminalMut', () => {
     const updated = state.regiments[reg.id]!
     expect(updated.owner).toEqual({ kind: 'polity', id: po2 })
 
-    const newOwnerKey = politicalActorKey({ kind: 'polity', id: po2 })
+    const newOwnerKey = organizationKey({ kind: 'polity', id: po2 })
     expect(state.regimentIndex.byOwner[newOwnerKey]).toContain(reg.id)
 
-    const oldOwnerKey = politicalActorKey({ kind: 'polity', id: po1 })
+    const oldOwnerKey = organizationKey({ kind: 'polity', id: po1 })
     expect(state.regimentIndex.byOwner[oldOwnerKey]).toBeUndefined()
   })
 
