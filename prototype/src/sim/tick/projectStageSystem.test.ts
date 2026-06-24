@@ -826,17 +826,20 @@ describe('v0.60 raise_funds resolver (develop_holding)', () => {
     expect(drained).toBeCloseTo(allocatedIncrease, 6)
   })
 
-  it('over-collection は requiredRemaining に cap され allocated は required を超えない', () => {
+  it('v0.60.1: material-sink (develop_holding) は over-collection cap されず required を超えて調達する', () => {
     const ws = makeState({ treasury: 1000, creatorWealth: 1000, supervisorWealth: 1000 })
-    // requiredRemaining=50 に対し raw pledges は 1500 → cap で raised=50。
+    // 建設資材の品薄で真の所要額が required を超えるケースを救済するため、material-sink は cap しない。
+    // insider 3 者が各 0.5×1000=500 を拠出 → raised=1500 がそのまま allocated に乗る (cap なし)。
     const project = run(ws, makeProj({ required: 1000, allocated: 950, remaining: 0, spent: 950 }))
-    expect(project.budget.allocated).toBeCloseTo(1000, 6)
+    expect(project.budget.allocated).toBeCloseTo(2450, 6)
     const drained =
       3000 -
       ((ws.polities[POLITY]?.treasury ?? 0) +
         (ws.persons[CREATOR]?.wealth ?? 0) +
         (ws.persons[SUPERVISOR]?.wealth ?? 0))
-    expect(drained).toBeCloseTo(50, 6)
+    expect(drained).toBeCloseTo(1500, 6)
+    // 保存則: drain 合計 == allocated 増加分。
+    expect(drained).toBeCloseTo(project.budget.allocated - 950, 6)
   })
 
   it('拠出が最小回収未満 (全 stock 枯渇) だと funding_failed', () => {

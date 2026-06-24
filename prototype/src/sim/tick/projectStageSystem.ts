@@ -1167,11 +1167,19 @@ function resolveRaiseFunds(
     return true
   }
 
-  // over-collection cap: allocated が required を超えないよう各 pledge を比例縮小する
-  //   (acquire の seller 決済が budget.allocated に依拠するため、超過は seller 過払い=貨幣創造)。
-  const scale = rawRaised > requiredRemaining ? requiredRemaining / rawRaised : 1
-  for (const p of pledges) {
-    p.amount = p.amount * scale
+  // over-collection cap: acquire_real_estate のみ allocated が required を超えないよう各 pledge を
+  //   比例縮小する (seller 決済が budget.allocated に依拠するため、超過は seller 過払い=貨幣創造)。
+  //   v0.60.1: material-sink 4 種 (develop_holding/develop_real_estate/upgrade_owned_real_estate/
+  //   handle_crisis) は余剰 budget が建築資材消費 or 完了時還付に回り保存則安全なため cap しない。
+  //   建設資材の品薄で真の所要額が required (margin 2 倍) を超え、cap が required で頭打ちにして
+  //   budget_exhausted を量産していた構造を解消する (required は smoothedPrice 非依存の見積りで、
+  //   実消費は smoothedPrice 評価ゆえ価格上昇分だけ不足する)。
+  const capToRequired = project.kind === 'acquire_real_estate'
+  const scale = capToRequired && rawRaised > requiredRemaining ? requiredRemaining / rawRaised : 1
+  if (scale !== 1) {
+    for (const p of pledges) {
+      p.amount = p.amount * scale
+    }
   }
 
   // budget へ加算するのは「実際に stock から引いた合計」(applyPledgeDrains の返り値)。

@@ -13,6 +13,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext } from './context'
 import { runProjectOutcomeSystem } from './projectOutcomeSystem'
+import { resolveImmediateStages } from './projectStageSystem'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import type { WorldState } from '../types/world'
 import type { AcquireRealEstateProject } from '../types/project'
@@ -115,5 +116,36 @@ describe('v0.60 acquire_real_estate seller 決済の保存則', () => {
     const ctx = createTickContext({ state: s, rng: createRng('acq2'), config: defaultConfig })
     const out = runProjectOutcomeSystem(ctx)
     expect(out.state.polities[SELLER]?.treasury).toBe(1000)
+  })
+})
+
+// v0.60.1 removed-behavior guard: cap 緩和は material-sink 4 種限定。acquire_real_estate は
+//   seller 決済が allocated に依拠するため引き続き over-collection cap される (allocated ≤ required)。
+describe('v0.60.1 acquire_real_estate は raise_funds で over-collection cap される', () => {
+  it('潤沢な拠出があっても allocated は required を超えない', () => {
+    let s = makeState()
+    // buyer House と insider(creator/supervisor) に潤沢な stock を持たせ raw pledges を required 超に。
+    s = withHouse(s, BUYER_HOUSE, { wealth: 10000 })
+    s = withPerson(s, CREATOR, { houseId: BUYER_HOUSE, wealth: 10000 })
+    const project: AcquireRealEstateProject = {
+      ...makeCompletedProject(950),
+      status: 'active',
+      progress: 40,
+      currentStageKey: 'raise_funds',
+      deadlineWeek: 500,
+      // requiredRemaining = 1000 − 950 = 50。raw pledges ≫ 50 でも cap で allocated は 1000 止まり。
+      budget: {
+        required: 1000,
+        allocated: 950,
+        remaining: 0,
+        spent: 950,
+        source: { kind: 'owner' },
+      },
+    }
+    delete (project as { terminalReason?: unknown }).terminalReason
+    s.projects[project.id] = project
+    resolveImmediateStages(s, defaultConfig, project.id, 1000)
+    const after = s.projects[project.id] as AcquireRealEstateProject
+    expect(after.budget.allocated).toBeCloseTo(1000, 6)
   })
 })
