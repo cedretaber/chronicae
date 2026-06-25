@@ -203,7 +203,9 @@ export function HouseDetail({
           })()}
         </div>
         {(() => {
-          const ownedIds = getHouseOwnedPolityIds(currentState, house.id)
+          const ownedIds = getHouseOwnedPolityIds(currentState, house.id).filter(
+            (pid) => currentState.polities[pid]?.active,
+          )
           if (ownedIds.length <= 1) {
             return (
               <div className="flex justify-between">
