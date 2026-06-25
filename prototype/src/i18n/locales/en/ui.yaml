@@ -116,6 +116,11 @@ detail:
     status_dormant: 'Dormant'
     status_bankrupt: 'Bankrupt'
     status_dissolved: 'Dissolved'
+    projects_section: 'Projects'
+    import_routes: 'Import Routes'
+    export_routes: 'Export Routes'
+    no_import_routes: 'No import routes'
+    no_export_routes: 'No export routes'
   annexed: 'Annexed'
   common:
     year: 'Year'
@@ -184,6 +189,14 @@ detail:
     revoke_political_right: 'Revoke Political Right'
     replace_house_leader: 'Replace Cadet Branch Head'
     handle_crisis: 'Crisis Response'
+    seize_real_estate_income: 'Seize Real Estate Income'
+    withhold_land_contract_tax: 'Withhold Land Contract Tax'
+    enforce_obligation: 'Enforce Obligation'
+    enforce_land_contract_default: 'Enforce Land Contract Default'
+    upgrade_company_headquarters: 'Upgrade Headquarters'
+    build_company_branch: 'Open Branch Office'
+    open_trade_route: 'Open Trade Route'
+    upgrade_trade_route: 'Upgrade Trade Route'
   # v0.48 Crisis (holding 詳細パネルの active Crisis セクション)
   crisis:
     section_title: 'Active Crises'

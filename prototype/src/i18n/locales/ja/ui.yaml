@@ -219,6 +219,11 @@ detail:
     status_dormant: '休眠'
     status_bankrupt: '破産'
     status_dissolved: '解散'
+    projects_section: 'プロジェクト'
+    import_routes: '輸入交易路'
+    export_routes: '輸出交易路'
+    no_import_routes: '輸入交易路はありません'
+    no_export_routes: '輸出交易路はありません'
   annexed: '併合済'
   common:
     year: '年'
@@ -287,6 +292,14 @@ detail:
     develop_real_estate: '不動産開発'
     acquire_real_estate: '不動産取得'
     upgrade_owned_real_estate: '所有不動産の増築'
+    seize_real_estate_income: '不動産収入の押領'
+    withhold_land_contract_tax: '上納拒否'
+    enforce_obligation: '義務の強制'
+    enforce_land_contract_default: '契約不履行の強制'
+    upgrade_company_headquarters: '本店の増築'
+    build_company_branch: '支店の開設'
+    open_trade_route: '交易路の開設'
+    upgrade_trade_route: '交易路の増強'
   # v0.48 Crisis (holding 詳細パネルの active Crisis セクション)
   crisis:
     section_title: '進行中の危機'

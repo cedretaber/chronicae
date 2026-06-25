@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { PanelHeader, DetailSection } from './shared/widgets'
 import { HouseLink, PersonLink } from './shared/links'
 import { TradeRouteCard } from './shared/TradeRouteCard'
+import { ProjectCard } from './shared/ProjectCard'
 import type { ClickHandler } from './shared/helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
@@ -142,6 +143,29 @@ export function MerchantCompanyDetail({
             />
           ))}
       </div>
+
+      {state &&
+        (() => {
+          const ownerKey = `merchant_company:${company.id}`
+          const projectIds = state.projectIndex.byOwner[ownerKey] ?? []
+          const activeProjects = projectIds
+            .map((pid) => state.projects[pid])
+            .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
+          if (activeProjects.length === 0) return null
+          return (
+            <>
+              <DetailSection
+                title={t('detail.merchant.projects_section', { defaultValue: 'プロジェクト' })}
+                count={activeProjects.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
+                {activeProjects.map((project) => (
+                  <ProjectCard key={project.id} project={project} worldState={state} />
+                ))}
+              </div>
+            </>
+          )
+        })()}
     </div>
   )
 }

@@ -29,6 +29,12 @@ export function MarketDetail({
   const connectedRoutes = currentState
     ? getStateConnectedRoutes(currentState, stateRegion.id).filter((r) => r.status === 'active')
     : []
+  const importRoutes = connectedRoutes.filter(
+    (r) => (r.targetStateId as string) === (stateRegion.id as string),
+  )
+  const exportRoutes = connectedRoutes.filter(
+    (r) => (r.sourceStateId as string) === (stateRegion.id as string),
+  )
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -38,17 +44,41 @@ export function MarketDetail({
       </div>
 
       <DetailSection
-        title={t('detail.merchant.connected_routes', { defaultValue: '接続された交易路' })}
-        count={connectedRoutes.length}
+        title={t('detail.merchant.import_routes', { defaultValue: '輸入交易路' })}
+        count={importRoutes.length}
       />
-      {connectedRoutes.length === 0 ? (
+      {importRoutes.length === 0 ? (
         <div className="text-xs text-gray-500 italic">
-          {t('detail.merchant.no_routes', { defaultValue: '接続された交易路はありません' })}
+          {t('detail.merchant.no_import_routes', { defaultValue: '輸入交易路はありません' })}
         </div>
       ) : (
         <div className="flex flex-col gap-1">
           {currentState &&
-            connectedRoutes.map((r) => (
+            importRoutes.map((r) => (
+              <TradeRouteCard
+                key={r.id}
+                route={r}
+                state={currentState}
+                highlightStateId={stateRegion.id}
+                showCompany
+                onClick={() => onTradeRouteClick(r.id)}
+              />
+            ))}
+        </div>
+      )}
+
+      <DetailSection
+        title={t('detail.merchant.export_routes', { defaultValue: '輸出交易路' })}
+        count={exportRoutes.length}
+      />
+      {exportRoutes.length === 0 ? (
+        <div className="text-xs text-gray-500 italic">
+          {t('detail.merchant.no_export_routes', { defaultValue: '輸出交易路はありません' })}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {currentState &&
+            exportRoutes.map((r) => (
               <TradeRouteCard
                 key={r.id}
                 route={r}
