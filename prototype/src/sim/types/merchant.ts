@@ -14,6 +14,8 @@ import type { ResourceKind } from './resource'
 // MerchantCompany は polity / house と並ぶ第三の組織種であり、Goal/Aim/Project を持つ
 // 自律経済主体。OrganizationRef / DecisionSubjectRef に merchant_company として統合される。
 
+// v0.61 現在、'bankrupt' は未使用。経営難は distressSince で追跡し、猶予期間後に 'dormant' へ
+// 直接遷移する。将来的に bankrupt（回復可能な破産状態）を dormant と区別する場合の予約枠。
 export type MerchantCompanyStatus = 'active' | 'bankrupt' | 'dormant' | 'dissolved'
 
 export type MerchantCompany = {

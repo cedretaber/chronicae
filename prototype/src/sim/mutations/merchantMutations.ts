@@ -220,11 +220,9 @@ export function setMerchantEstablishmentLevelMut(
   ws: WorldState,
   estId: MerchantCompanyEstablishmentId,
   level: number,
-  upgradedWeek?: number,
 ): void {
   const est = ws.merchantCompanyEstablishments[estId]
   if (!est) return
-  void upgradedWeek
   ws.merchantCompanyEstablishments[estId] = { ...est, level }
 }
 
