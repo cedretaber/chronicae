@@ -38,7 +38,6 @@ import { formatScore, formatAmount, formatAbsoluteWeek, formatYear } from '@/app
 import { getActiveGoalForOwner, getActiveAimForOwner } from '@sim/selectors/goalSelectors'
 import { getPersonGoalFulfillment } from '@sim/selectors/personGoalSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
-import { getChronicleEntriesForPerson } from '@sim/selectors/chronicleSelectors'
 import { PersonReputationSection } from './PersonReputationSection'
 
 export function PersonDetail({
@@ -732,9 +731,9 @@ export function PersonDetail({
       {/* v0.38 §8: 履歴 (永続 Chronicle) */}
       <EntityChronicleSection
         title={t('detail.person.chronicle')}
-        entries={getChronicleEntriesForPerson(worldState, person.id)}
-        entityType="person"
+        refKind="person"
         entityId={person.id}
+        entityType="person"
       />
     </div>
   )

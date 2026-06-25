@@ -45,7 +45,6 @@ export type SimulationConfig = {
   replacementThreshold: number
   rebellionSuccessMode: 'independence' | 'ruler_change'
   maxRawEvents: number
-  maxChronicleEvents: number
   // War / Conquest
   warEnabled: boolean
   warCostPerProvince: number
@@ -1624,7 +1623,6 @@ export const defaultConfig: SimulationConfig = {
   replacementThreshold: 15,
   rebellionSuccessMode: 'independence',
   maxRawEvents: 10000,
-  maxChronicleEvents: 1000,
   warEnabled: true,
   warCostPerProvince: 20,
   maxProvincesPerWar: 3,

@@ -2055,13 +2055,19 @@ type WorldState = {
 
 生成された歴史を対象 entity 別に永続的に遡るための read-model。各 tick で発生した `SimEvent` を tick 終端で curated projection し、append-only の `ChronicleEntry` として materialize する（ChronicleProjectionSystem、§6.62）。
 
-**設計原則（厳守）**: `ChronicleEntry` は「歴史を読むための記録」であり「歴史を動かす状態」ではない。simulation logic の入力・判断には一切使わない（参照は selector / UI 表示専用、§4.11）。死亡人物・断絶家・終了 War 等への soft reference を持ってよく、参照先が現在の `WorldState` に存在しなくても integrity 違反にしない（§6.35）。削除・cap・圧縮・外部化は行わない（append-only）。`PersonActivityLog`（死亡時 purge、simulation で使用可）とは責務が異なる。
+**設計原則（厳守）**: `ChronicleEntry` は「歴史を読むための記録」であり「歴史を動かす状態」ではない。simulation logic の入力・判断には一切使わない。死亡人物・断絶家・終了 War 等への soft reference を持ってよく、参照先が現在の `WorldState` に存在しなくても問題にしない。`PersonActivityLog`（死亡時 purge、simulation で使用可）とは責務が異なる。
+
+**v0.62 外部化**: Chronicle は `WorldState` から完全に分離され、外部ストレージに書き出される（fire-and-forget）。sim は `ChronicleWriter` interface を通じて append するのみで、読み返さない。RNG 非消費の純粋 projection。
+
+- **CLI**: JSONL ファイル (`chronicle-{timestamp}-seed{N}.jsonl`) に同期書き出し。`--no-chronicle` で抑止、`--chronicle-dir`/`--chronicle-tag` で出力先・接尾辞を指定可。
+- **Browser**: IndexedDB (`chronicae-chronicle` DB) にバッチ書き出し（300ms タイマー flush）。worldgen 時に `clear()` で前回データを破棄。entity 別クエリは `entityRefs` の kind 別 multiEntry index 経由。
+- **旧 `chronicleEntries` / `chronicleIndex` / `nextChronicleEntryId`** は `WorldState` から削除。`maxChronicleEvents` config も削除。integrity check の chronicle 双方向検査も削除。
 
 ```ts
 type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>  // prefix 'ch-'
 
 type ChronicleCategory =
-  | 'war' | 'battle' | 'land' | 'house' | 'office' | 'faction'
+  | 'war' | 'battle' | 'diplomacy' | 'land' | 'house' | 'office' | 'faction'
   | 'revolt' | 'life' | 'development' | 'governance' | 'disaster'
 
 type ChronicleEntry = {
@@ -2070,45 +2076,19 @@ type ChronicleEntry = {
   weekOfYear: number
   category: ChronicleCategory
   importance: EventImportance
-  sourceEventId: EventId       // 由来 SimEvent。全 entry が projection 由来のため required
+  sourceEventId: EventId
   sourceEventType: EventType
-  templateKey: string          // 初期は SimEvent.messageKey を流用。rich narrative 用の専用 key も可
-  params: EventMessageParams   // ロケール中立（表示文字列を焼き込まない）
-  entityRefs: EventEntityRef[] // SimEvent.entityRefs をコピー（soft reference）
-  context?: ChronicleContext   // 未 populate（将来の rich context 用 scaffold）
+  templateKey: string
+  params: EventMessageParams
+  entityRefs: EventEntityRef[]
+  context?: ChronicleContext
 }
 
-type ChronicleContext = BattleChronicleContext  // 現状 union member は 1
-type BattleChronicleContext = {
-  kind: 'battle'
-  outnumberedVictory?: boolean
-  decisiveVictory?: boolean
-  commanderContributionSide?: 'attacker' | 'defender'
-  decisiveCommanderId?: PersonId
-  warScoreDelta?: number
-}
-
-type ChronicleIndex = {  // キーは plain string（entityRef.id が string のため。warIndex 慣習に揃える）
-  byPerson: Record<string, ChronicleEntryId[]>
-  byHouse: Record<string, ChronicleEntryId[]>
-  byPolity: Record<string, ChronicleEntryId[]>
-  byProvince: Record<string, ChronicleEntryId[]>
-  byHolding: Record<string, ChronicleEntryId[]>
-  byWar: Record<string, ChronicleEntryId[]>     // v0.49: War 関連 ChronicleEntry を全走査せず取得（§6.45 会戦・§6.46 終結）
+// Writer interface (sim 層・DI で注入)
+interface ChronicleWriter {
+  append(entries: ChronicleEntry[]): void   // 同期・バッファリング
+  flush(): Promise<void>
+  clear(): Promise<void>
 }
 ```
-
-**WorldState 追加**:
-
-```ts
-type WorldState = {
-  ...
-  chronicleEntries: Record<ChronicleEntryId, ChronicleEntry>
-  chronicleIndex: ChronicleIndex
-  nextChronicleEntryId: number
-}
-```
-
-- index 対象は person / house / polity / province / holding の 5 kind のみ。`faction` / `clan` / `goal` 等の ref は entry には保持されるが index には振らない。`war` / `battle` 用 index は非導入（関連 Polity / Province の chronicle 経由で戦争・戦闘も対象別履歴に乗る。War 史は `params.warId` 全走査の表示専用 selector で補う、§4.11）。
-- `ChronicleContext` 型は定義のみで、どの entry にも populate しない。battle narrative の出し分けは `BATTLE_OCCURRED` の messageParams への additive enrich（`outnumberedVictory` / `decisiveVictory`）で行う（§6.62 / §8）。指揮官系 scalar は見送り。
 

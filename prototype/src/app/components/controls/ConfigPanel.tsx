@@ -195,14 +195,7 @@ const TAB_DEFS: TabDef[] = [
     id: 'general',
     label: 'General',
     prefixes: [],
-    exact: [
-      'uiLocale',
-      'maxRawEvents',
-      'maxChronicleEvents',
-      'debug',
-      'integrityPerSystem',
-      'nameCultureId',
-    ],
+    exact: ['uiLocale', 'maxRawEvents', 'debug', 'integrityPerSystem', 'nameCultureId'],
   },
   {
     id: 'politics',

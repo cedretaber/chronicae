@@ -1,7 +1,9 @@
-import type { ChronicleEntry, ChronicleCategory } from '@sim/types/chronicle'
+import type { ChronicleCategory } from '@sim/types/chronicle'
 import { useTranslation } from 'react-i18next'
 import { ChronicleAnnal } from './ChronicleAnnal'
 import { useState } from 'react'
+import { useChronicleEntriesForEntity } from '@/app/chronicle/useChronicleEntries'
+import type { EntityRefKind } from '@/app/chronicle/chronicleReader'
 import type { ReactNode } from 'react'
 import { CHROME } from '@/app/theme/chrome'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
@@ -144,35 +146,30 @@ export function CollapsibleSection({
   )
 }
 
-// v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
-//   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう
-//   showCategories prop を最初から受け取る (未指定なら全カテゴリ表示。§8.2)。
-//   entityType/entityId を渡すと「完全版を見る」ボタンを出し、全履歴パネルを開ける。
 export function EntityChronicleSection({
   title,
-  entries,
+  refKind,
+  entityId,
   limit = 10,
   showCategories,
   entityType,
-  entityId,
 }: {
   title: string
-  entries: ChronicleEntry[]
+  refKind: EntityRefKind
+  entityId: string
   limit?: number
   showCategories?: ReadonlySet<ChronicleCategory>
   entityType?: EntityType
-  entityId?: string
 }) {
   const { t } = useTranslation()
   const openChronicleWindow = useSimulationStore((s) => s.openChronicleWindow)
+  const { entries } = useChronicleEntriesForEntity(refKind, entityId)
   const filtered = showCategories ? entries.filter((e) => showCategories.has(e.category)) : entries
   const visible = filtered.slice(0, limit)
   if (filtered.length === 0) return null
   return (
     <div className="mt-2">
       <div className="text-sm font-semibold text-gray-300">{title}:</div>
-      {/* インライン年代記は host の暗色ウィンドウに馴染む dark トーン。構造 (時の罫・年見出し・
-          週·重要度印·カテゴリ·本文) は FullChroniclePanel の vellum 版と ChronicleAnnal で共有。 */}
       <ChronicleAnnal entries={visible} tone="dark" />
       {entityType && entityId && (
         <button

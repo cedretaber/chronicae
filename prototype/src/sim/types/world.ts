@@ -28,7 +28,6 @@ import type {
   RegimentId,
   BattleId,
   BattleLogId,
-  ChronicleEntryId,
   PoliticalRightId,
   PersonReputationId,
   InfluenceModifierId,
@@ -84,7 +83,6 @@ import type { Battle, BattleIndex } from './battle'
 import type { BattleLog, BattleLogIndex } from './battleLog'
 import type { Pressure, PressureIndex } from './pressure'
 import type { Crisis, CrisisIndex } from './crisis'
-import type { ChronicleEntry, ChronicleIndex } from './chronicle'
 import type { PoliticalRight, PoliticalRightIndex } from './politicalRight'
 import type { PersonReputation, PersonReputationIndex } from './personReputation'
 import type { InfluenceModifier, InfluenceModifierIndex } from './influenceModifier'
@@ -205,10 +203,6 @@ export type WorldState = {
   crises: Record<CrisisId, Crisis>
   crisisIndex: CrisisIndex
   nextCrisisId: number
-  // v0.38 Chronicle System (read-only historical archive; append-only, not used by simulation logic)
-  chronicleEntries: Record<ChronicleEntryId, ChronicleEntry>
-  chronicleIndex: ChronicleIndex
-  nextChronicleEntryId: number
   // v0.42 PoliticalRight
   politicalRights: Record<PoliticalRightId, PoliticalRight>
   politicalRightIndex: PoliticalRightIndex

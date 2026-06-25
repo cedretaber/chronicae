@@ -9,6 +9,9 @@ import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
 import type { HouseId, FactionId } from '@sim/types/ids'
+import { createIndexedDbChronicleStore } from '@/app/chronicle/indexedDbChronicleStore'
+import { setChronicleReader } from '@/app/chronicle/useChronicleEntries'
+import { resetChronicleEntryIndex } from '@sim/tick/chronicleProjectionSystem'
 
 export type EntityType =
   | 'polity'
@@ -149,6 +152,10 @@ function openWindowState(
 // Lazy NamePoolService initialization
 let _namePoolService: NamePoolService | null = null
 
+// Chronicle store (IndexedDB Writer + Reader)
+const _chronicleStore = createIndexedDbChronicleStore()
+setChronicleReader(_chronicleStore)
+
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 const namePoolsRaw = import.meta.glob('../../sim/namegen/namePools.yaml', {
   query: '?raw',
@@ -180,6 +187,8 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   config: { ...defaultConfig },
 
   generateNewWorld: (seed: string, preset?: WorldPresetName) => {
+    void _chronicleStore.clear()
+    resetChronicleEntryIndex()
     const nps = getNamePoolService()
     const { world, rng } = generateWorld(seed, preset, nps)
     const session: SimulationSession = {
@@ -194,6 +203,8 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   resetWorld: () => {
     const { session: currentSession } = get()
     if (!currentSession) return
+    void _chronicleStore.clear()
+    resetChronicleEntryIndex()
     const nps = getNamePoolService()
     const { world, rng } = generateWorld(currentSession.initialSeed, undefined, nps)
     const session: SimulationSession = {
@@ -215,6 +226,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
       rng: currentSession.rng,
       config,
       namePoolService: nps,
+      chronicleWriter: _chronicleStore,
     }
     const result = tick(input)
 

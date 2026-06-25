@@ -59,7 +59,6 @@ import {
 } from '@sim/selectors/republicSelectors'
 import { INFLUENCE_LIST_MIN_GROUP_PERCENT } from './shared/constants'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
-import { getChronicleEntriesForPolity } from '@sim/selectors/chronicleSelectors'
 
 export function CountryDetail({
   polity,
@@ -558,9 +557,9 @@ export function CountryDetail({
       {worldState && (
         <EntityChronicleSection
           title={t('detail.polity.chronicle')}
-          entries={getChronicleEntriesForPolity(worldState, polity.id)}
-          entityType="polity"
+          refKind="polity"
           entityId={polity.id}
+          entityType="polity"
         />
       )}
     </div>

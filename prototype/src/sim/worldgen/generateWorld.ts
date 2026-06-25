@@ -787,17 +787,6 @@ export function generateWorld(
     diplomaticOffers: {},
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
-    // v0.38 Chronicle System
-    chronicleEntries: {},
-    chronicleIndex: {
-      byPerson: {},
-      byHouse: {},
-      byPolity: {},
-      byProvince: {},
-      byHolding: {},
-      byWar: {},
-    },
-    nextChronicleEntryId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     nextDiplomaticOfferId: 0,
@@ -1933,17 +1922,6 @@ export function generateWorld(
     crises: {},
     crisisIndex: { byHolding: {}, byProject: {} },
     nextCrisisId: 1,
-    // v0.38 Chronicle System
-    chronicleEntries: {},
-    chronicleIndex: {
-      byPerson: {},
-      byHouse: {},
-      byPolity: {},
-      byProvince: {},
-      byHolding: {},
-      byWar: {},
-    },
-    nextChronicleEntryId: 0,
     // v0.42 PoliticalRight (初期 worldgen では right を生成しない — all residual。spec §15.3)
     politicalRights: {},
     politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },

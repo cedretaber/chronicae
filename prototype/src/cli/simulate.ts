@@ -26,6 +26,10 @@ import path from 'node:path'
 import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolData } from '@sim/namegen/namePoolTypes'
+import { createChronicleFileWriter } from './chronicleFileWriter'
+import { nullChronicleWriter } from '@sim/chronicle/chronicleStore'
+import type { ChronicleWriter } from '@sim/chronicle/chronicleStore'
+import { resetChronicleEntryIndex } from '@sim/tick/chronicleProjectionSystem'
 import { createChronicaeI18n } from '../i18n'
 import { createNodeResourceLoader } from '../i18n/loaders/nodeResourceLoader'
 import { createNameTranslator } from '../i18n/nameTranslator'
@@ -51,6 +55,9 @@ Options:
   --perf                Output performance summary (entity counts, elapsed time, tick time)
   --preset <name>       World size preset (tiny, small, standard, perfLarge)
   --locale <code>       Locale for event rendering (en, ja; default: en)
+  --no-chronicle        Disable chronicle JSONL output
+  --chronicle-dir <dir> Directory for chronicle JSONL (default: current directory)
+  --chronicle-tag <tag> Tag appended to chronicle filename
   --help                Show this help message`)
 }
 
@@ -69,6 +76,9 @@ function parseArgs(argv: string[]): {
   reportSnapshotYears: number
   preset: WorldPresetName | undefined
   locale: LocaleCode
+  noChronicle: boolean
+  chronicleDir: string
+  chronicleTag: string | undefined
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
@@ -85,6 +95,9 @@ function parseArgs(argv: string[]): {
   let reportSnapshotYears = 0
   let preset: WorldPresetName | undefined = undefined
   let locale: LocaleCode = 'en'
+  let noChronicle = false
+  let chronicleDir = '.'
+  let chronicleTag: string | undefined = undefined
   let showHelp = false
 
   let i = 2
@@ -167,6 +180,20 @@ function parseArgs(argv: string[]): {
         console.error('Error: --locale must be one of: en, ja')
         process.exit(1)
       }
+    } else if (arg === '--no-chronicle') {
+      noChronicle = true
+    } else if (arg === '--chronicle-dir') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        chronicleDir = val
+      }
+    } else if (arg === '--chronicle-tag') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        chronicleTag = val
+      }
     } else if (arg === '--help') {
       showHelp = true
     }
@@ -188,6 +215,9 @@ function parseArgs(argv: string[]): {
     reportSnapshotYears,
     preset,
     locale,
+    noChronicle,
+    chronicleDir,
+    chronicleTag,
     showHelp,
   }
 }
@@ -712,13 +742,28 @@ async function main(): Promise<void> {
     console.log('')
   }
 
+  // Chronicle Writer
+  resetChronicleEntryIndex()
+  let chronicleWriter: ChronicleWriter = nullChronicleWriter
+  if (!args.noChronicle) {
+    const cw = createChronicleFileWriter({
+      seed: args.seed,
+      dir: args.chronicleDir,
+      ...(args.chronicleTag !== undefined && { tag: args.chronicleTag }),
+    })
+    chronicleWriter = cw
+    if (!args.json && !args.digest) {
+      console.log('Chronicle output:', cw.filePath)
+    }
+  }
+
   const simStartTime = performance.now()
   let tickTimeTotal = 0
   const systemTimingsTotal: Record<string, number> = {}
 
   for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     const tickT0 = performance.now()
-    const result = tick({ state, rng: currentRng, config, namePoolService })
+    const result = tick({ state, rng: currentRng, config, namePoolService, chronicleWriter })
     tickTimeTotal += performance.now() - tickT0
 
     if (result.systemTimings) {

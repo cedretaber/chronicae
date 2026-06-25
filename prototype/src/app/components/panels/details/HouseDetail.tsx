@@ -52,7 +52,6 @@ import { PersonCard } from './shared/PersonCard'
 import type { PersonId, PolityId } from '@/sim/types/ids'
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getHouseClanRole } from '@sim/selectors/clanSelectors'
-import { getChronicleEntriesForHouse } from '@sim/selectors/chronicleSelectors'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { assetOwnerKey } from '@sim/types/realEstateAsset'
 import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
@@ -792,9 +791,9 @@ export function HouseDetail({
       {/* v0.38 §8: 家の記録 (永続 Chronicle) — spine 末尾 */}
       <EntityChronicleSection
         title={t('detail.house.chronicle')}
-        entries={getChronicleEntriesForHouse(currentState, house.id)}
-        entityType="house"
+        refKind="house"
         entityId={house.id}
+        entityType="house"
       />
     </div>
   )
