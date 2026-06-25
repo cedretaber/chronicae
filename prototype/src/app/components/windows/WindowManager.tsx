@@ -16,6 +16,7 @@ import type {
   BattleLogId,
   RealEstateAssetId,
   MerchantCompanyId,
+  TradeRouteId,
 } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -33,6 +34,7 @@ import {
   MarketDetail,
   RealEstateDetail,
   MerchantCompanyDetail,
+  TradeRouteDetail,
 } from '@/app/components/panels/DetailPanel'
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
 import type { PolityId, HouseId, PersonId, ProvinceId, StateRegionId } from '@/sim/types/ids'
@@ -65,6 +67,8 @@ export function WindowManager() {
   const onRealEstateClick = (id: string) => openDetailWindow('realEstate', id)
   const onClanClick = (id: string) => openDetailWindow('clan', id)
   const onMerchantCompanyClick = (id: string) => openDetailWindow('merchant_company', id)
+  const onTradeRouteClick = (id: string) => openDetailWindow('trade_route', id)
+  const onMarketClick = (id: string) => openDetailWindow('market', id)
   const onBattleLogClick = (id: string) => openDetailWindow('battleLog', id)
   const onOpenFamilyTree = (id: string) => openFamilyTree(id as HouseId)
   const onOpenFactionTree = (id: FactionId) => openFactionTree(id)
@@ -280,6 +284,7 @@ export function WindowManager() {
                 onHoldingClick={onHoldingClick}
                 onPopGroupClick={onPopGroupClick}
                 onRealEstateClick={onRealEstateClick}
+                onMerchantCompanyClick={onMerchantCompanyClick}
               />
             </DraggableWindow>
           )
@@ -321,6 +326,31 @@ export function WindowManager() {
                 onHouseClick={onHouseClick}
                 onPersonClick={onPersonClick}
                 onHoldingClick={onHoldingClick}
+                onTradeRouteClick={onTradeRouteClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'trade_route') {
+          const route = state.tradeRoutes[entityId as TradeRouteId]
+          if (!route) return null
+          const sourceName = resolveName(
+            'state_region',
+            state.states[route.sourceStateId]?.nameKey,
+            route.sourceStateId,
+          )
+          const targetName = resolveName(
+            'state_region',
+            state.states[route.targetStateId]?.nameKey,
+            route.targetStateId,
+          )
+          return (
+            <DraggableWindow key={win.id} win={win} title={`交易路: ${sourceName} → ${targetName}`}>
+              <TradeRouteDetail
+                route={route}
+                session={session}
+                onMerchantCompanyClick={onMerchantCompanyClick}
+                onMarketClick={onMarketClick}
               />
             </DraggableWindow>
           )
@@ -416,7 +446,11 @@ export function WindowManager() {
               win={win}
               title={t('detail.market.window_title', { name: regionName })}
             >
-              <MarketDetail stateRegion={stateRegion} session={session} />
+              <MarketDetail
+                stateRegion={stateRegion}
+                session={session}
+                onTradeRouteClick={onTradeRouteClick}
+              />
             </DraggableWindow>
           )
         }

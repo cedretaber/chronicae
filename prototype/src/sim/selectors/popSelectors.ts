@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { ProvinceId, HoldingId, StateRegionId } from '../types/ids'
+import type { ProvinceId, HoldingId, StateRegionId, RealEstateAssetId } from '../types/ids'
 import type { PopGroup, PopClass, PopType } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
@@ -15,6 +15,7 @@ import {
   computeHoldingPopTypeCapacity,
   computeHoldingAllPopTypeCapacities,
   computeSlotOveruseModifier,
+  computeAssetPopTypeCapacityTerm,
 } from './holdingImprovementSelectors'
 import { computeSlotCapacity } from './terrainTraitSelectors'
 import { getHoldingMerchantEmploymentSlots } from './merchantSelectors'
@@ -446,6 +447,33 @@ export function getHoldingPopTypeCapacity(
     overuseMod,
     merchantSlots,
   )
+}
+
+// v0.61 §22: 単一 RealEstateAsset が holding の popType 容量プールへ寄与する実効容量。
+//   computeHoldingPopTypeCapacity の assetTerm 内訳と一致させる
+//   （= computeAssetPopTypeCapacityTerm × overuseMod × holding.weight）。
+//   UI で asset 別の雇用枠・按分雇用を表示するため（merchant/infra の容量寄与と同じ単位）。
+export function getAssetPopTypeCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  assetId: RealEstateAssetId,
+  popType: PopType,
+): number {
+  const asset = state.realEstateAssets[assetId]
+  if (!asset) return 0
+  const inputs = collectHoldingCapacityInputs(state, config, asset.holdingId)
+  if (!inputs) return 0
+  const { holding, province, improvements, overuseMod } = inputs
+  const term = computeAssetPopTypeCapacityTerm(
+    asset.realEstateKind,
+    asset.level,
+    popType,
+    province.terrain,
+    province.features,
+    improvements,
+    config,
+  )
+  return term * overuseMod * holding.weight
 }
 
 // v0.59 追補: 生容量を maxRatio (熟練職の同数上限) で絞る共有 helper。

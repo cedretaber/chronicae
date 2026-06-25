@@ -1,9 +1,9 @@
 import type { MerchantCompany } from '@/sim/types/merchant'
 import type { SimulationSession } from '@/sim/types/world'
-import type { StateRegionId } from '@/sim/types/ids'
 import { useTranslation } from 'react-i18next'
 import { PanelHeader, DetailSection } from './shared/widgets'
 import { HouseLink, PersonLink } from './shared/links'
+import { TradeRouteCard } from './shared/TradeRouteCard'
 import type { ClickHandler } from './shared/helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { formatAmount } from '@/app/utils/format'
@@ -21,12 +21,14 @@ export function MerchantCompanyDetail({
   onHouseClick,
   onPersonClick,
   onHoldingClick,
+  onTradeRouteClick,
 }: {
   company: MerchantCompany
   session: SimulationSession | null
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
   onHoldingClick: (id: string) => void
+  onTradeRouteClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -44,8 +46,6 @@ export function MerchantCompanyDetail({
       )[0]
     : undefined
 
-  const stateName = (sid: StateRegionId): string =>
-    resolveName('region', state?.states[sid]?.nameKey, sid)
   const holdingName = (hid: string): string =>
     resolveName('holding', state?.holdings[hid as never]?.nameKey, hid)
 
@@ -54,7 +54,7 @@ export function MerchantCompanyDetail({
   })
 
   return (
-    <div className="flex flex-col gap-1 text-sm">
+    <div className="flex flex-col gap-1 p-3 text-sm">
       <PanelHeader
         title={companyName}
         badge={<span className="text-xs text-gray-400">{statusLabel}</span>}
@@ -129,18 +129,16 @@ export function MerchantCompanyDetail({
         title={t('detail.merchant.routes', { defaultValue: '交易路' })}
         count={routes.length}
       />
-      <div className="flex flex-col gap-0.5">
-        {routes.map((r) => (
-          <div key={r.id} className="flex justify-between gap-2">
-            <span className="text-gray-300">
-              {stateName(r.sourceStateId)} → {stateName(r.targetStateId)} ·{' '}
-              {t(`resource.${r.resource}`, { ns: 'ui', defaultValue: r.resource })} Lv{r.level}
-            </span>
-            <span className="text-gray-400 tabular-nums">
-              {r.status === 'active' ? r.smoothedProfit.toFixed(1) : r.status}
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-col gap-1">
+        {state &&
+          routes.map((r) => (
+            <TradeRouteCard
+              key={r.id}
+              route={r}
+              state={state}
+              onClick={() => onTradeRouteClick(r.id)}
+            />
+          ))}
       </div>
     </div>
   )

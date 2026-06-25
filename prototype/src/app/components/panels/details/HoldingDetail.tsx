@@ -22,7 +22,10 @@ import {
 } from './shared/widgets'
 import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingImage } from '@/app/utils/assetHash'
-import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
+import {
+  getHoldingDevelopment,
+  conditionEffectiveness,
+} from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { clamp100 } from '@sim/utils/math'
 import { PersonLink, HouseLink, PolityLink } from './shared/links'
@@ -53,6 +56,7 @@ import {
   getHoldingClassCapacity,
   getHoldingEmployedPopSizeByType,
   getHoldingPopTypeCapacity,
+  getAssetPopTypeCapacity,
   getHoldingPops,
   getHoldingMonthlyPopChange,
 } from '@sim/selectors/popSelectors'
@@ -60,6 +64,7 @@ import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
+import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '@sim/config/merchantDefinitions'
 
 export function HoldingDetail({
   holding,
@@ -71,6 +76,7 @@ export function HoldingDetail({
   onHoldingClick,
   onPopGroupClick,
   onRealEstateClick,
+  onMerchantCompanyClick,
 }: {
   holding: Holding
   session: SimulationSession | null
@@ -81,6 +87,7 @@ export function HoldingDetail({
   onHoldingClick: (id: string) => void
   onPopGroupClick: (id: string) => void
   onRealEstateClick: (id: string) => void
+  onMerchantCompanyClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -197,24 +204,6 @@ export function HoldingDetail({
                   const minInputFulfill = inputRecipes.length
                     ? Math.min(...inputRecipes.map((b) => b.inputFulfillment))
                     : null
-                  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
-                  let facEmployed = 0
-                  let facCapacity = 0
-                  for (const slot of REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
-                    .employmentSlots) {
-                    facEmployed += getHoldingEmployedPopSizeByType(
-                      currentState,
-                      holding.id,
-                      slot.popType,
-                    )
-                    facCapacity += getHoldingPopTypeCapacity(
-                      currentState,
-                      defaultConfig,
-                      holding.id,
-                      slot.popType,
-                    )
-                  }
-                  const facilityFill = facCapacity > 0 ? facEmployed / facCapacity : null
                   const seizure = getActiveSeizureForAsset(currentState, asset.id)
                   return (
                     <div
@@ -277,6 +266,53 @@ export function HoldingDetail({
                           })}
                         </div>
                       ) : null}
+                      {/* 雇用 (popType 別)。上限 = この asset の容量寄与、雇用人数 = holding 全体の雇用
+                          × (この asset の容量 / holding 全体の容量) で按分 (端数は丸め)。 */}
+                      <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                        {REAL_ESTATE_DEFINITIONS[asset.realEstateKind].employmentSlots.map(
+                          (slot) => {
+                            const assetCap = getAssetPopTypeCapacity(
+                              currentState,
+                              defaultConfig,
+                              asset.id,
+                              slot.popType,
+                            )
+                            const holdingCap = getHoldingPopTypeCapacity(
+                              currentState,
+                              defaultConfig,
+                              holding.id,
+                              slot.popType,
+                            )
+                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                              currentState,
+                              holding.id,
+                              slot.popType,
+                            )
+                            const empAsset =
+                              holdingCap > 0 ? holdingEmp * (assetCap / holdingCap) : 0
+                            const pct =
+                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                            return (
+                              <div key={slot.popType} className="flex items-center gap-1.5">
+                                <span className="w-20 text-gray-500">
+                                  {t(`detail.province.pop_type.${slot.popType}`, {
+                                    defaultValue: slot.popType,
+                                  })}
+                                </span>
+                                <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                                  <div
+                                    className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-16 text-right text-gray-400">
+                                  {formatPopCount(empAsset)}/{formatPopCount(assetCap)}
+                                </span>
+                              </div>
+                            )
+                          },
+                        )}
+                      </div>
                       {ar ? (
                         <div className="mt-1 flex flex-col gap-1 border-t border-gray-600/50 pt-0.5 text-[11px]">
                           <div className="flex justify-between">
@@ -297,13 +333,6 @@ export function HoldingDetail({
                               compact
                             />
                           )}
-                          {facilityFill !== null && (
-                            <FulfillmentBar
-                              label={t('detail.realEstate.employment_fill')}
-                              value={facilityFill}
-                              compact
-                            />
-                          )}
                         </div>
                       ) : null}
                     </div>
@@ -318,6 +347,207 @@ export function HoldingDetail({
                   </div>
                 ))}
               </div>
+            </div>
+          )
+        })()}
+
+      {/* v0.61 商会施設 (本店・支店): holding に立地し POP を雇用する。不動産とは別エンティティだが
+          雇用枠を持つため、不動産と同様に holding 詳細に表示する。クリックで所有商会を開く。 */}
+      {currentState &&
+        (() => {
+          const estIds =
+            currentState.merchantCompanyEstablishmentIndex.byHolding[holding.id as string] ?? []
+          const establishments = estIds
+            .map((id) => currentState.merchantCompanyEstablishments[id])
+            .filter((e): e is NonNullable<typeof e> => e !== undefined && e.status === 'active')
+          if (establishments.length === 0) return null
+          return (
+            <div className="text-sm">
+              <DetailSection
+                title={t('detail.merchant.holding_section', { defaultValue: '商会施設' })}
+                count={establishments.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
+                {establishments.map((est) => {
+                  const company = currentState.merchantCompanies[est.companyId]
+                  const companyName = company
+                    ? resolveName('person', company.nameKey, company.id)
+                    : (est.companyId as string)
+                  const slots = MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL[est.kind]
+                  return (
+                    <div
+                      key={est.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onMerchantCompanyClick(est.companyId)}
+                      className="cursor-pointer rounded bg-gray-700 p-1.5 text-xs hover:bg-gray-600"
+                    >
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-medium text-gray-200">
+                          {t(`detail.merchant.kind_${est.kind}`, { defaultValue: est.kind })}{' '}
+                          <span className="text-gray-500">Lv.{est.level}</span>
+                        </span>
+                        <span className="text-gray-500">→</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">
+                          {t('detail.merchant.companies', { defaultValue: '商会' })}:
+                        </span>
+                        <span className="text-blue-400">{companyName}</span>
+                      </div>
+                      {/* 雇用 (popType 別)。上限 = この施設の提供枠 (枠×Lv)、雇用人数 = holding 全体の
+                          雇用 × (この施設の枠 / holding 全体の容量) で施設へ按分する (端数は丸め)。 */}
+                      <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                        {(Object.entries(slots) as [PopType, number][]).map(
+                          ([popType, perLevel]) => {
+                            const facilityCap = perLevel * Math.max(0, est.level)
+                            const holdingCap = getHoldingPopTypeCapacity(
+                              currentState,
+                              defaultConfig,
+                              holding.id,
+                              popType,
+                            )
+                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                              currentState,
+                              holding.id,
+                              popType,
+                            )
+                            const empFacility =
+                              holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
+                            const pct =
+                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                            return (
+                              <div key={popType} className="flex items-center gap-1.5">
+                                <span className="w-20 text-gray-500">
+                                  {t(`detail.province.pop_type.${popType}`, {
+                                    defaultValue: popType,
+                                  })}
+                                </span>
+                                <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                                  <div
+                                    className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-16 text-right text-gray-400">
+                                  {formatPopCount(empFacility)}/{formatPopCount(facilityCap)}
+                                </span>
+                              </div>
+                            )
+                          },
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* Infrastructure */}
+      {currentState &&
+        (() => {
+          const impIds = currentState.holdingImprovementIndex.byHolding[holding.id as string] ?? []
+          const improvements = impIds
+            .map((id) => currentState.holdingImprovements[id])
+            .filter((imp): imp is NonNullable<typeof imp> => imp !== undefined)
+          if (improvements.length === 0) return null
+          return (
+            <div className="text-sm">
+              <DetailSection title={t('detail.province.improvements')} />
+              {improvements.map((imp) => {
+                const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
+                // v0.33 §12.3: flavor → category → kind 文字列 のフォールバック（生キーを出さない）
+                const categoryName = t(`detail.province.improvement_${imp.kind}`, {
+                  defaultValue: imp.kind,
+                })
+                const flavorName = t(nameKey, { defaultValue: categoryName })
+                // v0.48.1 §8: condition バー + 機能不全バッジ (閾値割れ)
+                const threshold = defaultConfig.facilityDisrepairThreshold
+                const condition = clamp100(imp.condition)
+                const disrepaired = condition < threshold
+                const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+                // computeHoldingPopTypeCapacity の infraTerm と同じ実効効率 (劣化 + critical 下限)。
+                let effInfra = conditionEffectiveness(
+                  imp.condition,
+                  defaultConfig.facilityDisrepairThreshold,
+                  defaultConfig.facilityDisrepairMinEffectiveness,
+                )
+                if (impDef.critical)
+                  effInfra = Math.max(effInfra, defaultConfig.criticalInfraMinEffectiveness)
+                return (
+                  <div key={imp.id} className="ml-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-gray-200">
+                        {flavorName}
+                        {disrepaired && (
+                          <span className="ml-1 rounded bg-red-900 px-1 py-0.5 text-xs text-red-300">
+                            {t('detail.facility.disrepair_badge')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        （{categoryName}{' '}
+                        {t('detail.province.improvement_level', { level: imp.level })}）
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500">
+                        {t('detail.facility.condition')}
+                      </span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
+                        <div
+                          className={`h-full ${disrepaired ? 'bg-red-600' : 'bg-emerald-600'}`}
+                          style={{ width: `${condition}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-xs text-gray-400">
+                        {condition.toFixed(0)}
+                      </span>
+                    </div>
+                    {/* 雇用 (popType 別)。上限 = この施設の実効容量 (capacityPerLevel×Lv×劣化効率×weight)、
+                        雇用人数 = holding 全体の雇用 × (この施設の容量 / holding 全体の容量) で按分 (端数丸め)。 */}
+                    {impDef.employmentSlots &&
+                      impDef.employmentSlots.map((slot) => {
+                        const facilityCap =
+                          slot.capacityPerLevel * imp.level * effInfra * holding.weight
+                        const holdingCap = getHoldingPopTypeCapacity(
+                          currentState,
+                          defaultConfig,
+                          holding.id,
+                          slot.popType,
+                        )
+                        const holdingEmp = getHoldingEmployedPopSizeByType(
+                          currentState,
+                          holding.id,
+                          slot.popType,
+                        )
+                        const empFacility =
+                          holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
+                        const pct = holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                        return (
+                          <div key={slot.popType} className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">
+                              {t(`detail.province.pop_type.${slot.popType}`, {
+                                defaultValue: slot.popType,
+                              })}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                              <div
+                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-xs text-gray-400">
+                              {formatPopCount(empFacility)}/{formatPopCount(facilityCap)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )
+              })}
             </div>
           )
         })()}
@@ -411,99 +641,6 @@ export function HoldingDetail({
             )
           })()
         : null}
-
-      {/* Infrastructure */}
-      {currentState &&
-        (() => {
-          const impIds = currentState.holdingImprovementIndex.byHolding[holding.id as string] ?? []
-          const improvements = impIds
-            .map((id) => currentState.holdingImprovements[id])
-            .filter((imp): imp is NonNullable<typeof imp> => imp !== undefined)
-          if (improvements.length === 0) return null
-          return (
-            <div className="text-sm">
-              <DetailSection title={t('detail.province.improvements')} />
-              {improvements.map((imp) => {
-                const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
-                // v0.33 §12.3: flavor → category → kind 文字列 のフォールバック（生キーを出さない）
-                const categoryName = t(`detail.province.improvement_${imp.kind}`, {
-                  defaultValue: imp.kind,
-                })
-                const flavorName = t(nameKey, { defaultValue: categoryName })
-                // v0.48.1 §8: condition バー + 機能不全バッジ (閾値割れ)
-                const threshold = defaultConfig.facilityDisrepairThreshold
-                const condition = clamp100(imp.condition)
-                const disrepaired = condition < threshold
-                const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
-                return (
-                  <div key={imp.id} className="ml-2">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-gray-200">
-                        {flavorName}
-                        {disrepaired && (
-                          <span className="ml-1 rounded bg-red-900 px-1 py-0.5 text-xs text-red-300">
-                            {t('detail.facility.disrepair_badge')}
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        （{categoryName}{' '}
-                        {t('detail.province.improvement_level', { level: imp.level })}）
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">
-                        {t('detail.facility.condition')}
-                      </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
-                        <div
-                          className={`h-full ${disrepaired ? 'bg-red-600' : 'bg-emerald-600'}`}
-                          style={{ width: `${condition}%` }}
-                        />
-                      </div>
-                      <span className="w-8 text-right text-xs text-gray-400">
-                        {condition.toFixed(0)}
-                      </span>
-                    </div>
-                    {impDef.employmentSlots &&
-                      impDef.employmentSlots.map((slot) => {
-                        const empSize = getHoldingEmployedPopSizeByType(
-                          currentState,
-                          holding.id,
-                          slot.popType,
-                        )
-                        const cap = getHoldingPopTypeCapacity(
-                          currentState,
-                          defaultConfig,
-                          holding.id,
-                          slot.popType,
-                        )
-                        const pct = cap > 0 ? clamp100((empSize / cap) * 100) : 0
-                        return (
-                          <div key={slot.popType} className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-xs text-gray-500">
-                              {t(`detail.province.pop_type.${slot.popType}`, {
-                                defaultValue: slot.popType,
-                              })}
-                            </span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
-                              <div
-                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="w-16 text-right text-xs text-gray-400">
-                              {formatPopCount(empSize)}/{formatPopCount(cap)}
-                            </span>
-                          </div>
-                        )
-                      })}
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })()}
 
       {/* Active develop_holding Project */}
       {currentState &&

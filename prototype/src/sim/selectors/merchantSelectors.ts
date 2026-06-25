@@ -1,6 +1,7 @@
 import type { WorldState } from '../types/world'
 import type {
   MerchantCompanyId,
+  TradeRouteId,
   HouseId,
   PersonId,
   StateRegionId,
@@ -106,6 +107,20 @@ export function getCompanyRoutes(state: WorldState, companyId: MerchantCompanyId
 
 export function getActiveRouteCount(state: WorldState, companyId: MerchantCompanyId): number {
   return getCompanyRoutes(state, companyId).filter((r) => r.status === 'active').length
+}
+
+// v0.61 §22: 当該 StateRegion を source または target とする交易路（重複排除・id 昇順）。
+//   市場詳細パネルの「この市場に接続された交易路」表示に使う。
+export function getStateConnectedRoutes(state: WorldState, stateId: StateRegionId): TradeRoute[] {
+  const ids = new Set<string>()
+  for (const id of state.tradeRouteIndex.bySourceState[stateId as string] ?? []) ids.add(id)
+  for (const id of state.tradeRouteIndex.byTargetState[stateId as string] ?? []) ids.add(id)
+  return [...ids]
+    .sort((a, b) => a.localeCompare(b))
+    .flatMap((id) => {
+      const r = state.tradeRoutes[id as TradeRouteId]
+      return r ? [r] : []
+    })
 }
 
 // 商会 Project の候補人物 (§7.3)。会長 → 番頭 → share holder → ownerHouse member の順、

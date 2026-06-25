@@ -18,7 +18,13 @@ import type { War } from '@/sim/types/war'
 import type { OrganizationRef } from '@/sim/types/office'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
-import { formatScore, formatPower, formatPolityRank, formatYearMonthWeek } from '@/app/utils/format'
+import {
+  formatScore,
+  formatPower,
+  formatPolityRank,
+  formatYearMonthWeek,
+  formatAmount,
+} from '@/app/utils/format'
 import {
   IconCircleNumber1,
   IconCircleNumber2,
@@ -53,6 +59,7 @@ import { defaultConfig } from '@/sim/config/defaultConfig'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { useSidebarData, SECTION_KEYS, type SectionKey } from '@/app/hooks/useSidebarData'
 import type { StateRegion } from '@/sim/types/stateRegion'
+import type { MerchantCompany } from '@/sim/types/merchant'
 import { RESOURCE_KINDS } from '@sim/types/resource'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
@@ -468,6 +475,47 @@ function MarketRow({
   )
 }
 
+// v0.61 商会一覧の row。商会名・財庫・平滑利益・active 交易路数を表示する。
+function MerchantRow({
+  company,
+  routeCount,
+  isSelected,
+  onClick,
+}: {
+  company: MerchantCompany
+  routeCount: number
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const profit = company.smoothedProfit
+  const profitColor =
+    profit > 0.05 ? 'text-emerald-400' : profit < -0.05 ? 'text-rose-400' : 'text-gray-400'
+  return (
+    <div
+      className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
+        isSelected ? 'bg-blue-700' : ''
+      }`}
+      onClick={onClick}
+    >
+      <div className="font-bold">{resolveName('person', company.nameKey, company.id)}</div>
+      <div className="flex items-center gap-2 text-xs text-gray-300">
+        <span>
+          {t('detail.merchant.treasury')}: {formatAmount(company.treasury)}
+        </span>
+        <span className={profitColor}>
+          {profit >= 0 ? '+' : ''}
+          {profit.toFixed(1)}
+        </span>
+        <span className="text-gray-500">
+          {t('detail.merchant.routes')}: {routeCount}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     countries: true,
@@ -478,6 +526,7 @@ export function Sidebar() {
     plays: false,
     wars: false,
     markets: false,
+    merchants: false,
   })
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -513,6 +562,7 @@ export function Sidebar() {
     activePlays,
     activeWars,
     stateRegions,
+    merchantEntries,
     sectionCount,
   } = useSidebarData()
 
@@ -648,6 +698,20 @@ export function Sidebar() {
           worldState={worldState}
           isSelected={focusedId === stateRegion.id && focusedType === 'market'}
           onClick={() => openDetailWindow('market', stateRegion.id)}
+        />
+      ))
+    }
+    if (key === 'merchants') {
+      if (merchantEntries.length === 0) {
+        return <div className="px-3 py-2 text-xs text-gray-500">{t('sidebar.no_merchants')}</div>
+      }
+      return merchantEntries.map(({ company, routeCount }) => (
+        <MerchantRow
+          key={company.id}
+          company={company}
+          routeCount={routeCount}
+          isSelected={focusedId === company.id && focusedType === 'merchant_company'}
+          onClick={() => openDetailWindow('merchant_company', company.id)}
         />
       ))
     }

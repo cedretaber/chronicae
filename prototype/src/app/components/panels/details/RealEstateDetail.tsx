@@ -16,6 +16,7 @@ import {
 import {
   getHoldingEmployedPopSizeByType,
   getHoldingPopTypeCapacity,
+  getAssetPopTypeCapacity,
 } from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
@@ -96,25 +97,34 @@ export function RealEstateDetail({
     .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
   const totalSlots = recipeEntries.reduce((sum, [, n]) => sum + n, 0)
 
-  // per-asset の雇用枠 (capacityPerLevel × level)。employedSize は holding 単位でしか取れないため、
-  //   単一 asset では誤読を避けて capacity (枠) のみを表示する。
-  //   雇用充足率は holding 単位 (employed / effectiveCapacity)。POP は holding 帰属で asset へは枠比按分の
-  //   ため、同 holding 内の各 asset で同一値になる (holding-level の充足率 proxy)。
+  // per-asset の雇用枠。capacity = この asset が holding 容量プールへ寄与する実効容量
+  //   (computeAssetPopTypeCapacityTerm × overuseMod × weight)。雇用人数は (holding, popType) 単位でしか
+  //   管理されないため、holding 全体の雇用 × (この asset の容量 / holding 全体の容量) で按分する (端数丸め)。
+  //   充足率 (fill) は holding 単位なので同 holding 内の各 asset で同一になる。
   const capacitySlots = def.employmentSlots.map((slot) => {
+    let employed: number | null = null
+    let capacity = slot.capacityPerLevel * asset.level
     let fill: number | null = null
     if (currentState) {
-      const employed = getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
-      const cap = getHoldingPopTypeCapacity(
+      capacity = getAssetPopTypeCapacity(currentState, defaultConfig, asset.id, slot.popType)
+      const holdingCap = getHoldingPopTypeCapacity(
         currentState,
         defaultConfig,
         asset.holdingId,
         slot.popType,
       )
-      fill = cap > 0 ? employed / cap : null
+      const holdingEmp = getHoldingEmployedPopSizeByType(
+        currentState,
+        asset.holdingId,
+        slot.popType,
+      )
+      fill = holdingCap > 0 ? holdingEmp / holdingCap : null
+      employed = holdingCap > 0 ? holdingEmp * (capacity / holdingCap) : 0
     }
     return {
       popType: slot.popType,
-      capacity: slot.capacityPerLevel * asset.level,
+      capacity,
+      employed,
       fill,
     }
   })
@@ -286,7 +296,9 @@ export function RealEstateDetail({
                   {t(`detail.province.pop_type.${slot.popType}`, { defaultValue: slot.popType })}:
                 </span>
                 <span className="text-gray-300">
-                  {formatPopCount(slot.capacity)}
+                  {slot.employed !== null
+                    ? `${formatPopCount(slot.employed)}/${formatPopCount(slot.capacity)}`
+                    : formatPopCount(slot.capacity)}
                   {slot.fill !== null && (
                     <span className="ml-1 text-gray-500">
                       ({t('detail.realEstate.employment_fulfillment')}{' '}

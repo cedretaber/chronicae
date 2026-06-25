@@ -3,9 +3,11 @@ import type { StateRegion } from '@/sim/types/stateRegion'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { PanelHeader, DetailSection } from './shared/widgets'
+import { TradeRouteCard } from './shared/TradeRouteCard'
 import { RESOURCE_KINDS } from '@sim/types/resource'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
+import { getStateConnectedRoutes } from '@sim/selectors/merchantSelectors'
 import { formatAmount } from '@/app/utils/format'
 
 // v0.54 市場詳細パネル: StateRegion ごとの資源市場 (food / raw_materials / processed_goods)。
@@ -14,14 +16,19 @@ import { formatAmount } from '@/app/utils/format'
 export function MarketDetail({
   stateRegion,
   session,
+  onTradeRouteClick,
 }: {
   stateRegion: StateRegion
   session: SimulationSession | null
+  onTradeRouteClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
   const currentState = session?.currentState
   const regionName = resolveName('state_region', stateRegion.nameKey, stateRegion.nameKey)
+  const connectedRoutes = currentState
+    ? getStateConnectedRoutes(currentState, stateRegion.id).filter((r) => r.status === 'active')
+    : []
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -29,6 +36,30 @@ export function MarketDetail({
       <div className="text-sm text-gray-400">
         {t('detail.market.province_count', { count: stateRegion.provinceIds.length })}
       </div>
+
+      <DetailSection
+        title={t('detail.merchant.connected_routes', { defaultValue: '接続された交易路' })}
+        count={connectedRoutes.length}
+      />
+      {connectedRoutes.length === 0 ? (
+        <div className="text-xs text-gray-500 italic">
+          {t('detail.merchant.no_routes', { defaultValue: '接続された交易路はありません' })}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {currentState &&
+            connectedRoutes.map((r) => (
+              <TradeRouteCard
+                key={r.id}
+                route={r}
+                state={currentState}
+                highlightStateId={stateRegion.id}
+                showCompany
+                onClick={() => onTradeRouteClick(r.id)}
+              />
+            ))}
+        </div>
+      )}
 
       <DetailSection title={t('detail.market.prices')} count={RESOURCE_KINDS.length} />
       <div className="mt-1 flex flex-col gap-1.5">

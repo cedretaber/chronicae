@@ -21,7 +21,9 @@ import type { Faction } from '@/sim/types/faction'
 import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
 import type { War } from '@/sim/types/war'
 import type { StateRegion } from '@/sim/types/stateRegion'
+import type { MerchantCompany } from '@/sim/types/merchant'
 import type { HouseId } from '@sim/types/ids'
+import { getActiveRouteCount } from '@sim/selectors/merchantSelectors'
 
 export type SectionKey =
   | 'countries'
@@ -32,6 +34,7 @@ export type SectionKey =
   | 'plays'
   | 'wars'
   | 'markets'
+  | 'merchants'
 
 export const SECTION_KEYS: SectionKey[] = [
   'watchlist',
@@ -42,6 +45,7 @@ export const SECTION_KEYS: SectionKey[] = [
   'persons',
   'factions',
   'markets',
+  'merchants',
 ]
 
 export type SidebarData = {
@@ -57,6 +61,7 @@ export type SidebarData = {
   activePlays: DiplomaticPlay[]
   activeWars: War[]
   stateRegions: StateRegion[]
+  merchantEntries: { company: MerchantCompany; routeCount: number }[]
   sectionCount: Record<SectionKey, number>
 }
 
@@ -201,6 +206,24 @@ export function useSidebarData(): SidebarData {
       })
     : []
 
+  // v0.61 商会: active な商会を財庫の多い順に並べる。同額は id で安定ソート。
+  const merchantEntries: { company: MerchantCompany; routeCount: number }[] = session?.currentState
+    ? (session.currentState.merchantCompanyIndex.byStatus.active ?? [])
+        .flatMap((id) => {
+          const c = session.currentState.merchantCompanies[id]
+          return c ? [c] : []
+        })
+        .map((company) => ({
+          company,
+          routeCount: getActiveRouteCount(session.currentState, company.id),
+        }))
+        .sort((a, b) => {
+          if (b.company.treasury !== a.company.treasury)
+            return b.company.treasury - a.company.treasury
+          return a.company.id < b.company.id ? -1 : a.company.id > b.company.id ? 1 : 0
+        })
+    : []
+
   const sectionCount: Record<SectionKey, number> = {
     countries: sortedPolities.length,
     houses: houseEntries.length,
@@ -210,6 +233,7 @@ export function useSidebarData(): SidebarData {
     plays: activePlays.length,
     wars: activeWars.length,
     markets: stateRegions.length,
+    merchants: merchantEntries.length,
   }
 
   return {
@@ -225,6 +249,7 @@ export function useSidebarData(): SidebarData {
     activePlays,
     activeWars,
     stateRegions,
+    merchantEntries,
     sectionCount,
   }
 }
