@@ -317,7 +317,7 @@ export function WindowManager() {
         if (entityType === 'merchant_company') {
           const company = state.merchantCompanies[entityId as MerchantCompanyId]
           if (!company) return null
-          const companyName = resolveName('person', company.nameKey, entityId)
+          const companyName = resolveName('house', company.nameKey, entityId)
           return (
             <DraggableWindow key={win.id} win={win} title={`商会: ${companyName}`}>
               <MerchantCompanyDetail

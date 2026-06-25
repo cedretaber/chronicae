@@ -176,7 +176,7 @@ export function HouseDetail({
                   className="text-left text-sky-400 hover:underline"
                   onClick={() => onMerchantCompanyClick?.(cid)}
                 >
-                  {resolveName('person', company.nameKey, cid)} (
+                  {resolveName('house', company.nameKey, cid)} (
                   {t(`detail.merchant.status_${company.status}`, { defaultValue: company.status })})
                 </button>
               )

@@ -57,7 +57,7 @@ function resolveEntityName(
     }
     case 'merchant_company': {
       const company = worldState.merchantCompanies[ref.id]
-      return company ? resolveName('merchant_company', company.nameKey, company.nameKey) : ref.id
+      return company ? resolveName('house', company.nameKey, company.nameKey) : ref.id
     }
     default:
       return ref.kind

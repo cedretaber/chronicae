@@ -499,7 +499,7 @@ function MerchantRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{resolveName('person', company.nameKey, company.id)}</div>
+      <div className="font-bold">{resolveName('house', company.nameKey, company.id)}</div>
       <div className="flex items-center gap-2 text-xs text-gray-300">
         <span>
           {t('detail.merchant.treasury')}: {formatAmount(company.treasury)}

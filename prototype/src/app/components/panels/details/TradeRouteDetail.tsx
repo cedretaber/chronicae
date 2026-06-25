@@ -40,7 +40,7 @@ export function TradeRouteDetail({
     defaultValue: route.resource,
   })
   const company = state ? state.merchantCompanies[route.companyId] : undefined
-  const companyName = company ? resolveName('person', company.nameKey, company.id) : route.companyId
+  const companyName = company ? resolveName('house', company.nameKey, company.id) : route.companyId
 
   const statusLabel = t(`detail.merchant.route_status_${route.status}`, {
     defaultValue: route.status,

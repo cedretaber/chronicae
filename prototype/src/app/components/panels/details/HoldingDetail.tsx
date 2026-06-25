@@ -371,7 +371,7 @@ export function HoldingDetail({
                 {establishments.map((est) => {
                   const company = currentState.merchantCompanies[est.companyId]
                   const companyName = company
-                    ? resolveName('person', company.nameKey, company.id)
+                    ? resolveName('house', company.nameKey, company.id)
                     : (est.companyId as string)
                   const slots = MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL[est.kind]
                   return (

@@ -30,7 +30,7 @@ export function TradeRouteCard({
     defaultValue: route.resource,
   })
   const company = state.merchantCompanies[route.companyId]
-  const companyName = company ? resolveName('person', company.nameKey, company.id) : route.companyId
+  const companyName = company ? resolveName('house', company.nameKey, company.id) : route.companyId
 
   const isActive = route.status === 'active'
   const profit = route.smoothedProfit

@@ -34,7 +34,7 @@ export function MerchantCompanyDetail({
   const resolveName = useEntityName()
   const state = session?.currentState ?? null
 
-  const companyName = resolveName('person', company.nameKey, company.id)
+  const companyName = resolveName('house', company.nameKey, company.id)
   const establishments = state ? getCompanyEstablishments(state, company.id) : []
   const routes = state ? getCompanyRoutes(state, company.id) : []
   const chairman = state ? getMerchantCompanyDecisionMaker(state, company.id) : undefined
