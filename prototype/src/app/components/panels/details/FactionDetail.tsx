@@ -63,7 +63,13 @@ export function FactionDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <PanelHeader
-        title={leader ? `${leader.nameKey}'s faction` : faction.id}
+        title={
+          leader
+            ? t('detail.faction.name', {
+                leader: resolveName('person', leader.nameKey, leader.nameKey),
+              })
+            : faction.id
+        }
         badge={
           !faction.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">

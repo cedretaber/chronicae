@@ -6,7 +6,11 @@ import type { FactionId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
+import {
+  getPolityShortName,
+  getHouseDisplayName,
+  getHoldingQualifiedName,
+} from '@/app/hooks/entityNameHelpers'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
@@ -185,7 +189,9 @@ export function PersonDetail({
           const roleLabel = factionAsLeader ? 'leader' : 'member'
           const factionLeader = worldState.persons[faction.leaderPersonId]
           const factionDisplayName = factionLeader
-            ? `${factionLeader.nameKey}'s faction`
+            ? t('detail.faction.name', {
+                leader: resolveName('person', factionLeader.nameKey, factionLeader.nameKey),
+              })
             : faction.id
           return (
             <div className="flex justify-between">
@@ -306,9 +312,7 @@ export function PersonDetail({
                           className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"
                           onClick={() => onProvinceClick(holding?.provinceId ?? '')}
                         >
-                          {holding
-                            ? (worldState.provinces[holding.provinceId]?.nameKey ?? a.holdingId)
-                            : a.holdingId}
+                          {getHoldingQualifiedName(worldState, resolveName, a.holdingId)}
                         </button>
                       </div>
                     )

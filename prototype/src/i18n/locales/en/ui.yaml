@@ -1007,6 +1007,7 @@ detail:
 
   # Faction detail
   faction:
+    name: "{{leader}}'s Faction"
     leader: 'Leader'
     leader_house: 'Leader House'
     parent_faction: 'Parent Faction'
