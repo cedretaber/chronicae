@@ -3291,7 +3291,9 @@ export const defaultConfig: SimulationConfig = {
   terminalMerchantRetentionWeeks: 104,
   // v0.61 §17/§18 自律 decision（balance-defer の仮値）。
   merchantDecisionReviewIntervalWeeks: 48,
-  merchantRouteCloseSmoothedProfitThreshold: -1.5,
+  // v0.61 fix: 旧 -1.5 は固定維持費 1.0 時代の値。固定費 0.15 へ引き下げ後、idle route の
+  //   smoothedProfit が -0.15 に収束し閾値に届かず永遠に閉鎖されなかった。-0.1 で idle route を整理。
+  merchantRouteCloseSmoothedProfitThreshold: -0.1,
   merchantBuildTreasuryFloor: 60,
   merchantOpenRouteProjectBudget: 30,
   merchantUpgradeRouteProjectBudget: 40,
