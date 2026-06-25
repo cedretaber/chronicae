@@ -274,6 +274,9 @@ export function createTradeRouteMut(
     lastSellPrice: 0,
     lastProfit: 0,
     smoothedProfit: 0,
+    plannedBuyPrice: 0,
+    plannedSellPrice: 0,
+    plannedExpectedUnitMargin: 0,
   }
   ws.tradeRoutes[id] = route
   pushIndex(ws.tradeRouteIndex.byCompany, fields.companyId, id)

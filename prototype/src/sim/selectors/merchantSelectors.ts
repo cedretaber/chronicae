@@ -11,10 +11,14 @@ import type {
 import type { MerchantCompany, TradeRoute, MerchantCompanyEstablishment } from '../types/merchant'
 import type { ResourceKind } from '../types/resource'
 import type { PopType } from '../types/popGroup'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { isLivingPerson } from '../types/person'
 import { getHouseDecisionMaker, getActiveOfficeHolders } from './officeSelectors'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '../config/merchantDefinitions'
+import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { clamp } from '../utils/math'
 
 // v0.61 §16.6: holding 内の active 商会施設が提供する popType 別雇用枠の合計。
 //   dormant/closed は除外（status 判定）。capacity 統合の merchantTerm として使う。
@@ -256,4 +260,103 @@ export function canHouseOwnMerchantCompany(state: WorldState, houseId: HouseId):
 export function canHouseOwnPolity(state: WorldState, houseId: HouseId): boolean {
   const ids = state.merchantCompanyIndex.byOwnerHouse[houseId as string] ?? []
   return ids.every((id) => state.merchantCompanies[id]?.status !== 'active')
+}
+
+// v0.61 fix（§方針1/3/5）: 交易路の期待経済性を前月 smoothedPrice の価格差・throughput・固定/従量維持費から
+//   決定的に算出する単一の純関数。TradePlanning（plannedQuantity 決定）/ candidate 評価（open/upgrade）/
+//   probe が同一式を共有し drift しない。Accounting は本関数が route に保存した planning 価格を読む。
+//   RNG 非消費。distanceModifier=1（隣接のみ）。
+export type ExpectedRouteEconomics = {
+  sourcePrice: number
+  targetPrice: number
+  spread: number
+  averagePrice: number
+  spreadRatio: number
+  spreadFactor: number
+  sourceExportableAmount: number
+  routeThroughput: number
+  plannedQuantity: number
+  unitArbitrage: number
+  unitServiceFee: number
+  unitTransportCost: number
+  expectedUnitMargin: number
+  expectedMaintenance: number
+  expectedMonthlyProfit: number
+}
+
+// 前月 snapshot の smoothedPrice。TradePlanning は resourceEconomy 清算の前に走るため、ps.smoothedPrice は
+//   当月清算を未反映＝前月の EWMA を指す（§方針A）。snapshot 無し（cold-start）は basePrice fallback。
+function marketSmoothedPrice(
+  state: WorldState,
+  stateId: StateRegionId,
+  resource: ResourceKind,
+): number {
+  const ps = state.marketResourcePrices[marketResourcePriceKey(stateId, resource)]
+  return getSmoothedPriceOrBase(ps?.smoothedPrice, resource)
+}
+
+// 前月 snapshot の生注文量。source の輸出余力 sourceExportable=max(0,sell-buy) に使う（soft cap）。
+function marketLastOrders(
+  state: WorldState,
+  stateId: StateRegionId,
+  resource: ResourceKind,
+): { sell: number; buy: number } {
+  const ps = state.marketResourcePrices[marketResourcePriceKey(stateId, resource)]
+  const last = ps?.history[ps.history.length - 1]
+  return last ? { sell: last.sellOrders, buy: last.buyOrders } : { sell: 0, buy: 0 }
+}
+
+export function computeExpectedRouteEconomics(
+  state: WorldState,
+  config: SimulationConfig,
+  input: {
+    sourceStateId: StateRegionId
+    targetStateId: StateRegionId
+    resource: ResourceKind
+    level: number
+  },
+): ExpectedRouteEconomics {
+  const { sourceStateId, targetStateId, resource, level } = input
+  const sourcePrice = marketSmoothedPrice(state, sourceStateId, resource)
+  const targetPrice = marketSmoothedPrice(state, targetStateId, resource)
+  const spread = targetPrice - sourcePrice
+  const averagePrice = (sourcePrice + targetPrice) / 2
+  const spreadRatio = spread / Math.max(averagePrice, config.resourceMarketSupplyEpsilon)
+  const spreadFactor = clamp(spreadRatio / config.tradeRouteFullUtilizationSpreadRatio, 0, 1)
+
+  const src = marketLastOrders(state, sourceStateId, resource)
+  const sourceExportableAmount = Math.max(0, src.sell - src.buy)
+  const routeThroughput = config.tradeRouteThroughputByLevel[level] ?? 0
+
+  const unitArbitrage = Math.max(0, spread) * config.tradeRouteSpreadCaptureRate
+  const unitServiceFee = averagePrice * config.tradeRouteServiceMarginRate
+  const unitTransportCost = config.tradeRouteTransportCostPerUnit
+  const expectedUnitMargin = unitArbitrage + unitServiceFee - unitTransportCost
+
+  // spread<=0 は spreadFactor=0 で planned=0、expectedUnitMargin<=0（高 transport / 低 avgPrice）も planned=0。
+  const plannedQuantity =
+    expectedUnitMargin <= 0 ? 0 : Math.min(routeThroughput, sourceExportableAmount) * spreadFactor
+
+  const expectedMaintenance =
+    (config.tradeRouteFixedMaintenanceCostByLevel[level] ?? 0) +
+    plannedQuantity * config.tradeRouteVariableMaintenanceCostPerUnit
+  const expectedMonthlyProfit = plannedQuantity * expectedUnitMargin - expectedMaintenance
+
+  return {
+    sourcePrice,
+    targetPrice,
+    spread,
+    averagePrice,
+    spreadRatio,
+    spreadFactor,
+    sourceExportableAmount,
+    routeThroughput,
+    plannedQuantity,
+    unitArbitrage,
+    unitServiceFee,
+    unitTransportCost,
+    expectedUnitMargin,
+    expectedMaintenance,
+    expectedMonthlyProfit,
+  }
 }

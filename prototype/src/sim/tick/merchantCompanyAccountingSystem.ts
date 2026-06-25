@@ -72,7 +72,9 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
     const company = companiesMut[companyId]
     if (!company) continue
 
-    // --- route profit（当月清算価格 × lastQuantity=plannedQuantity）---
+    // --- route profit（planning price 基準・§方針3）---
+    //   profit は TradePlanning が保存した前月 smoothedPrice（plannedBuyPrice/plannedSellPrice）で計算。
+    //   当月清算価格（lastPrice）は lastBuyPrice/lastSellPrice として UI/probe 用に保存するが、利益計算には使わない。
     let routeNetTotal = 0
     for (const routeId of (state.tradeRouteIndex.byCompany[companyId as string] ?? [])
       .slice()
@@ -80,21 +82,21 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
       const route = routesMut[routeId]
       if (!route || route.status !== 'active') continue
       const q = route.plannedQuantity
-      const sourcePrice = currentPrice(state, route.sourceStateId, route.resource)
-      const targetPrice = currentPrice(state, route.targetStateId, route.resource)
-      const avgPrice = (sourcePrice + targetPrice) / 2
-      const arbitrage =
-        q * Math.max(0, targetPrice - sourcePrice) * config.tradeRouteSpreadCaptureRate
-      const serviceFee = q * avgPrice * config.tradeRouteServiceMarginRate
-      const transport = q * config.tradeRouteTransportCostPerUnit // distanceModifier=1（隣接のみ）
-      const maintenance = config.tradeRouteFixedMaintenanceCostByLevel[route.level] ?? 0
+      const plannedSpread = route.plannedSellPrice - route.plannedBuyPrice
+      const avgPlanned = (route.plannedBuyPrice + route.plannedSellPrice) / 2
+      const arbitrage = q * Math.max(0, plannedSpread) * config.tradeRouteSpreadCaptureRate
+      const serviceFee = q * avgPlanned * config.tradeRouteServiceMarginRate
+      const transport = q * config.tradeRouteTransportCostPerUnit
+      const maintenance =
+        (config.tradeRouteFixedMaintenanceCostByLevel[route.level] ?? 0) +
+        q * config.tradeRouteVariableMaintenanceCostPerUnit
       const net = arbitrage + serviceFee - transport - maintenance
       routeNetTotal += net
       const updated: TradeRoute = {
         ...route,
         lastQuantity: q,
-        lastBuyPrice: sourcePrice,
-        lastSellPrice: targetPrice,
+        lastBuyPrice: currentPrice(state, route.sourceStateId, route.resource),
+        lastSellPrice: currentPrice(state, route.targetStateId, route.resource),
         lastProfit: net,
         smoothedProfit:
           route.smoothedProfit * (1 - PROFIT_SMOOTH_ALPHA) + net * PROFIT_SMOOTH_ALPHA,

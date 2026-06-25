@@ -94,6 +94,12 @@ export type TradeRoute = {
   lastSellPrice: number
   lastProfit: number
   smoothedProfit: number
+
+  // v0.61 fix: TradePlanning が参照した前月 smoothedPrice と期待単位利益。route profit は当月清算価格でなく
+  //   この planning 価格基準で計算する（自分の市場注入で当月利益を消さない 1ヶ月ラグ近似）。
+  plannedBuyPrice: number
+  plannedSellPrice: number
+  plannedExpectedUnitMargin: number
 }
 
 export type MerchantCompanyShare = {

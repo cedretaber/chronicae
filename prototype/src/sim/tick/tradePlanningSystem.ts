@@ -1,23 +1,12 @@
 import type { TickContext } from './context'
 import type { TradeRouteId } from '../types/ids'
 import type { TradeRoute } from '../types/merchant'
-import { marketResourcePriceKey } from '../types/resourceEconomy'
+import { computeExpectedRouteEconomics } from '../selectors/merchantSelectors'
 
-// v0.61 §13: 月次。ResourceEconomySystem の直前に走り、前月 market snapshot から各 active route の
-//   plannedQuantity を算出する。2 相清算しないため lastQuantity = plannedQuantity（accounting で確定）。
-//   cold-start（前月 snapshot 無し）は plannedQuantity=0。決定的・RNG 非消費。
-
-// 前月 snapshot の (sellOrders, buyOrders) を読む。無ければ undefined。
-function prevOrders(
-  state: TickContext['state'],
-  stateId: string,
-  resource: TradeRoute['resource'],
-): { sell: number; buy: number } | undefined {
-  const ps = state.marketResourcePrices[marketResourcePriceKey(stateId, resource)]
-  const last = ps?.history[ps.history.length - 1]
-  if (!last) return undefined
-  return { sell: last.sellOrders, buy: last.buyOrders }
-}
+// v0.61 fix: 月次。ResourceEconomySystem の直前に走り、前月 smoothedPrice（EWMA）の価格差・期待利益から
+//   各 active route の plannedQuantity を算出する。瞬間値 lastPrice でなく smoothedPrice を読むことで
+//   注入由来の 2 サイクル振動を内蔵ダンパーで減衰させる（§方針A）。計算は共有ヘルパー
+//   computeExpectedRouteEconomics に集約（§方針C）。決定的・RNG 非消費。
 
 export function runTradePlanningSystem(ctx: TickContext): TickContext {
   const state = ctx.state
@@ -33,19 +22,21 @@ export function runTradePlanningSystem(ctx: TickContext): TickContext {
     const route = state.tradeRoutes[routeId]
     if (!route || route.status !== 'active') continue
 
-    const throughput = config.tradeRouteThroughputByLevel[route.level] ?? 0
-    const source = prevOrders(state, route.sourceStateId, route.resource)
-    const target = prevOrders(state, route.targetStateId, route.resource)
+    const econ = computeExpectedRouteEconomics(state, config, {
+      sourceStateId: route.sourceStateId,
+      targetStateId: route.targetStateId,
+      resource: route.resource,
+      level: route.level,
+    })
 
-    let planned = 0
-    if (source && target) {
-      const sourceExportable = Math.max(0, source.sell - source.buy)
-      const targetImportDemand = Math.max(0, target.buy - target.sell)
-      planned = Math.min(throughput, sourceExportable, targetImportDemand)
+    tradeRoutesMut[routeId] = {
+      ...route,
+      plannedQuantity: econ.plannedQuantity,
+      plannedWeek: week,
+      plannedBuyPrice: econ.sourcePrice,
+      plannedSellPrice: econ.targetPrice,
+      plannedExpectedUnitMargin: econ.expectedUnitMargin,
     }
-    // cold-start（前月 snapshot 無し）は planned=0。
-
-    tradeRoutesMut[routeId] = { ...route, plannedQuantity: planned, plannedWeek: week }
     changed = true
   }
 

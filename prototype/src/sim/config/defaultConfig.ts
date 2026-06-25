@@ -1570,6 +1570,12 @@ export type SimulationConfig = {
   tradeRouteServiceMarginRate: number
   tradeRouteTransportCostPerUnit: number
   tradeRouteFixedMaintenanceCostByLevel: Record<number, number>
+  // v0.61 fix: 従量維持費（lastQuantity あたり）。固定費を軽くし従量へ寄せて低量 route の構造赤字を解消。
+  tradeRouteVariableMaintenanceCostPerUnit: number
+  // v0.61 fix: spreadFactor = clamp(spreadRatio / この値, 0, 1)。価格バンドが basePrice×[0.25,1.75] のため
+  //   spreadRatio = spread/averagePrice の理論上限は 1.5。**この値を 1.5 以上にすると route は full
+  //   throughput に到達不能**（無効値域）。0.5〜0.75 を推奨。
+  tradeRouteFullUtilizationSpreadRatio: number
   merchantCompanyInitialRouteGraceWeeks: number
   merchantCompanyWageShare: number
   merchantCompanyUpperDividendShare: number
@@ -1590,6 +1596,11 @@ export type SimulationConfig = {
   merchantUpgradeRouteProjectBudget: number
   merchantBuildBranchProjectBudget: number
   merchantUpgradeHqProjectBudget: number
+  // v0.61 fix: open は候補 route の期待月次利益がこの閾値を超えるときのみ。upgrade は黒字・高 utilization
+  //   かつ level+1 で期待利益が gain 閾値以上伸びるときのみ。HQ 増築前倒し（論点F）も utilization を見る。
+  merchantCompanyOpenRouteProfitThreshold: number
+  merchantRouteUpgradeUtilizationThreshold: number
+  merchantRouteUpgradeProfitGainThreshold: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -3262,7 +3273,10 @@ export const defaultConfig: SimulationConfig = {
   tradeRouteSpreadCaptureRate: 0.5,
   tradeRouteServiceMarginRate: 0.05,
   tradeRouteTransportCostPerUnit: 0.1,
-  tradeRouteFixedMaintenanceCostByLevel: { 1: 1, 2: 2, 3: 3, 4: 4 },
+  // v0.61 fix: 固定費を大幅引き下げ（旧 {1:1..4:4}）し従量費へ寄せた。暫定・balance-defer。
+  tradeRouteFixedMaintenanceCostByLevel: { 1: 0.15, 2: 0.3, 3: 0.45, 4: 0.6 },
+  tradeRouteVariableMaintenanceCostPerUnit: 0.05,
+  tradeRouteFullUtilizationSpreadRatio: 0.6, // 1.5 未満必須（spreadRatio 理論上限 1.5）。暫定値。
   merchantCompanyInitialRouteGraceWeeks: 52,
   merchantCompanyWageShare: 0.4,
   merchantCompanyUpperDividendShare: 0.05,
@@ -3283,4 +3297,8 @@ export const defaultConfig: SimulationConfig = {
   merchantUpgradeRouteProjectBudget: 40,
   merchantBuildBranchProjectBudget: 80,
   merchantUpgradeHqProjectBudget: 120,
+  // v0.61 fix: 候補評価の期待利益ゲート（balance-defer の暫定値）。
+  merchantCompanyOpenRouteProfitThreshold: 0,
+  merchantRouteUpgradeUtilizationThreshold: 0.5,
+  merchantRouteUpgradeProfitGainThreshold: 0.5,
 }

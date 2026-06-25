@@ -8,7 +8,6 @@ import type { Project, ProjectBudget } from '../types/project'
 import type { ResourceKind } from '../types/resource'
 import { RESOURCE_KINDS } from '../types/resource'
 import { nameParam, entityRef } from '../types/event'
-import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { setTradeRouteStatusMut } from '../mutations/merchantMutations'
 import {
@@ -16,6 +15,7 @@ import {
   getCompanyHeadquarters,
   getAdjacentStateRegionIds,
   getStateCityHoldingId,
+  computeExpectedRouteEconomics,
 } from '../selectors/merchantSelectors'
 import { getActiveOfficeHolders } from '../selectors/officeSelectors'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
@@ -38,29 +38,29 @@ function companyHqStateId(
   return state.provinces[holding.provinceId]?.stateId
 }
 
-// 前月 snapshot から (source 余剰 × target 不足) が最大の (target, resource) を選ぶ。既存 active route と
-//   同一 (src,tgt,resource) は除外。score>0 が無ければ undefined。
+// v0.61 fix: expectedMonthlyProfit 最大の (target, resource) を選ぶ（§方針5）。共有ヘルパーで期待利益を算出し、
+//   profitThreshold を超える候補のみ返す。既存 active route と同一 (src,tgt,resource) は除外。
 function pickBestRouteTarget(
   state: WorldState,
+  config: SimulationConfig,
   sourceStateId: StateRegionId,
   existing: { tgt: string; res: ResourceKind }[],
 ): { targetStateId: StateRegionId; resource: ResourceKind } | undefined {
   const existingSet = new Set(existing.map((e) => `${e.tgt}:${e.res}`))
-  const orders = (sid: string, res: ResourceKind): { sell: number; buy: number } | undefined => {
-    const ps = state.marketResourcePrices[marketResourcePriceKey(sid, res)]
-    const last = ps?.history[ps.history.length - 1]
-    return last ? { sell: last.sellOrders, buy: last.buyOrders } : undefined
-  }
-  let best: { targetStateId: StateRegionId; resource: ResourceKind; score: number } | undefined
+  let best: { targetStateId: StateRegionId; resource: ResourceKind; profit: number } | undefined
   for (const targetStateId of getAdjacentStateRegionIds(state, sourceStateId)) {
     for (const resource of RESOURCE_KINDS) {
       if (existingSet.has(`${targetStateId as string}:${resource}`)) continue
-      const src = orders(sourceStateId, resource)
-      const tgt = orders(targetStateId, resource)
-      if (!src || !tgt) continue
-      const score = Math.max(0, src.sell - src.buy) * Math.max(0, tgt.buy - tgt.sell)
-      if (score <= 0) continue
-      if (!best || score > best.score) best = { targetStateId, resource, score }
+      const econ = computeExpectedRouteEconomics(state, config, {
+        sourceStateId,
+        targetStateId,
+        resource,
+        level: 1,
+      })
+      if (econ.expectedMonthlyProfit <= config.merchantCompanyOpenRouteProfitThreshold) continue
+      if (!best || econ.expectedMonthlyProfit > best.profit) {
+        best = { targetStateId, resource, profit: econ.expectedMonthlyProfit }
+      }
     }
   }
   return best ? { targetStateId: best.targetStateId, resource: best.resource } : undefined
@@ -153,7 +153,17 @@ export function runMerchantCompanyDecisionSystem(ctx: TickContext): TickContext 
     const activeRoutes = [...(draft.tradeRouteIndex.byCompany[companyId as string] ?? [])]
       .map((id) => draft.tradeRoutes[id])
       .filter((r): r is NonNullable<typeof r> => !!r && r.status === 'active')
-    const slotCap = hq.level * config.merchantCompanyTradeRouteSlotsPerHeadquartersLevel
+    // slotCap: 進行中の open_trade_route Project 数も使用中として数え、二重 open を防止。
+    const pendingOpenCount = Object.values(draft.projects).filter(
+      (p) =>
+        p &&
+        p.status === 'active' &&
+        p.kind === 'open_trade_route' &&
+        p.owner.kind === 'merchant_company' &&
+        p.owner.id === (companyId as string),
+    ).length
+    const slotCap =
+      hq.level * config.merchantCompanyTradeRouteSlotsPerHeadquartersLevel - pendingOpenCount
 
     const action = decideBuildAction(
       draft,
@@ -205,6 +215,8 @@ function decideBuildAction(
     id: import('../types/ids').TradeRouteId
     level: number
     smoothedProfit: number
+    plannedQuantity: number
+    sourceStateId: StateRegionId
     targetStateId: StateRegionId
     resource: ResourceKind
   }[],
@@ -212,10 +224,10 @@ function decideBuildAction(
 ): BuildAction | undefined {
   const treasury = state.merchantCompanies[companyId]?.treasury ?? 0
 
-  // (a) 空きスロット + 有望な arbitrage target → open_trade_route
+  // (a) 空きスロット + 期待利益が正の arbitrage target → open_trade_route（§方針5）
   if (activeRoutes.length < slotCap && treasury > config.merchantOpenRouteProjectBudget) {
     const existing = activeRoutes.map((r) => ({ tgt: r.targetStateId, res: r.resource }))
-    const target = pickBestRouteTarget(state, hqStateId, existing)
+    const target = pickBestRouteTarget(state, config, hqStateId, existing)
     if (target) {
       return {
         kind: 'open_trade_route',
@@ -226,14 +238,47 @@ function decideBuildAction(
     }
   }
 
-  // (b) level<HQ の最良 route を upgrade
+  // (b) level<HQ の黒字・高 utilization route を upgrade（§方針5 強化）
   if (treasury > config.merchantUpgradeRouteProjectBudget) {
-    const upgradable = activeRoutes
-      .filter((r) => r.level < hqLevel)
-      .sort(
-        (a, b) => b.smoothedProfit - a.smoothedProfit || (a.id as string).localeCompare(b.id),
-      )[0]
-    if (upgradable) return { kind: 'upgrade_trade_route', targetTradeRouteId: upgradable.id }
+    const candidates = activeRoutes
+      .filter((r) => {
+        if (r.level >= hqLevel) return false
+        if (r.smoothedProfit <= 0) return false
+        const thr = config.tradeRouteThroughputByLevel[r.level] ?? 1
+        if (r.plannedQuantity / thr < config.merchantRouteUpgradeUtilizationThreshold) return false
+        const econCurrent = computeExpectedRouteEconomics(state, config, {
+          sourceStateId: r.sourceStateId,
+          targetStateId: r.targetStateId,
+          resource: r.resource,
+          level: r.level,
+        })
+        const econNext = computeExpectedRouteEconomics(state, config, {
+          sourceStateId: r.sourceStateId,
+          targetStateId: r.targetStateId,
+          resource: r.resource,
+          level: r.level + 1,
+        })
+        return (
+          econNext.expectedMonthlyProfit - econCurrent.expectedMonthlyProfit >=
+          config.merchantRouteUpgradeProfitGainThreshold
+        )
+      })
+      .sort((a, b) => b.smoothedProfit - a.smoothedProfit || (a.id as string).localeCompare(b.id))
+    if (candidates[0]) {
+      return { kind: 'upgrade_trade_route', targetTradeRouteId: candidates[0].id }
+    }
+  }
+
+  // (b2) 成長 HQ 増築（§論点F）: 黒字・高 utilization で route.level==hq.level の route があるなら
+  //   route level cap を上げるために HQ を先に増築する。build_branch (c) より優先。
+  if (treasury > config.merchantUpgradeHqProjectBudget) {
+    const needsHqGrowth = activeRoutes.some((r) => {
+      if (r.level !== hqLevel) return false
+      if (r.smoothedProfit <= 0) return false
+      const thr = config.tradeRouteThroughputByLevel[r.level] ?? 1
+      return r.plannedQuantity / thr >= config.merchantRouteUpgradeUtilizationThreshold
+    })
+    if (needsHqGrowth) return { kind: 'upgrade_company_headquarters' }
   }
 
   // (c) 隣接 city に未出店なら支店建設（treasury 潤沢時）
@@ -252,7 +297,7 @@ function decideBuildAction(
     }
   }
 
-  // (d) treasury 潤沢 → HQ 増築（route/branch の cap を上げる）
+  // (d) treasury 潤沢 → HQ 増築 fallback（route/branch の cap を上げる）
   if (treasury > config.merchantUpgradeHqProjectBudget * 2) {
     return { kind: 'upgrade_company_headquarters' }
   }
