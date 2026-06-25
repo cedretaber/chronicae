@@ -182,17 +182,6 @@ export function makeEmptyV016State(): WorldState {
     crises: {},
     crisisIndex: { byHolding: {}, byProject: {} },
     nextCrisisId: 1,
-    // v0.38 Chronicle System
-    chronicleEntries: {},
-    chronicleIndex: {
-      byPerson: {},
-      byHouse: {},
-      byPolity: {},
-      byProvince: {},
-      byHolding: {},
-      byWar: {},
-    },
-    nextChronicleEntryId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     wars: {},

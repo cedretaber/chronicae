@@ -108,7 +108,7 @@ export function WindowManager() {
           }
           return (
             <DraggableWindow key={win.id} win={win} title={title} variant="vellum">
-              <FullChroniclePanel entityType={entityType} entityId={entityId} state={state} />
+              <FullChroniclePanel entityType={entityType} entityId={entityId} />
             </DraggableWindow>
           )
         }

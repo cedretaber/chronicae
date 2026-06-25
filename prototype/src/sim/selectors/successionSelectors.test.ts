@@ -140,16 +140,6 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     crises: {},
     crisisIndex: { byHolding: {}, byProject: {} },
     nextCrisisId: 1,
-    chronicleEntries: {},
-    chronicleIndex: {
-      byPerson: {},
-      byHouse: {},
-      byPolity: {},
-      byProvince: {},
-      byHolding: {},
-      byWar: {},
-    },
-    nextChronicleEntryId: 0,
     nextPressureId: 1,
     // v0.22 Goal/Aim system
     goals: {},

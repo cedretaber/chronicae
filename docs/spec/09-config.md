@@ -46,7 +46,7 @@
 | polityOfficeMaxByRankCommonwealth[5] | admin:1 treas:1 mil:1 adv:1 | 反乱領級共和国: 全 role 1 席（旧 admin 1 のみ → 全 role 解放で計 4 席）|
 | samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス |
 | maxRawEvents | 10000 | 全イベント保持上限 |
-| maxChronicleEvents | 1000 | Chronicle イベント保持上限 |
+| ~~maxChronicleEvents~~ | ~~1000~~ | v0.62 で削除（Chronicle 外部化） |
 | **Marriage & Birth** | | |
 | marriageEnabled | true | 婚姻システム有効 |
 | marriageMaleMinAge | 16 | 婚姻可能最低年齢（男性） |

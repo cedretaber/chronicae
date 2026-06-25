@@ -20,7 +20,6 @@ import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { formatYearMonthWeek, formatAbsoluteWeek } from '@/app/utils/format'
 import { EntityChronicleSection, CollapsibleSection } from './shared/widgets'
 import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
-import { getChronicleEntriesForWar } from '@sim/selectors/chronicleSelectors'
 import { getBattleLogsForWar, summarizeBattleEvents } from '@sim/selectors/battleLogSelectors'
 
 // v0.34 §16: War 詳細。DiplomaticPlayDetail の縮小版 (交渉系の要素は War に存在しないため全て削除)。
@@ -465,9 +464,9 @@ export function WarDetail({
         {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。v0.49 §16.2: chronicleIndex.byWar 経由 (全走査解消)。 */}
         <EntityChronicleSection
           title={t('detail.war.chronicle')}
-          entries={getChronicleEntriesForWar(worldState, war.id)}
-          entityType="war"
+          refKind="war"
           entityId={war.id}
+          entityType="war"
         />
       </div>
     </div>

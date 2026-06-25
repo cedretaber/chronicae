@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest'
-import { runChronicleProjectionSystem } from './chronicleProjectionSystem'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { runChronicleProjectionSystem, resetChronicleEntryIndex } from './chronicleProjectionSystem'
 import { createTickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { makeEmptyV016State } from '../testFixtures'
 import { entityRef } from '../types/event'
 import type { SimEvent, EventType, EventImportance } from '../types/event'
+import type { ChronicleEntry } from '../types/chronicle'
+import type { ChronicleWriter } from '../chronicle/chronicleStore'
 
 function makeEvent(
   n: number,
@@ -31,76 +33,107 @@ function makeEvent(
   }
 }
 
-// BATTLE_OCCURRED イベントを 1 件だけ projection し、生成 entry の templateKey を返す。
-//   selectBattleTemplate の優先カスケードを projection の配線越しに固定する。
+function createCollectingWriter(): ChronicleWriter & { collected: ChronicleEntry[] } {
+  const collected: ChronicleEntry[] = []
+  return {
+    collected,
+    append(entries: ChronicleEntry[]) {
+      collected.push(...entries)
+    },
+    flush() {
+      return Promise.resolve()
+    },
+    clear() {
+      return Promise.resolve()
+    },
+  }
+}
+
 function battleTemplateKey(params: SimEvent['messageParams']): string | undefined {
   const state = makeEmptyV016State()
+  const writer = createCollectingWriter()
   const events = [
     makeEvent(1, 1, 1, 'BATTLE_OCCURRED', 'normal', 'war.battle_occurred', [], params),
   ]
-  const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
-  const result = runChronicleProjectionSystem({ ...base, events })
-  return Object.values(result.state.chronicleEntries)[0]?.templateKey
+  const base = createTickContext({
+    state,
+    rng: createRng('test'),
+    config: defaultConfig,
+    chronicleWriter: writer,
+  })
+  runChronicleProjectionSystem({ ...base, events })
+  return writer.collected[0]?.templateKey
 }
 
 describe('runChronicleProjectionSystem', () => {
-  it('indexes an office event (retainRefKinds person) only in byPerson, dropping polity ref', () => {
+  beforeEach(() => {
+    resetChronicleEntryIndex()
+  })
+
+  it('projects an office event (retainRefKinds person), dropping polity ref', () => {
     const state = makeEmptyV016State()
+    const writer = createCollectingWriter()
     const events = [
       makeEvent(1, 1, 1, 'OFFICE_ASSIGNED', 'normal', 'office.assigned_polity', [
         entityRef('person', 'pe-1', 'appointee'),
         entityRef('polity', 'c-1', 'organization'),
       ]),
     ]
-    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
-    const ctx = { ...base, events }
-    const result = runChronicleProjectionSystem(ctx)
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+      chronicleWriter: writer,
+    })
+    runChronicleProjectionSystem({ ...base, events })
 
-    const entries = Object.values(result.state.chronicleEntries)
-    expect(entries).toHaveLength(1)
-    const entry = entries[0]
-    expect(entry).toBeDefined()
-    expect(entry?.entityRefs).toHaveLength(1)
-    expect(entry?.entityRefs[0]?.kind).toBe('person')
-
-    expect(result.state.chronicleIndex.byPerson['pe-1']).toHaveLength(1)
-    expect(result.state.chronicleIndex.byPolity['c-1']).toBeUndefined()
+    expect(writer.collected).toHaveLength(1)
+    const entry = writer.collected[0]!
+    expect(entry.entityRefs).toHaveLength(1)
+    expect(entry.entityRefs[0]?.kind).toBe('person')
   })
 
-  it('indexes a governance event (no retainRefKinds) across all matching axes', () => {
+  it('projects a governance event with all matching entity refs', () => {
     const state = makeEmptyV016State()
+    const writer = createCollectingWriter()
     const events = [
       makeEvent(2, 1, 1, 'POLITY_OWNER_CHANGED', 'major', 'polity.owner_changed', [
         entityRef('polity', 'c-1'),
         entityRef('house', 'h-1'),
       ]),
     ]
-    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
-    const ctx = { ...base, events }
-    const result = runChronicleProjectionSystem(ctx)
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+      chronicleWriter: writer,
+    })
+    runChronicleProjectionSystem({ ...base, events })
 
-    expect(result.state.chronicleIndex.byPolity['c-1']).toHaveLength(1)
-    expect(result.state.chronicleIndex.byHouse['h-1']).toHaveLength(1)
-
-    const entries = Object.values(result.state.chronicleEntries)
-    expect(entries).toHaveLength(1)
-    expect(entries[0]?.entityRefs).toHaveLength(2)
+    expect(writer.collected).toHaveLength(1)
+    expect(writer.collected[0]?.entityRefs).toHaveLength(2)
   })
 
   it('does not project a non-allowlisted event', () => {
     const state = makeEmptyV016State()
+    const writer = createCollectingWriter()
     const events = [
       makeEvent(3, 1, 1, 'PERSON_DIED', 'minor', 'person.died', [entityRef('person', 'pe-2')]),
     ]
-    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
-    const ctx = { ...base, events }
-    const result = runChronicleProjectionSystem(ctx)
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+      chronicleWriter: writer,
+    })
+    runChronicleProjectionSystem({ ...base, events })
 
-    expect(Object.keys(result.state.chronicleEntries)).toHaveLength(0)
+    expect(writer.collected).toHaveLength(0)
   })
 
-  it('projects a faction event onto each person, keeping the faction ref but not indexing it', () => {
+  it('projects a faction event keeping all entity refs', () => {
     const state = makeEmptyV016State()
+    const writer = createCollectingWriter()
     const events = [
       makeEvent(5, 1, 1, 'FACTION_FOUNDED', 'normal', 'faction.founded', [
         entityRef('person', 'pe-1', 'leader'),
@@ -108,44 +141,69 @@ describe('runChronicleProjectionSystem', () => {
         entityRef('person', 'pe-2', 'member'),
       ]),
     ]
-    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
-    const result = runChronicleProjectionSystem({ ...base, events })
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+      chronicleWriter: writer,
+    })
+    runChronicleProjectionSystem({ ...base, events })
 
-    const entries = Object.values(result.state.chronicleEntries)
-    expect(entries).toHaveLength(1)
-    expect(entries[0]?.category).toBe('faction')
-    // faction kind は index 対象外 (§5.2) だが entry には保持される
-    expect(entries[0]?.entityRefs).toHaveLength(3)
-    // leader / member 双方の byPerson に載る (=「誰と組んだか」が各人の経歴に出る)
-    expect(result.state.chronicleIndex.byPerson['pe-1']).toHaveLength(1)
-    expect(result.state.chronicleIndex.byPerson['pe-2']).toHaveLength(1)
+    expect(writer.collected).toHaveLength(1)
+    expect(writer.collected[0]?.category).toBe('faction')
+    expect(writer.collected[0]?.entityRefs).toHaveLength(3)
   })
 
   it('copies event.messageKey into templateKey when no override', () => {
     const state = makeEmptyV016State()
+    const writer = createCollectingWriter()
     const events = [
       makeEvent(4, 1, 1, 'POLITY_OWNER_CHANGED', 'major', 'polity.owner_changed', [
         entityRef('polity', 'c-1'),
         entityRef('house', 'h-1'),
       ]),
     ]
-    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+      chronicleWriter: writer,
+    })
+    runChronicleProjectionSystem({ ...base, events })
+
+    expect(writer.collected).toHaveLength(1)
+    expect(writer.collected[0]?.templateKey).toBe('polity.owner_changed')
+  })
+
+  it('does nothing when no writer is injected', () => {
+    const state = makeEmptyV016State()
+    const events = [
+      makeEvent(6, 1, 1, 'POLITY_OWNER_CHANGED', 'major', 'polity.owner_changed', [
+        entityRef('polity', 'c-1'),
+      ]),
+    ]
+    const base = createTickContext({
+      state,
+      rng: createRng('test'),
+      config: defaultConfig,
+    })
     const ctx = { ...base, events }
     const result = runChronicleProjectionSystem(ctx)
-
-    const entries = Object.values(result.state.chronicleEntries)
-    expect(entries).toHaveLength(1)
-    expect(entries[0]?.templateKey).toBe('polity.owner_changed')
+    expect(result).toBe(ctx)
   })
 })
 
 describe('selectBattleTemplate (BATTLE_OCCURRED の chronicle templateKey 選択)', () => {
+  beforeEach(() => {
+    resetChronicleEntryIndex()
+  })
+
   it('outnumberedVictory を最優先で chronicle.battle.outnumbered_victory に', () => {
     expect(
       battleTemplateKey({
         result: 'attacker_victory',
         outnumberedVictory: true,
-        decisiveVictory: true, // outnumbered が優先される
+        decisiveVictory: true,
         attackerRoutedCount: 3,
       }),
     ).toBe('chronicle.battle.outnumbered_victory')
@@ -167,7 +225,7 @@ describe('selectBattleTemplate (BATTLE_OCCURRED の chronicle templateKey 選択
         result: 'attacker_victory',
         outnumberedVictory: false,
         decisiveVictory: false,
-        attackerRoutedCount: 2, // 勝者(attacker)自身の壊走 > 0
+        attackerRoutedCount: 2,
         defenderRoutedCount: 1,
       }),
     ).toBe('chronicle.battle.narrow_victory')

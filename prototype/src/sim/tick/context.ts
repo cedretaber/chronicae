@@ -11,12 +11,14 @@ import type {
   EventEffect,
 } from '../types/event'
 import type { EventId, PersonId, HouseId, PolityId } from '../types/ids'
+import type { ChronicleWriter } from '../chronicle/chronicleStore'
 
 export type TickInput = {
   state: WorldState
   rng: RngState
   config: SimulationConfig
   namePoolService?: import('../namegen/namePoolTypes').NamePoolService
+  chronicleWriter?: ChronicleWriter
 }
 
 export type TickResult = {
@@ -36,6 +38,7 @@ export type TickContext = {
   readonly rng: RngState
   readonly config: SimulationConfig
   readonly namePoolService?: import('../namegen/namePoolTypes').NamePoolService
+  readonly chronicleWriter?: ChronicleWriter
   readonly events: readonly SimEvent[]
   readonly nextEventIndex: number
   readonly nextPersonIndex: number
@@ -94,6 +97,7 @@ export function createTickContext(input: TickInput): TickContext {
     rng: input.rng,
     config: input.config,
     namePoolService: input.namePoolService,
+    chronicleWriter: input.chronicleWriter,
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: s.nextPersonIndex ?? fallback!.nextPersonIndex,
@@ -108,10 +112,7 @@ export function toResult(ctx: TickContext): TickResult {
   // 調査 §4.5: tick 中に makePersonId/makeHouseId/makePolityId が進めた ctx 側カウンタを
   // WorldState へ書き戻す (次 tick の createTickContext が読む正本)。
   //
-  // 【注意 (v0.47 perf)】この top-level spread は省略不可。chronicleEntries / chronicleIndex は
-  // in-place append される (chronicleMutations.ts の carve-out 契約) ため identity が変わらず、
-  // UI の chronicle 再描画はここで state 全体の identity が毎 tick 変わることに依存している。
-  // ctx.state を直返しする最適化をしてはならない。
+  // top-level spread は nextPersonIndex 等の書き戻しに必要。ctx.state を直返ししてはならない。
   return {
     state: {
       ...ctx.state,

@@ -1826,12 +1826,7 @@ warIndex（双方向。Faction index パターン踏襲）:
 - active War の各 participant key が `byParticipant` に warId を持つ（reverse）
 - `byOriginDiplomaticPlay[playId]` の指す War が存在し `originDiplomaticPlayId` が一致（forward）
 
-Chronicle（index↔entry の内部整合のみ）:
-
-chronicleIndex ↔ chronicleEntries（§3.14）:
-- forward: `byPerson` / `byHouse` / `byPolity` / `byProvince` / `byHolding` / `byWar`（v0.49）の各 index に載る entry id が `chronicleEntries` に実在し、その entry の entityRefs に対応する `(kind, key)` を含む
-- reverse: 各 entry の 6 index 対象 kind（person / house / polity / province / holding / war）の ref が、対応 index に entry id として登録済み（faction / clan 等 index 非対象 kind の ref は検査しない）。**v0.49**: `EventEntityKind` に `'war'` を追加し `indexBucketForKind` に `case 'war' → byWar` を足した。warEvents の `emit()` が `params.warId` を持つ war event に `entityRef('war', warId)` を単一チョークポイントで自動付与し、WAR_*/PEACE_SETTLEMENT_APPLIED/BATTLE_OCCURRED を漏れなく byWar 化する
-- **entityRefs の参照先が現在 state に存在するか（active か / 死亡人物か / 断絶家か / 終了 War か）は検査しない。** ChronicleEntry は過去の記録であり、消えた entity への soft reference を保持するのが正しい（warIndex の `originDiplomaticPlayId` 同様、存在検査を意図的に省く）。これは「Chronicle を simulation logic に使わない」原則（§3.14）の integrity 表現であり、存在検査へ「修正」してはならない（長期実行で誤検知を生む）。
+~~Chronicle（v0.62 で外部化。WorldState から除去されたため integrity 検査も削除）~~
 
 ### 6.36 ProjectPreparationSystem（4週ごと）
 
@@ -2439,9 +2434,9 @@ terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削�
 
 ### 6.62 ChronicleProjectionSystem（毎週）
 
-歴史閲覧 read-model（`ChronicleEntry`、§3.14）を生成する system。`scheduledSystems` の**末尾**（全 system / cleanup 系の後、`flushTerminalEntities` / IntegrityCheck の前）に配置する。この tick の `ctx.events` のうち curated allowlist `CHRONICLE_EVENT_TYPE_DEFINITIONS` に載る EventType だけを `ChronicleEntry` に projection し、新たな `SimEvent` は emit しない。各 system からの dual-write にせず projection 一本にすることで Event と履歴の divergence を防ぐ。cleanup 後に走るため同 tick の event が全量揃い、IntegrityCheck の前なので生成分も同 tick で index↔entry 整合検査される（§6.35）。
+歴史閲覧 read-model（`ChronicleEntry`、§3.14）を生成する system。`scheduledSystems` の**末尾**（全 system / cleanup 系の後、`flushTerminalEntities` / IntegrityCheck の前）に配置する。この tick の `ctx.events` のうち curated allowlist `CHRONICLE_EVENT_TYPE_DEFINITIONS` に載る EventType だけを `ChronicleEntry` に変換し、`ChronicleWriter` に渡す（fire-and-forget）。新たな `SimEvent` は emit しない。各 system からの dual-write にせず projection 一本にすることで Event と履歴の divergence を防ぐ。RNG 非消費の純粋 projection。
 
-**実装ノート（perf, v0.47 アーカイブ carve-out）**: `chronicleEntries` / `chronicleIndex` は copy-on-write の対象外で、projection は state を clone せず **in-place append** する。成立条件は ① 書き込み点は `createChronicleEntryMut` 1 箇所（呼び出し元は本 system のみ）、② entry は作成後不変・削除なし（append-only。削除/改変 system を将来追加する場合は carve-out を廃止して copy-on-write に戻す）、③ simulation logic は chronicle を読まない（§1.1 相当の原則）。UI の chronicle 再描画は `toResult` が毎 tick top-level state を spread することに依存するため、`toResult` の直返し最適化は禁止（`tick/context.ts` 参照）。旧実装は entry 全量（年100で ~89k 件 = state の 87%）+ index 5 軸を毎週 spread しており、歴史総量×時間の二次コストとして全体の ~20% を占めていた。
+**v0.62 外部化**: Chronicle は `WorldState` から完全に分離。`TickInput.chronicleWriter` が注入されていれば書き出し、無ければ（テスト等）何もしない。CLI は JSONL ファイルに同期書き出し、Browser は IndexedDB にバッチ書き出し（§3.14）。旧 v0.47 の in-place append 最適化は chronicle が state から消えたため不要になった。
 
 **allowlist の方針**: importance 閾値ではなく curated allowlist で対象を決める（`BATTLE_OCCURRED` は normal だが含めたい／`PERSON_AIM_SUCCEEDED` は major だが noise になりやすい）。各 EventType に `{ category, retainRefKinds?, templateKey? }` を割り当てる。
 

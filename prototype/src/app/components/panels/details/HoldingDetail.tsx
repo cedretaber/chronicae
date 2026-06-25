@@ -60,7 +60,6 @@ import {
   getHoldingPops,
   getHoldingMonthlyPopChange,
 } from '@sim/selectors/popSelectors'
-import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
@@ -1165,9 +1164,9 @@ export function HoldingDetail({
       {currentState && (
         <EntityChronicleSection
           title={t('detail.holding.chronicle')}
-          entries={getChronicleEntriesForHolding(currentState, holding.id)}
-          entityType="holding"
+          refKind="holding"
           entityId={holding.id}
+          entityType="holding"
         />
       )}
     </div>

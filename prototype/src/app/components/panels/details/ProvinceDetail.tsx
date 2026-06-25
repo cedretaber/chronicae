@@ -52,7 +52,6 @@ import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower, formatPopCount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
-import { getChronicleEntriesForProvince } from '@sim/selectors/chronicleSelectors'
 
 export function ProvinceDetail({
   province,
@@ -550,9 +549,9 @@ export function ProvinceDetail({
       {currentState && (
         <EntityChronicleSection
           title={t('detail.province.chronicle')}
-          entries={getChronicleEntriesForProvince(currentState, province.id)}
-          entityType="province"
+          refKind="province"
           entityId={province.id}
+          entityType="province"
         />
       )}
     </div>
