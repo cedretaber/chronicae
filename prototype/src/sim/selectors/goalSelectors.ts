@@ -216,7 +216,9 @@ export function scoreHouseGoalKind(
   const house = state.houses[houseId]
   if (!house || !house.active || house.kind === 'system') return []
 
-  const ownedPolityIds = getHouseOwnedPolityIds(state, houseId)
+  const ownedPolityIds = getHouseOwnedPolityIds(state, houseId).filter(
+    (pid) => state.polities[pid]?.active,
+  )
 
   // expand_power_base
   // v0.42 §19.2-4: share% → influence% (0〜100 スケール維持)
@@ -818,7 +820,9 @@ function pickHouseAim(
   const house = state.houses[houseId]
   if (!house || !house.active) return undefined
 
-  const ownedPolityIds = getHouseOwnedPolityIds(state, houseId)
+  const ownedPolityIds = getHouseOwnedPolityIds(state, houseId).filter(
+    (pid) => state.polities[pid]?.active,
+  )
 
   const candidates: { kind: HouseAimKind; target?: EntityRef; score: number }[] = []
 

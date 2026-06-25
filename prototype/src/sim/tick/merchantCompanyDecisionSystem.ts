@@ -132,7 +132,7 @@ export function runMerchantCompanyDecisionSystem(ctx: TickContext): TickContext 
           type: 'MERCHANT_ROUTE_CLOSED',
           importance: 'minor',
           messageKey: 'merchant.route_closed',
-          messageParams: { company: nameParam('merchant_company', company?.nameKey ?? '') },
+          messageParams: { company: nameParam('house', company?.nameKey ?? '') },
           entityRefs: [entityRef('merchant_company', companyId, 'company', company?.nameKey ?? '')],
         })
         workingCtx = { ...ec, events: [...ec.events, event] }

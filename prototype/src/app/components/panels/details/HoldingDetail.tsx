@@ -455,99 +455,99 @@ export function HoldingDetail({
           if (improvements.length === 0) return null
           return (
             <div className="text-sm">
-              <DetailSection title={t('detail.province.improvements')} />
-              {improvements.map((imp) => {
-                const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
-                // v0.33 §12.3: flavor → category → kind 文字列 のフォールバック（生キーを出さない）
-                const categoryName = t(`detail.province.improvement_${imp.kind}`, {
-                  defaultValue: imp.kind,
-                })
-                const flavorName = t(nameKey, { defaultValue: categoryName })
-                // v0.48.1 §8: condition バー + 機能不全バッジ (閾値割れ)
-                const threshold = defaultConfig.facilityDisrepairThreshold
-                const condition = clamp100(imp.condition)
-                const disrepaired = condition < threshold
-                const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
-                // computeHoldingPopTypeCapacity の infraTerm と同じ実効効率 (劣化 + critical 下限)。
-                let effInfra = conditionEffectiveness(
-                  imp.condition,
-                  defaultConfig.facilityDisrepairThreshold,
-                  defaultConfig.facilityDisrepairMinEffectiveness,
-                )
-                if (impDef.critical)
-                  effInfra = Math.max(effInfra, defaultConfig.criticalInfraMinEffectiveness)
-                return (
-                  <div key={imp.id} className="ml-2">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-gray-200">
-                        {flavorName}
-                        {disrepaired && (
-                          <span className="ml-1 rounded bg-red-900 px-1 py-0.5 text-xs text-red-300">
-                            {t('detail.facility.disrepair_badge')}
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        （{categoryName}{' '}
-                        {t('detail.province.improvement_level', { level: imp.level })}）
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">
-                        {t('detail.facility.condition')}
-                      </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
-                        <div
-                          className={`h-full ${disrepaired ? 'bg-red-600' : 'bg-emerald-600'}`}
-                          style={{ width: `${condition}%` }}
-                        />
+              <DetailSection
+                title={t('detail.province.improvements')}
+                count={improvements.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
+                {improvements.map((imp) => {
+                  const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
+                  const categoryName = t(`detail.province.improvement_${imp.kind}`, {
+                    defaultValue: imp.kind,
+                  })
+                  const flavorName = t(nameKey, { defaultValue: categoryName })
+                  const threshold = defaultConfig.facilityDisrepairThreshold
+                  const condition = clamp100(imp.condition)
+                  const disrepaired = condition < threshold
+                  const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+                  let effInfra = conditionEffectiveness(
+                    imp.condition,
+                    defaultConfig.facilityDisrepairThreshold,
+                    defaultConfig.facilityDisrepairMinEffectiveness,
+                  )
+                  if (impDef.critical)
+                    effInfra = Math.max(effInfra, defaultConfig.criticalInfraMinEffectiveness)
+                  return (
+                    <div key={imp.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-medium text-gray-200">
+                          {flavorName}
+                          {disrepaired && (
+                            <span className="ml-1 rounded bg-red-900 px-1 py-0.5 text-red-300">
+                              {t('detail.facility.disrepair_badge')}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-500">
+                          {categoryName}{' '}
+                          {t('detail.province.improvement_level', { level: imp.level })}
+                        </span>
                       </div>
-                      <span className="w-8 text-right text-xs text-gray-400">
-                        {condition.toFixed(0)}
-                      </span>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="text-gray-500">{t('detail.facility.condition')}</span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                          <div
+                            className={`h-full ${disrepaired ? 'bg-red-600' : 'bg-emerald-600'}`}
+                            style={{ width: `${condition}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-gray-400">{condition.toFixed(0)}</span>
+                      </div>
+                      {impDef.employmentSlots && (
+                        <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                          {impDef.employmentSlots.map((slot) => {
+                            const facilityCap =
+                              slot.capacityPerLevel * imp.level * effInfra * holding.weight
+                            const holdingCap = getHoldingPopTypeCapacity(
+                              currentState,
+                              defaultConfig,
+                              holding.id,
+                              slot.popType,
+                            )
+                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                              currentState,
+                              holding.id,
+                              slot.popType,
+                            )
+                            const empFacility =
+                              holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
+                            const pct =
+                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                            return (
+                              <div key={slot.popType} className="flex items-center gap-1.5">
+                                <span className="w-20 text-gray-500">
+                                  {t(`detail.province.pop_type.${slot.popType}`, {
+                                    defaultValue: slot.popType,
+                                  })}
+                                </span>
+                                <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                                  <div
+                                    className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="w-16 text-right text-gray-400">
+                                  {formatPopCount(empFacility)}/{formatPopCount(facilityCap)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
-                    {/* 雇用 (popType 別)。上限 = この施設の実効容量 (capacityPerLevel×Lv×劣化効率×weight)、
-                        雇用人数 = holding 全体の雇用 × (この施設の容量 / holding 全体の容量) で按分 (端数丸め)。 */}
-                    {impDef.employmentSlots &&
-                      impDef.employmentSlots.map((slot) => {
-                        const facilityCap =
-                          slot.capacityPerLevel * imp.level * effInfra * holding.weight
-                        const holdingCap = getHoldingPopTypeCapacity(
-                          currentState,
-                          defaultConfig,
-                          holding.id,
-                          slot.popType,
-                        )
-                        const holdingEmp = getHoldingEmployedPopSizeByType(
-                          currentState,
-                          holding.id,
-                          slot.popType,
-                        )
-                        const empFacility =
-                          holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
-                        const pct = holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
-                        return (
-                          <div key={slot.popType} className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-xs text-gray-500">
-                              {t(`detail.province.pop_type.${slot.popType}`, {
-                                defaultValue: slot.popType,
-                              })}
-                            </span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
-                              <div
-                                className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="w-16 text-right text-xs text-gray-400">
-                              {formatPopCount(empFacility)}/{formatPopCount(facilityCap)}
-                            </span>
-                          </div>
-                        )
-                      })}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )
         })()}

@@ -643,7 +643,7 @@ function applyOpenTradeRouteMut(
     type: 'MERCHANT_ROUTE_OPENED',
     importance: 'minor',
     messageKey: 'merchant.route_opened',
-    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    messageParams: { company: nameParam('house', company.nameKey) },
     entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
   })
 }
@@ -665,7 +665,7 @@ function applyUpgradeTradeRouteMut(
     type: 'MERCHANT_ROUTE_UPGRADED',
     importance: 'minor',
     messageKey: 'merchant.route_upgraded',
-    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    messageParams: { company: nameParam('house', company.nameKey) },
     entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
   })
 }
@@ -700,7 +700,7 @@ function applyBuildCompanyBranchMut(
     type: 'MERCHANT_BRANCH_BUILT',
     importance: 'minor',
     messageKey: 'merchant.branch_built',
-    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    messageParams: { company: nameParam('house', company.nameKey) },
     entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
   })
 }
@@ -720,7 +720,7 @@ function applyUpgradeCompanyHeadquartersMut(
     type: 'MERCHANT_HQ_UPGRADED',
     importance: 'minor',
     messageKey: 'merchant.hq_upgraded',
-    messageParams: { company: nameParam('merchant_company', company.nameKey) },
+    messageParams: { company: nameParam('house', company.nameKey) },
     entityRefs: [entityRef('merchant_company', project.companyId, 'company', company.nameKey)],
   })
 }

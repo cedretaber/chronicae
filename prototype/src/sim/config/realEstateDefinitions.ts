@@ -84,11 +84,12 @@ export const REAL_ESTATE_DEFINITIONS: Record<RealEstateKind, RealEstateDefinitio
     realEstateKind: 'workshop',
     allowedHoldingKinds: ['city'],
     maxLevelByHoldingKind: { city: 3 },
-    // 工房: 職人:親方:書記 = 6:3:1 (total 80)。親方は職人と同数まで。
+    // 工房: 職人:親方:書記 = 6:3:1 (total 50)。親方は職人と同数まで。
+    // 生産性が農村の 2 倍以上あるため、雇用人数は farm と同等に抑える。
     employmentSlots: [
-      { popType: 'artisans', capacityPerLevel: 48 },
-      { popType: 'masters', capacityPerLevel: 24, maxRatioTo: { popType: 'artisans', ratio: 1 } },
-      { popType: 'scribes', capacityPerLevel: 8 },
+      { popType: 'artisans', capacityPerLevel: 30 },
+      { popType: 'masters', capacityPerLevel: 15, maxRatioTo: { popType: 'artisans', ratio: 1 } },
+      { popType: 'scribes', capacityPerLevel: 5 },
     ],
     developmentScorePerLevel: 4,
   },

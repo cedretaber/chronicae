@@ -126,15 +126,11 @@ export function UnifiedMap() {
   const provinceData = useMemo(() => {
     if (!session || !provinces) return []
     const world = session.currentState
-    const popGroups = world.popGroups
     const capitalIds = new Set(Object.values(world.polities).map((p) => p.capitalProvinceId))
     const seatIds = new Set(Object.values(world.houses).map((h) => h.seatProvinceId))
 
     return Object.values(provinces).map((prov) => {
-      const pops = popGroups ? getProvincePops(world, prov.id) : []
-      const peasants = pops.find((p) => p.class === 'lower')?.size ?? 0
-      const townsmen = pops.find((p) => p.class === 'middle')?.size ?? 0
-      const urbanRatio = peasants + townsmen > 0 ? townsmen / (peasants + townsmen) : 0
+      const hasCity = prov.holdingIds.some((hid) => world.holdings[hid]?.kind === 'city')
       return {
         id: prov.id,
         stateId: prov.stateId,
@@ -142,7 +138,7 @@ export function UnifiedMap() {
         x: prov.x,
         y: prov.y,
         neighbors: prov.neighbors,
-        isUrban: urbanRatio >= MAP_ICON_CONFIG.provinceUrbanIconThreshold,
+        isUrban: hasCity,
         isCapital: capitalIds.has(prov.id),
         isSeat: seatIds.has(prov.id),
       }

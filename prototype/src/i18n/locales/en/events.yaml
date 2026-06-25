@@ -385,6 +385,8 @@ enum:
     disrepair: 'disrepair'
   # v0.48.1 facility breakdown event labels
   improvementKind:
+    manor_house: 'manor house'
+    town_hall: 'town hall'
     storage_infrastructure: 'storage infrastructure'
     transport_infrastructure: 'transport infrastructure'
     field_system: 'field system'

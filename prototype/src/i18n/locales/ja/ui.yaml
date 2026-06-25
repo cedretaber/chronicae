@@ -1110,6 +1110,7 @@ detail:
 
   # 派閥詳細
   faction:
+    name: '{{leader}} の派閥'
     leader: '指導者'
     leader_house: '指導者の家門'
     parent_faction: '親派閥'

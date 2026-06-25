@@ -384,6 +384,8 @@ enum:
     disrepair: '設備不全'
   # v0.48.1 設備破壊イベントの設備種別・破壊種別ラベル
   improvementKind:
+    manor_house: '領主館'
+    town_hall: '市庁舎'
     storage_infrastructure: '貯蔵基盤'
     transport_infrastructure: '交通基盤'
     field_system: '農地整備'

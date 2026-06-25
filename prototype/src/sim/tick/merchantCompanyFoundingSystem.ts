@@ -80,7 +80,7 @@ export function runMerchantCompanyFoundingSystem(ctx: TickContext): TickContext 
         type: 'MERCHANT_COMPANY_FOUNDED',
         importance: 'normal',
         messageKey: 'merchant.company_founded',
-        messageParams: { company: nameParam('merchant_company', company.nameKey) },
+        messageParams: { company: nameParam('house', company.nameKey) },
         entityRefs: [entityRef('merchant_company', company.id, 'company', company.nameKey)],
       })
       workingCtx = { ...ec, events: [...ec.events, event], rng }
