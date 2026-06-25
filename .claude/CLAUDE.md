@@ -142,6 +142,26 @@ node src/cli/run.mjs --years 50 --seed 1 --config '{"minProvincesForHouseSplit":
 
 ブラウザでの UI 確認など CLI 以外が必要な場合のみ、やむを得ずコードを一時変更する（その場合も最小限にし、確認後に必ず元に戻す）。
 
+### CLI の Chronicle 出力 (v0.62)
+
+CLI 実行時、Chronicle は JSONL ファイルに自動出力される（デフォルトで cwd）。
+
+```bash
+# デフォルト: chronicle-{timestamp}-seed{N}.jsonl が cwd に出力
+node src/cli/run.mjs --years 50 --seed 1
+
+# 出力先ディレクトリを指定
+node src/cli/run.mjs --years 50 --seed 1 --chronicle-dir /tmp
+
+# 比較用にタグを付与
+node src/cli/run.mjs --years 50 --seed 1 --chronicle-tag before-fix
+
+# Chronicle 出力を抑止 (integrity gate 等で不要な場合)
+node src/cli/run.mjs --years 150 --seed 1 --no-chronicle
+```
+
+標準ゲート (150年 × 4 seed) では `--no-chronicle` を推奨（不要な I/O を省くため）。
+
 ## 検証コマンド
 
 ```bash
@@ -188,13 +208,16 @@ v0.47 perf 最適化後の実測値 (16 コア・4 seed 並列 wall-clock):
 後年ほど 1 年あたりのコストが伸びる超線形性は残存 (150→200年 +90s / 200→300年 +284s)。
 
 **v0.47 perf 最適化** (state spread の構造改善・全 bit-identical) で 100年 × 4 seed が
-105s → 68s (-35%) になった。主な内容: chronicle in-place append 化 (歴史総量×毎週 spread の
-二次コスト除去) / houseSurplus・landRevenue・factionPatronage・goalOutcome・houseShareUpdate の
-mutable-draft 化 / republic 候補列挙の家単位 memo 化 / integrity chronicle 検査の Set 化 /
-personActivityLogs の person key 2 層バケット化。後年の非線形悪化の主因 (chronicle 全 spread) が
-消えたため、長い年数ほど改善率が大きい。残る後年成長項は integrity 年末検査の O(chronicle 総量)
-走査と死者・評判の蓄積 (watermark 増分化・死者 compaction は将来候補。
+105s → 68s (-35%) になった。主な内容: houseSurplus・landRevenue・factionPatronage・goalOutcome・houseShareUpdate の
+mutable-draft 化 / republic 候補列挙の家単位 memo 化 /
+personActivityLogs の person key 2 層バケット化。残る後年成長項は
+死者・評判の蓄積 (watermark 増分化・死者 compaction は将来候補。
 docs/drafts/perf-optimization-design.md 参照)。
+
+**v0.62 Chronicle 外部化**: Chronicle を WorldState から完全に分離し外部ストレージへ移行。
+state の 65% (30年 small で 24.56 MB) を占めていた chronicleEntries/chronicleIndex を除去。
+ブラウザの OOM (preset=small 30年) を解消。CLI は JSONL ファイル出力
+(`--chronicle-dir`/`--chronicle-tag`/`--no-chronicle`)、Browser は IndexedDB にバッチ書き出し。
 
 ### 用途別の推奨設定
 

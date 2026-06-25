@@ -740,20 +740,7 @@ function getDescendantHouseIdsIncludingSelf(state: WorldState, rootHouseId: Hous
 
 ### 4.11 Chronicle セレクター
 
-`prototype/src/sim/selectors/chronicleSelectors.ts` に集約。**表示専用**であり simulation system からは使用しない（§3.14）。いずれも entry を時系列降順（新しい順）に並べて返す。`noUncheckedIndexedAccess` 下なので id 配列を `?? []` で受け、解決できない id を filter で除外する。
-
-```ts
-// 各 index 軸の ChronicleEntry 取得（byPerson / byHouse / byPolity / byProvince / byHolding）
-function getChronicleEntriesForPerson(state: WorldState, personId: PersonId): ChronicleEntry[]
-function getChronicleEntriesForHouse(state: WorldState, houseId: HouseId): ChronicleEntry[]
-function getChronicleEntriesForPolity(state: WorldState, polityId: PolityId): ChronicleEntry[]
-function getChronicleEntriesForProvince(state: WorldState, provinceId: ProvinceId): ChronicleEntry[]
-function getChronicleEntriesForHolding(state: WorldState, holdingId: HoldingId): ChronicleEntry[]
-
-// v0.49: chronicleIndex.byWar 経由で取得する（旧: byWar 無しで全走査）。war event の entityRef('war')
-//   自動付与（§6.45 / §6.35）により byWar が成立し、全 chronicleEntries 走査を解消した。
-function getChronicleEntriesForWar(state: WorldState, warId: WarId): ChronicleEntry[]
-```
+**v0.62 で削除**。Chronicle は `WorldState` から外部ストレージ（CLI: JSONL / Browser: IndexedDB）に移行したため、`chronicleSelectors.ts` は削除された。UI は `ChronicleReader` interface 経由で非同期に取得する（`src/app/chronicle/useChronicleEntries.ts`）。entity 別クエリは IndexedDB の `entityRefs` ベース multiEntry index で実現。
 
 ---
 
