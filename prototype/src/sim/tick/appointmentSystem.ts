@@ -830,7 +830,7 @@ function tryAppointMerchantCompanyOffice(
       messageParams: {
         person: nameParam('person', person.nameKey),
         role: nameParam('role', `merchant_company_${role}`),
-        company: nameParam('merchant_company', company.nameKey),
+        company: nameParam('house', company.nameKey),
       },
       entityRefs: [
         entityRef('person', best.id, 'appointee', person.nameKey),

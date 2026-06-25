@@ -278,7 +278,7 @@ function handleNormalHouseExtinction(
         importance: 'normal',
         messageKey: 'merchant.company_dissolved',
         messageParams: {
-          company: nameParam('merchant_company', companyNames.get(cid) ?? cid),
+          company: nameParam('house', companyNames.get(cid) ?? cid),
         },
         entityRefs: [entityRef('merchant_company', cid, 'company')],
       })

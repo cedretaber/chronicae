@@ -62,7 +62,7 @@ export function runMerchantCompanyOfficeSyncSystem(ctx: TickContext): TickContex
         messageParams: {
           person: nameParam('person', person.nameKey),
           role: nameParam('role', 'merchant_company_leader'),
-          company: nameParam('merchant_company', company.nameKey),
+          company: nameParam('house', company.nameKey),
         },
         entityRefs: [
           entityRef('person', decisionMaker, 'appointee', person.nameKey),

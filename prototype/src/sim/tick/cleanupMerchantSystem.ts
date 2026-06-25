@@ -106,7 +106,7 @@ export function runCleanupMerchantSystem(ctx: TickContext): TickContext {
       type: 'MERCHANT_COMPANY_BANKRUPT',
       importance: 'normal',
       messageKey: 'merchant.company_bankrupt',
-      messageParams: { company: nameParam('merchant_company', company.nameKey) },
+      messageParams: { company: nameParam('house', company.nameKey) },
       entityRefs: [entityRef('merchant_company', companyId, 'company', company.nameKey)],
     })
     workingCtx = { ...ec, events: [...ec.events, event] }
