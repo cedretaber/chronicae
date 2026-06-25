@@ -108,10 +108,10 @@ export function TradeRouteDetail({
           {route.lastQuantity.toFixed(1)}
         </InfoRow>
         <InfoRow label={t('detail.merchant.route_buy_price', { defaultValue: '仕入価格' })}>
-          {route.lastBuyPrice.toFixed(2)}
+          {route.plannedBuyPrice.toFixed(2)}
         </InfoRow>
         <InfoRow label={t('detail.merchant.route_sell_price', { defaultValue: '販売価格' })}>
-          {route.lastSellPrice.toFixed(2)}
+          {route.plannedSellPrice.toFixed(2)}
         </InfoRow>
         <InfoRow label={t('detail.merchant.route_last_profit', { defaultValue: '直近利益' })}>
           {route.lastProfit.toFixed(1)}

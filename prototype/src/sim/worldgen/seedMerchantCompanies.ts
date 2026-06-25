@@ -8,7 +8,7 @@ import { RESOURCE_KINDS } from '../types/resource'
 import { createRng, randomFloat, randomInt } from '../rng/rng'
 import type { RngState } from '../rng/rng'
 import { samplePerson } from '../helpers/personFactory'
-import { pickNameBySex } from './nameGenerators'
+import { pickNameBySex, houseNamePool, houseName, pickUniqueName } from './nameGenerators'
 import type { NamePoolService } from '../namegen/namePoolTypes'
 import {
   createMerchantCompanyMut,
@@ -45,6 +45,30 @@ function pickName(
     return { nameKey: value, rng: r }
   }
   const { name, rng: r } = pickNameBySex(sex, rng)
+  return { nameKey: name, rng: r }
+}
+
+function pickMerchantHouseName(
+  rng: RngState,
+  namePoolService: NamePoolService | undefined,
+  usedHouseNames: Set<string>,
+  fallbackIndex: number,
+): { nameKey: string; rng: RngState } {
+  if (namePoolService) {
+    const { value, rng: r } = namePoolService.pickNameKey(rng, {
+      nameCultureId: 'western',
+      category: 'house',
+      path: ['noble'],
+    })
+    return { nameKey: value, rng: r }
+  }
+  const { name, rng: r } = pickUniqueName(
+    houseNamePool(),
+    usedHouseNames,
+    houseName,
+    fallbackIndex,
+    rng,
+  )
   return { nameKey: name, rng: r }
 }
 
@@ -158,7 +182,17 @@ export function seedOneMerchantCompany(
     (a as string).localeCompare(b),
   )
 
-  const houseNameRes = pickName('male', rng, namePoolService)
+  const usedHouseNames = new Set(
+    Object.values(state.houses)
+      .filter((h) => h)
+      .map((h) => h.nameKey),
+  )
+  const houseNameRes = pickMerchantHouseName(
+    rng,
+    namePoolService,
+    usedHouseNames,
+    counters.nextHouseIndex,
+  )
   rng = houseNameRes.rng
   state.houses[houseId] = {
     id: houseId,
