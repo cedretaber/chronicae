@@ -6,6 +6,8 @@ import { HouseLink, PersonLink } from './shared/links'
 import { TradeRouteCard } from './shared/TradeRouteCard'
 import type { ClickHandler } from './shared/helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import type { HoldingId } from '@sim/types/ids'
 import { formatAmount } from '@/app/utils/format'
 import {
   getCompanyEstablishments,
@@ -46,8 +48,8 @@ export function MerchantCompanyDetail({
       )[0]
     : undefined
 
-  const holdingName = (hid: string): string =>
-    resolveName('holding', state?.holdings[hid as never]?.nameKey, hid)
+  const holdingLabel = (hid: string): string =>
+    getHoldingQualifiedName(state, resolveName, hid as HoldingId)
 
   const statusLabel = t(`detail.merchant.status_${company.status}`, {
     defaultValue: company.status,
@@ -115,7 +117,7 @@ export function MerchantCompanyDetail({
               onClick={() => onHoldingClick(est.holdingId)}
             >
               {t(`detail.merchant.kind_${est.kind}`, { defaultValue: est.kind })} @{' '}
-              {holdingName(est.holdingId as string)}
+              {holdingLabel(est.holdingId as string)}
             </button>
             <span className="text-gray-400">
               Lv{est.level}
