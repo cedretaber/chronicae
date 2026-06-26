@@ -46,18 +46,17 @@ import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { isEmployed } from '../types/workplaceRef'
 // holding が指定 kind の Crisis を負う資格 (該当 POP を持つか) を判定する (§4.1 spawn フィルタ)。
-// famine/drought → lower class POP が居る holding のみ。plague → 何らかの POP。
-// v0.63 Phase 1-2: isEmployed は全 POP が null のため常に false → lower class POP の存在で判定する。
-// Phase 3-4 で employer 紐付け後に agricultural employed POP 限定フィルタを復活させる。
+// famine/drought → peasants(agriculture)、plague → 何らかの POP。
 function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: CrisisKind): boolean {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds || popIds.length === 0) return false
   if (kind === 'plague') return true
-  // famine / drought: lower-class POP が居る holding のみ
+  // famine / drought: 農業 peasants が居る holding のみ (雇用済み lower-class POP)
   for (const popId of popIds) {
     const pop = ws.popGroups[popId]
-    if (pop && pop.class === 'lower') return true
+    if (pop && pop.class === 'lower' && isEmployed(pop)) return true
   }
   return false
 }

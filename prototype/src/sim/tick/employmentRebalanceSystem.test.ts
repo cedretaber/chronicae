@@ -3,6 +3,7 @@ import { normalizePopEmploymentMut } from './employmentRebalanceSystem'
 import {
   getHoldingPopTypeCapacity,
   getHoldingEmployedPopSizeByType,
+  getWorkplaceEmployedPopSizeByType,
 } from '../selectors/popSelectors'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
@@ -12,6 +13,7 @@ import type { PopGroup, PopType } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { WorldState } from '../types/world'
+import { workplaceRefKey } from '../types/workplaceRef'
 
 const PROVINCE = createProvinceId('p', 0)
 
@@ -80,10 +82,15 @@ describe('normalizePopEmploymentMut — PopType ハード枠', () => {
 
     normalizePopEmploymentMut(state, defaultConfig, holdingId)
 
-    // v0.63 Phase 1-2: 全 POP が employerId: null のため、null→null は同一 merge key → no-op。
-    // Phase 3-4 で employer 紐付け後に「各 PopType 容量まで雇用」動作を再確認する。
-    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')).toBe(0)
-    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'laborers')).toBe(0)
+    // Phase 3-4: employer 紐付け済み。各 PopType は対応 employer の capacity まで雇用される。
+    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')).toBeCloseTo(
+      capPeasants,
+      0,
+    )
+    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'laborers')).toBeCloseTo(
+      capLaborers,
+      0,
+    )
   })
 
   it('熟練職 (自作農) は主要職能 (小作農) の実雇用数までしか雇えない (同数上限)', () => {
@@ -104,11 +111,119 @@ describe('normalizePopEmploymentMut — PopType ハード枠', () => {
 
     normalizePopEmploymentMut(state, defaultConfig, holdingId)
 
-    // v0.63 Phase 1-2: 全 POP が employerId: null のため rebalance は no-op。
-    // Phase 3-4 で employer 紐付け後に「同数上限」動作を再確認する。
+    // Phase 3-4: employer 紐付け済み。小作農は全員雇用、自作農は小作農実数 (15) でキャップ。
     const employedPeasants = getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')
     const employedFreeholders = getHoldingEmployedPopSizeByType(state, holdingId, 'freeholders')
-    expect(employedPeasants).toBe(0)
-    expect(employedFreeholders).toBe(0)
+    expect(employedPeasants).toBe(PEASANT_COUNT)
+    // 同数上限: 自作農は小作農の実雇用数 (15) でキャップされる。
+    expect(employedFreeholders).toBe(PEASANT_COUNT)
+  })
+})
+
+// v0.63 Task 4: per-employer WorkplaceRef 紐付けの動作検証。
+describe('normalizePopEmploymentMut — WorkplaceRef 紐付け (v0.63 Task 4)', () => {
+  it('消失した employer を参照する POP は Phase 1 で強制失業させる', () => {
+    // farm holding に laborers を配置し、存在しない asset ref を直接セットする。
+    // normalize 後: 消失 employer を参照する POP は存在しない。
+    const { state, holdingId } = setupFarmHolding([{ popType: 'laborers', size: 500 }])
+    const popId = createPopGroupId(100) // setupFarmHolding が 100 から採番
+
+    const vanishedRef = { kind: 'asset' as const, id: createRealEstateAssetId(99) }
+    const ws: WorldState = {
+      ...state,
+      popGroups: {
+        ...state.popGroups,
+        [popId]: { ...state.popGroups[popId]!, employerId: vanishedRef },
+      },
+    }
+
+    normalizePopEmploymentMut(ws, defaultConfig, holdingId)
+
+    // 消失した employer を参照する POP は存在しない
+    const vanishedKey = workplaceRefKey(vanishedRef)
+    const hasVanishedPop = Object.values(ws.popGroups).some(
+      (p) =>
+        p.holdingId === holdingId &&
+        p.employerId !== null &&
+        workplaceRefKey(p.employerId) === vanishedKey,
+    )
+    expect(hasVanishedPop).toBe(false)
+
+    // POP 総量は保存されている
+    const total = Object.values(ws.popGroups)
+      .filter((p) => p.holdingId === holdingId)
+      .reduce((sum, p) => sum + p.size, 0)
+    expect(total).toBeCloseTo(500)
+  })
+
+  it('Phase 2 で失業 POP を具体的な WorkplaceRef (employer) に紐付ける', () => {
+    // 大量の未就業 peasants。normalize 後: farm ref に紐付けられた peasants が capacity 分存在する。
+    const { state, holdingId } = setupFarmHolding([{ popType: 'peasants', size: 100000 }])
+    const assetId = createRealEstateAssetId(0)
+    const farmRef = { kind: 'asset' as const, id: assetId }
+
+    const capPeasants = getHoldingPopTypeCapacity(state, defaultConfig, holdingId, 'peasants')
+    normalizePopEmploymentMut(state, defaultConfig, holdingId)
+
+    // 雇用済み総量 = capacity (holding-level)
+    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')).toBeCloseTo(
+      capPeasants,
+      0,
+    )
+    // farm ref に具体的に紐付けられている (employer-level 確認)
+    expect(getWorkplaceEmployedPopSizeByType(state, holdingId, farmRef, 'peasants')).toBeCloseTo(
+      capPeasants,
+      0,
+    )
+  })
+
+  it('maxRatio は employer 単位で適用される (per-employer clamping)', () => {
+    // farm に peasants 10 人を pre-assign し、freeholders の上限が 10 になることを確認。
+    // これは per-employer クランプ (clampCapacityByMaxRatioPerEmployer) の直接検証。
+    const { state, holdingId } = setupFarmHolding([{ popType: 'freeholders', size: 100000 }])
+    const assetId = createRealEstateAssetId(0)
+    const farmRef = { kind: 'asset' as const, id: assetId }
+    const PEASANT_SIZE = 10
+
+    // peasants 10 人を farm ref に pre-assign
+    const peasantId = createPopGroupId(200)
+    const ws: WorldState = {
+      ...state,
+      popGroups: {
+        ...state.popGroups,
+        [peasantId]: {
+          id: peasantId,
+          holdingId,
+          class: 'lower' as const,
+          popType: 'peasants' as const,
+          employerId: farmRef,
+          size: PEASANT_SIZE,
+          money: 0,
+          needSatisfaction: 50,
+          unrest: 10,
+          attitudes: {},
+        },
+      },
+      popIndex: {
+        byHolding: {
+          [holdingId]: [...(state.popIndex.byHolding[holdingId] ?? []), peasantId],
+        },
+      },
+      nextPopGroupId: 1001,
+    }
+
+    // farm の peasants 容量 > PEASANT_SIZE のため Phase 1 では farm peasants が減らない前提
+    const capPeasants = getHoldingPopTypeCapacity(state, defaultConfig, holdingId, 'peasants')
+    expect(capPeasants).toBeGreaterThan(PEASANT_SIZE)
+
+    normalizePopEmploymentMut(ws, defaultConfig, holdingId)
+
+    // freeholders は farm の peasants 実雇用数 (10) でキャップされる
+    const employedFreeholders = getHoldingEmployedPopSizeByType(ws, holdingId, 'freeholders')
+    expect(employedFreeholders).toBeCloseTo(PEASANT_SIZE)
+    // farm ref での peasants 確認 (Phase 1 で削られていない)
+    expect(getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRef, 'peasants')).toBeCloseTo(
+      PEASANT_SIZE,
+    )
   })
 })
