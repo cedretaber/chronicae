@@ -53,6 +53,7 @@ import {
 } from '../selectors/warManeuverSelectors'
 import { emitBattleOccurred, emitBattleAvoided, emitCaptainGeneralChanged } from './warEvents'
 import { createLogger } from '../debug/logger'
+import { applyBarracksCasualtyMut } from '../mutations/barracksCasualtyMutations'
 
 // v0.49 §16.3: 会戦単位 reputation。決定的勝敗 (outcomeQuality=rout) の総大将に military reputation を付与する
 //   (突出武功 = winner の +feat、大失態 = loser の -failure)。通常会戦には配らず、既存の戦争終結 award を中心にする。
@@ -427,6 +428,9 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     // v0.49 §15/§19: BattleLog slice を draft 化 (nextBattleLogId は primitive で ...ctx.state 経由でコピー済)。
     battleLogs: { ...ctx.state.battleLogs },
     battleLogIndex: { byWar: { ...ctx.state.battleLogIndex.byWar } },
+    // v0.64: POP casualty 適用のため popGroups / popIndex も draft 化する。
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
   }
   let next: TickContext = { ...ctx, state: ws }
 
@@ -603,6 +607,12 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         })
         if (rr.strengthAfter <= config.regimentDestroyedStrengthThreshold) {
           destroyRegimentMut(ws, rr.regimentId, absoluteWeek)
+        }
+        if (rr.strengthDamage > 0) {
+          const regiment = ws.regiments[rr.regimentId]
+          if (regiment) {
+            applyBarracksCasualtyMut(ws, regiment.barracksId, rr.strengthDamage)
+          }
         }
       }
 
