@@ -64,8 +64,6 @@ import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '@sim/config/merchantDefinitions'
-import { isEmployed } from '@sim/types/workplaceRef'
-
 export function HoldingDetail({
   holding,
   session,
@@ -1130,8 +1128,10 @@ export function HoldingDetail({
                     {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
                     <span className="text-xs font-normal text-gray-400">
                       ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
-                      {isEmployed(pop)
-                        ? t('detail.province.pop_employed')
+                      {pop.employerId !== null
+                        ? t(`detail.province.pop_employer_${pop.employerId.kind}`, {
+                            defaultValue: t('detail.province.pop_employed'),
+                          })
                         : t('detail.province.pop_unemployed')}
                       )
                     </span>{' '}

@@ -52,6 +52,8 @@ function collectPopStats(state: WorldState) {
   const unempByType = new Map<PopType, number>()
   // per-popType per-capita money (employed のみ): money sum / size sum。
   const moneyByType = new Map<PopType, { money: number; size: number }>()
+  // v0.63: employer kind 別の雇用人数。
+  const byEmployerKind = new Map<'asset' | 'improvement' | 'merchant', number>()
 
   let totalPop = 0
   let totalMoney = 0
@@ -85,6 +87,12 @@ function collectPopStats(state: WorldState) {
       mt.money += pop.money
       mt.size += pop.size
       moneyByType.set(pop.popType, mt)
+      if (pop.employerId !== null) {
+        byEmployerKind.set(
+          pop.employerId.kind,
+          (byEmployerKind.get(pop.employerId.kind) ?? 0) + pop.size,
+        )
+      }
     } else {
       s.unemployed += pop.size
       unempByType.set(pop.popType, (unempByType.get(pop.popType) ?? 0) + pop.size)
@@ -118,6 +126,7 @@ function collectPopStats(state: WorldState) {
     empByType,
     unempByType,
     moneyByType,
+    byEmployerKind,
   }
 }
 
@@ -228,6 +237,22 @@ function printFinalBreakdown(state: WorldState): void {
       `  ${popType.padEnd(13)}(${getPopStratum(popType).padEnd(6)}): ` +
         `emp=${Math.round(emp).toString().padStart(7)}, unemp=${Math.round(unemp).toString().padStart(7)}, ` +
         `pcMoney(emp)=${pcMoney.toFixed(2)}`,
+    )
+  }
+
+  // v0.63: employer kind 別の雇用内訳。
+  console.log('')
+  console.log('=== Employed by Employer Kind ===')
+  const EMPLOYER_KINDS: ('asset' | 'improvement' | 'merchant')[] = [
+    'asset',
+    'improvement',
+    'merchant',
+  ]
+  for (const kind of EMPLOYER_KINDS) {
+    const n = stats.byEmployerKind.get(kind) ?? 0
+    const pct = stats.totalEmployed > 0 ? ((n / stats.totalEmployed) * 100).toFixed(1) : '0.0'
+    console.log(
+      `  ${kind.padEnd(12)}: emp=${Math.round(n).toString().padStart(7)}, ${pct.padStart(5)}% of employed`,
     )
   }
 
