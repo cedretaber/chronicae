@@ -215,7 +215,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Pop: ${popGroup.class} (${popGroup.employerId ? t(`pop_employer_${popGroup.employerId.kind}`, { ns: 'ui' }) : t('detail.province.pop_unemployed')})`}
+              title={`Pop: ${popGroup.class} (${popGroup.employerId ? t(`detail.province.pop_employer_${popGroup.employerId.kind}`) : t('detail.province.pop_unemployed')})`}
             >
               <PopGroupDetail
                 popGroup={popGroup}
