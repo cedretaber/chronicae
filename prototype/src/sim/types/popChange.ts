@@ -1,5 +1,7 @@
 import type { HoldingId } from './ids'
 import type { PopClass, PopType } from './popGroup'
+import type { WorkplaceRef } from './workplaceRef'
+import { workplaceRefKey } from './workplaceRef'
 
 // v0.59: 月次「人口変動」read-model。先月 (直近 4 週) の人口の純変動を、自然増減と移住に
 //   分解して保持する。PopSystem が月初にリセット生成し自然増減を、CrisisSystem が飢饉・疫病・
@@ -24,12 +26,12 @@ export type MonthlyPopChangeSnapshot = {
   byPopGroupKey: Record<string, PopChangeEntry>
 }
 
-// byPopGroupKey の合成キー。`${holdingId}|${class}|${popType}|${employed}`。
+// byPopGroupKey の合成キー。`${holdingId}|${class}|${popType}|${workplaceRefKey(employerId)}`。
 export function popGroupChangeKey(
   holdingId: HoldingId,
   popClass: PopClass,
   popType: PopType,
-  employed: boolean,
+  employerId: WorkplaceRef | null,
 ): string {
-  return `${holdingId}|${popClass}|${popType}|${employed}`
+  return `${holdingId}|${popClass}|${popType}|${workplaceRefKey(employerId)}`
 }
