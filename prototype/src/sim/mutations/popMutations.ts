@@ -430,6 +430,31 @@ export function reduceHoldingPopSizeProportionalMut(
   }
 }
 
+// v0.63 belt-and-suspenders: 雇用主削除時の unbind hook。holdingId 内の employed POP を
+//   unemployed に転職させる (即座にマージ)。employer={kind, id} は future-use (複数雇用主を持つ POP
+//   未実装のため、現在は単に employed フラグを消す)。
+export function unbindPopsFromEmployerMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  employer?: { kind: string; id: string },
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  // employer parameter is accepted for future extensibility (when POPs can have multiple employers),
+  // but currently unused (v0.63 has single employer per POP at most)
+  void employer
+
+  for (const popId of popIds) {
+    const pop = ws.popGroups[popId]
+    if (!pop || !pop.employed) continue
+    // employed → unemployed に転職 (employed フラグを false に)
+    ws.popGroups[popId] = { ...pop, employed: false }
+  }
+
+  // 転職後、同じ merge key の POP を統合 (employed が変わったため split していた employed/unemployed を再マージ)
+  mergeCompatiblePopsMut(ws)
+}
+
 export function mergeCompatiblePopsMut(ws: WorldState): void {
   const mergeMap = new Map<string, PopGroupId[]>()
 

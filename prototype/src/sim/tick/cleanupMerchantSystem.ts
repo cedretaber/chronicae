@@ -75,6 +75,9 @@ export function runCleanupMerchantSystem(ctx: TickContext): TickContext {
   if (!hasWork) return ctx
 
   const draft = cloneMerchantSlicesOnly(state)
+  // v0.63: extend draft to include popGroups/popIndex for unbind hook
+  draft.popGroups = { ...state.popGroups }
+  draft.popIndex = { byHolding: { ...state.popIndex.byHolding } }
   let workingCtx = { ...ctx, state: draft }
 
   // --- (1) 破産 → dormant ---
