@@ -12,6 +12,7 @@ import {
 } from '../selectors/popSelectors'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 import { movePopEmploymentMut } from '../mutations/popMutations'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.57 §雇用細分化: rebalance の PopType 処理順。同数上限を持つ熟練職 (親方/自作農) は
 //   参照先 (職人/小作農) の雇用が確定した後に処理する必要があるため最後に回す。
@@ -48,7 +49,7 @@ export function normalizePopEmploymentMut(
         if (remainingExcess <= 0) break
         const moveAmount = Math.min(pop.size, remainingExcess)
         if (moveAmount <= 0) continue
-        movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployed: false, size: moveAmount })
+        movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: null, size: moveAmount })
         remainingExcess -= moveAmount
       }
     }
@@ -60,12 +61,12 @@ export function normalizePopEmploymentMut(
     for (const uPop of getHoldingPopsByTypeAndEmployment(ws, holdingId, popType, false)) {
       if (room <= 0) break
       const currentPop = ws.popGroups[uPop.id]
-      if (!currentPop || currentPop.employed) continue
+      if (!currentPop || isEmployed(currentPop)) continue
       const moveAmount = Math.min(currentPop.size, room)
       if (moveAmount <= 0) continue
       movePopEmploymentMut(ws, {
         sourcePopId: currentPop.id,
-        targetEmployed: true,
+        targetEmployerId: null,
         size: moveAmount,
       })
       room -= moveAmount

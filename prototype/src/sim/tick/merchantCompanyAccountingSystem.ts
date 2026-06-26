@@ -9,6 +9,7 @@ import type { PopType } from '../types/popGroup'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import { getMerchantEstablishmentEmploymentSlots } from '../config/merchantDefinitions'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.61 §15/§16: 月次。ResourceEconomySystem の後・houseSurplusDistribution の後に走り、
 //   route profit（当月清算価格）+ commerce revenue（前月 snapshot）を gross に集計し、§16.6 で
@@ -61,7 +62,7 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
     if (amount <= 0) return 0
     for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
       const pop = popGroupsMut[pid]
-      if (!pop || pop.popType !== popType || !pop.employed) continue
+      if (!pop || pop.popType !== popType || !isEmployed(pop)) continue
       popGroupsMut[pid] = { ...pop, money: pop.money + amount }
       return amount
     }

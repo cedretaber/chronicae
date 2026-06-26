@@ -19,9 +19,9 @@ function makeWs(withSnapshot: boolean): WorldState {
 }
 
 describe('popChangeSnapshot', () => {
-  it('popGroupChangeKey は holding|class|popType|employed 形式', () => {
-    expect(popGroupChangeKey(H1, 'lower', 'peasants', true)).toBe('h-1|lower|peasants|true')
-    expect(popGroupChangeKey(H1, 'lower', 'peasants', false)).toBe('h-1|lower|peasants|false')
+  it('popGroupChangeKey は holding|class|popType|workplaceRefKey 形式', () => {
+    // v0.63: 4th arg is WorkplaceRef | null; null → 'none'
+    expect(popGroupChangeKey(H1, 'lower', 'peasants', null)).toBe('h-1|lower|peasants|none')
   })
 
   it('createMonthlyPopChangeSnapshot は空の read-model を作る', () => {
@@ -33,17 +33,17 @@ describe('popChangeSnapshot', () => {
 
   it('自然増減を holding と pop group key の両方に累積する (正負を加算)', () => {
     const ws = makeWs(true)
-    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', true, 5)
-    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', true, -2)
+    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', null, 5)
+    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', null, -2)
     const s = ws.monthlyPopChange!
     expect(s.byHolding[H1]?.natural).toBeCloseTo(3)
-    expect(s.byPopGroupKey['h-1|lower|peasants|true']?.natural).toBeCloseTo(3)
+    expect(s.byPopGroupKey['h-1|lower|peasants|none']?.natural).toBeCloseTo(3)
   })
 
   it('移住流入・流出を holding 単位で正しく集計する', () => {
     const ws = makeWs(true)
-    accrueMigrationOutPopChangeMut(ws, H1, 'lower', 'peasants', true, 4)
-    accrueMigrationInPopChangeMut(ws, H2, 'lower', 'peasants', true, 4)
+    accrueMigrationOutPopChangeMut(ws, H1, 'lower', 'peasants', null, 4)
+    accrueMigrationInPopChangeMut(ws, H2, 'lower', 'peasants', null, 4)
     const s = ws.monthlyPopChange!
     expect(s.byHolding[H1]?.migrationOut).toBeCloseTo(4)
     expect(s.byHolding[H1]?.migrationIn).toBeCloseTo(0)
@@ -53,23 +53,23 @@ describe('popChangeSnapshot', () => {
 
   it('holding 合計の純変動は natural + migrationIn − migrationOut で表せる', () => {
     const ws = makeWs(true)
-    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', true, 10)
-    accrueMigrationInPopChangeMut(ws, H1, 'lower', 'peasants', true, 3)
-    accrueMigrationOutPopChangeMut(ws, H1, 'lower', 'peasants', true, 5)
+    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', null, 10)
+    accrueMigrationInPopChangeMut(ws, H1, 'lower', 'peasants', null, 3)
+    accrueMigrationOutPopChangeMut(ws, H1, 'lower', 'peasants', null, 5)
     const e = ws.monthlyPopChange!.byHolding[H1]!
     expect(e.natural + e.migrationIn - e.migrationOut).toBeCloseTo(8)
   })
 
   it('snapshot 未生成のときは no-op (throw しない)', () => {
     const ws = makeWs(false)
-    expect(() => accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', true, 5)).not.toThrow()
+    expect(() => accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', null, 5)).not.toThrow()
     expect(ws.monthlyPopChange).toBeUndefined()
   })
 
   it('delta 0 / amount 0 はエントリを作らない', () => {
     const ws = makeWs(true)
-    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', true, 0)
-    accrueMigrationInPopChangeMut(ws, H1, 'lower', 'peasants', true, 0)
+    accrueNaturalPopChangeMut(ws, H1, 'lower', 'peasants', null, 0)
+    accrueMigrationInPopChangeMut(ws, H1, 'lower', 'peasants', null, 0)
     expect(ws.monthlyPopChange!.byHolding[H1]).toBeUndefined()
   })
 })

@@ -14,6 +14,7 @@ import { getHoldingClassCapacity, getPopGroupMonthlyPopChange } from '@sim/selec
 import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
 import { formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { isEmployed } from '@sim/types/workplaceRef'
 
 export function PopGroupDetail({
   popGroup,
@@ -46,7 +47,7 @@ export function PopGroupDetail({
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{classLabel}</span>
         <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">
-          {popGroup.employed
+          {isEmployed(popGroup)
             ? t('detail.province.pop_employed')
             : t('detail.province.pop_unemployed')}
         </span>
@@ -139,7 +140,7 @@ export function PopGroupDetail({
         )
       })()}
 
-      {popGroup.employed && currentState && (
+      {isEmployed(popGroup) && currentState && (
         <div className="text-sm">
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.province.capacity')}:</span>
@@ -205,10 +206,10 @@ export function PopGroupDetail({
           for (const m of currentState.monthlyPopMobility.topMovements) {
             if (m.kind !== 'job_change') continue
             if ((m.sourceHoldingId as string) !== (popGroup.holdingId as string)) continue
-            if (m.toPopType === popGroup.popType && m.toEmployed === popGroup.employed) {
+            if (m.toPopType === popGroup.popType && m.toEmployed === isEmployed(popGroup)) {
               inflow.set(m.fromPopType, (inflow.get(m.fromPopType) ?? 0) + m.amount)
             }
-            if (m.fromPopType === popGroup.popType && m.fromEmployed === popGroup.employed) {
+            if (m.fromPopType === popGroup.popType && m.fromEmployed === isEmployed(popGroup)) {
               outflow.set(m.toPopType, (outflow.get(m.toPopType) ?? 0) + m.amount)
             }
           }

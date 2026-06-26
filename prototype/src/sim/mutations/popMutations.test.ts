@@ -23,7 +23,7 @@ function pop(
     holdingId,
     class: popClass,
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
-    employed: true,
+    employerId: null,
     size,
     money,
     needSatisfaction: 50,
@@ -91,7 +91,7 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
       holdingId,
       class: 'lower',
       popType: 'laborers',
-      employed: true,
+      employerId: null,
       size: 100,
       money: 1000,
       needSatisfaction: 50,
@@ -112,7 +112,7 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
     movePopSizeToKeyMut(
       state,
       srcId,
-      { holdingId, class: 'lower', popType: 'peasants', employed: true },
+      { holdingId, class: 'lower', popType: 'peasants', employerId: null },
       50,
     )
     const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
@@ -127,7 +127,7 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
     movePopSizeToKeyMut(
       state,
       srcId,
-      { holdingId, class: 'lower', popType: 'peasants', employed: true },
+      { holdingId, class: 'lower', popType: 'peasants', employerId: null },
       100,
     )
     const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
@@ -135,14 +135,14 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
     expect(state.popGroups[srcId]).toBeUndefined() // source は drain で除去
   })
 
-  it('movePopEmploymentMut: 雇用状態変更で money は比例移送 (複製しない・total 保存)', () => {
+  it('movePopEmploymentMut: 同一 employerId (null→null) は no-op で total 保存', () => {
+    // v0.63 Phase 1-2: 全 POP が employerId: null のため null→null は同一 merge key → no-op。
+    // Phase 3-4 で employer 紐付け後にスプリット動作を検証する。
     const { state, srcId } = moneyFixture()
-    movePopEmploymentMut(state, { sourcePopId: srcId, targetEmployed: false, size: 50 })
+    movePopEmploymentMut(state, { sourcePopId: srcId, targetEmployerId: null, size: 50 })
     const total = Object.values(state.popGroups).reduce((a, p) => a + p.money, 0)
-    expect(total).toBeCloseTo(1000, 6) // 複製されない
-    const moved = Object.values(state.popGroups).find((p) => !p.employed)
-    expect(moved?.money).toBeCloseTo(500, 6)
-    expect(state.popGroups[srcId]?.money).toBeCloseTo(500, 6)
+    expect(total).toBeCloseTo(1000, 6) // no-op: money 変化なし
+    expect(state.popGroups[srcId]?.money).toBeCloseTo(1000, 6) // source unchanged
   })
 
   it('addToOrCreatePopGroupMut: 同 key merge で money は sum (平均でなく)', () => {
@@ -152,7 +152,7 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
       holdingId,
       class: 'lower',
       popType: 'laborers',
-      employed: true,
+      employerId: null,
       size: 50,
       inheritFrom: incoming,
     })

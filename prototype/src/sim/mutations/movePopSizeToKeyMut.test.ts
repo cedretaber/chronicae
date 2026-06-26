@@ -16,7 +16,7 @@ function mkPop(
   holdingId: HoldingId,
   cls: PopStratum,
   popType: PopType,
-  employed: boolean,
+  _employed: boolean, // v0.63: field removed; kept for call-site compat
   size: number,
   money = 0,
   unrest = 10,
@@ -26,7 +26,7 @@ function mkPop(
     holdingId,
     class: cls,
     popType,
-    employed,
+    employerId: null,
     size,
     money,
     needSatisfaction: 50,
@@ -59,7 +59,7 @@ describe('movePopSizeToKeyMut', () => {
       holdingId: H0,
       class: 'lower',
       popType: 'artisans',
-      employed: true,
+      employerId: null,
     }
 
     const tid = movePopSizeToKeyMut(state, src, target, 10)
@@ -78,7 +78,7 @@ describe('movePopSizeToKeyMut', () => {
     const tid = movePopSizeToKeyMut(
       state,
       src,
-      { holdingId: H1, class: 'lower', popType: 'laborers', employed: true },
+      { holdingId: H1, class: 'lower', popType: 'laborers', employerId: null },
       10,
     )
 
@@ -98,7 +98,7 @@ describe('movePopSizeToKeyMut', () => {
     const tid = movePopSizeToKeyMut(
       state,
       src,
-      { holdingId: H0, class: 'lower', popType: 'artisans', employed: true },
+      { holdingId: H0, class: 'lower', popType: 'artisans', employerId: null },
       50,
     )
 
@@ -121,7 +121,7 @@ describe('movePopSizeToKeyMut', () => {
     const tid = movePopSizeToKeyMut(
       state,
       src,
-      { holdingId: H0, class: 'middle', popType: 'freeholders', employed: true },
+      { holdingId: H0, class: 'middle', popType: 'freeholders', employerId: null },
       10,
       { moneyCostPerCapita: 0.5 },
     )
@@ -139,7 +139,7 @@ describe('movePopSizeToKeyMut', () => {
     const tid = movePopSizeToKeyMut(
       state,
       src,
-      { holdingId: H0, class: 'lower', popType: 'artisans', employed: true },
+      { holdingId: H0, class: 'lower', popType: 'artisans', employerId: null },
       10,
       { minSourceSize: 1 },
     )
@@ -155,7 +155,7 @@ describe('movePopSizeToKeyMut', () => {
     const tid = movePopSizeToKeyMut(
       state,
       src,
-      { holdingId: H1, class: 'lower', popType: 'laborers', employed: true },
+      { holdingId: H1, class: 'lower', popType: 'laborers', employerId: null },
       10,
     )
 
@@ -172,7 +172,7 @@ describe('movePopSizeToKeyMut', () => {
       movePopSizeToKeyMut(
         state,
         src,
-        { holdingId: H0, class: 'middle', popType: 'artisans', employed: true }, // artisans is lower
+        { holdingId: H0, class: 'middle', popType: 'artisans', employerId: null }, // artisans is lower
         10,
       ),
     ).toThrow()
@@ -186,7 +186,7 @@ describe('movePopSizeToKeyMut', () => {
       movePopSizeToKeyMut(
         state,
         src,
-        { holdingId: H0, class: 'lower', popType: 'laborers', employed: true },
+        { holdingId: H0, class: 'lower', popType: 'laborers', employerId: null },
         10,
       ),
     ).toBeUndefined()
@@ -194,7 +194,7 @@ describe('movePopSizeToKeyMut', () => {
       movePopSizeToKeyMut(
         state,
         src,
-        { holdingId: H1, class: 'lower', popType: 'laborers', employed: true },
+        { holdingId: H1, class: 'lower', popType: 'laborers', employerId: null },
         0,
       ),
     ).toBeUndefined()
@@ -202,7 +202,7 @@ describe('movePopSizeToKeyMut', () => {
       movePopSizeToKeyMut(
         state,
         createPopGroupId(999),
-        { holdingId: H1, class: 'lower', popType: 'laborers', employed: true },
+        { holdingId: H1, class: 'lower', popType: 'laborers', employerId: null },
         10,
       ),
     ).toBeUndefined()

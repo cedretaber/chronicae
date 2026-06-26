@@ -10,6 +10,7 @@ import type { InputCategory } from '../types/inputCategory'
 import { INPUT_CATEGORY_CONTRIBUTIONS } from '../types/inputCategory'
 import type { PopType, PopStratum } from '../types/popGroup'
 import { POP_TYPES_BY_STRATUM, getPopStratum } from '../types/popGroup'
+import { isEmployed } from '../types/workplaceRef'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import {
   PRODUCTION_RECIPE_DEFINITIONS,
@@ -194,7 +195,7 @@ export function computeAssetPopTypeShares(
   const popIds = state.popIndex.byHolding[asset.holdingId] ?? []
   for (const pid of popIds) {
     const p = state.popGroups[pid]
-    if (!p || !p.employed) continue
+    if (!p || !isEmployed(p)) continue
     sizeByType[p.popType] = (sizeByType[p.popType] ?? 0) + p.size
     sizeByStratum[p.class] += p.size
   }

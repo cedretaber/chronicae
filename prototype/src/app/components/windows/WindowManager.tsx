@@ -39,6 +39,7 @@ import {
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
 import type { PolityId, HouseId, PersonId, ProvinceId, StateRegionId } from '@/sim/types/ids'
 import { DraggableWindow } from './DraggableWindow'
+import { isEmployed } from '@sim/types/workplaceRef'
 
 export function WindowManager() {
   const session = useSimulationStore((s) => s.session)
@@ -215,7 +216,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Pop: ${popGroup.class} (${popGroup.employed ? 'employed' : 'unemployed'})`}
+              title={`Pop: ${popGroup.class} (${isEmployed(popGroup) ? 'employed' : 'unemployed'})`}
             >
               <PopGroupDetail
                 popGroup={popGroup}

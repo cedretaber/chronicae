@@ -188,7 +188,7 @@ function mkPop(
     holdingId,
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     size,
     money: 0,
     needSatisfaction: 50,

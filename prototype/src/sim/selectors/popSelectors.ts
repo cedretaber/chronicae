@@ -21,6 +21,7 @@ import { computeSlotCapacity } from './terrainTraitSelectors'
 import { getHoldingMerchantEmploymentSlots } from './merchantSelectors'
 import { popGroupChangeKey } from '../types/popChange'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
+import { isEmployed } from '../types/workplaceRef'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -307,7 +308,7 @@ export function getHoldingPopsByClassAndEmployment(
   employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.class === popClass && p.employed === employed,
+    (p) => p.class === popClass && isEmployed(p) === employed,
   )
 }
 
@@ -411,7 +412,7 @@ export function getHoldingPopsByTypeAndEmployment(
   employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.popType === popType && p.employed === employed,
+    (p) => p.popType === popType && isEmployed(p) === employed,
   )
 }
 
@@ -601,7 +602,7 @@ export function getPopGroupMonthlyPopChange(
 ): { natural: number; migrationIn: number; migrationOut: number; net: number } | undefined {
   const snapshot = state.monthlyPopChange
   if (!snapshot) return undefined
-  const key = popGroupChangeKey(pop.holdingId, pop.class, pop.popType, pop.employed)
+  const key = popGroupChangeKey(pop.holdingId, pop.class, pop.popType, pop.employerId)
   const e = snapshot.byPopGroupKey[key] ?? { natural: 0, migrationIn: 0, migrationOut: 0 }
   return {
     natural: e.natural,

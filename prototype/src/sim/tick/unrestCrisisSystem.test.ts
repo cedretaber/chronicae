@@ -38,7 +38,7 @@ function buildWorld(): WorldState {
         holdingId: HOLDING,
         class: 'lower',
         popType: 'peasants',
-        employed: true,
+        employerId: null,
         size: 1000,
         wealth: 30,
         unrest: 80,

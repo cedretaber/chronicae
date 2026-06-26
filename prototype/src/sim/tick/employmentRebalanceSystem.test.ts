@@ -41,7 +41,7 @@ function setupFarmHolding(pops: { popType: PopType; size: number }[]): {
       holdingId,
       class: getPopStratum(p.popType),
       popType: p.popType,
-      employed: false,
+      employerId: null,
       size: p.size,
       money: 0,
       needSatisfaction: 50,
@@ -80,9 +80,10 @@ describe('normalizePopEmploymentMut — PopType ハード枠', () => {
 
     normalizePopEmploymentMut(state, defaultConfig, holdingId)
 
-    // それぞれ自分の PopType 容量まで雇用される (互いに干渉しない)。
-    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')).toBeCloseTo(capPeasants)
-    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'laborers')).toBeCloseTo(capLaborers)
+    // v0.63 Phase 1-2: 全 POP が employerId: null のため、null→null は同一 merge key → no-op。
+    // Phase 3-4 で employer 紐付け後に「各 PopType 容量まで雇用」動作を再確認する。
+    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')).toBe(0)
+    expect(getHoldingEmployedPopSizeByType(state, holdingId, 'laborers')).toBe(0)
   })
 
   it('熟練職 (自作農) は主要職能 (小作農) の実雇用数までしか雇えない (同数上限)', () => {
@@ -103,10 +104,11 @@ describe('normalizePopEmploymentMut — PopType ハード枠', () => {
 
     normalizePopEmploymentMut(state, defaultConfig, holdingId)
 
+    // v0.63 Phase 1-2: 全 POP が employerId: null のため rebalance は no-op。
+    // Phase 3-4 で employer 紐付け後に「同数上限」動作を再確認する。
     const employedPeasants = getHoldingEmployedPopSizeByType(state, holdingId, 'peasants')
     const employedFreeholders = getHoldingEmployedPopSizeByType(state, holdingId, 'freeholders')
-    expect(employedPeasants).toBe(PEASANT_COUNT)
-    // 同数上限: 自作農は小作農の実雇用数 (15) でキャップされる。
-    expect(employedFreeholders).toBe(PEASANT_COUNT)
+    expect(employedPeasants).toBe(0)
+    expect(employedFreeholders).toBe(0)
   })
 })

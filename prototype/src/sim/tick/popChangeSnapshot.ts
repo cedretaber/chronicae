@@ -4,6 +4,7 @@ import type { PopClass } from '../types/popGroup'
 import type { PopType } from '../types/popGroup'
 import type { MonthlyPopChangeSnapshot, PopChangeEntry } from '../types/popChange'
 import { popGroupChangeKey } from '../types/popChange'
+import type { WorkplaceRef } from '../types/workplaceRef'
 
 export { popGroupChangeKey }
 
@@ -37,15 +38,17 @@ export function accrueNaturalPopChangeMut(
   holdingId: HoldingId,
   popClass: PopClass,
   popType: PopType,
-  employed: boolean,
+  employerId: WorkplaceRef | null,
   delta: number,
 ): void {
   const snapshot = ws.monthlyPopChange
   if (!snapshot) return
   if (delta === 0) return
   ensureHolding(snapshot, holdingId).natural += delta
-  ensurePopGroupKey(snapshot, popGroupChangeKey(holdingId, popClass, popType, employed)).natural +=
-    delta
+  ensurePopGroupKey(
+    snapshot,
+    popGroupChangeKey(holdingId, popClass, popType, employerId),
+  ).natural += delta
 }
 
 // 移住流出を source holding / source pop group key に累積 (amount は正)。
@@ -54,7 +57,7 @@ export function accrueMigrationOutPopChangeMut(
   holdingId: HoldingId,
   popClass: PopClass,
   popType: PopType,
-  employed: boolean,
+  employerId: WorkplaceRef | null,
   amount: number,
 ): void {
   const snapshot = ws.monthlyPopChange
@@ -63,7 +66,7 @@ export function accrueMigrationOutPopChangeMut(
   ensureHolding(snapshot, holdingId).migrationOut += amount
   ensurePopGroupKey(
     snapshot,
-    popGroupChangeKey(holdingId, popClass, popType, employed),
+    popGroupChangeKey(holdingId, popClass, popType, employerId),
   ).migrationOut += amount
 }
 
@@ -73,7 +76,7 @@ export function accrueMigrationInPopChangeMut(
   holdingId: HoldingId,
   popClass: PopClass,
   popType: PopType,
-  employed: boolean,
+  employerId: WorkplaceRef | null,
   amount: number,
 ): void {
   const snapshot = ws.monthlyPopChange
@@ -82,6 +85,6 @@ export function accrueMigrationInPopChangeMut(
   ensureHolding(snapshot, holdingId).migrationIn += amount
   ensurePopGroupKey(
     snapshot,
-    popGroupChangeKey(holdingId, popClass, popType, employed),
+    popGroupChangeKey(holdingId, popClass, popType, employerId),
   ).migrationIn += amount
 }

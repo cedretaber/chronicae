@@ -52,6 +52,7 @@ import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower, formatPopCount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
+import { isEmployed } from '@sim/types/workplaceRef'
 
 export function ProvinceDetail({
   province,
@@ -471,7 +472,7 @@ export function ProvinceDetail({
                 {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
                 <span className="text-xs font-normal text-gray-400">
                   ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
-                  {pop.employed
+                  {isEmployed(pop)
                     ? t('detail.province.pop_employed')
                     : t('detail.province.pop_unemployed')}
                   )

@@ -11,6 +11,7 @@ import type { NamePoolData } from '@sim/namegen/namePoolTypes'
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
+import { isEmployed } from '@sim/types/workplaceRef'
 
 // v0.56: v0.55 PopStratum/PopType + 転職・移住 snapshot に対応した POP 観測ツール。
 //   旧版は byClass を peasants/townsmen/nobles で集計しており全 0 を出していた (v0.55 で stratum 値が
@@ -77,7 +78,7 @@ function collectPopStats(state: WorldState) {
     const s = byStratum[pop.class]
     s.pop += pop.size
     s.moneySum += pop.money
-    if (pop.employed) {
+    if (isEmployed(pop)) {
       s.employed += pop.size
       empByType.set(pop.popType, (empByType.get(pop.popType) ?? 0) + pop.size)
       const mt = moneyByType.get(pop.popType) ?? { money: 0, size: 0 }

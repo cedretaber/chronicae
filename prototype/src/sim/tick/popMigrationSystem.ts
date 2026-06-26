@@ -20,6 +20,7 @@ import {
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
 import { accrueMigrationInPopChangeMut, accrueMigrationOutPopChangeMut } from './popChangeSnapshot'
+import { isEmployed } from '../types/workplaceRef'
 
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
 
@@ -155,7 +156,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
             holdingId: bestHolding,
             class: source.class,
             popType: source.popType,
-            employed: false, // v0.59 追補: 移動先では失業着地 (雇用は rebalance が確定)
+            employerId: null, // v0.59 追補: 移動先では失業着地 (雇用は rebalance が確定)
           },
           amount,
           { minSourceSize: eps },
@@ -172,7 +173,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           sourceHoldingId,
           source.class,
           source.popType,
-          source.employed,
+          source.employerId,
           actualMoved,
         )
         accrueMigrationInPopChangeMut(
@@ -180,7 +181,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           bestHolding,
           source.class,
           source.popType,
-          false,
+          null,
           actualMoved,
         )
 
@@ -191,7 +192,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           targetHoldingId: bestHolding,
           fromPopType: source.popType,
           toPopType: source.popType,
-          fromEmployed: source.employed,
+          fromEmployed: isEmployed(source),
           toEmployed: false,
         })
         snapshot.migratedTotal += amount
@@ -213,7 +214,7 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
 
 function computeMigrationPressure(pop: PopGroup, cache: HoldingMigrationCache): number {
   return (
-    (pop.employed ? 0 : PRESSURE_UNEMPLOYED) +
+    (isEmployed(pop) ? 0 : PRESSURE_UNEMPLOYED) +
     Math.max(0, PRESSURE_SAT_REF - pop.needSatisfaction) * PRESSURE_SAT_COEF +
     pop.unrest * PRESSURE_UNREST_COEF +
     Math.max(0, cache.congestion - 1.0) * PRESSURE_CONGESTION_COEF

@@ -48,7 +48,7 @@ function withPopGroup(
     holdingId,
     class: popClass,
     popType: popClass === 'lower' ? 'peasants' : popClass === 'middle' ? 'freeholders' : 'nobles',
-    employed: true,
+    employerId: null,
     size,
     money: 0,
     needSatisfaction,

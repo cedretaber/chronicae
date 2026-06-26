@@ -9,6 +9,7 @@ import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
 import { POP_TYPES, getPopStratum } from '../types/popGroup'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import { workplaceRefKey } from '../types/workplaceRef'
 
 export function checkCoreEntities(state: WorldState, errors: SimError[], debug: boolean): void {
   // §17.1 Time invariants (v0.19)
@@ -368,11 +369,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      const mergeKey = `${pop.class}|${pop.popType}|${pop.employed}`
+      const mergeKey = `${pop.class}|${pop.popType}|${workplaceRefKey(pop.employerId)}`
       if (seen.has(mergeKey)) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} popType=${pop.popType} employed=${pop.employed} (popId=${popId as string})`,
+          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} popType=${pop.popType} employerId=${workplaceRefKey(pop.employerId)} (popId=${popId as string})`,
         })
       }
       seen.add(mergeKey)
@@ -438,11 +439,18 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
 
-    // 3. employed is boolean
-    if (typeof pop.employed !== 'boolean') {
+    // 3. employerId is null or valid WorkplaceRef shape
+    const empId = pop.employerId
+    if (
+      empId !== null &&
+      (typeof empId !== 'object' ||
+        !('kind' in empId) ||
+        !('id' in empId) ||
+        !['asset', 'improvement', 'merchant'].includes((empId as { kind: string }).kind))
+    ) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `PopGroup ${popGroupId} has invalid employed value '${String(pop.employed)}'`,
+        message: `PopGroup ${popGroupId} has invalid employerId '${JSON.stringify(empId)}'`,
       })
     }
 

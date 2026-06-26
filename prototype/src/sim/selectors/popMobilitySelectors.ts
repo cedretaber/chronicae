@@ -5,6 +5,7 @@ import type { PopType } from '../types/popGroup'
 import { POP_TYPES } from '../types/popGroup'
 import type { HoldingPopTypeDemand } from '../types/popMobility'
 import { getHoldingAllPopTypeCapacities, clampCapacityByMaxRatio } from './popSelectors'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.57 §雇用細分化: holding 単位の PopType 雇用需要 read-model。
 //   desired = PopType 雇用容量 (施設駆動のハード枠)。idealShare = holding 全体で正規化した容量比
@@ -24,7 +25,7 @@ export function computeHoldingPopTypeDemand(
   const popIds = state.popIndex.byHolding[holdingId] ?? []
   for (const pid of popIds) {
     const p = state.popGroups[pid]
-    if (!p || !p.employed) continue
+    if (!p || !isEmployed(p)) continue
     currentEmployedByType[p.popType] = (currentEmployedByType[p.popType] ?? 0) + p.size
   }
 

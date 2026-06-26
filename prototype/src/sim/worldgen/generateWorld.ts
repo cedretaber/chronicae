@@ -1688,7 +1688,7 @@ export function generateWorld(
           holdingId,
           class: stratum,
           popType,
-          employed: true,
+          employerId: null,
           size: cap * fillRatio,
           money:
             estimateMonthlyEssentialCostPerPop(popType) *
@@ -1710,7 +1710,7 @@ export function generateWorld(
           holdingId,
           class: 'lower',
           popType: 'peasants',
-          employed: false,
+          employerId: null,
           size: minPopSizeByClass.lower,
           money:
             estimateMonthlyEssentialCostPerPop('peasants') *

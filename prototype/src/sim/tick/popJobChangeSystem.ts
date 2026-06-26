@@ -17,6 +17,7 @@ import {
   ensureByState,
   mergeAndTruncateMovements,
 } from './popMobilitySnapshot'
+import { isEmployed } from '../types/workplaceRef'
 
 type MoneyQuantiles = ReturnType<typeof computePopTypeMoneyQuantiles>
 type HoldingDemand = ReturnType<typeof computeHoldingPopTypeDemand>
@@ -83,8 +84,8 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
       if (!source) continue
       if (source.size - eps < minMove) continue
       // eligibility: 失業 source か、employed かつ surplus がある source のみ。
-      const isUnemployed = !source.employed
-      const isSurplus = source.employed && (demand.surplusByType[source.popType] ?? 0) > 0
+      const isUnemployed = !isEmployed(source)
+      const isSurplus = isEmployed(source) && (demand.surplusByType[source.popType] ?? 0) > 0
       if (!isUnemployed && !isSurplus) continue
 
       const candidate = bestTargetForSource(
@@ -125,7 +126,7 @@ export function runPopJobChangeSystem(ctx: TickContext): TickContext {
         targetHoldingId: holdingId,
         fromPopType: candidate.source.popType,
         toPopType: candidate.target.popType,
-        fromEmployed: candidate.source.employed,
+        fromEmployed: isEmployed(candidate.source),
         toEmployed: false, // v0.59 追補: 移動先では失業着地 (雇用は rebalance が確定)
       })
       snapshot.jobChangedTotal += amount
@@ -206,18 +207,18 @@ function evaluateCandidate(
   // v0.59 追補: 移動先では常に失業着地 (雇用は rebalance が確定)。cap は source サイズ依存・移動先非依存。
   const make = (maxAmount: number, moneyCostPerCapita?: number): JobChangeCandidate => ({
     source,
-    target: { holdingId, class: targetStratum, popType: targetPopType, employed: false },
+    target: { holdingId, class: targetStratum, popType: targetPopType, employerId: null },
     kind,
     maxAmount,
     ...(moneyCostPerCapita !== undefined ? { moneyCostPerCapita } : {}),
-    sourceUnemployed: !source.employed,
+    sourceUnemployed: !isEmployed(source),
     shortage: targetShortage,
   })
 
   if (kind === 'lateral') {
     // 同 stratum 内の職替え。移動先非依存 (capacity gate なし)。shortage を満たす方向のみ。
     if (targetShortage <= 0) return undefined
-    if (!(sourceSurplus > 0 || !source.employed)) return undefined
+    if (!(sourceSurplus > 0 || !isEmployed(source))) return undefined
     const maxAmount = Math.min(movableBySize, targetShortage, movableByRate)
     return make(maxAmount)
   }
@@ -246,11 +247,11 @@ function evaluateCandidate(
   const q = quantiles?.[source.popType]
   const srcMoney = perCapitaMoney(source)
   const demotionWealthOk =
-    !source.employed ||
+    !isEmployed(source) ||
     (q !== undefined && srcMoney <= q.p25 && srcMoney < q.median - config.popDemotionEpsilon)
   if (!demotionWealthOk) return undefined
   const hasTargetShortage = targetShortage > 0
-  if (!(hasTargetShortage || !source.employed)) return undefined
+  if (!(hasTargetShortage || !isEmployed(source))) return undefined
 
   const shortageTerm = hasTargetShortage ? targetShortage : Infinity
   const maxAmount = Math.min(movableBySize, movableByRate, shortageTerm)

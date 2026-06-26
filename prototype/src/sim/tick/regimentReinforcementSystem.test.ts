@@ -43,7 +43,7 @@ function baseState(
     holdingId: HL1,
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     size,
     money: 0,
     needSatisfaction: 50,

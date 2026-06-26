@@ -45,6 +45,7 @@ import {
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
@@ -604,7 +605,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             const amount = carveBudget * (w / weightSum)
             for (const pid of popIdsHere) {
               const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !pop.employed) continue
+              if (!pop || pop.popType !== popType || !isEmployed(pop)) continue
               newPopGroups[pid] = { ...pop, money: pop.money + amount }
               prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
               minted += amount
@@ -673,7 +674,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (pay <= 0) continue
             for (const pid of popIdsHere) {
               const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !pop.employed) continue
+              if (!pop || pop.popType !== popType || !isEmployed(pop)) continue
               newPopGroups[pid] = { ...pop, money: pop.money + pay }
               supplementTotal += pay
               break
@@ -701,7 +702,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         let upperSize = 0
         for (const pid of popIdsHere) {
           const pop = newPopGroups[pid]
-          if (pop && pop.employed && pop.class === 'upper') upperSize += pop.size
+          if (pop && isEmployed(pop) && pop.class === 'upper') upperSize += pop.size
         }
         if (upperSize > 0) {
           // 配当原資 = Σ_assets max(0, netRevenue) × rate。各 asset の ownerDividendShare に記録 (landRevenue 控除)。
@@ -714,7 +715,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           if (dividendBudget > 0) {
             for (const pid of popIdsHere) {
               const pop = newPopGroups[pid]
-              if (!pop || !pop.employed || pop.class !== 'upper') continue
+              if (!pop || !isEmployed(pop) || pop.class !== 'upper') continue
               const amount = dividendBudget * (pop.size / upperSize)
               newPopGroups[pid] = { ...pop, money: pop.money + amount }
             }

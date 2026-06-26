@@ -80,7 +80,7 @@ function withPopGroup(
     holdingId,
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     money: 0,
     needSatisfaction: 50,
     attitudes: {},

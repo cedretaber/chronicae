@@ -59,7 +59,7 @@ function buildWorld(opts: {
         holdingId,
         class: 'lower',
         popType: 'peasants',
-        employed: true,
+        employerId: null,
         size: opts.popSize,
         wealth: 10,
         unrest: opts.popUnrest,
