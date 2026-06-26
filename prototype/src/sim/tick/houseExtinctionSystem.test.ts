@@ -175,7 +175,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
       const extinctHouse = result.state.houses['h-0' as HouseId]
       expect(extinctHouse?.active).toBe(false)
     })
-
   })
 
   describe('ruler house extinction', () => {
@@ -299,7 +298,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(event.importance).toBe('major')
       expect(event.entityRefs.some((r) => r.kind === 'house' && r.id === houseId)).toBe(true)
     })
-
 
     it('extinct house marked inactive', () => {
       const { ctx, houseId } = makeRulerExtinctionCtx()

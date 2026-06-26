@@ -535,11 +535,7 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
   })
 })
 
-function withTreasurer(
-  state: WorldState,
-  polityId: PolityId,
-  personId: PersonId,
-): WorldState {
+function withTreasurer(state: WorldState, polityId: PolityId, personId: PersonId): WorldState {
   const officeId = ('oa-' + state.nextOfficeAssignmentId) as OfficeAssignmentId
   const orgKey = 'polity:' + polityId
   const holderKey = personId as string
