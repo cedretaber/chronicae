@@ -7,6 +7,7 @@ import type {
   PopGroupId,
   ProjectId,
   CrisisId,
+  HoldingImprovementId,
 } from '../types/ids'
 import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
 import type { PopGroup } from '../types/popGroup'
@@ -43,9 +44,10 @@ import {
   computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
+import { findBoundPop } from '../selectors/popSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
-import { isEmployed, workplaceRefKey } from '../types/workplaceRef'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
@@ -600,19 +602,19 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             continue
           }
           // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
-          // v0.63: per-employer — この asset に紐付いた POP にのみ mint する。
+          // v0.63: per-employer — findBoundPop で this asset に紐付いた POP を直接 lookup。
           let minted = 0
-          const assetKey = workplaceRefKey({ kind: 'asset', id: ar.assetId })
           for (const { popType, w } of weighted) {
             const amount = carveBudget * (w / weightSum)
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType) continue
-              if (workplaceRefKey(pop.employerId) !== assetKey) continue
-              newPopGroups[pid] = { ...pop, money: pop.money + amount }
-              prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
-              minted += amount
-              break
+            const ref = { kind: 'asset' as const, id: ar.assetId }
+            const boundPopId = findBoundPop(state, holdingId, ref, popType)
+            if (boundPopId) {
+              const pop = newPopGroups[boundPopId]
+              if (pop) {
+                newPopGroups[boundPopId] = { ...pop, money: pop.money + amount }
+                prodWageByPop.set(boundPopId, (prodWageByPop.get(boundPopId) ?? 0) + amount)
+                minted += amount
+              }
             }
           }
           ar.wageShare = minted
@@ -640,17 +642,16 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           }
           // v0.63: 施設 slot を improvement × slot 単位で収集 (per-employer mint 用)。
           // 同時に stratum 別の facCap 総量 (denominator) を集計する。
-          const impSlots: { impKey: string; popType: PopType; cap: number }[] = []
+          const impSlots: { impId: HoldingImprovementId; popType: PopType; cap: number }[] = []
           for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
             const imp = state.holdingImprovements[impId]
             if (!imp) continue
             const slots = IMPROVEMENT_DEFINITIONS[imp.kind].employmentSlots
             if (!slots) continue
-            const impKey = workplaceRefKey({ kind: 'improvement', id: impId })
             for (const slot of slots) {
               const cap = slot.capacityPerLevel * imp.level
               facCap[getPopStratum(slot.popType)] += cap
-              impSlots.push({ impKey, popType: slot.popType, cap })
+              impSlots.push({ impId, popType: slot.popType, cap })
             }
           }
           for (const [pid, prodWage] of prodWageByPop) {
@@ -668,7 +669,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
           }
           // v0.63: 各施設 slot (improvement × popType) の雇用 POP 本人へ mint。
           let supplementTotal = 0
-          for (const { impKey, popType, cap } of impSlots) {
+          for (const { impId, popType, cap } of impSlots) {
             if (cap <= 0) continue
             const s = getPopStratum(popType)
             const stratumFacCap = facCap[s]
@@ -676,13 +677,14 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (stratumFacCap <= 0 || stratumBudget <= 0) continue
             const pay = stratumBudget * (cap / stratumFacCap)
             if (pay <= 0) continue
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType) continue
-              if (workplaceRefKey(pop.employerId) !== impKey) continue
-              newPopGroups[pid] = { ...pop, money: pop.money + pay }
-              supplementTotal += pay
-              break
+            const ref = { kind: 'improvement' as const, id: impId }
+            const boundPopId = findBoundPop(state, holdingId, ref, popType)
+            if (boundPopId) {
+              const pop = newPopGroups[boundPopId]
+              if (pop) {
+                newPopGroups[boundPopId] = { ...pop, money: pop.money + pay }
+                supplementTotal += pay
+              }
             }
           }
           // supplement 総額を asset へ max(0,netRevenue) 比で按分し wageShare に加算(landRevenue 控除)。
