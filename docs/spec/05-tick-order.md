@@ -49,7 +49,7 @@ const WEEKS_PER_SEASON = 12
 | 1 | advanceTime | 毎tick | schedule 対象外。毎 tick 実行 |
 | 3 | ControlSystem | 4 | |
 | 4 | PopSystem | 4 | |
-| 4b | EmploymentRebalanceSystem | 4 | capacity 超過→未就業化、未就業→再就業（employed boolean）。v0.56: holding 単位コアを `normalizePopEmploymentMut` に抽出（mobility 後の再整合と共有）。**v0.57: stratum 単位から PopType 単位ハード枠へ**（各 PopType で容量超過を強制失業 → 空き枠を同 PopType の未就業で補充、§6.x.v0.57）。v0.56 の「shortage 大の PopType 跨ぎ優先」demand-aware 再就業は v0.57 の PopType 別ハード枠に置換済み |
+| 4b | EmploymentRebalanceSystem | 4 | **v0.63: per-employer 二相アルゴリズム**。各 employer (asset/improvement/merchant) の容量に対して Phase1=超過の forced unemployment → Phase2=失業 POP を vacancy に割当。maxRatio は employer 単位で適用。`collectHoldingWorkplaces` で employer を列挙し `workplaceRefKey` 昇順で決定的に処理。消滅した employer (entity 削除済み) も Phase1 で検出し全員失業化 |
 | 4b2 | PopJobChangeSystem | 4 | v0.56: 同一 holding 内で recipe 労働需要に追随する転職（lateral/promotion/demotion）。候補優先度ループ・人口比 cap・相対 wealth gate・RNG 不使用。EmploymentRebalance の後・ResourceEconomy の前（§6.3b） |
 | 4b3 | PopMigrationSystem | 4 | v0.56: 同一 StateRegion 内で opportunity score の高い holding へ移住。pressure 閾値・人口比 outflow/inflow cap・cross-polity penalty。PopJobChange の直後（§6.3b） |
 | 4b4 | PopEmploymentNormalizeSystem | 4 | v0.56: mobility 後の capacity 整合（保険）。全 holding に `normalizePopEmploymentMut` を再適用。PopMigration の後・ResourceEconomy の前（§6.3b / §9） |
@@ -108,6 +108,8 @@ const WEEKS_PER_SEASON = 12
 | 20h | ProjectOutcomeSystem | 4 | Project 効果解決、cleanup。respond_to_pressure completed → Pressure responded。handle_crisis completed → Crisis resolved+purge（§6.41） |
 | 20h2 | CrisisSystem | 1 | v0.48: Crisis 週次処理（severity 同期/デバフ/期限/attitude）+ 年初週の災害発生ロール。ProjectOutcomeSystem の**後**（resolved/purge 済みを読まない、§6.6） |
 | 20h3 | UnrestCrisisSystem | 1 | v0.48: CrisisSystem が mark した unrest Crisis の terminal 処理（譲歩/鎮圧/武装蜂起）。CrisisSystem の直後（§6.29a） |
+| 20h4 | FacilityMaintenanceSystem | 4 | v0.48.1: 施設の condition 減衰 → 機能不全 (disrepair Crisis) → 破壊。projectOutcome の後・crisisSystem の後（修理完了が先に condition 回復）。v0.63: 施設破壊時に bound POP を失業化 (`unbindPopsFromEmployerMut`) |
+| 20h5 | PopEmployerReconciliationSystem | 1 | v0.63: dangling `employerId` の safety net。entity が削除された employer への参照を持つ POP を失業化。facilityMaintenanceSystem の直後 |
 | 20i | PressureSystem | 1 | active Pressure → respond_to_pressure Project 生成 |
 | 20j | TaxRevisionSystem | 48 | 税率引上 → unrest↑ → 叛乱の上流要因。provinceRevoltSystem より前 |
 | 21 | ProvinceRevoltSystem | 12 | Holding 単位判定 |

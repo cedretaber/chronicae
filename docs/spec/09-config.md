@@ -1136,3 +1136,11 @@
 - worldgen 初期世界は defaultConfig（男性多め）のままなので、女性多数派へは runtime 出生で徐々に drift する（150 年程度で成人女性 > 男性に到達）
 - 当主・君主の男子優先は別レバー `allowFemaleHouseHeadWhenNoMaleHeir`（既存）。継承法（サリカ法 等）の本格対応は将来構想（§13）
 
+### v0.63 POP 勤務先別分離 — config 変更
+
+| 項目 | 旧 | 新 | 説明 |
+|------|---|---|------|
+| `wageRoleWeightByRole` | `{primary:1.0, skilled:1.4, throughput:0.6}` | **削除** | 職能別賃金重みを廃止 |
+| `wageStratumMultiplier` | — | `{lower:1.0, middle:1.5}` | 階層別賃金勾配。同一 employer 内で lower:middle = 1:1.5 の per-capita 賃金比 |
+| `upperDividendShareOfNetRevenue` | 0.03 (asset netRevenue から carve) | 0.03 (**holding 収入から carve に移設**) | upper 配当の原資を asset 収益から landRevenueSystem の collected に変更。代官手数料の前に取る |
+

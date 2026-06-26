@@ -186,12 +186,18 @@ type PopType =
 
 type PopClass = PopStratum   // 後方互換 alias（移行期。新規コードは PopStratum を使う）
 
+// v0.63: 勤務先を表す tagged union。POP は特定の雇用主に紐付く
+type WorkplaceRef =
+  | { kind: 'asset'; id: RealEstateAssetId }       // 不動産 (farm/mountain/woodland/workshop)
+  | { kind: 'improvement'; id: HoldingImprovementId } // 施設 (manor_house/town_hall/storage)
+  | { kind: 'merchant'; id: MerchantCompanyEstablishmentId } // 商会店舗
+
 type PopGroup = {
   id: PopGroupId
   holdingId: HoldingId       // 所属 Holding
   class: PopStratum          // field 名は維持・値は PopStratum
   popType: PopType           // v0.55 追加
-  employed: boolean          // v0.52 で PopOccupation を廃止
+  employerId: WorkplaceRef | null // v0.63: 勤務先。null = 失業
   size: number       // 抽象人口規模（実人数ではない）
   money: number      // v0.58: 財産 stock（extensive・金額・≥0）。賃金で増え消費で減る source/sink
   needSatisfaction: number // v0.58: need 充足度 0..100（intensive）。unrest/成長/mobility を駆動
@@ -201,7 +207,7 @@ type PopGroup = {
 }
 ```
 
-不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.58 貨幣経済**: `money` は extensive な財産 stock で、`computeAssetPopTypeShares × wageRoleWeightByRole` 比で賃金 mint され（§6.3c.5）、人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。旧 0..100 `wealth` 指数は v0.58 で退役（money と needSatisfaction の 2 本立てに分離）。**v0.59 追補④**: `categorySatisfaction` は経済 system が直近 tick で算出した NeedCategory 別充足度（= `afford(tier) × カテゴリ market-fill ×100`、desire を持つカテゴリのみ key）を保持する**表示専用キャッシュ**で、POP 詳細の必需品/日用品/贅沢品内訳に使う。merge/split/worldgen では設定せず（次 econ tick で再生成）、integrity 非検査・挙動（needSatisfaction/money/成長/unrest）には不参照（§6.3c.5）。
+不変条件: `getPopStratum(pop.popType) === pop.class`（写像 `STRATUM_BY_POP_TYPE` で導出、IntegrityCheck で検査）。`money ≥ 0` かつ有限・`needSatisfaction ∈ [0,100]`（IntegrityCheck で検査、§6.24）。**v0.63 追加不変条件**: `employerId !== null` の場合、(1) 参照先 entity が state に存在する、(2) entity の `holdingId` が `pop.holdingId` と一致する、(3) 同一 holding 内に `(popType, employerId)` が重複する PopGroup がない。**v0.58 貨幣経済**: `money` は extensive な財産 stock。lower/middle は勤務先 (asset/improvement) から階層別重み (`wageStratumMultiplier`: lower=1.0, middle=1.5) で賃金 mint される（§6.3c.5）。upper は賃金ではなく holding 収入からの配当 (`upperDividendShareOfNetRevenue`) で money を得る（§6.3c.6）。人口移動/merge では per-capita 保存（移動=比例・merge=sum）。welfare 指標は `needSatisfaction`（予算制約消費の afford×fill で決まる）。**v0.59 追補④**: `categorySatisfaction` は経済 system が直近 tick で算出した NeedCategory 別充足度（= `afford(tier) × カテゴリ market-fill ×100`、desire を持つカテゴリのみ key）を保持する**表示専用キャッシュ**で、POP 詳細の必需品/日用品/贅沢品内訳に使う。merge/split/worldgen では設定せず（次 econ tick で再生成）、integrity 非検査・挙動（needSatisfaction/money/成長/unrest）には不参照（§6.3c.5）。
 
 | PopStratum | PopType | 意味 |
 |---|---|---|
@@ -209,13 +215,15 @@ type PopGroup = {
 | middle | freeholders / masters / merchants / bureaucrats / ministeriales | 自作農・親方・商人・官僚・家士 |
 | upper | nobles / patricians | 貴族・都市貴族 |
 
-雇用枠は HoldingImprovement の `employmentSlots`（§3.1d）および RealEstateAsset（§3.2a）から **PopStratum 単位**で供給される（v0.55: RealEstateAsset は複数 stratum を同時雇用可、§13.4）。RecipeLaborDemand（理想 PopType 構成）は soft modifier であり雇用 hard gate ではない（§14）。
+雇用枠は HoldingImprovement の `employmentSlots`（§3.1d）および RealEstateAsset（§3.2a）から **PopType 単位**で供給される（v0.57 で PopStratum 単位から PopType ハード枠へ再設計）。**v0.63**: 各雇用主 (asset/improvement/merchant establishment) が個別の PopGroup を持ち、雇用管理は employer 単位で行う。
 
 PopGroup の構造:
 - PopGroup は Province ではなく **Holding** に所属する
-- `employed` により就業状態を表現する。`employed === false` は雇用枠からあぶれた POP（失業者・土地なし・扶持なし）
-- `employed === true` の POP は `minPopSizeByClass` で下限保証。`employed === false` の POP は size が `popSizeEpsilon` 以下で削除される
-- 同一 merge key (`holdingId + class + popType + employed`) の POP は原則 1 つに統合される（v0.55: merge key に **popType** を追加。含めないと異なる PopType が融合し粒度が消失する, §13.3）
+- **v0.63**: `employerId` により勤務先を表現する。`employerId === null` は失業 POP（雇用枠からあぶれた POP）。`employerId !== null` は特定の雇用主 (不動産/施設/商会店舗) に紐付いた POP
+- 失業 POP (`employerId === null`) は size が `popSizeEpsilon` 以下で削除される
+- 同一 merge key (`holdingId + popType + employerId`) の POP は原則 1 つに統合される（v0.63: merge key の `employed:boolean` を `employerId: WorkplaceRef|null` に置換。`class` は `popType` から導出されるため merge key から除外）
+- 自然増は勤務先の POP にそのまま加算され、雇用枠を超えた分は `employmentRebalanceSystem` が失業化する
+- 転職・移住は失業着地 (`employerId: null`) し、`employmentRebalanceSystem` が雇用先を確定する
 - Province 単位の POP は Holding POP から selector で集計する（§4.2 参照）
 - Province は popGroupIds を持たない。POP の参照は `popIndex.byHolding` 経由
 
