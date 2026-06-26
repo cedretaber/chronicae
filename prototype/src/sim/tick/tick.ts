@@ -35,6 +35,7 @@ import { runMerchantCompanyDecisionSystem } from './merchantCompanyDecisionSyste
 import { runCleanupMerchantSystem } from './cleanupMerchantSystem'
 import { runMerchantCompanyFoundingSystem } from './merchantCompanyFoundingSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
+import { runRegimentBarracksWageSystem } from './regimentBarracksWageSystem'
 import { runControlSystem } from './controlSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runTaxRevisionSystem } from './taxRevisionSystem'
@@ -421,6 +422,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runOfficeCompensationSystem,
+  },
+  {
+    name: 'regimentBarracksWageSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRegimentBarracksWageSystem,
   },
   {
     name: 'factionPatronageSystem',
