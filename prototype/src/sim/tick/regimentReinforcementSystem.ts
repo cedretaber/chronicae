@@ -31,6 +31,7 @@ import {
   getRegimentHoldingId,
 } from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
+import { getBarracksFulfillment, getEffectiveMaxStrength } from '../selectors/barracksSelectors'
 import { organizationKey, isOrganizationActive } from '../selectors/organizationSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
@@ -125,18 +126,22 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
 
     // ── A. active strength 補充 (silent) ──
     if (r.status === 'active') {
-      if (r.strength >= r.maxStrength) continue
+      const barracks = ws.regimentBarracks[r.barracksId]
+      if (!barracks) continue
+      const fulfillment = getBarracksFulfillment(ws, r.barracksId)
+      const effectiveMax = getEffectiveMaxStrength(ws, r)
+      if (r.strength >= effectiveMax) continue
       const homeControl = homeControlFactor(ws, r)
       if (homeControl <= 0) continue
 
-      const popFactor = getRegimentHomeRecruitmentFactor(ws, config, r)
+      const popFactor = fulfillment.overallFulfillment
       const warState = warStateFactor(ws, config, r)
       const troopFactor =
         r.troopKind === 'cavalry' ? config.regimentCavalryReinforcementMultiplier : 1
-      const desired = Math.min(
-        config.regimentReinforcementBasePerMonth * popFactor * homeControl * warState * troopFactor,
-        r.maxStrength - r.strength,
-      )
+      let reinforcementGain =
+        config.regimentReinforcementBasePerMonth * popFactor * homeControl * warState * troopFactor
+      reinforcementGain *= barracks.lastPayrollFulfillment
+      const desired = Math.min(reinforcementGain, effectiveMax - r.strength)
       if (desired <= 0) continue
 
       const costPerStrength =
@@ -154,7 +159,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
 
       ensureDraft()
       updateRegimentMut(ws, rid, {
-        strength: clamp(r.strength + gain, 0, r.maxStrength),
+        strength: clamp(r.strength + gain, 0, effectiveMax),
         lastReinforcedWeek: week,
       })
       const cost = gain * costPerStrength
@@ -172,6 +177,12 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
       if (!isOrganizationActive(ws, r.owner)) continue
       const popFactor = getRegimentHomeRecruitmentFactor(ws, config, r)
       if (popFactor < config.destroyedRegimentReformMinPopFactor) continue
+      const barracksForReform = ws.regimentBarracks[r.barracksId]
+      if (!barracksForReform) continue
+      const reformFulfillment = getBarracksFulfillment(ws, r.barracksId)
+      if (reformFulfillment.overallFulfillment < config.destroyedRegimentReformMinPopFactor)
+        continue
+      if (barracksForReform.lastPayrollFulfillment <= 0) continue
       const polity = ws.polities[r.owner.id]
       if (!polity || polity.treasury < config.destroyedRegimentReformCost) continue
 
