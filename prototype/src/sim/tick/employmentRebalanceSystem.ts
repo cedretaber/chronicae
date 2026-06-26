@@ -76,14 +76,15 @@ export function normalizePopEmploymentMut(
   })
   for (const ref of phase1Refs) {
     const isVanished = !workplaceKeySet.has(workplaceRefKey(ref))
+    const refKey = workplaceRefKey(ref)
+    const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
     for (const popType of REBALANCE_ORDER) {
       const rawCapacity = isVanished ? 0 : getWorkplacePopTypeCapacity(ws, config, ref, popType)
       const capacity = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCapacity)
       const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, ref, popType)
       if (employed <= capacity) continue
       let excess = employed - capacity
-      const refKey = workplaceRefKey(ref)
-      for (const popId of (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()) {
+      for (const popId of sortedPopIds) {
         if (excess <= 0) break
         const pop = ws.popGroups[popId]
         if (
@@ -103,13 +104,14 @@ export function normalizePopEmploymentMut(
 
   // Phase 2: 空き枠を同 PopType の失業 POP で埋め、具体的な employer ref に紐付ける。
   for (const ref of workplaces) {
+    const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
     for (const popType of REBALANCE_ORDER) {
       const rawCapacity = getWorkplacePopTypeCapacity(ws, config, ref, popType)
       const capacity = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCapacity)
       const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, ref, popType)
       let room = Math.max(0, capacity - employed)
       if (room <= 0) continue
-      for (const popId of (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()) {
+      for (const popId of sortedPopIds) {
         if (room <= 0) break
         const pop = ws.popGroups[popId]
         if (!pop || pop.popType !== popType || pop.employerId !== null) continue
