@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { normalizePopEmploymentMut } from '../tick/employmentRebalanceSystem'
 import { makeEmptyV016State, withProvince, withHolding } from '../testFixtures'
 import {
   getStateFoodSupply,
@@ -194,12 +195,14 @@ describe('hasEmploymentSlack (v0.55 §B)', () => {
     expect(hasEmploymentSlack(s, defaultConfig, hd)).toBe(false)
   })
 
-  it.skip('就業済み POP は失業スラックに数えない (Phase 3-4 再有効化)', () => {
-    // v0.63 Phase 1-2: 全 POP が employerId: null のため employed 判定が常に false →
-    //   就業 POP も失業扱いとなり hasEmploymentSlack が true を返す。
-    //   Phase 3-4 で employer 紐付け後に再確認する。
+  it('就業済み POP は失業スラックに数えない (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 3-4: farm level 3 を追加して 100 人の農民を全員就業させる。
+    //   plains 地形: capacity = 35 × 3 × 1.3 = 136.5 > 100 → 全員就業。
+    //   normalizePopEmploymentMut 後は unemployed lower = 0 < threshold(5) → false。
     const { state, hd } = setup()
-    const s = withPop(state, hd, 'lower', 100)
+    let s = withAsset(state, createRealEstateAssetId(100), hd, 'farm', 3)
+    s = withPop(s, hd, 'lower', 100)
+    normalizePopEmploymentMut(s, defaultConfig, hd)
     expect(hasEmploymentSlack(s, defaultConfig, hd)).toBe(false)
   })
 })

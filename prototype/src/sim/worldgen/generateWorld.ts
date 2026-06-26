@@ -26,7 +26,7 @@ import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import type { Person } from '../types/person'
 import type { PopGroup, PopStratum } from '../types/popGroup'
-import { POP_TYPES, getPopStratum } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
 
 import type { StateRegion } from '../types/stateRegion'
 import type { HouseShare, HouseShareIndex } from '../types/office'
@@ -78,9 +78,12 @@ import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScoreFromAbilities } from '../selectors/abilitySelectors'
 import {
-  computeHoldingAllPopTypeCapacities,
   canBuildHoldingImprovementPure,
+  conditionEffectiveness,
+  computeAssetPopTypeCapacityTerm,
 } from '../selectors/holdingImprovementSelectors'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import type { WorkplaceRef } from '../types/workplaceRef'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
 import type { WorldPreset, WorldPresetName } from './worldPresets'
 import type { NamePoolService } from '../namegen/namePoolTypes'
@@ -1636,26 +1639,15 @@ export function generateWorld(
           seedImprovements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
       }
       const seedAssetIds = realEstateAssetIndexByHolding[holding.id as string] ?? []
-      const seedAssets: { realEstateKind: RealEstateKind; level: number }[] = []
+
+      // Count valid assets for slot overuse calculation
+      let usedSlots = 0
       for (const aId of seedAssetIds) {
-        const a = realEstateAssets[aId]
-        if (a) seedAssets.push({ realEstateKind: a.realEstateKind, level: a.level })
+        if (realEstateAssets[aId]) usedSlots++
       }
-      const usedSlots = seedAssets.length
       const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
       const overuseMod =
         usedSlots <= slotCap ? 1.0 : Math.max(config.minSlotOveruseModifier, slotCap / usedSlots)
-      // v0.57 §雇用細分化: 初期配置を施設駆動の PopType ハード枠に比例させる (旧: stratum 容量を
-      //   全 holding 共通の固定職能分布で分割 → 施設に枠の無い PopType を播いて初期失業が出ていた)。
-      const popTypeCaps = computeHoldingAllPopTypeCapacities(
-        holding.weight,
-        province.terrain,
-        province.features,
-        seedImprovements,
-        config,
-        seedAssets,
-        overuseMod,
-      )
 
       const { value: fillPct, rng: rf1 } = randomInt(
         rng,
@@ -1675,31 +1667,144 @@ export function generateWorld(
         middle: middleUnrest,
         upper: upperUnrest,
       }
-      // 各 PopType を「その holding の施設が要求する枠容量 × fillRatio」で播く。枠の無い PopType
-      //   (cap=0) は播かない (初期失業を生まない)。fillRatio<1 なので size≤cap で employed=true が成立。
+
+      // v0.63 Task 8: 雇用主(employer)単位で PopGroup を播く。
+      //   各施設(asset/improvement)が要求する枠容量 × fillRatio を雇用主紐付きで生成する。
+      //   枠を持たない施設(irrigation 等)や merchant establishment(worldgen 後に生成)は除外。
       const holdingPopIds: PopGroupId[] = []
-      for (const popType of POP_TYPES) {
-        const cap = popTypeCaps[popType] ?? 0
-        if (cap <= 0) continue
-        const stratum = getPopStratum(popType)
-        const id = newPopGroupId(`pop-${holdingId as string}-${popType}`)
-        popGroupsRecord[id] = {
-          id,
-          holdingId,
-          class: stratum,
-          popType,
-          employerId: null,
-          size: cap * fillRatio,
-          money:
-            estimateMonthlyEssentialCostPerPop(popType) *
-            (cap * fillRatio) *
-            config.worldgenPopMoneyMonthsOfEssential *
-            config.worldgenPopMoneyStratumMultiplier[stratum],
-          needSatisfaction: 60,
-          unrest: stratumUnrest[stratum],
-          attitudes: {},
+
+      // seededSizeByEmpPop: maxRatio pass で参照するための「employer×popType → seeded size」マップ
+      const seededSizeByEmpPop = new Map<string, number>()
+
+      // Pass 1 — asset の非-maxRatio スロット (peasants / laborers / artisans 等 primary slots)
+      for (const aId of seedAssetIds) {
+        const asset = realEstateAssets[aId]
+        if (!asset) continue
+        const assetDef = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+        const employerId: WorkplaceRef = { kind: 'asset', id: aId }
+        const empKey = `asset:${aId as string}`
+        for (const slot of assetDef.employmentSlots) {
+          if (slot.maxRatioTo) continue // handled in pass 2
+          const term = computeAssetPopTypeCapacityTerm(
+            asset.realEstateKind,
+            asset.level,
+            slot.popType,
+            province.terrain,
+            province.features,
+            seedImprovements,
+            config,
+          )
+          const cap = term * overuseMod * holding.weight
+          if (cap <= 0) continue
+          const stratum = getPopStratum(slot.popType)
+          const size = cap * fillRatio
+          const id = newPopGroupId(`pop-${holdingId as string}-${aId as string}-${slot.popType}`)
+          popGroupsRecord[id] = {
+            id,
+            holdingId,
+            class: stratum,
+            popType: slot.popType,
+            employerId,
+            size,
+            money:
+              estimateMonthlyEssentialCostPerPop(slot.popType) *
+              size *
+              config.worldgenPopMoneyMonthsOfEssential *
+              config.worldgenPopMoneyStratumMultiplier[stratum],
+            needSatisfaction: 60,
+            unrest: stratumUnrest[stratum],
+            attitudes: {},
+          }
+          holdingPopIds.push(id)
+          seededSizeByEmpPop.set(`${empKey}|${slot.popType}`, size)
         }
-        holdingPopIds.push(id)
+      }
+
+      // Pass 1 continued — improvement slots (improvement 定義に maxRatioTo は無い)
+      for (const impId of seedImpIds) {
+        const imp = holdingImprovements[impId]
+        if (!imp) continue
+        const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+        if (!impDef.employmentSlots) continue
+        const employerId: WorkplaceRef = { kind: 'improvement', id: impId }
+        const empKey = `improvement:${impId as string}`
+        let eff = conditionEffectiveness(
+          imp.condition,
+          config.facilityDisrepairThreshold,
+          config.facilityDisrepairMinEffectiveness,
+        )
+        if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
+        for (const slot of impDef.employmentSlots) {
+          const cap = slot.capacityPerLevel * imp.level * eff * holding.weight
+          if (cap <= 0) continue
+          const stratum = getPopStratum(slot.popType)
+          const size = cap * fillRatio
+          const id = newPopGroupId(`pop-${holdingId as string}-${impId as string}-${slot.popType}`)
+          popGroupsRecord[id] = {
+            id,
+            holdingId,
+            class: stratum,
+            popType: slot.popType,
+            employerId,
+            size,
+            money:
+              estimateMonthlyEssentialCostPerPop(slot.popType) *
+              size *
+              config.worldgenPopMoneyMonthsOfEssential *
+              config.worldgenPopMoneyStratumMultiplier[stratum],
+            needSatisfaction: 60,
+            unrest: stratumUnrest[stratum],
+            attitudes: {},
+          }
+          holdingPopIds.push(id)
+          seededSizeByEmpPop.set(`${empKey}|${slot.popType}`, size)
+        }
+      }
+
+      // Pass 2 — asset の maxRatio スロット (freeholders: ≤peasants, masters: ≤artisans)
+      //   per-employer の参照 popType 実数 × ratio で上限を clamp する。
+      for (const aId of seedAssetIds) {
+        const asset = realEstateAssets[aId]
+        if (!asset) continue
+        const assetDef = REAL_ESTATE_DEFINITIONS[asset.realEstateKind]
+        const employerId: WorkplaceRef = { kind: 'asset', id: aId }
+        const empKey = `asset:${aId as string}`
+        for (const slot of assetDef.employmentSlots) {
+          if (!slot.maxRatioTo) continue
+          const term = computeAssetPopTypeCapacityTerm(
+            asset.realEstateKind,
+            asset.level,
+            slot.popType,
+            province.terrain,
+            province.features,
+            seedImprovements,
+            config,
+          )
+          const rawSize = term * overuseMod * holding.weight * fillRatio
+          if (rawSize <= 0) continue
+          const refSeededSize = seededSizeByEmpPop.get(`${empKey}|${slot.maxRatioTo.popType}`) ?? 0
+          const size = Math.min(rawSize, refSeededSize * slot.maxRatioTo.ratio)
+          if (size <= 0) continue
+          const stratum = getPopStratum(slot.popType)
+          const id = newPopGroupId(`pop-${holdingId as string}-${aId as string}-${slot.popType}`)
+          popGroupsRecord[id] = {
+            id,
+            holdingId,
+            class: stratum,
+            popType: slot.popType,
+            employerId,
+            size,
+            money:
+              estimateMonthlyEssentialCostPerPop(slot.popType) *
+              size *
+              config.worldgenPopMoneyMonthsOfEssential *
+              config.worldgenPopMoneyStratumMultiplier[stratum],
+            needSatisfaction: 60,
+            unrest: stratumUnrest[stratum],
+            attitudes: {},
+          }
+          holdingPopIds.push(id)
+        }
       }
       // セーフティ: 雇用枠を持つ施設が無い holding は無人になる。最低限の小作農を播いて
       //   ghost holding を避ける (旧 minPopSizeByClass の役割を holding 単位で代替)。

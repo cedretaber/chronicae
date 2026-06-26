@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runPopJobChangeSystem } from './popJobChangeSystem'
+import { normalizePopEmploymentMut } from './employmentRebalanceSystem'
 import { createTickContext } from './context'
 import { createRng } from '../rng/rng'
 import {
@@ -143,9 +144,10 @@ describe('PopJobChangeSystem (v0.59 追補: per-source cap + 移動/雇用分離
     expect(sizeOf(result, holdingId, 'peasants', false)).toBeGreaterThan(0)
   })
 
-  it.skip('C3: promotion は相対的に裕福な source で発火し、wealth が一様なら発火しない (Phase 3-4 再有効化)', () => {
-    // v0.63 Phase 1-2: 全 POP が employerId: null のため employed peasant anchor = 0
-    //   → freeholder 実効容量 = 0 → 昇格なし。Phase 3-4 で employer 紐付け後に再確認する。
+  it('C3: promotion は相対的に裕福な source で発火し、wealth が一様なら発火しない (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 3-4: normalizePopEmploymentMut で ANCHOR の小作農を farm に紐付けてから run する。
+    //   farm(level1, plains) capacity = 35 × 1 × 1.3 = 45.5。ANCHOR(1000) → 45.5 が farm 就業。
+    //   freeholder 実効容量 = min(rawCap~19.5, 45.5 × 1) = 19.5 → 昇格枠が生まれる。
     // v0.59 追補: freeholders は実効容量 (= 雇用 peasants × maxRatio) で gate されるため、
     //   昇格先の枠を生むには雇用済み小作農のアンカーが必要。昇格者は移動先で失業着地する。
     const ANCHOR = mk('lower', 'peasants', true, 1000, 50)
@@ -155,6 +157,7 @@ describe('PopJobChangeSystem (v0.59 追補: per-source cap + 移動/雇用分離
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 90),
     ])
+    normalizePopEmploymentMut(spread.state, defaultConfig, spread.holdingId)
     const spreadResult = run(spread.state)
     // wealth-90 の peasant が p75 + median gate を超えて freeholders へ昇格 (失業着地)。
     expect(sizeOf(spreadResult, spread.holdingId, 'freeholders', false)).toBeGreaterThan(0)
@@ -165,6 +168,7 @@ describe('PopJobChangeSystem (v0.59 追補: per-source cap + 移動/雇用分離
       mk('lower', 'peasants', false, 100, 50),
       mk('lower', 'peasants', false, 100, 50),
     ])
+    normalizePopEmploymentMut(flat.state, defaultConfig, flat.holdingId)
     const flatResult = run(flat.state)
     expect(sizeOf(flatResult, flat.holdingId, 'freeholders', false)).toBe(0)
   })

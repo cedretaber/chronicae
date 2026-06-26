@@ -9,11 +9,13 @@ Fixed redundant `.slice().sort()` calls in `normalizePopEmploymentMut` by hoisti
 **File:** `src/sim/tick/employmentRebalanceSystem.ts`
 
 ### Phase 1 Optimization
+
 - **Before:** `for (const ref of phase1Refs)` → `for (const popType of REBALANCE_ORDER)` → `.slice().sort()` (redundant per ref×popType)
 - **After:** Hoist `const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()` outside popType loop
 - **Benefit:** Reduces sort operations from O(refs × popTypes) to O(refs)
 
 ### Phase 2 Optimization
+
 - **Before:** `for (const ref of workplaces)` → `for (const popType of REBALANCE_ORDER)` → `.slice().sort()` (redundant per ref×popType)
 - **After:** Same hoisting pattern as Phase 1
 - **Benefit:** Same O(refs × popTypes) → O(refs) reduction
@@ -34,7 +36,7 @@ The optimization is safe because:
 ## Verification Results
 
 - **TypeScript:** ✅ No errors
-- **ESLint:** ✅ No warnings  
+- **ESLint:** ✅ No warnings
 - **Prettier:** ✅ Code formatted correctly
 - **Unit tests:** ✅ All 1619 tests pass
 - **CLI test (50y, seed 1):** ✅ No integrity violations, clean completion

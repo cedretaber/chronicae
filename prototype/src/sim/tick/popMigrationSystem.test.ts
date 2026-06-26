@@ -8,11 +8,17 @@ import {
 } from '../selectors/popSelectors'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
-import { createProvinceId, createPopGroupId, createRealEstateAssetId } from '../types/ids'
+import {
+  createProvinceId,
+  createPopGroupId,
+  createRealEstateAssetId,
+  createHoldingImprovementId,
+} from '../types/ids'
 import type { PopGroupId, ProductionRecipeId, HoldingId, StateRegionId } from '../types/ids'
 import type { PopGroup, PopType } from '../types/popGroup'
 import type { RealEstateAsset } from '../types/realEstateAsset'
 import type { WorldState } from '../types/world'
+import type { WorkplaceRef } from '../types/workplaceRef'
 
 const PA = createProvinceId('p', 0)
 const PB = createProvinceId('p', 1)
@@ -41,11 +47,9 @@ function mkPop(
 }
 
 describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 + 失業着地)', () => {
-  it.skip('混雑 holding から空きのある holding へ移住する。cap は source rate・移動先非依存で失業着地 (Phase 3-4 再有効化)', () => {
-    // v0.63 Phase 1-2: 全 POP が employerId: null のため getHoldingEmployedPopSizeByType が常に 0 を返す。
-    // remainingCapacity がすべての holding で capacity そのものになり、source/target の vacancy 差が消えて
-    // スコアギャップが popMigrationScoreGapThreshold (20) を下回り移住が発生しない。
-    // Phase 3-4 で employer 紐付け後に再確認する。
+  it('混雑 holding から空きのある holding へ移住する。cap は source rate・移動先非依存で失業着地 (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 3-4: employedA に hA の manor_house (hi-0) を employer として設定し、
+    //   hA の laborers 残余容量をゼロにする。hB は farm と manor_house 両方が空き → vacancy 大。
     let s = makeEmptyV016State()
     s = withProvince(s, PA)
     s = withProvince(s, PB)
@@ -71,6 +75,10 @@ describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 
     // hB: a small resident pop so its inflow cap (∝ population) is > 0.
     const residentB = createPopGroupId(102)
 
+    // v0.63 Phase 3-4: employedA を hA の manor_house に紐付ける (hi-0 = withProvince(PA) が生成)。
+    //   これにより getHoldingEmployedPopSizeByType(hA, 'laborers') = capA → remainingCapacity = 0。
+    const hAEmployerRef: WorkplaceRef = { kind: 'improvement', id: createHoldingImprovementId(0) }
+
     const state: WorldState = {
       ...s,
       realEstateAssets: { [assetId]: asset },
@@ -79,7 +87,10 @@ describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 
         byHolding: { ...s.realEstateAssetIndex.byHolding, [hB as string]: [assetId] },
       },
       popGroups: {
-        [employedA]: mkPop(employedA, hA, 'laborers', true, capA, 50),
+        [employedA]: {
+          ...mkPop(employedA, hA, 'laborers', true, capA, 50),
+          employerId: hAEmployerRef,
+        },
         [migrant]: mkPop(migrant, hA, 'laborers', false, 1000, 5),
         [residentB]: mkPop(residentB, hB, 'peasants', true, 50, 50),
       },
@@ -111,9 +122,8 @@ describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 
     expect(byState?.migratedIn).toBeGreaterThan(0)
   })
 
-  it.skip('v0.59: 移住を monthlyPopChange に流出元/流入先 holding 単位で累積する (Phase 3-4 再有効化)', () => {
-    // v0.63 Phase 1-2: employerId: null のため移住が発生しない (上の test と同理由)。
-    // Phase 3-4 で employer 紐付け後に再確認する。
+  it('v0.59: 移住を monthlyPopChange に流出元/流入先 holding 単位で累積する (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 3-4: employedA に hA の manor_house (hi-0) を employer として設定。
     let s = makeEmptyV016State()
     s = withProvince(s, PA)
     s = withProvince(s, PB)
@@ -134,6 +144,9 @@ describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 
     const migrant = createPopGroupId(101)
     const residentB = createPopGroupId(102)
 
+    // v0.63 Phase 3-4: employedA を hA の manor_house に紐付ける (hi-0)。
+    const hAEmployerRef: WorkplaceRef = { kind: 'improvement', id: createHoldingImprovementId(0) }
+
     const state: WorldState = {
       ...s,
       realEstateAssets: { [assetId]: asset },
@@ -142,7 +155,10 @@ describe('PopMigrationSystem (v0.59 追補: per-source cap + 移動先非依存 
         byHolding: { ...s.realEstateAssetIndex.byHolding, [hB as string]: [assetId] },
       },
       popGroups: {
-        [employedA]: mkPop(employedA, hA, 'laborers', true, capA, 50),
+        [employedA]: {
+          ...mkPop(employedA, hA, 'laborers', true, capA, 50),
+          employerId: hAEmployerRef,
+        },
         [migrant]: mkPop(migrant, hA, 'laborers', false, 1000, 5),
         [residentB]: mkPop(residentB, hB, 'peasants', true, 50, 50),
       },
