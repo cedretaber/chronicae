@@ -1000,6 +1000,8 @@ detail:
     chronicle: '土地の歴史'
     pop_count: '人口'
     employment_capacity: '職業枠'
+    pop_class_summary: '階層別 POP 情報'
+    pop_list: 'POP 一覧'
 
   # 戦争詳細 (v0.34)
   war:

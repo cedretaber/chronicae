@@ -897,6 +897,8 @@ detail:
     chronicle: 'Holding History'
     pop_count: 'Population'
     employment_capacity: 'Employment Capacity'
+    pop_class_summary: 'POP by Stratum'
+    pop_list: 'POP List'
 
   # War detail (v0.34)
   war:

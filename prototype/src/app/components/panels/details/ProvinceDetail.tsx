@@ -463,7 +463,7 @@ export function ProvinceDetail({
 
       {pops.length > 0 && (
         <>
-          <DetailSection title={t('detail.province.pop_groups')} />
+          <DetailSection title={t('detail.holding.pop_list', { defaultValue: 'POP 一覧' })} />
           {pops.map((pop) => (
             <PopGroupCard key={pop.id} pop={pop} onClick={onPopGroupClick} />
           ))}

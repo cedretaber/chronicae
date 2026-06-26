@@ -1043,7 +1043,7 @@ export function HoldingDetail({
       {/* POP breakdown by class */}
       {currentState && (
         <>
-          <DetailSection title="POP" />
+          <DetailSection title={t('detail.holding.pop_class_summary', { defaultValue: '階層別 POP 情報' })} />
           {(['lower', 'middle', 'upper'] as const).map((popClass) => {
             const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
             const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
@@ -1125,7 +1125,7 @@ export function HoldingDetail({
           if (pops.length === 0) return null
           return (
             <>
-              <DetailSection title={t('detail.province.pop_groups')} />
+              <DetailSection title={t('detail.holding.pop_list', { defaultValue: 'POP 一覧' })} />
               {pops.map((pop) => (
                 <PopGroupCard key={pop.id} pop={pop} onClick={onPopGroupClick} />
               ))}
