@@ -1054,10 +1054,16 @@ export function HoldingDetail({
                 <div className="font-medium text-gray-300">{t(`detail.province.${popClass}`)}</div>
                 <div className="ml-2 text-gray-400">
                   <div className="flex justify-between">
+                    <span>{t('detail.holding.pop_count', { defaultValue: '人口' })}:</span>
+                    <span>{formatPopCount(empSize + unempSize)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('detail.holding.employment_capacity', { defaultValue: '職業枠' })}:</span>
+                    <span>{formatPopCount(cap)}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>{t('detail.province.pop_employed')}:</span>
-                    <span>
-                      {formatPopCount(empSize)} / {formatPopCount(cap)}
-                    </span>
+                    <span>{formatPopCount(empSize)}</span>
                   </div>
                   {unempSize > 0 && (
                     <div className="flex justify-between">

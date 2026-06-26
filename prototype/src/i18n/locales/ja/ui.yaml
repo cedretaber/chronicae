@@ -998,6 +998,8 @@ detail:
   # 土地詳細 (v0.38 Chronicle)
   holding:
     chronicle: '土地の歴史'
+    pop_count: '人口'
+    employment_capacity: '職業枠'
 
   # 戦争詳細 (v0.34)
   war:
