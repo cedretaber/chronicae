@@ -10,10 +10,10 @@ import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList, DetailSection } from './shared/widgets'
-import { getHoldingClassCapacity, getPopGroupMonthlyPopChange } from '@sim/selectors/popSelectors'
+import { getPopGroupMonthlyPopChange } from '@sim/selectors/popSelectors'
 import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
 import { formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
-import { defaultConfig } from '@sim/config/defaultConfig'
+
 import { isEmployed } from '@sim/types/workplaceRef'
 import type { WorkplaceRef } from '@sim/types/workplaceRef'
 import type { TFunction } from 'i18next'
@@ -158,24 +158,6 @@ export function PopGroupDetail({
         )
       })()}
 
-      {isEmployed(popGroup) && currentState && (
-        <div className="text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.province.capacity')}:</span>
-            <span>
-              {formatPopCount(popGroup.size)} /{' '}
-              {formatPopCount(
-                getHoldingClassCapacity(
-                  currentState,
-                  defaultConfig,
-                  popGroup.holdingId,
-                  popGroup.class,
-                ),
-              )}
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* v0.59: 先月からの人口変動 (自然増減 + 移住の小計)。転職・雇用変動は下の階層移動セクションに集約。 */}
       {currentState &&
