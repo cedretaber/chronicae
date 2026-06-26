@@ -6,6 +6,8 @@ import { getPopStratum } from '../types/popGroup'
 import type { PopTargetKey } from '../types/popMobility'
 import type { AttitudeMap } from '../types/attitude'
 import { createPopGroupId } from '../types/ids'
+import type { WorkplaceRef } from '../types/workplaceRef'
+import { workplaceRefKey } from '../types/workplaceRef'
 
 // v0.56: mobility helper の source 下限 default。config.popSizeEpsilon と一致させる
 //   (popMutations は config 非依存のため literal。systems は options.minSourceSize で明示渡し)。
@@ -132,12 +134,12 @@ export function addToOrCreatePopGroupMut(
     holdingId: HoldingId
     class: PopClass
     popType: PopType
-    employed: boolean
+    employerId: WorkplaceRef | null
     size: number
     inheritFrom?: PopGroup
   },
 ): PopGroupId {
-  // Find existing pop with same merge key (holdingId + class + popType + employed, §13.3)
+  // Find existing pop with same merge key (holdingId + class + popType + employerId, §13.3)
   const existingPopIds = ws.popIndex.byHolding[input.holdingId]
   if (existingPopIds) {
     for (const popId of existingPopIds) {
@@ -146,7 +148,7 @@ export function addToOrCreatePopGroupMut(
         existing &&
         existing.class === input.class &&
         existing.popType === input.popType &&
-        existing.employed === input.employed
+        workplaceRefKey(existing.employerId) === workplaceRefKey(input.employerId)
       ) {
         // Merge into existing pop using population-weighted average
         const oldSize = existing.size
@@ -188,7 +190,7 @@ export function addToOrCreatePopGroupMut(
     holdingId: input.holdingId,
     class: input.class,
     popType: input.popType,
-    employed: input.employed,
+    employerId: input.employerId,
     size: input.size,
     money: input.inheritFrom?.money ?? 0, // v0.58: extensive。create 時は incoming 比例分（Task 1.3 で比例移送制御）
     needSatisfaction: input.inheritFrom?.needSatisfaction ?? 50,
@@ -212,7 +214,7 @@ export function movePopEmploymentMut(
   ws: WorldState,
   input: {
     sourcePopId: PopGroupId
-    targetEmployed: boolean
+    targetEmployerId: WorkplaceRef | null
     size: number
   },
 ): PopGroupId {
@@ -231,7 +233,7 @@ export function movePopEmploymentMut(
     holdingId: source.holdingId,
     class: source.class,
     popType: source.popType,
-    employed: input.targetEmployed,
+    employerId: input.targetEmployerId,
     size: moveSize,
     inheritFrom: { ...source, money: movedMoney },
   })
@@ -292,7 +294,7 @@ export function movePopSizeToKeyMut(
     source.holdingId === target.holdingId &&
     source.class === target.class &&
     source.popType === target.popType &&
-    source.employed === target.employed
+    workplaceRefKey(source.employerId) === workplaceRefKey(target.employerId)
   ) {
     return undefined
   }
@@ -327,7 +329,7 @@ export function movePopSizeToKeyMut(
     holdingId: target.holdingId,
     class: target.class,
     popType: target.popType,
-    employed: target.employed,
+    employerId: target.employerId,
     size: actualAmount,
     inheritFrom: { ...source, unrest: incomingUnrest, money: targetMoney },
   })
@@ -430,29 +432,19 @@ export function reduceHoldingPopSizeProportionalMut(
   }
 }
 
-// v0.63 belt-and-suspenders: 雇用主削除時の unbind hook。holdingId 内の employed POP を
-//   unemployed に転職させる (即座にマージ)。employer={kind, id} は future-use (複数雇用主を持つ POP
-//   未実装のため、現在は単に employed フラグを消す)。
 export function unbindPopsFromEmployerMut(
   ws: WorldState,
   holdingId: HoldingId,
-  employer?: { kind: string; id: string },
+  ref: WorkplaceRef,
 ): void {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds) return
-  // employer parameter is accepted for future extensibility (when POPs can have multiple employers),
-  // but currently unused (v0.63 has single employer per POP at most)
-  void employer
-
-  for (const popId of popIds) {
-    const pop = ws.popGroups[popId]
-    if (!pop || !pop.employed) continue
-    // employed → unemployed に転職 (employed フラグを false に)
-    ws.popGroups[popId] = { ...pop, employed: false }
+  const refKey = workplaceRefKey(ref)
+  for (const pid of [...popIds]) {
+    const pop = ws.popGroups[pid]
+    if (!pop || workplaceRefKey(pop.employerId) !== refKey) continue
+    movePopEmploymentMut(ws, { sourcePopId: pid, targetEmployerId: null, size: pop.size })
   }
-
-  // 転職後、同じ merge key の POP を統合 (employed が変わったため split していた employed/unemployed を再マージ)
-  mergeCompatiblePopsMut(ws)
 }
 
 export function mergeCompatiblePopsMut(ws: WorldState): void {
@@ -461,7 +453,7 @@ export function mergeCompatiblePopsMut(ws: WorldState): void {
   for (const popId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
     const pop = ws.popGroups[popId]
     if (!pop) continue
-    const key = `${pop.holdingId}|${pop.class}|${pop.popType}|${pop.employed}`
+    const key = `${pop.holdingId}|${pop.class}|${pop.popType}|${workplaceRefKey(pop.employerId)}`
     const existing = mergeMap.get(key)
     if (existing) {
       existing.push(popId)

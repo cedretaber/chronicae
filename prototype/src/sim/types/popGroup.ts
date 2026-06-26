@@ -1,6 +1,7 @@
 import type { PopGroupId, HoldingId } from './ids'
 import type { AttitudeMap } from './attitude'
 import type { NeedCategory } from './needCategory'
+import type { WorkplaceRef } from './workplaceRef'
 
 // v0.55 §13: PopStratum (旧 PopClass の値移行)。PopGroup.class field 名は維持し値のみ移行する。
 //   旧 peasants→lower / townsmen→middle / nobles→upper。
@@ -32,7 +33,7 @@ export type PopGroup = {
   holdingId: HoldingId
   class: PopStratum
   popType: PopType
-  employed: boolean
+  employerId: WorkplaceRef | null
   size: number
   money: number // v0.58: 財産 stock（extensive・merge=sum・size 移動=比例）。≥0
   needSatisfaction: number // v0.58: need 充足度 0-100（intensive）。unrest/成長/mobility を駆動

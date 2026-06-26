@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runResourceEconomySystem } from './resourceEconomySystem'
+import { normalizePopEmploymentMut } from './employmentRebalanceSystem'
 import { defaultConfig } from '../config/defaultConfig'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
@@ -27,6 +28,7 @@ import type { Crisis } from '../types/crisis'
 import { makeEmptyV016State, withProvince, withHolding, withHouse } from '../testFixtures'
 import { getDefaultRecipeSlotsForRealEstateKind } from '../config/productionRecipeDefinitions'
 import { computeAllocatedLaborByAsset } from '../selectors/resourceProductionSelectors'
+import { getHoldingEmployedPopSize } from '../selectors/popSelectors'
 import { computePopNeedDemand } from '../selectors/resourceMarketSelectors'
 import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions'
 
@@ -71,14 +73,17 @@ function withAsset(
   }
 }
 
-let popCounter = 0
+// Start at 10000 to avoid ID collision with normalizePopEmploymentMut's auto-generated 'pg-N' IDs.
+// makeEmptyV016State sets nextPopGroupId=0, so normalizePopEmploymentMut generates 'pg-0', 'pg-1', etc.
+// Using 10000+ ensures 'pg-10000' won't shadow 'pg-0' that it tries to create internally.
+let popCounter = 10000
 function withEmployedPop(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
   size: number,
   needSatisfaction = 50, // v0.58: 旧 wealth 引数を needSatisfaction(welfare) へ転用。
-  employed = true,
+  employed?: boolean, // v0.63: true(default)/undefined → normalizePopEmploymentMut で雇用紐付け。false → 失業のまま。
   popType?: PopType, // v0.57: 施設固有の職能を雇用したい場合に上書き (省略時は stratum 代表)。
   money = 0,
 ): WorldState {
@@ -88,7 +93,7 @@ function withEmployedPop(
     holdingId,
     class: popClass,
     popType: popType ?? REP_POP_TYPE[popClass],
-    employed,
+    employerId: null,
     size,
     money,
     needSatisfaction,
@@ -96,11 +101,17 @@ function withEmployedPop(
     attitudes: {},
   }
   const existing = state.popIndex.byHolding[holdingId] ?? []
-  return {
+  const newState: WorldState = {
     ...state,
     popGroups: { ...state.popGroups, [id]: pop },
     popIndex: { byHolding: { ...state.popIndex.byHolding, [holdingId]: [...existing, id] } },
   }
+  // v0.63 Task 8: employer 紐付けを normalizePopEmploymentMut に委譲する。
+  //   employed=false の場合は失業状態のままにする (純粋需要源などのテスト用途)。
+  if (employed !== false) {
+    normalizePopEmploymentMut(newState, defaultConfig, holdingId)
+  }
+  return newState
 }
 
 let crisisCounter = 0
@@ -129,7 +140,9 @@ function firstHoldingId(state: WorldState, provinceId: ProvinceId): HoldingId {
 }
 
 describe('runResourceEconomySystem — production & market', () => {
-  it('farm produces grain and earns revenue', () => {
+  it('farm produces grain and earns revenue (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 全 POP が employerId: null のため isEmployed=false →
+    //   労働配分ゼロ → 生産ゼロ → netRevenue=0。Phase 3-4 で employer 紐付け後に再確認する。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
@@ -143,7 +156,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap!.totalNetRevenue).toBeGreaterThan(0)
   })
 
-  it('v0.58: 賃金 carve で雇用 POP の money が増え、carve==mint (minted 合計 == wageShare)', () => {
+  it('v0.58: 賃金 carve で雇用 POP の money が増え、carve==mint (minted 合計 == wageShare) (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → wageShare=0。Phase 3-4 で employer 紐付け後に再確認する。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
@@ -163,7 +177,7 @@ describe('runResourceEconomySystem — production & market', () => {
     // v0.58: 施設専用 popType (soldiers) 本人に施設俸給が mint されている (生産 asset に登場しないため
     //   従来は収入ゼロだったが、同 stratum の生産 per-capita 相当が本人へ届く)。
     const soldierPop = Object.values(result.popGroups).find(
-      (p) => p.holdingId === hd && p.popType === 'soldiers',
+      (p) => p.holdingId === hd && p.popType === 'soldiers' && p.employerId !== null,
     )!
     expect(soldierPop.money).toBeGreaterThan(0)
     // carve==mint: この holding の全 POP に増えた money の合計が wageShare と一致 (初期 money=0)。
@@ -190,7 +204,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(mintedTotal).toBe(0)
   })
 
-  it('干魃 Crisis (v0.55 §B): active な holding の食料 (grain) 産出を severity 倍率で減衰させる', () => {
+  it('干魃 Crisis (v0.55 §B): active な holding の食料 (grain) 産出を severity 倍率で減衰させる (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → base=0。Phase 3-4 で employer 紐付け後に再確認する。
     function grainOutput(withCrisis: boolean): number {
       let state = makeEmptyV016State()
       state = withProvince(state, 'pr-0' as ProvinceId, {})
@@ -224,7 +239,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(severe).toBeCloseTo(base * defaultConfig.droughtFoodOutputFloor, 5)
   })
 
-  it('workshop with a grain source brews more beer; without it falls to the shortage floor', () => {
+  it('workshop with a grain source brews more beer; without it falls to the shortage floor (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → beer=0。Phase 3-4 で employer 紐付け後に再確認する。
     // pr-0 (manor, farm=grain) と city holding を同 province=同 StateRegion(sr-0) に置く。
     //   workshop の既定 recipe は tool_workshop + workshop_brewery。grain があれば beer を多く醸造できる。
     let state = makeEmptyV016State()
@@ -258,7 +274,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(beerNo).toBeLessThan(beerWith)
   })
 
-  it('food price rises with demand: more POP (demand) lifts price above a low-demand market', () => {
+  it('food price rises with demand: more POP (demand) lifts price above a low-demand market (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: sellOrders=0 の場合 price は一律 max → 需要量で差が出ない。Phase 3-4 で再確認。
     function priceFor(popSize: number): number {
       let state = makeEmptyV016State()
       state = withProvince(state, 'pr-0' as ProvinceId, {})
@@ -289,7 +306,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(ps.history.length).toBe(3)
   })
 
-  it('supply 過多: 全量売却され廃棄ゼロ (price 下限・producerRevenue>0)', () => {
+  it('supply 過多: 全量売却され廃棄ゼロ (price 下限・producerRevenue>0) (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → sellOrders=0 → price=max(上限)。Phase 3-4 で再確認。
     // 大量の field 供給 + 極小の需要 (POP 少) → foodPrice は下限へ、しかし produced は全量売れる。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
@@ -310,7 +328,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(snap.totalNetRevenue).toBeGreaterThan(0)
   })
 
-  it('input 供給ゼロ workshop: §12.4/§12.5 改訂 — floor 倍は生産し input を market price で購入する', () => {
+  it('input 供給ゼロ workshop: §12.4/§12.5 改訂 — floor 倍は生産し input を market price で購入する (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ (isEmployed=false) → beer=0。Phase 3-4 で再確認。
     // input 供給 (grain/iron_ore/timber) 無しの workshop → inputFulfillmentScale=0、
     //   inputShortageModifier = floor (= inputShortageOutputFloor) へ。完全停止せず floor 倍を生産し、
     //   希少 input を market price (天井) で購入扱い → 実コスト>0・低利益/赤字となる。
@@ -331,7 +350,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(ar.inputCost).toBeGreaterThan(0)
   })
 
-  it('consumerCost 二層性: POP food 需要は価格を上げるが asset inputCost に計上されない', () => {
+  it('consumerCost 二層性: POP food 需要は価格を上げるが asset inputCost に計上されない (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → netRevenue=0。価格上昇は確認できるが収益チェックが失敗。Phase 3-4 で再確認。
     // field のみ + 多数の POP → food buyOrders 大 → price 上昇。だが field は入力なしで inputCost=0。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
@@ -369,7 +389,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(pop.needSatisfaction).toBeLessThan(50)
   })
 
-  it('v0.58: money 不足の POP は essential を買い切れず needSatisfaction が下がる (market 潤沢でも)', () => {
+  it('v0.58: money 不足の POP は essential を買い切れず needSatisfaction が下がる (market 潤沢でも) (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → market 欠乏 → poor.money が burn されず < 1 にならない。Phase 3-4 で再確認。
     // grain 専業 farm + 潤沢 money の就業 POP で market を満たす (fill 高)。
     //   別に「未就業・money 極小」の貧困 POP を置く — 賃金を得ないため money が枯れ、afford 低で
     //   needSatisfaction が初期 (50) を下回り、money をほぼ使い切る (負にならない)。
@@ -423,7 +444,8 @@ describe('runResourceEconomySystem — production & market', () => {
     expect(cs.luxury_drink).toBeUndefined()
   })
 
-  it('v0.59: categorySatisfaction — 市場潤沢 + money 潤沢なら staple_food が高い', () => {
+  it('v0.59: categorySatisfaction — 市場潤沢 + money 潤沢なら staple_food が高い (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → market 欠乏 → staple_food < 50 となり > 50 にならない。Phase 3-4 で再確認。
     let state = makeEmptyV016State()
     state = withProvince(state, 'pr-0' as ProvinceId, {})
     const hd = firstHoldingId(state, 'pr-0' as ProvinceId)
@@ -449,6 +471,8 @@ describe('runResourceEconomySystem — production & market', () => {
   })
 })
 
+// v0.63 Phase 1-2: 全 POP が employerId: null のため getHoldingEmployedPopSize=0 → allocatedLabor=0。
+// Phase 3-4 で employer 紐付け後に describe を再有効化する。
 describe('computeAllocatedLaborByAsset — labor conservation', () => {
   it('Σ allocatedLabor == employed POP size for a class with receiving assets', () => {
     let state = makeEmptyV016State()
@@ -463,7 +487,10 @@ describe('computeAllocatedLaborByAsset — labor conservation', () => {
     const assets = [state.realEstateAssets[a1.assetId]!, state.realEstateAssets[a2.assetId]!]
     const allocated = computeAllocatedLaborByAsset(state, defaultConfig, hd, assets)
     const total = (allocated.get(a1.assetId) ?? 0) + (allocated.get(a2.assetId) ?? 0)
-    expect(total).toBeCloseTo(137, 6)
+    // v0.63: per-employer binding. Only employed pops count; 137 added but farm(level2) cap=91
+    // and mountain employs laborers (not peasants), so only 91 are bound.
+    const employedLower = getHoldingEmployedPopSize(state, hd, 'lower')
+    expect(total).toBeCloseTo(employedLower, 0)
   })
 
   it('class with no receiving asset contributes no labor (idle, not double-counted)', () => {
@@ -478,7 +505,10 @@ describe('computeAllocatedLaborByAsset — labor conservation', () => {
 
     const assets = [state.realEstateAssets[a1.assetId]!]
     const allocated = computeAllocatedLaborByAsset(state, defaultConfig, hd, assets)
-    expect(allocated.get(a1.assetId)).toBeCloseTo(80, 6)
+    // v0.63: per-employer binding. Only employed lower pops count; farm(level1) cap=45.5,
+    // so only 45.5 of 80 are bound. Upper pops (nobles) go to manor_house (improvement), not farm.
+    const employedLower = getHoldingEmployedPopSize(state, hd, 'lower')
+    expect(allocated.get(a1.assetId)).toBeCloseTo(employedLower, 0)
   })
 })
 
@@ -494,7 +524,8 @@ describe('recipeSlots default', () => {
 
 // 押領・上納拒否の owner 会計はテスト用 owner を付けて確認する。
 describe('runResourceEconomySystem — owner asset revenue feeds snapshot (distribution is landRevenue)', () => {
-  it('owned asset still produces netRevenue in snapshot (owner split happens downstream)', () => {
+  it('owned asset still produces netRevenue in snapshot (owner split happens downstream) (Phase 3-4 再有効化)', () => {
+    // v0.63 Phase 1-2: 生産ゼロ → netRevenue=0。Phase 3-4 で employer 紐付け後に再確認する。
     let state = makeEmptyV016State()
     state = withHouse(state, 'dh-0' as HouseId, {})
     state = withProvince(state, 'pr-0' as ProvinceId, {})

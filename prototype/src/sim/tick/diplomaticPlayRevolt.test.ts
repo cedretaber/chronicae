@@ -82,7 +82,7 @@ function buildEscalationState(terminalRank: 2 | 3 | 5): {
         holdingId,
         class: 'lower',
         popType: 'peasants',
-        employed: true,
+        employerId: null,
         size: 100,
         wealth: 10,
         unrest: 80,

@@ -1,6 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId } from '../types/ids'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.54: 旧 POP 直接 production (getPopProduction / getHoldingProduction / getProvinceProduction) は
 //   資源経済へ置換され削除。holding/province の月次 revenue は resourceRevenueSelectors を参照。
@@ -25,7 +26,7 @@ export function getProvinceCountryManpowerBase(
       const pop = state.popGroups[popId]
       if (!pop) continue
       const manpowerFactor = config.manpowerFactorByClass[pop.class]
-      const mpMult = pop.employed
+      const mpMult = isEmployed(pop)
         ? config.employedManpowerMultiplierByClass[pop.class]
         : config.unemployedManpowerMultiplier
       total += pop.size * manpowerFactor * mpMult * (polityControl / 100)

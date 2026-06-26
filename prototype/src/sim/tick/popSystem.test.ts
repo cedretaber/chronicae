@@ -20,7 +20,7 @@ function withPop(
   holdingId: HoldingId,
   popClass: PopStratum,
   size: number,
-  employed: boolean,
+  _employed: boolean, // v0.63: field removed; kept for call-site compat
   money = 0,
 ): WorldState {
   const id = ('pg-' + counter++) as PopGroupId
@@ -29,7 +29,7 @@ function withPop(
     holdingId,
     class: popClass,
     popType: REP_POP_TYPE[popClass],
-    employed,
+    employerId: null,
     size,
     money,
     needSatisfaction: 50,

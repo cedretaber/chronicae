@@ -14,14 +14,16 @@ import {
   getSeizurePrescriptionRemainingYears,
 } from '@sim/selectors/realEstateSeizureSelectors'
 import {
-  getHoldingEmployedPopSizeByType,
-  getHoldingPopTypeCapacity,
+  getWorkplaceEmployedPopSizeByType,
   getAssetPopTypeCapacity,
 } from '@sim/selectors/popSelectors'
 import { formatAmount, formatPopCount } from '@/app/utils/format'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
 import type { ResourceKind } from '@sim/types/resource'
+import { workplaceRefKey } from '@sim/types/workplaceRef'
+import type { PopGroup } from '@sim/types/popGroup'
+import { PopGroupCard } from './shared/PopGroupCard'
 
 // レシピ構成 ■ 積み上げバーの色パレット (recipe 出現順で固定割当・index cycle)。farm=10 / workshop=8 が最多。
 const RECIPE_COLORS = [
@@ -72,6 +74,7 @@ export function RealEstateDetail({
   onPersonClick,
   onPolityClick,
   onHoldingClick,
+  onPopGroupClick,
 }: {
   asset: RealEstateAsset
   session: SimulationSession | null
@@ -79,6 +82,7 @@ export function RealEstateDetail({
   onPersonClick: (id: string) => void
   onPolityClick: ClickHandler
   onHoldingClick: (id: string) => void
+  onPopGroupClick?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -97,29 +101,21 @@ export function RealEstateDetail({
     .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
   const totalSlots = recipeEntries.reduce((sum, [, n]) => sum + n, 0)
 
-  // per-asset の雇用枠。capacity = この asset が holding 容量プールへ寄与する実効容量
-  //   (computeAssetPopTypeCapacityTerm × overuseMod × weight)。雇用人数は (holding, popType) 単位でしか
-  //   管理されないため、holding 全体の雇用 × (この asset の容量 / holding 全体の容量) で按分する (端数丸め)。
-  //   充足率 (fill) は holding 単位なので同 holding 内の各 asset で同一になる。
+  // per-asset の雇用枠。capacity = この asset が holding 容量プールへ寄与する実効容量。
+  //   v0.63: 雇用人数は employerId で直接バインドされるため、正確な実績値を参照できる。
   const capacitySlots = def.employmentSlots.map((slot) => {
     let employed: number | null = null
     let capacity = slot.capacityPerLevel * asset.level
     let fill: number | null = null
     if (currentState) {
       capacity = getAssetPopTypeCapacity(currentState, defaultConfig, asset.id, slot.popType)
-      const holdingCap = getHoldingPopTypeCapacity(
-        currentState,
-        defaultConfig,
-        asset.holdingId,
-        slot.popType,
-      )
-      const holdingEmp = getHoldingEmployedPopSizeByType(
+      employed = getWorkplaceEmployedPopSizeByType(
         currentState,
         asset.holdingId,
+        { kind: 'asset', id: asset.id },
         slot.popType,
       )
-      fill = holdingCap > 0 ? holdingEmp / holdingCap : null
-      employed = holdingCap > 0 ? holdingEmp * (capacity / holdingCap) : 0
+      fill = capacity > 0 ? employed / capacity : null
     }
     return {
       popType: slot.popType,
@@ -128,14 +124,20 @@ export function RealEstateDetail({
       fill,
     }
   })
-  // v0.57: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+  // v0.57/0.63: 施設全体の雇用充足率 = Σ雇用 / Σ容量 (この施設が雇う PopType 枠の合計)。
+  //   v0.63: 雇用実績は employerId バインドから直接取得し、容量もこの asset の実効容量を使う。
   const facilityFill = ((): number | null => {
     if (!currentState) return null
     let emp = 0
     let cap = 0
     for (const slot of def.employmentSlots) {
-      emp += getHoldingEmployedPopSizeByType(currentState, asset.holdingId, slot.popType)
-      cap += getHoldingPopTypeCapacity(currentState, defaultConfig, asset.holdingId, slot.popType)
+      emp += getWorkplaceEmployedPopSizeByType(
+        currentState,
+        asset.holdingId,
+        { kind: 'asset', id: asset.id },
+        slot.popType,
+      )
+      cap += getAssetPopTypeCapacity(currentState, defaultConfig, asset.id, slot.popType)
     }
     return cap > 0 ? emp / cap : null
   })()
@@ -317,6 +319,32 @@ export function RealEstateDetail({
           )
         })}
       </div>
+
+      {currentState && (() => {
+        const assetRefKey = workplaceRefKey({ kind: 'asset', id: asset.id })
+        const boundPops: PopGroup[] = []
+        for (const pid of currentState.popIndex.byHolding[asset.holdingId] ?? []) {
+          const pop = currentState.popGroups[pid]
+          if (pop && pop.employerId && workplaceRefKey(pop.employerId) === assetRefKey) {
+            boundPops.push(pop)
+          }
+        }
+        if (boundPops.length === 0) return null
+        boundPops.sort((a, b) => b.size - a.size)
+        return (
+          <>
+            <DetailSection title={t('detail.realEstate.bound_pops')} count={boundPops.length} />
+            {boundPops.map((pop) => (
+              <PopGroupCard
+                key={pop.id}
+                pop={pop}
+                {...(onPopGroupClick ? { onClick: onPopGroupClick } : {})}
+                subtitle={t(`detail.province.${pop.class}`, { defaultValue: pop.class })}
+              />
+            ))}
+          </>
+        )
+      })()}
 
       {assetResult && (
         <>

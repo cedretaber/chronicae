@@ -74,6 +74,7 @@ import { runEmploymentRebalanceSystem } from './employmentRebalanceSystem'
 import { runPopJobChangeSystem } from './popJobChangeSystem'
 import { runPopMigrationSystem } from './popMigrationSystem'
 import { runPopEmploymentNormalizeSystem } from './popEmploymentNormalizeSystem'
+import { runPopEmployerReconciliationSystem } from './popEmployerReconciliationSystem'
 import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPersonGrowthSystem } from './personGrowthSystem'
@@ -526,6 +527,15 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runFacilityMaintenanceSystem,
+  },
+  {
+    // v0.63: per-site hook (facilityMaintenance 等) の補完安全網。employerId が dangling になった
+    //   POP を unemployed に切り離す。facilityMaintenanceSystem の直後に置く (同サイクルで完結)。
+    //   integrity が employerId の entity liveness を年末チェックするため interval=1 に設定 (Task 10)。
+    name: 'popEmployerReconciliationSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runPopEmployerReconciliationSystem,
   },
   {
     name: 'pressureSystem',

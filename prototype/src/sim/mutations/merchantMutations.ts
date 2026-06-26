@@ -233,11 +233,7 @@ export function removeMerchantEstablishmentMut(
 ): void {
   const est = ws.merchantCompanyEstablishments[estId]
   if (!est) return
-
-  // v0.63 belt-and-suspenders: unbind any remaining employed POPs in this holding
-  // before the establishment is deleted from state
   unbindPopsFromEmployerMut(ws, est.holdingId, { kind: 'merchant', id: estId })
-
   removeIndex(ws.merchantCompanyEstablishmentIndex.byCompany, est.companyId, estId)
   removeIndex(ws.merchantCompanyEstablishmentIndex.byHolding, est.holdingId, estId)
   ws.merchantCompanyEstablishmentIndex.byKind[est.kind] =

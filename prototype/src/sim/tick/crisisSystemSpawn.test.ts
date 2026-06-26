@@ -22,6 +22,7 @@ import type {
   HoldingOfficeAssignmentId,
   OfficeAssignmentId,
   HoldingImprovementId,
+  RealEstateAssetId,
 } from '../types/ids'
 
 const PROVINCE = 'pr-1' as ProvinceId
@@ -30,6 +31,10 @@ const HOUSE = 'h-1' as HouseId
 const LEADER = 'p-leader' as PersonId
 const HOLDING = 'hl-0' as HoldingId // withProvince が最初に作る holding
 const POP = 'pg-1' as PopGroupId
+// v0.63 Task 4: famine/drought 判定で isEmployed(pop) が必要になったため、
+//   buildWorld に farm asset を追加し、peasant を farm に雇用する。
+const FARM_ASSET_ID = 'ra-crisis-farm' as RealEstateAssetId
+const FARM_REF = { kind: 'asset' as const, id: FARM_ASSET_ID }
 
 // famine を必ず当て、pressure 連動を消した config
 const FORCE_FAMINE = {
@@ -85,9 +90,30 @@ function buildWorld(): WorldState {
   s = withPerson(s, LEADER, { houseId: HOUSE })
   s = bindProvinceToHouseViaPolity(s, PROVINCE, POLITY, HOUSE)
   s = withPolityLeaderOffice(s)
-  // peasants/agriculture POP を hl-0 に
+  // peasants/agriculture POP を hl-0 に (farm asset に雇用し isEmployed=true にする)
   s = {
     ...s,
+    realEstateAssets: {
+      ...s.realEstateAssets,
+      [FARM_ASSET_ID]: {
+        id: FARM_ASSET_ID,
+        holdingId: HOLDING,
+        realEstateKind: 'farm',
+        level: 1,
+        createdWeek: 0,
+        recipeSlots: {},
+      },
+    },
+    realEstateAssetIndex: {
+      ...s.realEstateAssetIndex,
+      byHolding: {
+        ...s.realEstateAssetIndex.byHolding,
+        [HOLDING as string]: [
+          ...(s.realEstateAssetIndex.byHolding[HOLDING as string] ?? []),
+          FARM_ASSET_ID,
+        ],
+      },
+    },
     popGroups: {
       ...s.popGroups,
       [POP]: {
@@ -95,7 +121,7 @@ function buildWorld(): WorldState {
         holdingId: HOLDING,
         class: 'lower',
         popType: 'peasants',
-        employed: true,
+        employerId: FARM_REF,
         size: 1000,
         wealth: 50,
         unrest: 10,

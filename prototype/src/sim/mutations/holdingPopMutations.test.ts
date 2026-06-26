@@ -19,14 +19,14 @@ function setup() {
     holdingId: H1,
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     size: 100,
   })
   const p2 = addToOrCreatePopGroupMut(ws, {
     holdingId: H2,
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     size: 100,
   })
   ws.popGroups[p1] = { ...ws.popGroups[p1]!, needSatisfaction: 50, unrest: 10 }

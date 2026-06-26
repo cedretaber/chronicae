@@ -9,6 +9,7 @@ import {
 } from '../selectors/popSelectors'
 import { removePopGroupMut } from '../mutations/popMutations'
 import { createMonthlyPopChangeSnapshot, accrueNaturalPopChangeMut } from './popChangeSnapshot'
+import { isEmployed } from '../types/workplaceRef'
 
 // v0.55 POP 再設計: 旧 minSize 底上げ (就業 POP を minPopSizeByClass へ無条件で水増し) は撤廃した。
 //   雇用 capacity を持たない class (upper) を per-group に minSize へ底上げすると、その超過分が
@@ -107,7 +108,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const welfareFactor = clamp(0.5 + pop.needSatisfaction / 100, 0.5, 1.5)
     const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
 
-    const employmentGrowthModifier: number = pop.employed
+    const employmentGrowthModifier: number = isEmployed(pop)
       ? 1
       : ctx.config.unemployedGrowthModifierByClass[pop.class]
 
@@ -157,7 +158,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
 
     // 6. Unemployed POP penalties (v0.58: wealth decay は撤去。失業困窮は賃金ゼロ→money 枯渇→
     //    needSatisfaction 低下で自然表現される)。unrest 加算は残す。
-    if (!pop.employed) {
+    if (!isEmployed(pop)) {
       newUnrest += ctx.config.unemployedUnrestGainByClass[pop.class]
     }
 
@@ -183,7 +184,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
       pop.holdingId,
       pop.class,
       pop.popType,
-      pop.employed,
+      pop.employerId,
       finalSize - pop.size,
     )
   }

@@ -6,6 +6,7 @@ import {
   resolveHoldingImprovements,
 } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
+import { PopGroupCard } from './shared/PopGroupCard'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHoldingShortName } from '@/app/hooks/entityNameHelpers'
@@ -52,6 +53,7 @@ import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower, formatPopCount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
+
 
 export function ProvinceDetail({
   province,
@@ -461,42 +463,9 @@ export function ProvinceDetail({
 
       {pops.length > 0 && (
         <>
-          <DetailSection title={t('detail.province.pop_groups')} />
+          <DetailSection title={t('detail.holding.pop_list', { defaultValue: 'POP 一覧' })} />
           {pops.map((pop) => (
-            <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
-              <button
-                className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
-                onClick={() => onPopGroupClick(pop.id)}
-              >
-                {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
-                <span className="text-xs font-normal text-gray-400">
-                  ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
-                  {pop.employed
-                    ? t('detail.province.pop_employed')
-                    : t('detail.province.pop_unemployed')}
-                  )
-                </span>{' '}
-                →
-              </button>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{t('detail.province.size')}:</span>
-                <span>{formatPopCount(pop.size)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{t('detail.province.money')}:</span>
-                <span>{pop.money.toFixed(1)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
-                <span>{pop.needSatisfaction.toFixed(1)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{t('detail.province.unrest')}:</span>
-                <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
-                  {pop.unrest.toFixed(1)}
-                </span>
-              </div>
-            </div>
+            <PopGroupCard key={pop.id} pop={pop} onClick={onPopGroupClick} />
           ))}
         </>
       )}

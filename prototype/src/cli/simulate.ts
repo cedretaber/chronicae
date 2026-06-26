@@ -500,8 +500,7 @@ function computeEconomyStats(
       allNet += grossNet
       const asset = state.realEstateAssets[ar.assetId]
       if (asset?.owner) {
-        // v0.58: owner 側の原資は賃金・配当 carve 後 (landRevenueSystem の positiveNet と一致)。
-        const ownerNet = Math.max(0, ar.netRevenue - ar.wageShare - ar.ownerDividendShare)
+        const ownerNet = Math.max(0, ar.netRevenue - ar.wageShare)
         ownedNet += ownerNet
         const due = ownerNet * config.realEstateHoldingDueRate
         totalHoldingDue += due

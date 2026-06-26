@@ -9,6 +9,26 @@ import type { WorldState } from '../types/world'
 import { getPolityTerritorialStatus } from '../types/polity'
 import { POP_TYPES, getPopStratum } from '../types/popGroup'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import type { WorkplaceRef } from '../types/workplaceRef'
+import { workplaceRefKey } from '../types/workplaceRef'
+
+// v0.63: employerId が指す entity の holdingId を返す。entity が存在しなければ null。
+function resolveEmployerHoldingId(state: WorldState, ref: WorkplaceRef): HoldingId | null {
+  switch (ref.kind) {
+    case 'asset': {
+      const e = state.realEstateAssets[ref.id]
+      return e ? e.holdingId : null
+    }
+    case 'improvement': {
+      const e = state.holdingImprovements[ref.id]
+      return e ? e.holdingId : null
+    }
+    case 'merchant': {
+      const e = state.merchantCompanyEstablishments[ref.id]
+      return e ? e.holdingId : null
+    }
+  }
+}
 
 export function checkCoreEntities(state: WorldState, errors: SimError[], debug: boolean): void {
   // §17.1 Time invariants (v0.19)
@@ -368,11 +388,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     for (const popId of popIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      const mergeKey = `${pop.class}|${pop.popType}|${pop.employed}`
+      const mergeKey = `${pop.class}|${pop.popType}|${workplaceRefKey(pop.employerId)}`
       if (seen.has(mergeKey)) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} popType=${pop.popType} employed=${pop.employed} (popId=${popId as string})`,
+          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} popType=${pop.popType} employerId=${workplaceRefKey(pop.employerId)} (popId=${popId as string})`,
         })
       }
       seen.add(mergeKey)
@@ -438,12 +458,37 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
 
-    // 3. employed is boolean
-    if (typeof pop.employed !== 'boolean') {
+    // 3. employerId is null or valid WorkplaceRef shape
+    const empId = pop.employerId
+    const empShapeValid =
+      empId === null ||
+      (typeof empId === 'object' &&
+        'kind' in empId &&
+        'id' in empId &&
+        typeof (empId as { id: unknown }).id === 'string' &&
+        ['asset', 'improvement', 'merchant'].includes((empId as { kind: string }).kind))
+    if (!empShapeValid) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `PopGroup ${popGroupId} has invalid employed value '${String(pop.employed)}'`,
+        message: `PopGroup ${popGroupId} has invalid employerId '${JSON.stringify(empId)}'`,
       })
+    }
+
+    // 3b. employerId entity existence and employer-holding consistency
+    if (empId !== null && empShapeValid) {
+      const ref = empId
+      const employerHoldingId = resolveEmployerHoldingId(state, ref)
+      if (employerHoldingId === null) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopGroup ${popGroupId} employerId ${workplaceRefKey(ref)} references non-existent entity`,
+        })
+      } else if ((employerHoldingId as string) !== (pop.holdingId as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopGroup ${popGroupId} employerId ${workplaceRefKey(ref)} holdingId=${String(employerHoldingId)} does not match pop.holdingId=${String(pop.holdingId)}`,
+        })
+      }
     }
 
     // 4. size >= 0

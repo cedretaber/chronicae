@@ -62,7 +62,7 @@ function setupRebel(unrest = 60, popSize = 1000) {
         holdingId,
         class: 'lower',
         popType: 'peasants',
-        employed: true,
+        employerId: null,
         size: popSize,
         wealth: 30,
         unrest,

@@ -248,7 +248,7 @@ export type SimulationConfig = {
   //   持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの(§13)。
   popWealthTaxRate: number // 月次・per-capita floor 超過分への課税率
   popWealthTaxFloorPerCapita: number // この per-capita money 以下は非課税(貧困層の生活防衛バッファ)
-  wageRoleWeightByRole: Record<'primary' | 'skilled' | 'throughput', number>
+  wageStratumMultiplier: Record<'lower' | 'middle', number>
   overExtractionThreshold: number
   // v0.58: townsmen 反乱の welfare 判定を needSatisfaction へ (wealth から移行)。
   overExtractionNeedSatisfactionSafeThreshold: number
@@ -1795,7 +1795,7 @@ export const defaultConfig: SimulationConfig = {
   upperDividendShareOfNetRevenue: 0.03,
   popWealthTaxRate: 0.03,
   popWealthTaxFloorPerCapita: 2.0,
-  wageRoleWeightByRole: { primary: 1.0, skilled: 1.4, throughput: 0.6 },
+  wageStratumMultiplier: { lower: 1.0, middle: 1.5 },
   overExtractionThreshold: 0.95,
   overExtractionNeedSatisfactionSafeThreshold: 55,
   overExtractionUnrestSafeThreshold: 45,

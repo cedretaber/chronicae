@@ -10,10 +10,13 @@ import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList, DetailSection } from './shared/widgets'
-import { getHoldingClassCapacity, getPopGroupMonthlyPopChange } from '@sim/selectors/popSelectors'
+import { getPopGroupMonthlyPopChange } from '@sim/selectors/popSelectors'
 import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
 import { formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
-import { defaultConfig } from '@sim/config/defaultConfig'
+
+import { isEmployed } from '@sim/types/workplaceRef'
+import type { WorkplaceRef } from '@sim/types/workplaceRef'
+import type { TFunction } from 'i18next'
 
 export function PopGroupDetail({
   popGroup,
@@ -22,6 +25,8 @@ export function PopGroupDetail({
   onHouseClick,
   onPersonClick,
   onProvinceClick,
+  onRealEstateClick,
+  onHoldingClick,
 }: {
   popGroup: PopGroup
   session: SimulationSession | null
@@ -29,6 +34,8 @@ export function PopGroupDetail({
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
   onProvinceClick: (id: string) => void
+  onRealEstateClick?: (id: string) => void
+  onHoldingClick?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -46,8 +53,10 @@ export function PopGroupDetail({
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{classLabel}</span>
         <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">
-          {popGroup.employed
-            ? t('detail.province.pop_employed')
+          {popGroup.employerId !== null
+            ? t(`detail.province.pop_employer_${popGroup.employerId.kind}`, {
+                defaultValue: t('detail.province.pop_employed'),
+              })
             : t('detail.province.pop_unemployed')}
         </span>
         <CopyJsonButton payload={buildEntitySnapshot('popGroup', popGroup, worldState)} />
@@ -66,11 +75,17 @@ export function PopGroupDetail({
         </button>
       </div>
 
+      {popGroup.employerId && currentState && (
+        <EmployerInfo
+          employerId={popGroup.employerId}
+          state={currentState}
+          t={t}
+          {...(onRealEstateClick ? { onRealEstateClick } : {})}
+          {...(onHoldingClick ? { onHoldingClick } : {})}
+        />
+      )}
+
       <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">ID:</span>
-          <span className="text-xs text-gray-500">{popGroup.id}</span>
-        </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.size')}:</span>
           <span>{formatPopCount(popGroup.size)}</span>
@@ -139,24 +154,6 @@ export function PopGroupDetail({
         )
       })()}
 
-      {popGroup.employed && currentState && (
-        <div className="text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.province.capacity')}:</span>
-            <span>
-              {formatPopCount(popGroup.size)} /{' '}
-              {formatPopCount(
-                getHoldingClassCapacity(
-                  currentState,
-                  defaultConfig,
-                  popGroup.holdingId,
-                  popGroup.class,
-                ),
-              )}
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* v0.59: 先月からの人口変動 (自然増減 + 移住の小計)。転職・雇用変動は下の階層移動セクションに集約。 */}
       {currentState &&
@@ -205,10 +202,10 @@ export function PopGroupDetail({
           for (const m of currentState.monthlyPopMobility.topMovements) {
             if (m.kind !== 'job_change') continue
             if ((m.sourceHoldingId as string) !== (popGroup.holdingId as string)) continue
-            if (m.toPopType === popGroup.popType && m.toEmployed === popGroup.employed) {
+            if (m.toPopType === popGroup.popType && m.toEmployed === isEmployed(popGroup)) {
               inflow.set(m.fromPopType, (inflow.get(m.fromPopType) ?? 0) + m.amount)
             }
-            if (m.fromPopType === popGroup.popType && m.fromEmployed === popGroup.employed) {
+            if (m.fromPopType === popGroup.popType && m.fromEmployed === isEmployed(popGroup)) {
               outflow.set(m.toPopType, (outflow.get(m.toPopType) ?? 0) + m.amount)
             }
           }
@@ -279,6 +276,79 @@ export function PopGroupDetail({
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}
       />
+    </div>
+  )
+}
+
+function EmployerInfo({
+  employerId,
+  state,
+  t,
+  onRealEstateClick,
+  onHoldingClick,
+}: {
+  employerId: WorkplaceRef
+  state: WorldState
+  t: TFunction
+  onRealEstateClick?: (id: string) => void
+  onHoldingClick?: (id: string) => void
+}) {
+  let kindLabel = ''
+  let name = ''
+  let clickId: string | undefined
+  let clickHandler: ((id: string) => void) | undefined
+  switch (employerId.kind) {
+    case 'asset': {
+      const asset = state.realEstateAssets[employerId.id]
+      kindLabel = t('detail.province.pop_employer_asset')
+      name = asset
+        ? `${t(`detail.realEstate.kind_${asset.realEstateKind}`, { defaultValue: asset.realEstateKind })} Lv.${asset.level}`
+        : String(employerId.id)
+      if (onRealEstateClick) {
+        clickId = employerId.id
+        clickHandler = onRealEstateClick
+      }
+      break
+    }
+    case 'improvement': {
+      const imp = state.holdingImprovements[employerId.id]
+      kindLabel = t('detail.province.pop_employer_improvement')
+      name = imp
+        ? `${t(`detail.holding.improvement_${imp.kind}`, { defaultValue: imp.kind })} Lv.${imp.level}`
+        : String(employerId.id)
+      if (imp && onHoldingClick) {
+        clickId = imp.holdingId
+        clickHandler = onHoldingClick
+      }
+      break
+    }
+    case 'merchant': {
+      const est = state.merchantCompanyEstablishments[employerId.id]
+      kindLabel = t('detail.province.pop_employer_merchant')
+      if (est) {
+        const company = state.merchantCompanies[est.companyId]
+        name = company?.nameKey
+          ? `${t(`detail.merchant.kind_${est.kind}`, { defaultValue: est.kind })}`
+          : String(employerId.id)
+      } else {
+        name = String(employerId.id)
+      }
+      break
+    }
+  }
+  return (
+    <div className="rounded bg-gray-800/60 px-2 py-1 text-xs">
+      <span className="text-gray-400">{kindLabel}:</span>{' '}
+      {clickId && clickHandler ? (
+        <button
+          className="cursor-pointer text-blue-400 hover:text-blue-300"
+          onClick={() => clickHandler(clickId)}
+        >
+          {name}
+        </button>
+      ) : (
+        <span className="text-gray-200">{name}</span>
+      )}
     </div>
   )
 }

@@ -1,10 +1,17 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { ProvinceId, HoldingId, StateRegionId, RealEstateAssetId } from '../types/ids'
+import type {
+  ProvinceId,
+  HoldingId,
+  StateRegionId,
+  RealEstateAssetId,
+  PopGroupId,
+} from '../types/ids'
 import type { PopGroup, PopClass, PopType } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
+import type { WorkplaceRef } from '../types/workplaceRef'
 import { clamp } from '../utils/math'
 import { FOOD_RESOURCE_VALUE, FOOD_NEED_CATEGORIES } from '../config/popFoodDefinitions'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
@@ -16,11 +23,15 @@ import {
   computeHoldingAllPopTypeCapacities,
   computeSlotOveruseModifier,
   computeAssetPopTypeCapacityTerm,
+  conditionEffectiveness,
 } from './holdingImprovementSelectors'
 import { computeSlotCapacity } from './terrainTraitSelectors'
 import { getHoldingMerchantEmploymentSlots } from './merchantSelectors'
+import { getMerchantEstablishmentEmploymentSlots } from '../config/merchantDefinitions'
 import { popGroupChangeKey } from '../types/popChange'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { isEmployed, workplaceRefKey } from '../types/workplaceRef'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -307,7 +318,7 @@ export function getHoldingPopsByClassAndEmployment(
   employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.class === popClass && p.employed === employed,
+    (p) => p.class === popClass && isEmployed(p) === employed,
   )
 }
 
@@ -411,7 +422,7 @@ export function getHoldingPopsByTypeAndEmployment(
   employed: boolean,
 ): PopGroup[] {
   return getHoldingPops(state, holdingId).filter(
-    (p) => p.popType === popType && p.employed === employed,
+    (p) => p.popType === popType && isEmployed(p) === employed,
   )
 }
 
@@ -601,7 +612,7 @@ export function getPopGroupMonthlyPopChange(
 ): { natural: number; migrationIn: number; migrationOut: number; net: number } | undefined {
   const snapshot = state.monthlyPopChange
   if (!snapshot) return undefined
-  const key = popGroupChangeKey(pop.holdingId, pop.class, pop.popType, pop.employed)
+  const key = popGroupChangeKey(pop.holdingId, pop.class, pop.popType, pop.employerId)
   const e = snapshot.byPopGroupKey[key] ?? { natural: 0, migrationIn: 0, migrationOut: 0 }
   return {
     natural: e.natural,
@@ -609,4 +620,112 @@ export function getPopGroupMonthlyPopChange(
     migrationOut: e.migrationOut,
     net: e.natural + e.migrationIn - e.migrationOut,
   }
+}
+
+// v0.63: 単一雇用主(WorkplaceRef)が holding の popType 容量プールへ寄与する実効容量。
+//   kind='asset'       → getAssetPopTypeCapacity に委譲 (term × overuseMod × weight)
+//   kind='improvement' → IMPROVEMENT_DEFINITIONS の employmentSlots × level × conditionEff × weight
+//   kind='merchant'    → getMerchantEstablishmentEmploymentSlots (weight・overuseMod 不適用)
+//   この関数の total (collectHoldingWorkplaces 全要素) = getHoldingPopTypeCapacity に等しい (raw)。
+export function getWorkplacePopTypeCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  ref: WorkplaceRef,
+  popType: PopType,
+): number {
+  if (ref.kind === 'asset') {
+    return getAssetPopTypeCapacity(state, config, ref.id, popType)
+  }
+  if (ref.kind === 'improvement') {
+    const imp = state.holdingImprovements[ref.id]
+    if (!imp) return 0
+    const holding = state.holdings[imp.holdingId]
+    if (!holding) return 0
+    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+    if (!impDef.employmentSlots) return 0
+    let slotCap = 0
+    for (const slot of impDef.employmentSlots) {
+      if (slot.popType !== popType) continue
+      slotCap += slot.capacityPerLevel
+    }
+    if (slotCap <= 0) return 0
+    let eff = conditionEffectiveness(
+      imp.condition,
+      config.facilityDisrepairThreshold,
+      config.facilityDisrepairMinEffectiveness,
+    )
+    if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
+    return slotCap * imp.level * eff * holding.weight
+  }
+  // kind === 'merchant'
+  const est = state.merchantCompanyEstablishments[ref.id]
+  if (!est || est.status !== 'active') return 0
+  return getMerchantEstablishmentEmploymentSlots(est.kind, popType, est.level)
+}
+
+// v0.63: holding 内の特定雇用主(WorkplaceRef)に紐付いた popType の雇用済み size 合計。
+export function getWorkplaceEmployedPopSizeByType(
+  state: WorldState,
+  holdingId: HoldingId,
+  ref: WorkplaceRef,
+  popType: PopType,
+): number {
+  const key = workplaceRefKey(ref)
+  let total = 0
+  for (const popId of state.popIndex.byHolding[holdingId] ?? []) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    if (pop.popType !== popType) continue
+    if (workplaceRefKey(pop.employerId) !== key) continue
+    total += pop.size
+  }
+  return total
+}
+
+// v0.63: holding 内の特定雇用主(WorkplaceRef)と popType に一致する最初の PopGroupId を返す。
+//   wage carve (Task 5) で対象 POP を特定するために使う。
+export function findBoundPop(
+  state: WorldState,
+  holdingId: HoldingId,
+  ref: WorkplaceRef,
+  popType: PopType,
+): PopGroupId | undefined {
+  const key = workplaceRefKey(ref)
+  for (const popId of state.popIndex.byHolding[holdingId] ?? []) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    if (pop.popType !== popType) continue
+    if (workplaceRefKey(pop.employerId) !== key) continue
+    return pop.id
+  }
+  return undefined
+}
+
+// v0.63: holding 内の全雇用主 WorkplaceRef を収集し、workplaceRefKey 昇順でソートして返す。
+//   merchant establishment は status='active' のみ含む。
+//   employmentSlots を持たない improvement (irrigation 等) は除外する。
+export function collectHoldingWorkplaces(
+  state: WorldState,
+  _config: SimulationConfig,
+  holdingId: HoldingId,
+): WorkplaceRef[] {
+  const refs: WorkplaceRef[] = []
+  for (const assetId of state.realEstateAssetIndex.byHolding[holdingId as string] ?? []) {
+    refs.push({ kind: 'asset', id: assetId })
+  }
+  for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
+    const imp = state.holdingImprovements[impId]
+    if (!imp) continue
+    const impDef = IMPROVEMENT_DEFINITIONS[imp.kind]
+    if (!impDef.employmentSlots) continue
+    refs.push({ kind: 'improvement', id: impId })
+  }
+  for (const estId of state.merchantCompanyEstablishmentIndex.byHolding[holdingId as string] ??
+    []) {
+    const est = state.merchantCompanyEstablishments[estId]
+    if (!est || est.status !== 'active') continue
+    refs.push({ kind: 'merchant', id: estId })
+  }
+  refs.sort((a, b) => workplaceRefKey(a).localeCompare(workplaceRefKey(b)))
+  return refs
 }

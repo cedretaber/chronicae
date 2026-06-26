@@ -14,6 +14,7 @@ import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { clamp } from '../utils/math'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { removeCrisisMut } from '../mutations/crisisMutations'
+import { unbindPopsFromEmployerMut } from '../mutations/popMutations'
 import { spawnDisrepairCrisisMut, cancelActiveResponseProjectMut } from './crisisSystem'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 
@@ -57,6 +58,8 @@ function degradeHoldingImprovementMut(
     outcome = 'degraded'
   } else {
     // 全壊: improvement 削除 + index から除去 (filter 後に空配列なら key ごと delete)。
+    //   削除前に紐付き POP を unemployed に切り離す (dangling employerId 防止)。
+    unbindPopsFromEmployerMut(ws, holdingId, { kind: 'improvement', id: imp.id })
     delete ws.holdingImprovements[imp.id]
     const arr = ws.holdingImprovementIndex.byHolding[holdingId as string]
     if (arr) {
@@ -94,6 +97,7 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
   //   disrepair spawn / purge は crises / crisisIndex / projects / projectIndex を触る。
   //   index slice を欠くと in-place delete が共有 index を破壊し cross-tick 汚染になる (§13-B_det)。
   //   v0.48.2: 定期保守で owner polity の treasury を引くため polities slice も clone (per-object spread)。
+  //   v0.63: improvement 全壊時に紐付き POP を unemployed に切り離すため popGroups/popIndex も clone。
   const ws: WorldState = {
     ...ctx.state,
     holdingImprovements: { ...ctx.state.holdingImprovements },
@@ -115,6 +119,9 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
       bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
+    nextPopGroupId: ctx.state.nextPopGroupId,
   }
 
   const newEvents: SimEvent[] = []

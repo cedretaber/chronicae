@@ -46,17 +46,17 @@ import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import type { SimulationConfig } from '../config/defaultConfig'
-
+import { isEmployed } from '../types/workplaceRef'
 // holding が指定 kind の Crisis を負う資格 (該当 POP を持つか) を判定する (§4.1 spawn フィルタ)。
 // famine/drought → peasants(agriculture)、plague → 何らかの POP。
 function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: CrisisKind): boolean {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds || popIds.length === 0) return false
   if (kind === 'plague') return true
-  // famine / drought: 農業 peasants が居る holding のみ
+  // famine / drought: 農業 peasants が居る holding のみ (雇用済み lower-class POP)
   for (const popId of popIds) {
     const pop = ws.popGroups[popId]
-    if (pop && pop.class === 'lower' && pop.employed) return true
+    if (pop && pop.class === 'lower' && isEmployed(pop)) return true
   }
   return false
 }
@@ -254,7 +254,14 @@ export function spawnWarDamageCrisis(
   if (shockRate > 0) {
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined, (pop, removed) =>
       // v0.59: 戦災死を自然減として人口変動 read-model へ累積。
-      accrueNaturalPopChangeMut(ws, pop.holdingId, pop.class, pop.popType, pop.employed, -removed),
+      accrueNaturalPopChangeMut(
+        ws,
+        pop.holdingId,
+        pop.class,
+        pop.popType,
+        pop.employerId,
+        -removed,
+      ),
     )
   }
 
@@ -445,7 +452,14 @@ function spawnCrisisForHolding(
     const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'lower'
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass, (pop, removed) =>
       // v0.59: 飢饉・疫病死を自然減として人口変動 read-model へ累積。
-      accrueNaturalPopChangeMut(ws, pop.holdingId, pop.class, pop.popType, pop.employed, -removed),
+      accrueNaturalPopChangeMut(
+        ws,
+        pop.holdingId,
+        pop.class,
+        pop.popType,
+        pop.employerId,
+        -removed,
+      ),
     )
   }
 

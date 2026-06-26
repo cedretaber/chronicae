@@ -19,3 +19,9 @@ Task 7: complete (no additional commits — Task 2 置換で完了済み、構�
 Task 8: complete (commits a99e84b..5fc985a, review clean)
   Re-enabled: ~15 Phase 3-4 skipped tests
   Minor: computeAssetPopTypeCapacityTerm per-slot fragility (no current bug, noted for future)
+Task 9: complete (commits 5fc985a..ef98398, review approved after merchant hook fix)
+Task 10: complete (commits ef98398..d1f13e1, review approved after WindowManager fix)
+  Fixed: WindowManager title now shows employer kind
+  Reviewer false positive: merge key uniqueness already existed from Task 2
+
+ALL TASKS COMPLETE. 150y×4seed gate green. 1621 tests pass.

@@ -1,5 +1,6 @@
 import type { HoldingId, StateRegionId } from './ids'
 import type { PopType, PopStratum } from './popGroup'
+import type { WorkplaceRef } from './workplaceRef'
 
 // v0.56 POP 転職・移住システム (spec-v056-update.md)。
 
@@ -14,7 +15,7 @@ export type PopTargetKey = {
   holdingId: HoldingId
   class: PopStratum
   popType: PopType
-  employed: boolean
+  employerId: WorkplaceRef | null
 }
 
 // §2.3 holding 単位の PopType 雇用需要 (read-model)。

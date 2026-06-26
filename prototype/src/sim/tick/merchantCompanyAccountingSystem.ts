@@ -1,6 +1,11 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { MerchantCompanyId, HouseId, HoldingId } from '../types/ids'
+import type {
+  MerchantCompanyId,
+  HouseId,
+  HoldingId,
+  MerchantCompanyEstablishmentId,
+} from '../types/ids'
 import type { MerchantCompany, TradeRoute } from '../types/merchant'
 import type { House } from '../types/house'
 import type { ResourceKind } from '../types/resource'
@@ -9,6 +14,7 @@ import type { PopType } from '../types/popGroup'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import { getMerchantEstablishmentEmploymentSlots } from '../config/merchantDefinitions'
+import { findBoundPop } from '../selectors/popSelectors'
 
 // v0.61 §15/§16: 月次。ResourceEconomySystem の後・houseSurplusDistribution の後に走り、
 //   route profit（当月清算価格）+ commerce revenue（前月 snapshot）を gross に集計し、§16.6 で
@@ -55,15 +61,24 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
   const housesMut = { ...state.houses } as Record<HouseId, House>
   const popGroupsMut = { ...state.popGroups }
 
-  // §16.6: holding 内の employed POP（popType 指定）に wage を mint する。実際に mint した額を返す
-  //   （carve==mint: 雇用 POP 不在なら 0 を返し、呼び出し側は carve しない＝treasury に残す）。
-  const mintToEmployed = (holdingId: HoldingId, popType: PopType, amount: number): number => {
+  // §16.6: holding 内の特定 establishment に紐付いた POP（popType 指定）に wage を mint する。
+  //   実際に mint した額を返す（carve==mint: 雇用 POP 不在なら 0 を返し、treasury に残す）。
+  //   v0.63: per-employer — findBoundPop で estId の merchant establishment に紐付いた POP を直接 lookup。
+  const mintToEmployed = (
+    holdingId: HoldingId,
+    popType: PopType,
+    amount: number,
+    estId: MerchantCompanyEstablishmentId,
+  ): number => {
     if (amount <= 0) return 0
-    for (const pid of state.popIndex.byHolding[holdingId] ?? []) {
-      const pop = popGroupsMut[pid]
-      if (!pop || pop.popType !== popType || !pop.employed) continue
-      popGroupsMut[pid] = { ...pop, money: pop.money + amount }
-      return amount
+    const ref = { kind: 'merchant' as const, id: estId }
+    const boundPopId = findBoundPop(state, holdingId, ref, popType)
+    if (boundPopId) {
+      const pop = popGroupsMut[boundPopId]
+      if (pop) {
+        popGroupsMut[boundPopId] = { ...pop, money: pop.money + amount }
+        return amount
+      }
     }
     return 0
   }
@@ -160,7 +175,12 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
           for (const t of WAGE_TYPES) {
             const slots = getMerchantEstablishmentEmploymentSlots(est.kind, t, est.level)
             if (slots <= 0) continue
-            wageMinted += mintToEmployed(est.holdingId, t, wagePool * (slots / totalWageSlots))
+            wageMinted += mintToEmployed(
+              est.holdingId,
+              t,
+              wagePool * (slots / totalWageSlots),
+              est.id,
+            )
           }
         }
       }
@@ -172,6 +192,7 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
             est.holdingId,
             'patricians',
             upperPool * (slots / totalUpperSlots),
+            est.id,
           )
         }
       }

@@ -34,7 +34,7 @@ function makePop(money: number, size = 100): PopGroup {
     holdingId: createHoldingId(0),
     class: 'lower',
     popType: 'peasants',
-    employed: true,
+    employerId: null,
     size,
     money,
     needSatisfaction: 50,
@@ -306,7 +306,7 @@ describe('v0.60 pledge 算出', () => {
       holdingId: HOLD,
       class: 'lower',
       popType: 'peasants',
-      employed: true,
+      employerId: null,
       size: 100,
       money: 0, // 余剰なし
       needSatisfaction: 50,

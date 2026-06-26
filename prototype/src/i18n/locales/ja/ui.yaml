@@ -797,6 +797,9 @@ detail:
     pop_groups: '民衆集団'
     pop_employed: '就業'
     pop_unemployed: '失業'
+    pop_employer_asset: '不動産'
+    pop_employer_improvement: '施設'
+    pop_employer_merchant: '商会店舗'
     revolt_risk: '反乱リスク'
     attitudes: '感情'
     dev: '開発'
@@ -896,6 +899,7 @@ detail:
     employment_fulfillment: '雇用充足率'
     input_fulfillment: '入力資源充足率'
     employment_fill: '雇用充足率'
+    bound_pops: '就労 POP'
     # v0.56 ボトルネック (最低レシピ) 要約 — 入力のみ (労働は不動産単位なので v0.57 で集約)
     input_fulfillment_min: '入力資源充足率(最低)'
     # v0.55 資源名 (21 種)
@@ -994,6 +998,10 @@ detail:
   # 土地詳細 (v0.38 Chronicle)
   holding:
     chronicle: '土地の歴史'
+    pop_count: '人口'
+    employment_capacity: '職業枠'
+    pop_class_summary: '階層別 POP 情報'
+    pop_list: 'POP 一覧'
 
   # 戦争詳細 (v0.34)
   war:

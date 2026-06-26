@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
-import type { ProvinceId, PolityId, PersonId, PopGroupId } from '../types/ids'
+import type { ProvinceId, PolityId, PersonId, PopGroupId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import { isEmployed } from '../types/workplaceRef'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { governanceCompetence } from '../selectors/abilitySelectors'
 import type { AssetOwnerRef } from '../types/realEstateAsset'
@@ -37,6 +38,29 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     persons: { ...ctx.state.persons },
     popGroups: { ...ctx.state.popGroups },
     houses: { ...ctx.state.houses },
+  }
+
+  // v0.63: upper 配当を holding 収入から carve し、雇用 upper POP に size 比例で配分。
+  //   carve==mint: 雇用 upper 不在なら carve しない (money が消えない)。
+  const upperDividendRate = ctx.config.upperDividendShareOfNetRevenue
+  const carveUpperDividendMut = (holdingId: HoldingId, pool: number): number => {
+    if (upperDividendRate <= 0 || pool <= 0) return 0
+    const popIds = draft.popIndex.byHolding[holdingId]
+    if (!popIds) return 0
+    let upperSize = 0
+    for (const pid of popIds) {
+      const pop = draft.popGroups[pid]
+      if (pop && isEmployed(pop) && pop.class === 'upper') upperSize += pop.size
+    }
+    if (upperSize <= 0) return 0
+    const budget = pool * upperDividendRate
+    for (const pid of popIds) {
+      const pop = draft.popGroups[pid]
+      if (!pop || !isEmployed(pop) || pop.class !== 'upper') continue
+      const amount = budget * (pop.size / upperSize)
+      draft.popGroups[pid] = { ...pop, money: pop.money + amount }
+    }
+    return budget
   }
 
   // 旧 addPersonWealth と同一挙動 (person 不在なら no-op、wealth は 0 でクランプ)。
@@ -91,7 +115,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
         for (const ar of snapshot.assetResults) {
           // v0.58: 賃金 carve ＋ upper 配当 carve 後が owner/税/国庫の原資 (positiveNet を 1 箇所変える
           //   だけで owner income / holdingDue / taxable / 代官 / treasury すべてが carve 分縮む)。
-          const positiveNet = Math.max(0, ar.netRevenue - ar.wageShare - ar.ownerDividendShare)
+          const positiveNet = Math.max(0, ar.netRevenue - ar.wageShare)
           if (positiveNet <= 0) continue
           const asset = draft.realEstateAssets[ar.assetId]
           if (!asset || !asset.owner) {
@@ -144,11 +168,13 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       let remittanceToTerminal: number
 
       if (!assignmentId) {
-        remittanceToTerminal = revenueAfterOwnerIncome
+        const dividend = carveUpperDividendMut(holdingId, revenueAfterOwnerIncome)
+        remittanceToTerminal = revenueAfterOwnerIncome - dividend
       } else {
         const assignment = draft.holdingOfficeAssignments[assignmentId]
         if (!assignment || !assignment.active) {
-          remittanceToTerminal = revenueAfterOwnerIncome
+          const dividend = carveUpperDividendMut(holdingId, revenueAfterOwnerIncome)
+          remittanceToTerminal = revenueAfterOwnerIncome - dividend
         } else {
           const recentTaskStatus = getRecentBailiffRevenueTaskStatus(draft, assignmentId)
           const localExtractionRate = getBailiffLocalExtractionRate(draft, ctx.config, assignmentId)
@@ -160,9 +186,11 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           )
           popTaxLevyFraction = localExtractionRate
           const collected = revenueAfterOwnerIncome * localExtractionRate * collectionEfficiency
+          const dividend = carveUpperDividendMut(holdingId, collected)
+          const afterDividend = collected - dividend
           const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
-          const bailiffFee = collected * bailiffFeeRate
-          remittanceToTerminal = collected - bailiffFee
+          const bailiffFee = afterDividend * bailiffFeeRate
+          remittanceToTerminal = afterDividend - bailiffFee
 
           if (!isPlaceholderPerson(draft, assignment.holderPersonId) && bailiffFee > 0) {
             const holder = draft.persons[assignment.holderPersonId]

@@ -4,6 +4,7 @@ import type { PopType } from '@/sim/types/popGroup'
 import { getPopStratum } from '@/sim/types/popGroup'
 import type { SimulationSession } from '@/sim/types/world'
 import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helpers'
+import { PopGroupCard } from './shared/PopGroupCard'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
@@ -64,7 +65,6 @@ import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '@sim/config/merchantDefinitions'
-
 export function HoldingDetail({
   holding,
   session,
@@ -1043,7 +1043,7 @@ export function HoldingDetail({
       {/* POP breakdown by class */}
       {currentState && (
         <>
-          <DetailSection title="POP" />
+          <DetailSection title={t('detail.holding.pop_class_summary', { defaultValue: '階層別 POP 情報' })} />
           {(['lower', 'middle', 'upper'] as const).map((popClass) => {
             const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
             const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
@@ -1054,10 +1054,16 @@ export function HoldingDetail({
                 <div className="font-medium text-gray-300">{t(`detail.province.${popClass}`)}</div>
                 <div className="ml-2 text-gray-400">
                   <div className="flex justify-between">
+                    <span>{t('detail.holding.pop_count', { defaultValue: '人口' })}:</span>
+                    <span>{formatPopCount(empSize + unempSize)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t('detail.holding.employment_capacity', { defaultValue: '職業枠' })}:</span>
+                    <span>{formatPopCount(cap)}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>{t('detail.province.pop_employed')}:</span>
-                    <span>
-                      {formatPopCount(empSize)} / {formatPopCount(cap)}
-                    </span>
+                    <span>{formatPopCount(empSize)}</span>
                   </div>
                   {unempSize > 0 && (
                     <div className="flex justify-between">
@@ -1119,42 +1125,9 @@ export function HoldingDetail({
           if (pops.length === 0) return null
           return (
             <>
-              <DetailSection title={t('detail.province.pop_groups')} />
+              <DetailSection title={t('detail.holding.pop_list', { defaultValue: 'POP 一覧' })} />
               {pops.map((pop) => (
-                <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
-                  <button
-                    className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
-                    onClick={() => onPopGroupClick(pop.id)}
-                  >
-                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
-                    <span className="text-xs font-normal text-gray-400">
-                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })} /{' '}
-                      {pop.employed
-                        ? t('detail.province.pop_employed')
-                        : t('detail.province.pop_unemployed')}
-                      )
-                    </span>{' '}
-                    →
-                  </button>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{t('detail.province.size')}:</span>
-                    <span>{formatPopCount(pop.size)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{t('detail.province.money')}:</span>
-                    <span>{pop.money.toFixed(1)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
-                    <span>{pop.needSatisfaction.toFixed(1)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{t('detail.province.unrest')}:</span>
-                    <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
-                      {pop.unrest.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
+                <PopGroupCard key={pop.id} pop={pop} onClick={onPopGroupClick} />
               ))}
             </>
           )

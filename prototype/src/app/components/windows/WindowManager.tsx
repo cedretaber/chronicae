@@ -215,7 +215,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Pop: ${popGroup.class} (${popGroup.employed ? 'employed' : 'unemployed'})`}
+              title={`Pop: ${popGroup.class} (${popGroup.employerId ? t(`detail.province.pop_employer_${popGroup.employerId.kind}`) : t('detail.province.pop_unemployed')})`}
             >
               <PopGroupDetail
                 popGroup={popGroup}
@@ -224,6 +224,8 @@ export function WindowManager() {
                 onHouseClick={onHouseClick}
                 onPersonClick={onPersonClick}
                 onProvinceClick={onProvinceClick}
+                onRealEstateClick={onRealEstateClick}
+                onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
           )
@@ -310,6 +312,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onPolityClick={onPolityClick}
                 onHoldingClick={onHoldingClick}
+                onPopGroupClick={onPopGroupClick}
               />
             </DraggableWindow>
           )

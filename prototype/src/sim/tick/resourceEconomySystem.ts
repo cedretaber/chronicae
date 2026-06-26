@@ -7,6 +7,7 @@ import type {
   PopGroupId,
   ProjectId,
   CrisisId,
+  HoldingImprovementId,
 } from '../types/ids'
 import { FOOD_RESOURCE_VALUE } from '../config/popFoodDefinitions'
 import type { PopGroup } from '../types/popGroup'
@@ -26,7 +27,6 @@ import {
   computeAssetRecipePotentials,
   computeAssetPopTypeShares,
 } from '../selectors/resourceProductionSelectors'
-import { WAGE_ROLE_BY_POP_TYPE } from '../config/popWageDefinitions'
 import type { PopType, PopStratum } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
@@ -43,8 +43,10 @@ import {
   computePopNeedDemand,
 } from '../selectors/resourceMarketSelectors'
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
+import { findBoundPop } from '../selectors/popSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
+
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
@@ -560,12 +562,10 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   //   carve==mint 不変条件: 分配不能 (賃金=雇用 PopType 不在 / 配当=雇用 upper 不在) のときは carve せず
   //   owner からも引かない (advisor: owner から carve したのに mint 先がないと money が消える)。
   const wageRate = config.wageShareOfNetRevenue
-  const upperDividendRate = config.upperDividendShareOfNetRevenue
-  if (wageRate > 0 || upperDividendRate > 0) {
+  if (wageRate > 0) {
     for (const holdingId of (Object.keys(snapshots) as HoldingId[]).sort()) {
       const snap = snapshots[holdingId]
       if (!snap) continue
-      const popIdsHere = state.popIndex.byHolding[holdingId] ?? []
 
       // ─── 賃金 carve (lower/middle): asset 単位 ───
       //   prodWageByPop に POP 別の生産賃金を記録し、後段の施設俸給 supplement の按分基準に使う。
@@ -583,32 +583,36 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             continue
           }
           const shares = computeAssetPopTypeShares(state, asset)
-          // 役割重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
+          // 階層別重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
           let weightSum = 0
           const weighted: { popType: PopType; w: number }[] = []
           for (const t of (Object.keys(shares) as PopType[]).sort()) {
             const s = shares[t] ?? 0
             if (s <= 0) continue
-            const w = s * config.wageRoleWeightByRole[WAGE_ROLE_BY_POP_TYPE[t]]
+            const stratum = getPopStratum(t)
+            const stratumMult =
+              stratum === 'upper' ? 0 : config.wageStratumMultiplier[stratum]
+            const w = s * stratumMult
             if (w <= 0) continue
             weighted.push({ popType: t, w })
             weightSum += w
           }
           if (weightSum <= 0) {
-            ar.wageShare = 0 // 分配先なし → owner から carve しない
+            ar.wageShare = 0
             continue
           }
-          // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
           let minted = 0
           for (const { popType, w } of weighted) {
             const amount = carveBudget * (w / weightSum)
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !pop.employed) continue
-              newPopGroups[pid] = { ...pop, money: pop.money + amount }
-              prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
-              minted += amount
-              break
+            const ref = { kind: 'asset' as const, id: ar.assetId }
+            const boundPopId = findBoundPop(state, holdingId, ref, popType)
+            if (boundPopId) {
+              const pop = newPopGroups[boundPopId]
+              if (pop) {
+                newPopGroups[boundPopId] = { ...pop, money: pop.money + amount }
+                prodWageByPop.set(boundPopId, (prodWageByPop.get(boundPopId) ?? 0) + amount)
+                minted += amount
+              }
             }
           }
           ar.wageShare = minted
@@ -634,8 +638,9 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               prodCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * asset.level
             }
           }
-          // 施設 slot を popType 別に集計(facCap と、mint 先 popType の列挙基準)。
-          const facCapByPopType = new Map<PopType, number>()
+          // v0.63: 施設 slot を improvement × slot 単位で収集 (per-employer mint 用)。
+          // 同時に stratum 別の facCap 総量 (denominator) を集計する。
+          const impSlots: { impId: HoldingImprovementId; popType: PopType; cap: number }[] = []
           for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
             const imp = state.holdingImprovements[impId]
             if (!imp) continue
@@ -644,7 +649,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             for (const slot of slots) {
               const cap = slot.capacityPerLevel * imp.level
               facCap[getPopStratum(slot.popType)] += cap
-              facCapByPopType.set(slot.popType, (facCapByPopType.get(slot.popType) ?? 0) + cap)
+              impSlots.push({ impId, popType: slot.popType, cap })
             }
           }
           for (const [pid, prodWage] of prodWageByPop) {
@@ -660,10 +665,9 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (pc <= 0 || fc <= 0) continue
             supplementByStratum[s] = prodWageByStratum[s] * (fc / pc)
           }
-          // 各施設 popType へ facCap 比で按分し、その popType の雇用 PopGroup 本人へ mint。
+          // v0.63: 各施設 slot (improvement × popType) の雇用 POP 本人へ mint。
           let supplementTotal = 0
-          for (const popType of [...facCapByPopType.keys()].sort()) {
-            const cap = facCapByPopType.get(popType) ?? 0
+          for (const { impId, popType, cap } of impSlots) {
             if (cap <= 0) continue
             const s = getPopStratum(popType)
             const stratumFacCap = facCap[s]
@@ -671,12 +675,14 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (stratumFacCap <= 0 || stratumBudget <= 0) continue
             const pay = stratumBudget * (cap / stratumFacCap)
             if (pay <= 0) continue
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !pop.employed) continue
-              newPopGroups[pid] = { ...pop, money: pop.money + pay }
-              supplementTotal += pay
-              break
+            const ref = { kind: 'improvement' as const, id: impId }
+            const boundPopId = findBoundPop(state, holdingId, ref, popType)
+            if (boundPopId) {
+              const pop = newPopGroups[boundPopId]
+              if (pop) {
+                newPopGroups[boundPopId] = { ...pop, money: pop.money + pay }
+                supplementTotal += pay
+              }
             }
           }
           // supplement 総額を asset へ max(0,netRevenue) 比で按分し wageShare に加算(landRevenue 控除)。
@@ -692,35 +698,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         }
       }
 
-      // ─── v0.58 balance: upper 配当 carve (holding 単位) ───
-      //   雇用枠に就いている upper(nobles/patricians) POP に、holding 純収益の固定割合を size 比例で配当。
-      //   失業 upper は受け取らない (没落→money 枯渇→既存降格で下位転落)。雇用 upper 不在なら carve しない
-      //   (carve==mint: owner から引いて mint 先が無いと money が消えるため)。賃金とは別 carve。
-      if (upperDividendRate > 0) {
-        // holding 内の雇用 upper POP と総 size を集計 (determinism: byHolding 配列の固定順)。
-        let upperSize = 0
-        for (const pid of popIdsHere) {
-          const pop = newPopGroups[pid]
-          if (pop && pop.employed && pop.class === 'upper') upperSize += pop.size
-        }
-        if (upperSize > 0) {
-          // 配当原資 = Σ_assets max(0, netRevenue) × rate。各 asset の ownerDividendShare に記録 (landRevenue 控除)。
-          let dividendBudget = 0
-          for (const ar of snap.assetResults) {
-            const share = Math.max(0, ar.netRevenue) * upperDividendRate
-            ar.ownerDividendShare = share
-            dividendBudget += share
-          }
-          if (dividendBudget > 0) {
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || !pop.employed || pop.class !== 'upper') continue
-              const amount = dividendBudget * (pop.size / upperSize)
-              newPopGroups[pid] = { ...pop, money: pop.money + amount }
-            }
-          }
-        }
-      }
+      // v0.63: upper 配当は landRevenueSystem へ移設 (holding 収入から支払う)。
+      //   ownerDividendShare は 0 のまま。positiveNet 計算への影響なし。
     }
   }
 
