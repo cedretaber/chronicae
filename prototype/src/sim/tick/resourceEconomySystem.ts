@@ -27,7 +27,6 @@ import {
   computeAssetRecipePotentials,
   computeAssetPopTypeShares,
 } from '../selectors/resourceProductionSelectors'
-import { WAGE_ROLE_BY_POP_TYPE } from '../config/popWageDefinitions'
 import type { PopType, PopStratum } from '../types/popGroup'
 import { getPopStratum } from '../types/popGroup'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
@@ -586,23 +585,24 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             continue
           }
           const shares = computeAssetPopTypeShares(state, asset)
-          // 役割重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
+          // 階層別重み付きの正規化候補を組む (determinism: PopType key を sorted 反復)。
           let weightSum = 0
           const weighted: { popType: PopType; w: number }[] = []
           for (const t of (Object.keys(shares) as PopType[]).sort()) {
             const s = shares[t] ?? 0
             if (s <= 0) continue
-            const w = s * config.wageRoleWeightByRole[WAGE_ROLE_BY_POP_TYPE[t]]
+            const stratum = getPopStratum(t)
+            const stratumMult =
+              stratum === 'upper' ? 0 : config.wageStratumMultiplier[stratum]
+            const w = s * stratumMult
             if (w <= 0) continue
             weighted.push({ popType: t, w })
             weightSum += w
           }
           if (weightSum <= 0) {
-            ar.wageShare = 0 // 分配先なし → owner から carve しない
+            ar.wageShare = 0
             continue
           }
-          // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
-          // v0.63: per-employer — findBoundPop で this asset に紐付いた POP を直接 lookup。
           let minted = 0
           for (const { popType, w } of weighted) {
             const amount = carveBudget * (w / weightSum)
