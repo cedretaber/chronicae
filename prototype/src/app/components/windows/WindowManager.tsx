@@ -310,6 +310,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onPolityClick={onPolityClick}
                 onHoldingClick={onHoldingClick}
+                onPopGroupClick={onPopGroupClick}
               />
             </DraggableWindow>
           )

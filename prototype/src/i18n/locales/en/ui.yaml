@@ -796,6 +796,7 @@ detail:
     employment_fulfillment: 'Employment fill'
     input_fulfillment: 'Input fulfillment'
     employment_fill: 'Employment fill'
+    bound_pops: 'Employed POPs'
     # v0.56 bottleneck (worst recipe) summary — input only (labor is asset-wide, v0.57)
     input_fulfillment_min: 'Input fulfillment (worst)'
     # v0.55 resource names (21 kinds)

@@ -21,6 +21,8 @@ import { formatAmount, formatPopCount } from '@/app/utils/format'
 import { RESOURCE_PRICE_DEFINITIONS } from '@sim/config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
 import type { ResourceKind } from '@sim/types/resource'
+import { workplaceRefKey } from '@sim/types/workplaceRef'
+import type { PopGroup } from '@sim/types/popGroup'
 
 // レシピ構成 ■ 積み上げバーの色パレット (recipe 出現順で固定割当・index cycle)。farm=10 / workshop=8 が最多。
 const RECIPE_COLORS = [
@@ -71,6 +73,7 @@ export function RealEstateDetail({
   onPersonClick,
   onPolityClick,
   onHoldingClick,
+  onPopGroupClick,
 }: {
   asset: RealEstateAsset
   session: SimulationSession | null
@@ -78,6 +81,7 @@ export function RealEstateDetail({
   onPersonClick: (id: string) => void
   onPolityClick: ClickHandler
   onHoldingClick: (id: string) => void
+  onPopGroupClick?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -314,6 +318,43 @@ export function RealEstateDetail({
           )
         })}
       </div>
+
+      {currentState && (() => {
+        const assetRefKey = workplaceRefKey({ kind: 'asset', id: asset.id })
+        const boundPops: PopGroup[] = []
+        for (const pid of currentState.popIndex.byHolding[asset.holdingId] ?? []) {
+          const pop = currentState.popGroups[pid]
+          if (pop && pop.employerId && workplaceRefKey(pop.employerId) === assetRefKey) {
+            boundPops.push(pop)
+          }
+        }
+        if (boundPops.length === 0) return null
+        boundPops.sort((a, b) => b.size - a.size)
+        return (
+          <>
+            <DetailSection title={t('detail.realEstate.bound_pops', { defaultValue: '就労 POP' })} count={boundPops.length} />
+            <div className="flex flex-col gap-0.5 text-xs">
+              {boundPops.map((pop) => (
+                <div key={pop.id} className="flex items-center justify-between rounded bg-gray-800/40 px-1.5 py-0.5">
+                  {onPopGroupClick ? (
+                    <button
+                      className="cursor-pointer text-blue-400 hover:text-blue-300"
+                      onClick={() => onPopGroupClick(pop.id)}
+                    >
+                      {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}
+                    </button>
+                  ) : (
+                    <span className="text-gray-300">
+                      {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}
+                    </span>
+                  )}
+                  <span className="text-gray-400">{formatPopCount(pop.size)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )
+      })()}
 
       {assetResult && (
         <>

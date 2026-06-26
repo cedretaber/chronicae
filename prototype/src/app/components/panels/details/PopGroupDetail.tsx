@@ -15,6 +15,8 @@ import { classifyMobilityKind } from '@sim/config/popMobilityDefinitions'
 import { formatPopCount, formatPopFlow, formatPopDelta } from '@/app/utils/format'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { isEmployed } from '@sim/types/workplaceRef'
+import type { WorkplaceRef } from '@sim/types/workplaceRef'
+import type { TFunction } from 'i18next'
 
 export function PopGroupDetail({
   popGroup,
@@ -68,6 +70,10 @@ export function PopGroupDetail({
           {holding ? getHoldingShortName(worldState, resolveName, popGroup.holdingId) : '—'}
         </button>
       </div>
+
+      {popGroup.employerId && currentState && (
+        <EmployerInfo employerId={popGroup.employerId} state={currentState} t={t} />
+      )}
 
       <div className="text-sm">
         <div className="flex justify-between">
@@ -282,6 +288,56 @@ export function PopGroupDetail({
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}
       />
+    </div>
+  )
+}
+
+function EmployerInfo({
+  employerId,
+  state,
+  t,
+}: {
+  employerId: WorkplaceRef
+  state: WorldState
+  t: TFunction
+}) {
+  let kindLabel = ''
+  let name = ''
+  switch (employerId.kind) {
+    case 'asset': {
+      const asset = state.realEstateAssets[employerId.id]
+      kindLabel = t('detail.province.pop_employer_asset')
+      name = asset
+        ? `${t(`detail.realEstate.kind_${asset.realEstateKind}`, { defaultValue: asset.realEstateKind })} Lv.${asset.level}`
+        : String(employerId.id)
+      break
+    }
+    case 'improvement': {
+      const imp = state.holdingImprovements[employerId.id]
+      kindLabel = t('detail.province.pop_employer_improvement')
+      name = imp
+        ? `${t(`detail.holding.improvement_${imp.kind}`, { defaultValue: imp.kind })} Lv.${imp.level}`
+        : String(employerId.id)
+      break
+    }
+    case 'merchant': {
+      const est = state.merchantCompanyEstablishments[employerId.id]
+      kindLabel = t('detail.province.pop_employer_merchant')
+      if (est) {
+        const company = state.merchantCompanies[est.companyId]
+        name = company?.nameKey
+          ? `${t(`detail.merchant.kind_${est.kind}`, { defaultValue: est.kind })}`
+          : String(employerId.id)
+      } else {
+        name = String(employerId.id)
+      }
+      break
+    }
+  }
+  return (
+    <div className="rounded bg-gray-800/60 px-2 py-1 text-xs">
+      <span className="text-gray-400">{kindLabel}:</span>{' '}
+      <span className="text-gray-200">{name}</span>
     </div>
   )
 }

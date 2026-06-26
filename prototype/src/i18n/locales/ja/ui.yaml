@@ -899,6 +899,7 @@ detail:
     employment_fulfillment: '雇用充足率'
     input_fulfillment: '入力資源充足率'
     employment_fill: '雇用充足率'
+    bound_pops: '就労 POP'
     # v0.56 ボトルネック (最低レシピ) 要約 — 入力のみ (労働は不動産単位なので v0.57 で集約)
     input_fulfillment_min: '入力資源充足率(最低)'
     # v0.55 資源名 (21 種)
