@@ -39,6 +39,7 @@ import { getProvinceMonthlyResourceRevenue } from '@sim/selectors/resourceRevenu
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
+import { getBarracksFulfillment } from '@sim/selectors/barracksSelectors'
 import { getRegimentHoldingId } from '@sim/mutations/regimentMutations'
 import {
   getHoldingOfficeAppointmentRight,
@@ -521,6 +522,8 @@ export function PolityRegiments({
         : r.troopKind === 'cavalry'
           ? t('detail.polity.cavalry_regiment')
           : String(r.id)
+      const fulfillment = getBarracksFulfillment(worldState, r.barracksId)
+      const barracks = worldState.regimentBarracks[r.barracksId]
       return {
         id: r.id,
         name: regName,
@@ -530,6 +533,10 @@ export function PolityRegiments({
         baselineMorale: Math.round(r.baselineMorale),
         strength: Math.round(r.strength),
         controlRight: getRegimentControllerRight(worldState, r.id),
+        overallFulfillment: Math.round(fulfillment.overallFulfillment * 100),
+        commandFulfillment: Math.round(fulfillment.commandFulfillment * 100),
+        unpaidCount: barracks?.unpaidCount ?? 0,
+        lastPayrollFulfillment: Math.round((barracks?.lastPayrollFulfillment ?? 1) * 100),
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -559,6 +566,27 @@ export function PolityRegiments({
             <div className="flex justify-between text-gray-400">
               <span>{t('detail.polity.reg_strength')}:</span>
               <span className="text-gray-300">{r.strength}%</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_barracks_fulfillment')}:</span>
+              <span className={r.overallFulfillment < 60 ? 'text-rose-400' : 'text-gray-300'}>
+                {r.overallFulfillment}%
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_command_fulfillment')}:</span>
+              <span className={r.commandFulfillment < 60 ? 'text-rose-400' : 'text-gray-300'}>
+                {r.commandFulfillment}%
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_payroll')}:</span>
+              <span className={r.unpaidCount > 0 ? 'text-amber-400' : 'text-gray-300'}>
+                {r.lastPayrollFulfillment}%
+                {r.unpaidCount > 0 && (
+                  <span className="ml-1 text-[10px] text-amber-400">({r.unpaidCount})</span>
+                )}
+              </span>
             </div>
             <RightHolderLine
               right={r.controlRight}
