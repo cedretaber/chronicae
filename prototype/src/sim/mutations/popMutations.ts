@@ -432,6 +432,23 @@ export function reduceHoldingPopSizeProportionalMut(
   }
 }
 
+// v0.63: 指定 employer に紐付いている POP をすべて unemployed (employerId: null) に切り離す。
+//   employer entity が削除される直前に呼ぶ (dangling 参照防止)。
+export function unbindPopsFromEmployerMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  ref: WorkplaceRef,
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  const refKey = workplaceRefKey(ref)
+  for (const pid of [...popIds]) {
+    const pop = ws.popGroups[pid]
+    if (!pop || workplaceRefKey(pop.employerId) !== refKey) continue
+    movePopEmploymentMut(ws, { sourcePopId: pid, targetEmployerId: null, size: pop.size })
+  }
+}
+
 export function mergeCompatiblePopsMut(ws: WorldState): void {
   const mergeMap = new Map<string, PopGroupId[]>()
 

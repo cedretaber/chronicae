@@ -4,12 +4,19 @@ import {
   movePopSizeToKeyMut,
   movePopEmploymentMut,
   addToOrCreatePopGroupMut,
+  unbindPopsFromEmployerMut,
 } from './popMutations'
 import { makeEmptyV016State, withProvince, withHolding } from '../testFixtures'
-import { createProvinceId, createHoldingId, createPopGroupId } from '../types/ids'
+import {
+  createProvinceId,
+  createHoldingId,
+  createPopGroupId,
+  createHoldingImprovementId,
+} from '../types/ids'
 import type { ProvinceId, HoldingId, PopGroupId } from '../types/ids'
 import type { PopGroup, PopClass } from '../types/popGroup'
 import type { WorldState } from '../types/world'
+import type { WorkplaceRef } from '../types/workplaceRef'
 
 function pop(
   id: PopGroupId,
@@ -158,5 +165,112 @@ describe('v0.58 money 保存 (mobility/merge)', () => {
     })
     // 既存 laborers (money 1000) に incoming 比例分 (money 200) が sum される。
     expect(state.popGroups[srcId]?.money).toBeCloseTo(1200, 6)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// v0.63: unbindPopsFromEmployerMut
+// ---------------------------------------------------------------------------
+
+describe('v0.63 unbindPopsFromEmployerMut', () => {
+  function fixture(): {
+    ws: WorldState
+    holdingId: HoldingId
+    empRef: WorkplaceRef
+    boundId: PopGroupId
+    unboundId: PopGroupId
+  } {
+    const provinceId = createProvinceId('p', 0)
+    const holdingId = createHoldingId(0)
+    const impId = createHoldingImprovementId(0)
+    const empRef: WorkplaceRef = { kind: 'improvement', id: impId }
+    const boundId = createPopGroupId(0)
+    const unboundId = createPopGroupId(1)
+
+    let state = makeEmptyV016State()
+    state = withProvince(state, provinceId)
+    state = withHolding(state, holdingId, provinceId)
+
+    const boundPop: PopGroup = {
+      id: boundId,
+      holdingId,
+      class: 'lower',
+      popType: 'laborers',
+      employerId: empRef,
+      size: 50,
+      money: 0,
+      needSatisfaction: 50,
+      unrest: 10,
+      attitudes: {},
+    }
+    const unboundPop: PopGroup = {
+      id: unboundId,
+      holdingId,
+      class: 'lower',
+      popType: 'peasants',
+      employerId: null,
+      size: 30,
+      money: 0,
+      needSatisfaction: 50,
+      unrest: 10,
+      attitudes: {},
+    }
+
+    const ws: WorldState = {
+      ...state,
+      popGroups: { [boundId]: boundPop, [unboundId]: unboundPop },
+      popIndex: { byHolding: { [holdingId]: [boundId, unboundId] } },
+      nextPopGroupId: 2,
+    }
+    return { ws, holdingId, empRef, boundId, unboundId }
+  }
+
+  it('bound POP が unemployed (employerId: null) に切り離される', () => {
+    const { ws, holdingId, empRef } = fixture()
+    unbindPopsFromEmployerMut(ws, holdingId, empRef)
+    // 元の bound POP は employerId: null の pop にマージされるか新規 null pop として存在する
+    const allPops = Object.values(ws.popGroups)
+    const stillBound = allPops.filter((p) => p && p.employerId !== null)
+    expect(stillBound).toHaveLength(0)
+    // bound POP が null pop に merge される (同 holdingId/class/popType が一致しなければ新規作成)
+    // いずれにせよ元の boundId は size が null 側にマージされている
+    const total = allPops.reduce((s, p) => s + (p?.size ?? 0), 0)
+    expect(total).toBeCloseTo(80) // 50 + 30
+  })
+
+  it('別 employer を持つ POP には触れない', () => {
+    const { ws, holdingId } = fixture()
+    const otherRef: WorkplaceRef = { kind: 'improvement', id: createHoldingImprovementId(99) }
+    // otherRef 用の別 POP を追加
+    const otherId = createPopGroupId(5)
+    ws.popGroups[otherId] = {
+      id: otherId,
+      holdingId,
+      class: 'lower',
+      popType: 'artisans',
+      employerId: otherRef,
+      size: 20,
+      money: 0,
+      needSatisfaction: 50,
+      unrest: 10,
+      attitudes: {},
+    }
+    ws.popIndex.byHolding[holdingId] = [...(ws.popIndex.byHolding[holdingId] ?? []), otherId]
+
+    const empRef: WorkplaceRef = { kind: 'improvement', id: createHoldingImprovementId(0) }
+    unbindPopsFromEmployerMut(ws, holdingId, empRef)
+
+    // otherRef に紐付いた POP はそのまま
+    const other = ws.popGroups[otherId]
+    expect(other?.employerId).toEqual(otherRef)
+  })
+
+  it('対象 holding に POP がない場合は no-op', () => {
+    const { ws } = fixture()
+    const emptyHolding = createHoldingId(99)
+    const before = JSON.stringify(ws.popGroups)
+    const empRef: WorkplaceRef = { kind: 'improvement', id: createHoldingImprovementId(0) }
+    unbindPopsFromEmployerMut(ws, emptyHolding, empRef)
+    expect(JSON.stringify(ws.popGroups)).toBe(before)
   })
 })
