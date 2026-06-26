@@ -45,7 +45,7 @@ import {
 import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
-import { isEmployed } from '../types/workplaceRef'
+import { isEmployed, workplaceRefKey } from '../types/workplaceRef'
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
@@ -600,12 +600,15 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             continue
           }
           // 分配を先に確定し、実際に mint された合計を wageShare とする (carve==mint を構造的に保証)。
+          // v0.63: per-employer — この asset に紐付いた POP にのみ mint する。
           let minted = 0
+          const assetKey = workplaceRefKey({ kind: 'asset', id: ar.assetId })
           for (const { popType, w } of weighted) {
             const amount = carveBudget * (w / weightSum)
             for (const pid of popIdsHere) {
               const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !isEmployed(pop)) continue
+              if (!pop || pop.popType !== popType) continue
+              if (workplaceRefKey(pop.employerId) !== assetKey) continue
               newPopGroups[pid] = { ...pop, money: pop.money + amount }
               prodWageByPop.set(pid, (prodWageByPop.get(pid) ?? 0) + amount)
               minted += amount
@@ -635,17 +638,19 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
               prodCap[getPopStratum(slot.popType)] += slot.capacityPerLevel * asset.level
             }
           }
-          // 施設 slot を popType 別に集計(facCap と、mint 先 popType の列挙基準)。
-          const facCapByPopType = new Map<PopType, number>()
+          // v0.63: 施設 slot を improvement × slot 単位で収集 (per-employer mint 用)。
+          // 同時に stratum 別の facCap 総量 (denominator) を集計する。
+          const impSlots: { impKey: string; popType: PopType; cap: number }[] = []
           for (const impId of state.holdingImprovementIndex.byHolding[holdingId as string] ?? []) {
             const imp = state.holdingImprovements[impId]
             if (!imp) continue
             const slots = IMPROVEMENT_DEFINITIONS[imp.kind].employmentSlots
             if (!slots) continue
+            const impKey = workplaceRefKey({ kind: 'improvement', id: impId })
             for (const slot of slots) {
               const cap = slot.capacityPerLevel * imp.level
               facCap[getPopStratum(slot.popType)] += cap
-              facCapByPopType.set(slot.popType, (facCapByPopType.get(slot.popType) ?? 0) + cap)
+              impSlots.push({ impKey, popType: slot.popType, cap })
             }
           }
           for (const [pid, prodWage] of prodWageByPop) {
@@ -661,10 +666,9 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (pc <= 0 || fc <= 0) continue
             supplementByStratum[s] = prodWageByStratum[s] * (fc / pc)
           }
-          // 各施設 popType へ facCap 比で按分し、その popType の雇用 PopGroup 本人へ mint。
+          // v0.63: 各施設 slot (improvement × popType) の雇用 POP 本人へ mint。
           let supplementTotal = 0
-          for (const popType of [...facCapByPopType.keys()].sort()) {
-            const cap = facCapByPopType.get(popType) ?? 0
+          for (const { impKey, popType, cap } of impSlots) {
             if (cap <= 0) continue
             const s = getPopStratum(popType)
             const stratumFacCap = facCap[s]
@@ -674,7 +678,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             if (pay <= 0) continue
             for (const pid of popIdsHere) {
               const pop = newPopGroups[pid]
-              if (!pop || pop.popType !== popType || !isEmployed(pop)) continue
+              if (!pop || pop.popType !== popType) continue
+              if (workplaceRefKey(pop.employerId) !== impKey) continue
               newPopGroups[pid] = { ...pop, money: pop.money + pay }
               supplementTotal += pay
               break
