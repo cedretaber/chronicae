@@ -224,6 +224,8 @@ export function WindowManager() {
                 onHouseClick={onHouseClick}
                 onPersonClick={onPersonClick}
                 onProvinceClick={onProvinceClick}
+                onRealEstateClick={onRealEstateClick}
+                onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
           )

@@ -25,6 +25,8 @@ export function PopGroupDetail({
   onHouseClick,
   onPersonClick,
   onProvinceClick,
+  onRealEstateClick,
+  onHoldingClick,
 }: {
   popGroup: PopGroup
   session: SimulationSession | null
@@ -32,6 +34,8 @@ export function PopGroupDetail({
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
   onProvinceClick: (id: string) => void
+  onRealEstateClick?: (id: string) => void
+  onHoldingClick?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -72,7 +76,13 @@ export function PopGroupDetail({
       </div>
 
       {popGroup.employerId && currentState && (
-        <EmployerInfo employerId={popGroup.employerId} state={currentState} t={t} />
+        <EmployerInfo
+          employerId={popGroup.employerId}
+          state={currentState}
+          t={t}
+          {...(onRealEstateClick ? { onRealEstateClick } : {})}
+          {...(onHoldingClick ? { onHoldingClick } : {})}
+        />
       )}
 
       <div className="text-sm">
@@ -296,13 +306,19 @@ function EmployerInfo({
   employerId,
   state,
   t,
+  onRealEstateClick,
+  onHoldingClick,
 }: {
   employerId: WorkplaceRef
   state: WorldState
   t: TFunction
+  onRealEstateClick?: (id: string) => void
+  onHoldingClick?: (id: string) => void
 }) {
   let kindLabel = ''
   let name = ''
+  let clickId: string | undefined
+  let clickHandler: ((id: string) => void) | undefined
   switch (employerId.kind) {
     case 'asset': {
       const asset = state.realEstateAssets[employerId.id]
@@ -310,6 +326,10 @@ function EmployerInfo({
       name = asset
         ? `${t(`detail.realEstate.kind_${asset.realEstateKind}`, { defaultValue: asset.realEstateKind })} Lv.${asset.level}`
         : String(employerId.id)
+      if (onRealEstateClick) {
+        clickId = employerId.id
+        clickHandler = onRealEstateClick
+      }
       break
     }
     case 'improvement': {
@@ -318,6 +338,10 @@ function EmployerInfo({
       name = imp
         ? `${t(`detail.holding.improvement_${imp.kind}`, { defaultValue: imp.kind })} Lv.${imp.level}`
         : String(employerId.id)
+      if (imp && onHoldingClick) {
+        clickId = imp.holdingId
+        clickHandler = onHoldingClick
+      }
       break
     }
     case 'merchant': {
@@ -337,7 +361,16 @@ function EmployerInfo({
   return (
     <div className="rounded bg-gray-800/60 px-2 py-1 text-xs">
       <span className="text-gray-400">{kindLabel}:</span>{' '}
-      <span className="text-gray-200">{name}</span>
+      {clickId && clickHandler ? (
+        <button
+          className="cursor-pointer text-blue-400 hover:text-blue-300"
+          onClick={() => clickHandler(clickId)}
+        >
+          {name}
+        </button>
+      ) : (
+        <span className="text-gray-200">{name}</span>
+      )}
     </div>
   )
 }

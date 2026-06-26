@@ -332,26 +332,44 @@ export function RealEstateDetail({
         boundPops.sort((a, b) => b.size - a.size)
         return (
           <>
-            <DetailSection title={t('detail.realEstate.bound_pops', { defaultValue: '就労 POP' })} count={boundPops.length} />
-            <div className="flex flex-col gap-0.5 text-xs">
-              {boundPops.map((pop) => (
-                <div key={pop.id} className="flex items-center justify-between rounded bg-gray-800/40 px-1.5 py-0.5">
-                  {onPopGroupClick ? (
-                    <button
-                      className="cursor-pointer text-blue-400 hover:text-blue-300"
-                      onClick={() => onPopGroupClick(pop.id)}
-                    >
-                      {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}
-                    </button>
-                  ) : (
-                    <span className="text-gray-300">
-                      {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}
+            <DetailSection title={t('detail.realEstate.bound_pops')} count={boundPops.length} />
+            {boundPops.map((pop) => (
+              <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                {onPopGroupClick ? (
+                  <button
+                    className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
+                    onClick={() => onPopGroupClick(pop.id)}
+                  >
+                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
+                    <span className="text-xs font-normal text-gray-400">
+                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })})
+                    </span>{' '}
+                    →
+                  </button>
+                ) : (
+                  <div className="font-medium text-gray-300 capitalize">
+                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
+                    <span className="text-xs font-normal text-gray-400">
+                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })})
                     </span>
-                  )}
-                  <span className="text-gray-400">{formatPopCount(pop.size)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-400">{t('detail.province.size')}:</span>
+                  <span>{formatPopCount(pop.size)}</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
+                  <span>{pop.needSatisfaction.toFixed(1)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">{t('detail.province.unrest')}:</span>
+                  <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
+                    {pop.unrest.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </>
         )
       })()}
