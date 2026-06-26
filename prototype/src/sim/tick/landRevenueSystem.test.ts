@@ -25,6 +25,7 @@ import {
   withPerson,
   bindProvinceToHouseViaPolity,
 } from '../testFixtures'
+import type { OfficeAssignmentId } from '../types/ids'
 import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 import {
@@ -531,5 +532,123 @@ describe('runLandRevenueSystem — v0.54 owner income / holding due', () => {
     expect(result.state.houses[lossBase.houseId]!.wealth).toBe(houseBefore)
     // 赤字 asset は分配に寄与せず treasury は net=0 ケースと一致
     expect(result.state.polities[lossBase.polityId]!.treasury).toBeCloseTo(zeroTreasury, 6)
+  })
+})
+
+function withTreasurer(
+  state: WorldState,
+  polityId: PolityId,
+  personId: PersonId,
+): WorldState {
+  const officeId = ('oa-' + state.nextOfficeAssignmentId) as OfficeAssignmentId
+  const orgKey = 'polity:' + polityId
+  const holderKey = personId as string
+  return {
+    ...state,
+    officeAssignments: {
+      ...state.officeAssignments,
+      [officeId]: {
+        id: officeId,
+        organization: { kind: 'polity' as const, id: polityId },
+        role: 'treasurer' as const,
+        holderPersonId: personId,
+        active: true,
+        startYear: 1,
+        slotIndex: 0,
+        unpaidCount: 0,
+      },
+    },
+    officeIndex: {
+      byOrganization: {
+        ...state.officeIndex.byOrganization,
+        [orgKey]: [...(state.officeIndex.byOrganization[orgKey] ?? []), officeId],
+      },
+      byHolderPerson: {
+        ...state.officeIndex.byHolderPerson,
+        [holderKey]: [...(state.officeIndex.byHolderPerson[holderKey] ?? []), officeId],
+      },
+    },
+    nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
+  }
+}
+
+describe('runLandRevenueSystem — treasurer tax efficiency', () => {
+  it('high-numeracy treasurer produces higher treasury than low-numeracy', () => {
+    const highBase = setupBaseWorld()
+    const highTreasurerId = 'pe-treas-high' as PersonId
+    let highState = withPerson(highBase.state, highTreasurerId, {
+      houseId: highBase.houseId,
+      age: 40,
+      wealth: 0,
+      kind: 'normal',
+      abilities: { valor: 50, command: 50, numeracy: 100, learning: 50, charisma: 50, insight: 50 },
+    })
+    highState = withTreasurer(highState, highBase.polityId, highTreasurerId)
+    const highResult = runLandRevenueSystem(makeCtx(highState))
+    const highTreasury = highResult.state.polities[highBase.polityId]!.treasury
+
+    const lowBase = setupBaseWorld()
+    const lowTreasurerId = 'pe-treas-low' as PersonId
+    let lowState = withPerson(lowBase.state, lowTreasurerId, {
+      houseId: lowBase.houseId,
+      age: 40,
+      wealth: 0,
+      kind: 'normal',
+      abilities: { valor: 50, command: 50, numeracy: 1, learning: 50, charisma: 50, insight: 50 },
+    })
+    lowState = withTreasurer(lowState, lowBase.polityId, lowTreasurerId)
+    const lowResult = runLandRevenueSystem(makeCtx(lowState))
+    const lowTreasury = lowResult.state.polities[lowBase.polityId]!.treasury
+
+    expect(highTreasury).toBeGreaterThan(0)
+    expect(lowTreasury).toBeGreaterThan(0)
+    expect(highTreasury).toBeGreaterThan(lowTreasury)
+  })
+
+  it('treasurer ability does not affect house owner income', () => {
+    const NET = 100
+
+    const highBase = setupBaseWorld()
+    const highTreasurerId = 'pe-treas-high' as PersonId
+    let highState = withPerson(highBase.state, highTreasurerId, {
+      houseId: highBase.houseId,
+      age: 40,
+      wealth: 0,
+      kind: 'normal',
+      abilities: { valor: 50, command: 50, numeracy: 100, learning: 50, charisma: 50, insight: 50 },
+    })
+    highState = withTreasurer(highState, highBase.polityId, highTreasurerId)
+    const { state: highOwned } = withOwnedAssetSnapshot(
+      highState,
+      highBase.holdingId,
+      { kind: 'house', id: highBase.houseId },
+      NET,
+    )
+    const highWealthBefore = highOwned.houses[highBase.houseId]!.wealth
+    const highResult = runLandRevenueSystem(makeCtx(highOwned))
+    const highOwnerGain = highResult.state.houses[highBase.houseId]!.wealth - highWealthBefore
+
+    const lowBase = setupBaseWorld()
+    const lowTreasurerId = 'pe-treas-low' as PersonId
+    let lowState = withPerson(lowBase.state, lowTreasurerId, {
+      houseId: lowBase.houseId,
+      age: 40,
+      wealth: 0,
+      kind: 'normal',
+      abilities: { valor: 50, command: 50, numeracy: 1, learning: 50, charisma: 50, insight: 50 },
+    })
+    lowState = withTreasurer(lowState, lowBase.polityId, lowTreasurerId)
+    const { state: lowOwned } = withOwnedAssetSnapshot(
+      lowState,
+      lowBase.holdingId,
+      { kind: 'house', id: lowBase.houseId },
+      NET,
+    )
+    const lowWealthBefore = lowOwned.houses[lowBase.houseId]!.wealth
+    const lowResult = runLandRevenueSystem(makeCtx(lowOwned))
+    const lowOwnerGain = lowResult.state.houses[lowBase.houseId]!.wealth - lowWealthBefore
+
+    expect(highOwnerGain).toBeGreaterThan(0)
+    expect(highOwnerGain).toBeCloseTo(lowOwnerGain, 6)
   })
 })

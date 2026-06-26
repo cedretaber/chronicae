@@ -176,10 +176,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(extinctHouse?.active).toBe(false)
     })
 
-    it.skip('province houseControl set to inherited value (v0.15)', () => {
-      // v0.16: Province.houseControl が型レベルで廃止されているため、本テストは無効化する。
-      // 代わりに polityControl は変動しないことが期待される (§8.2)。
-    })
   })
 
   describe('ruler house extinction', () => {
@@ -304,11 +300,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(event.entityRefs.some((r) => r.kind === 'house' && r.id === houseId)).toBe(true)
     })
 
-    it.todo('legacyPrestige reduced', () => {
-      // v0.15: The special ruler-house-extinction code path (handleRulerHouseExtinction)
-      // was deleted. All houses now use handleNormalHouseExtinction which does not
-      // reduce polity legacyPrestige unless there is no receiver house.
-    })
 
     it('extinct house marked inactive', () => {
       const { ctx, houseId } = makeRulerExtinctionCtx()
