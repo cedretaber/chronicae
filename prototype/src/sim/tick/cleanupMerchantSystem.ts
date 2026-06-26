@@ -1,3 +1,4 @@
+import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { MerchantCompanyId, TradeRouteId, MerchantCompanyEstablishmentId } from '../types/ids'
@@ -74,7 +75,12 @@ export function runCleanupMerchantSystem(ctx: TickContext): TickContext {
   }
   if (!hasWork) return ctx
 
-  const draft = cloneMerchantSlicesOnly(state)
+  const draft: WorldState = {
+    ...cloneMerchantSlicesOnly(state),
+    popGroups: { ...state.popGroups },
+    popIndex: { byHolding: { ...state.popIndex.byHolding } },
+    nextPopGroupId: state.nextPopGroupId,
+  }
   let workingCtx = { ...ctx, state: draft }
 
   // --- (1) 破産 → dormant ---

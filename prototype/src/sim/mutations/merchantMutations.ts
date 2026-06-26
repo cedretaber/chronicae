@@ -30,6 +30,7 @@ import type {
   MerchantCompanyShareIndex,
 } from '../types/merchant'
 import type { ResourceKind } from '../types/resource'
+import { unbindPopsFromEmployerMut } from './popMutations'
 
 // v0.61 商会 mutation。realEstateAssetMutations のパターンに倣い、ws の各 slice を
 // in-place 更新する (mutable draft 前提)。index は record と同期する。
@@ -232,6 +233,7 @@ export function removeMerchantEstablishmentMut(
 ): void {
   const est = ws.merchantCompanyEstablishments[estId]
   if (!est) return
+  unbindPopsFromEmployerMut(ws, est.holdingId, { kind: 'merchant', id: estId })
   removeIndex(ws.merchantCompanyEstablishmentIndex.byCompany, est.companyId, estId)
   removeIndex(ws.merchantCompanyEstablishmentIndex.byHolding, est.holdingId, estId)
   ws.merchantCompanyEstablishmentIndex.byKind[est.kind] =
