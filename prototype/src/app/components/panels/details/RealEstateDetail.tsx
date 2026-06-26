@@ -23,6 +23,7 @@ import { marketResourcePriceKey } from '@sim/types/resourceEconomy'
 import type { ResourceKind } from '@sim/types/resource'
 import { workplaceRefKey } from '@sim/types/workplaceRef'
 import type { PopGroup } from '@sim/types/popGroup'
+import { PopGroupCard } from './shared/PopGroupCard'
 
 // レシピ構成 ■ 積み上げバーの色パレット (recipe 出現順で固定割当・index cycle)。farm=10 / workshop=8 が最多。
 const RECIPE_COLORS = [
@@ -334,41 +335,12 @@ export function RealEstateDetail({
           <>
             <DetailSection title={t('detail.realEstate.bound_pops')} count={boundPops.length} />
             {boundPops.map((pop) => (
-              <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
-                {onPopGroupClick ? (
-                  <button
-                    className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
-                    onClick={() => onPopGroupClick(pop.id)}
-                  >
-                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
-                    <span className="text-xs font-normal text-gray-400">
-                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })})
-                    </span>{' '}
-                    →
-                  </button>
-                ) : (
-                  <div className="font-medium text-gray-300 capitalize">
-                    {t(`detail.province.pop_type.${pop.popType}`, { defaultValue: pop.popType })}{' '}
-                    <span className="text-xs font-normal text-gray-400">
-                      ({t(`detail.province.${pop.class}`, { defaultValue: pop.class })})
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-400">{t('detail.province.size')}:</span>
-                  <span>{formatPopCount(pop.size)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">{t('detail.province.need_satisfaction')}:</span>
-                  <span>{pop.needSatisfaction.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">{t('detail.province.unrest')}:</span>
-                  <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
-                    {pop.unrest.toFixed(1)}
-                  </span>
-                </div>
-              </div>
+              <PopGroupCard
+                key={pop.id}
+                pop={pop}
+                {...(onPopGroupClick ? { onClick: onPopGroupClick } : {})}
+                subtitle={t(`detail.province.${pop.class}`, { defaultValue: pop.class })}
+              />
             ))}
           </>
         )
