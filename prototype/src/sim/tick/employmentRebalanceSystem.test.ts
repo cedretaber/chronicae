@@ -177,27 +177,49 @@ describe('normalizePopEmploymentMut — WorkplaceRef 紐付け (v0.63 Task 4)', 
     )
   })
 
-  it('maxRatio は employer 単位で適用される (per-employer clamping)', () => {
-    // farm に peasants 10 人を pre-assign し、freeholders の上限が 10 になることを確認。
-    // これは per-employer クランプ (clampCapacityByMaxRatioPerEmployer) の直接検証。
-    const { state, holdingId } = setupFarmHolding([{ popType: 'freeholders', size: 100000 }])
-    const assetId = createRealEstateAssetId(0)
-    const farmRef = { kind: 'asset' as const, id: assetId }
-    const PEASANT_SIZE = 10
+  it('maxRatio は employer 単位で適用される (2 farm で per-employer clamping を識別する)', () => {
+    // 小作農 20 人を Farm B だけに pre-assign し Farm A には 0 人。大量の自作農 (未就業)。
+    // Phase 2 で Farm A の小作農 room は 45.5 あるが未就業小作農は 0 (全員 Farm B に就業中)
+    // → Farm A 小作農は 0 のまま → clampCapacityByMaxRatioPerEmployer で Farm A 自作農 = 0
+    // holding-level 実装(誤り): 合計小作農 20 を参照し Farm A に自作農 ~19.5 を配置してしまう。
+    const assetIdA = createRealEstateAssetId(0)
+    const assetIdB = createRealEstateAssetId(1)
+    const farmRefA = { kind: 'asset' as const, id: assetIdA }
+    const farmRefB = { kind: 'asset' as const, id: assetIdB }
+    const PEASANTS_B = 20 // Farm B にのみ、capacity (~45.5) 未満の小作農を配置
 
-    // peasants 10 人を farm ref に pre-assign
-    const peasantId = createPopGroupId(200)
+    const { state, holdingId } = setupFarmHolding([{ popType: 'freeholders', size: 10000 }])
+    // Farm B を追加 (setupFarmHolding は Farm A だけ作る)
+    const peasantIdB = createPopGroupId(200)
     const ws: WorldState = {
       ...state,
+      realEstateAssets: {
+        ...state.realEstateAssets,
+        [assetIdB]: {
+          id: assetIdB,
+          holdingId,
+          realEstateKind: 'farm',
+          level: 1,
+          createdWeek: 0,
+          recipeSlots: {},
+        },
+      },
+      realEstateAssetIndex: {
+        ...state.realEstateAssetIndex,
+        byHolding: {
+          ...state.realEstateAssetIndex.byHolding,
+          [holdingId as string]: [assetIdA, assetIdB],
+        },
+      },
       popGroups: {
         ...state.popGroups,
-        [peasantId]: {
-          id: peasantId,
+        [peasantIdB]: {
+          id: peasantIdB,
           holdingId,
           class: 'lower' as const,
           popType: 'peasants' as const,
-          employerId: farmRef,
-          size: PEASANT_SIZE,
+          employerId: farmRefB, // Farm B にのみ配置 (Farm A には小作農なし)
+          size: PEASANTS_B,
           money: 0,
           needSatisfaction: 50,
           unrest: 10,
@@ -206,24 +228,28 @@ describe('normalizePopEmploymentMut — WorkplaceRef 紐付け (v0.63 Task 4)', 
       },
       popIndex: {
         byHolding: {
-          [holdingId]: [...(state.popIndex.byHolding[holdingId] ?? []), peasantId],
+          [holdingId]: [...(state.popIndex.byHolding[holdingId] ?? []), peasantIdB],
         },
       },
       nextPopGroupId: 1001,
     }
 
-    // farm の peasants 容量 > PEASANT_SIZE のため Phase 1 では farm peasants が減らない前提
+    // Farm B の peasants 容量 > PEASANTS_B のため Phase 1 では削られない前提
     const capPeasants = getHoldingPopTypeCapacity(state, defaultConfig, holdingId, 'peasants')
-    expect(capPeasants).toBeGreaterThan(PEASANT_SIZE)
+    expect(capPeasants).toBeGreaterThan(PEASANTS_B)
 
     normalizePopEmploymentMut(ws, defaultConfig, holdingId)
 
-    // freeholders は farm の peasants 実雇用数 (10) でキャップされる
-    const employedFreeholders = getHoldingEmployedPopSizeByType(ws, holdingId, 'freeholders')
-    expect(employedFreeholders).toBeCloseTo(PEASANT_SIZE)
-    // farm ref での peasants 確認 (Phase 1 で削られていない)
-    expect(getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRef, 'peasants')).toBeCloseTo(
-      PEASANT_SIZE,
+    // Farm A 自作農 = 0: Farm A の小作農が 0 のため per-employer クランプで 0 になる。
+    //   holding-level 実装なら合計小作農 20 を参照して ~19.5 まで雇えてしまう。
+    expect(getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRefA, 'freeholders')).toBe(0)
+    // Farm B 自作農 > 0: Farm B の小作農 (20) でキャップ → min(rawCap~19.5, 20) = ~19.5
+    expect(
+      getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRefB, 'freeholders'),
+    ).toBeGreaterThan(0)
+    // Farm B の小作農は Phase 1 で削られていない (20 < capacity ~45.5)
+    expect(getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRefB, 'peasants')).toBeCloseTo(
+      PEASANTS_B,
     )
   })
 })
