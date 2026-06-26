@@ -27,6 +27,7 @@ Task 9 flagged this: "if integrity is extended to check this, the interval can b
 
 **i18n** (`src/i18n/locales/{ja,en}/ui.yaml`)
 Added three keys under `detail.province`:
+
 - `pop_employer_asset`: 不動産 / Real Estate
 - `pop_employer_improvement`: 施設 / Improvement
 - `pop_employer_merchant`: 商会店舗 / Merchant Shop

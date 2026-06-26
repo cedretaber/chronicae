@@ -154,7 +154,6 @@ export function PopGroupDetail({
         )
       })()}
 
-
       {/* v0.59: 先月からの人口変動 (自然増減 + 移住の小計)。転職・雇用変動は下の階層移動セクションに集約。 */}
       {currentState &&
         (() => {

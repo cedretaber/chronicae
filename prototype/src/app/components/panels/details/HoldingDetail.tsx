@@ -1043,7 +1043,9 @@ export function HoldingDetail({
       {/* POP breakdown by class */}
       {currentState && (
         <>
-          <DetailSection title={t('detail.holding.pop_class_summary', { defaultValue: '階層別 POP 情報' })} />
+          <DetailSection
+            title={t('detail.holding.pop_class_summary', { defaultValue: '階層別 POP 情報' })}
+          />
           {(['lower', 'middle', 'upper'] as const).map((popClass) => {
             const empSize = getHoldingEmployedPopSize(currentState, holding.id, popClass)
             const cap = getHoldingClassCapacity(currentState, defaultConfig, holding.id, popClass)
@@ -1058,7 +1060,9 @@ export function HoldingDetail({
                     <span>{formatPopCount(empSize + unempSize)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>{t('detail.holding.employment_capacity', { defaultValue: '職業枠' })}:</span>
+                    <span>
+                      {t('detail.holding.employment_capacity', { defaultValue: '職業枠' })}:
+                    </span>
                     <span>{formatPopCount(cap)}</span>
                   </div>
                   <div className="flex justify-between">

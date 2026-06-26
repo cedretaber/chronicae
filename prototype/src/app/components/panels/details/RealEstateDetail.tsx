@@ -320,31 +320,32 @@ export function RealEstateDetail({
         })}
       </div>
 
-      {currentState && (() => {
-        const assetRefKey = workplaceRefKey({ kind: 'asset', id: asset.id })
-        const boundPops: PopGroup[] = []
-        for (const pid of currentState.popIndex.byHolding[asset.holdingId] ?? []) {
-          const pop = currentState.popGroups[pid]
-          if (pop && pop.employerId && workplaceRefKey(pop.employerId) === assetRefKey) {
-            boundPops.push(pop)
+      {currentState &&
+        (() => {
+          const assetRefKey = workplaceRefKey({ kind: 'asset', id: asset.id })
+          const boundPops: PopGroup[] = []
+          for (const pid of currentState.popIndex.byHolding[asset.holdingId] ?? []) {
+            const pop = currentState.popGroups[pid]
+            if (pop && pop.employerId && workplaceRefKey(pop.employerId) === assetRefKey) {
+              boundPops.push(pop)
+            }
           }
-        }
-        if (boundPops.length === 0) return null
-        boundPops.sort((a, b) => b.size - a.size)
-        return (
-          <>
-            <DetailSection title={t('detail.realEstate.bound_pops')} count={boundPops.length} />
-            {boundPops.map((pop) => (
-              <PopGroupCard
-                key={pop.id}
-                pop={pop}
-                {...(onPopGroupClick ? { onClick: onPopGroupClick } : {})}
-                subtitle={t(`detail.province.${pop.class}`, { defaultValue: pop.class })}
-              />
-            ))}
-          </>
-        )
-      })()}
+          if (boundPops.length === 0) return null
+          boundPops.sort((a, b) => b.size - a.size)
+          return (
+            <>
+              <DetailSection title={t('detail.realEstate.bound_pops')} count={boundPops.length} />
+              {boundPops.map((pop) => (
+                <PopGroupCard
+                  key={pop.id}
+                  pop={pop}
+                  {...(onPopGroupClick ? { onClick: onPopGroupClick } : {})}
+                  subtitle={t(`detail.province.${pop.class}`, { defaultValue: pop.class })}
+                />
+              ))}
+            </>
+          )
+        })()}
 
       {assetResult && (
         <>

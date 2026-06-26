@@ -54,7 +54,6 @@ import { formatScore, formatPower, formatPopCount } from '@/app/utils/format'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 
-
 export function ProvinceDetail({
   province,
   session,

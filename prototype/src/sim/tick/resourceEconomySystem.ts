@@ -47,7 +47,6 @@ import { findBoundPop } from '../selectors/popSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
 
-
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
 import { createLogger } from '../debug/logger'
@@ -590,8 +589,7 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
             const s = shares[t] ?? 0
             if (s <= 0) continue
             const stratum = getPopStratum(t)
-            const stratumMult =
-              stratum === 'upper' ? 0 : config.wageStratumMultiplier[stratum]
+            const stratumMult = stratum === 'upper' ? 0 : config.wageStratumMultiplier[stratum]
             const w = s * stratumMult
             if (w <= 0) continue
             weighted.push({ popType: t, w })
