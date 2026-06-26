@@ -46,7 +46,7 @@ import type { ResolvedNeedCategory } from '../selectors/resourceMarketSelectors'
 import { findBoundPop } from '../selectors/popSelectors'
 import type { NeedTier, NeedCategory } from '../types/needCategory'
 import { clamp, clamp100 } from '../utils/math'
-import { isEmployed } from '../types/workplaceRef'
+
 
 // v0.58: 予算制約消費の tier 優先順（essential を最優先で money を充当する）。
 const TIER_PRIORITY: readonly NeedTier[] = ['essential', 'ordinary', 'luxury']
@@ -562,12 +562,10 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
   //   carve==mint 不変条件: 分配不能 (賃金=雇用 PopType 不在 / 配当=雇用 upper 不在) のときは carve せず
   //   owner からも引かない (advisor: owner から carve したのに mint 先がないと money が消える)。
   const wageRate = config.wageShareOfNetRevenue
-  const upperDividendRate = config.upperDividendShareOfNetRevenue
-  if (wageRate > 0 || upperDividendRate > 0) {
+  if (wageRate > 0) {
     for (const holdingId of (Object.keys(snapshots) as HoldingId[]).sort()) {
       const snap = snapshots[holdingId]
       if (!snap) continue
-      const popIdsHere = state.popIndex.byHolding[holdingId] ?? []
 
       // ─── 賃金 carve (lower/middle): asset 単位 ───
       //   prodWageByPop に POP 別の生産賃金を記録し、後段の施設俸給 supplement の按分基準に使う。
@@ -700,35 +698,8 @@ export function runResourceEconomySystem(ctx: TickContext): TickContext {
         }
       }
 
-      // ─── v0.58 balance: upper 配当 carve (holding 単位) ───
-      //   雇用枠に就いている upper(nobles/patricians) POP に、holding 純収益の固定割合を size 比例で配当。
-      //   失業 upper は受け取らない (没落→money 枯渇→既存降格で下位転落)。雇用 upper 不在なら carve しない
-      //   (carve==mint: owner から引いて mint 先が無いと money が消えるため)。賃金とは別 carve。
-      if (upperDividendRate > 0) {
-        // holding 内の雇用 upper POP と総 size を集計 (determinism: byHolding 配列の固定順)。
-        let upperSize = 0
-        for (const pid of popIdsHere) {
-          const pop = newPopGroups[pid]
-          if (pop && isEmployed(pop) && pop.class === 'upper') upperSize += pop.size
-        }
-        if (upperSize > 0) {
-          // 配当原資 = Σ_assets max(0, netRevenue) × rate。各 asset の ownerDividendShare に記録 (landRevenue 控除)。
-          let dividendBudget = 0
-          for (const ar of snap.assetResults) {
-            const share = Math.max(0, ar.netRevenue) * upperDividendRate
-            ar.ownerDividendShare = share
-            dividendBudget += share
-          }
-          if (dividendBudget > 0) {
-            for (const pid of popIdsHere) {
-              const pop = newPopGroups[pid]
-              if (!pop || !isEmployed(pop) || pop.class !== 'upper') continue
-              const amount = dividendBudget * (pop.size / upperSize)
-              newPopGroups[pid] = { ...pop, money: pop.money + amount }
-            }
-          }
-        }
-      }
+      // v0.63: upper 配当は landRevenueSystem へ移設 (holding 収入から支払う)。
+      //   ownerDividendShare は 0 のまま。positiveNet 計算への影響なし。
     }
   }
 
