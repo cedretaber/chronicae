@@ -87,10 +87,6 @@ export function PopGroupDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">ID:</span>
-          <span className="text-xs text-gray-500">{popGroup.id}</span>
-        </div>
-        <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.size')}:</span>
           <span>{formatPopCount(popGroup.size)}</span>
         </div>
