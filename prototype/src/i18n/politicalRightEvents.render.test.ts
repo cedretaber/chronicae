@@ -15,7 +15,7 @@ import type { LocaleCode } from './types'
 import type { TickContext } from '@sim/tick/context'
 import type { WorldState } from '@sim/types/world'
 import type { Regiment } from '@sim/types/regiment'
-import type { HoldingId } from '@sim/types/ids'
+import type { HoldingId, RegimentBarracksId } from '@sim/types/ids'
 import { createPersonId, createHouseId, createPolityId, createRegimentId } from '@sim/types/ids'
 import type { PoliticalRightTargetRef } from '@sim/types/politicalRight'
 import { createPoliticalRight } from '@sim/mutations/politicalRightMutations'
@@ -70,6 +70,7 @@ function makeFixture(): WorldState {
     status: 'active',
     sourceKind: 'levy',
     troopKind: 'infantry',
+    barracksId: 'bk-0' as RegimentBarracksId,
     strength: 100,
     organization: 50,
     morale: 30,
@@ -80,8 +81,6 @@ function makeFixture(): WorldState {
     baselineMorale: 30,
     maxMorale: 100,
     createdWeek: 0,
-    homeProvinceId: provinceId,
-    homeHoldingId: holdingId,
   }
   return {
     ...state,

@@ -1,4 +1,4 @@
-import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from './ids'
+import type { RegimentId, RegimentBarracksId, PolityId, WarId } from './ids'
 import type { OrganizationRef } from './office'
 import type { WarSideKey } from './war'
 
@@ -42,9 +42,8 @@ export type Regiment = {
   sourceKind: RegimentSourceKind
   troopKind: RegimentTroopKind
 
-  // §5.3 由来 Holding / Province。v0.36 では原則すべて持つ。
-  homeHoldingId?: HoldingId
-  homeProvinceId?: ProvinceId
+  // v0.64: Regiment ↔ Barracks 1:1。barracks 経由で Holding / Province を導出する。
+  barracksId: RegimentBarracksId
 
   // §5.4 動員先の soft reference。IntegrityCheck で hard invariant にしない (§18.4)。
   //   cleanup 済 War を指す場合があり、RegimentMaintenanceSystem (Phase B) が lazy detach する。
@@ -89,6 +88,4 @@ export type Regiment = {
 export type RegimentIndex = {
   byOwner: Record<string, RegimentId[]>
   byWar: Record<WarId, RegimentId[]>
-  byHomeProvince: Record<ProvinceId, RegimentId[]>
-  byHomeHolding: Record<HoldingId, RegimentId[]>
 }

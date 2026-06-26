@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { makeEmptyV016State } from '../testFixtures'
 import {
-  createRegiment,
+  createRegimentWithBarracksMut,
   updateRegimentMut,
   mobilizeRegimentMut,
   demobilizeRegimentMut,
@@ -15,18 +15,18 @@ import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { OrganizationRef } from '../types/office'
 import type { War } from '../types/war'
-import type { PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
+import type { PolityId, HoldingId, WarId } from '../types/ids'
 
 const pA: OrganizationRef = { kind: 'polity', id: 'po-1' as PolityId }
 const pB: OrganizationRef = { kind: 'polity', id: 'po-2' as PolityId }
 
 function makeReg(state: WorldState, owner: OrganizationRef = pA) {
-  return createRegiment(state, {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner,
     sourceKind: 'levy',
     troopKind: 'infantry',
-    homeHoldingId: 'hl-1' as HoldingId,
-    homeProvinceId: 'pr-1' as ProvinceId,
+    holdingId: 'hl-1' as HoldingId,
+    requiredByPopType: {},
     strength: 100,
     organization: 100,
     morale: 80,
@@ -38,13 +38,14 @@ function makeReg(state: WorldState, owner: OrganizationRef = pA) {
     maxMorale: 100,
     createdWeek: 0,
   })
+  return regiment
 }
 
 // ---------------------------------------------------------------------------
-// createRegiment
+// createRegimentWithBarracksMut
 // ---------------------------------------------------------------------------
 
-describe('createRegiment', () => {
+describe('createRegimentWithBarracksMut', () => {
   it('creates regiment with correct id, increments counter, sets defaults', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
@@ -61,18 +62,18 @@ describe('createRegiment', () => {
     expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
   })
 
-  it('adds regiment to byHomeHolding index', () => {
+  it('adds barracks entry to regimentBarracksIndex.byHolding', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
 
-    expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
+    expect(state.regimentBarracksIndex.byHolding['hl-1' as HoldingId]).toContain(r.barracksId)
   })
 
-  it('adds regiment to byHomeProvince index', () => {
+  it('links barracks to regiment in regimentBarracksIndex.byRegiment', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
 
-    expect(state.regimentIndex.byHomeProvince['pr-1' as ProvinceId]).toContain(r.id)
+    expect(state.regimentBarracksIndex.byRegiment[r.id]).toBe(r.barracksId)
   })
 
   it('regiment has no currentWarId', () => {
@@ -146,11 +147,11 @@ describe('reassignRegimentOwnerMut', () => {
 })
 
 // ---------------------------------------------------------------------------
-// disbandRegimentMut — keeps owner/home indexes (CRITICAL)
+// disbandRegimentMut — keeps byOwner; barracks becomes inactive
 // ---------------------------------------------------------------------------
 
-describe('disbandRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
-  it('disbands but keeps byOwner/byHomeHolding/byHomeProvince', () => {
+describe('disbandRegimentMut — keeps byOwner; barracks becomes inactive', () => {
+  it('disbands, deactivates barracks, clears war ref, keeps byOwner', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
 
@@ -167,20 +168,17 @@ describe('disbandRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
     expect(state.regimentIndex.byOwner[organizationKey(pA)]!.length).toBe(1)
     expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
 
-    // byHomeHolding STILL contains r.id
-    expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
-
-    // byHomeProvince STILL contains r.id
-    expect(state.regimentIndex.byHomeProvince['pr-1' as ProvinceId]).toContain(r.id)
+    // barracks becomes inactive on disband
+    expect(state.regimentBarracks[r.barracksId]!.status).toBe('inactive')
   })
 })
 
 // ---------------------------------------------------------------------------
-// destroyRegimentMut — keeps owner/home indexes (CRITICAL)
+// destroyRegimentMut — keeps byOwner; barracks stays active
 // ---------------------------------------------------------------------------
 
-describe('destroyRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
-  it('destroys but keeps byOwner/byHomeHolding/byHomeProvince', () => {
+describe('destroyRegimentMut — keeps byOwner; barracks stays active', () => {
+  it('destroys but keeps byOwner; barracks remains active', () => {
     const state = makeEmptyV016State()
     const r = makeReg(state)
 
@@ -198,11 +196,8 @@ describe('destroyRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
     expect(state.regimentIndex.byOwner[organizationKey(pA)]!.length).toBe(1)
     expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
 
-    // byHomeHolding STILL contains r.id
-    expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
-
-    // byHomeProvince STILL contains r.id
-    expect(state.regimentIndex.byHomeProvince['pr-1' as ProvinceId]).toContain(r.id)
+    // barracks stays active after destroy (only disband deactivates it)
+    expect(state.regimentBarracks[r.barracksId]!.status).toBe('active')
   })
 })
 
@@ -228,9 +223,8 @@ describe('reformRegimentMut — destroyed を active に戻す', () => {
     expect(reformed.destroyedWeek).toBeUndefined()
     expect(reformed.lastReinforcedWeek).toBe(34)
 
-    // index は destroy 後も byOwner/byHomeHolding に残っていて reform でも不変。
+    // byOwner still contains the regiment after reform
     expect(state.regimentIndex.byOwner[organizationKey(pA)]).toContain(r.id)
-    expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
     // byWar には居ない (destroy で外れたまま)。
     expect(Object.keys(state.regimentIndex.byWar).length).toBe(0)
   })

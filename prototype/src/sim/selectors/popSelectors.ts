@@ -657,10 +657,15 @@ export function getWorkplacePopTypeCapacity(
     if (impDef.critical) eff = Math.max(eff, config.criticalInfraMinEffectiveness)
     return slotCap * imp.level * eff * holding.weight
   }
-  // kind === 'merchant'
-  const est = state.merchantCompanyEstablishments[ref.id]
-  if (!est || est.status !== 'active') return 0
-  return getMerchantEstablishmentEmploymentSlots(est.kind, popType, est.level)
+  if (ref.kind === 'merchant') {
+    const est = state.merchantCompanyEstablishments[ref.id]
+    if (!est || est.status !== 'active') return 0
+    return getMerchantEstablishmentEmploymentSlots(est.kind, popType, est.level)
+  }
+  // kind === 'barracks'
+  const barracks = state.regimentBarracks[ref.id]
+  if (!barracks || barracks.status !== 'active') return 0
+  return barracks.requiredByPopType[popType] ?? 0
 }
 
 // v0.63: holding 内の特定雇用主(WorkplaceRef)に紐付いた popType の雇用済み size 合計。
@@ -725,6 +730,11 @@ export function collectHoldingWorkplaces(
     const est = state.merchantCompanyEstablishments[estId]
     if (!est || est.status !== 'active') continue
     refs.push({ kind: 'merchant', id: estId })
+  }
+  for (const bkId of state.regimentBarracksIndex.byHolding[holdingId] ?? []) {
+    const bk = state.regimentBarracks[bkId]
+    if (!bk || bk.status !== 'active') continue
+    refs.push({ kind: 'barracks', id: bkId })
   }
   refs.sort((a, b) => workplaceRefKey(a).localeCompare(workplaceRefKey(b)))
   return refs

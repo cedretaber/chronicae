@@ -26,6 +26,7 @@ import type {
   PersonActivityLogId,
   ClanId,
   RegimentId,
+  RegimentBarracksId,
   BattleId,
   BattleLogId,
   PoliticalRightId,
@@ -79,6 +80,7 @@ import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
 import type { War, WarIndex } from './war'
 import type { Regiment, RegimentIndex } from './regiment'
+import type { RegimentBarracks, RegimentBarracksIndex } from './regimentBarracks'
 import type { Battle, BattleIndex } from './battle'
 import type { BattleLog, BattleLogIndex } from './battleLog'
 import type { Pressure, PressureIndex } from './pressure'
@@ -185,6 +187,10 @@ export type WorldState = {
   // v0.34 War
   wars: Record<WarId, War>
   warIndex: WarIndex
+  // v0.64 RegimentBarracks
+  regimentBarracks: Record<RegimentBarracksId, RegimentBarracks>
+  regimentBarracksIndex: RegimentBarracksIndex
+  nextRegimentBarracksId: number
   // v0.36 Regiment / Battle
   regiments: Record<RegimentId, Regiment>
   regimentIndex: RegimentIndex

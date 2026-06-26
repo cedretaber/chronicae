@@ -2,8 +2,12 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { RegimentId, PolityId } from '../types/ids'
 import { getPolityTerritorialStatus } from '../types/polity'
-import { disbandRegimentMut, createRegiment } from '../mutations/regimentMutations'
+import { disbandRegimentMut, createRegimentWithBarracksMut } from '../mutations/regimentMutations'
 import { organizationKey } from '../selectors/organizationSelectors'
+import {
+  selectCavalryBarracksHolding,
+  computeBarracksRequiredByPopType,
+} from '../selectors/barracksSelectors'
 
 export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
   let ws: WorldState = ctx.state
@@ -16,8 +20,11 @@ export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
       regimentIndex: {
         byOwner: { ...ctx.state.regimentIndex.byOwner },
         byWar: { ...ctx.state.regimentIndex.byWar },
-        byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
-        byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
+      },
+      regimentBarracks: { ...ctx.state.regimentBarracks },
+      regimentBarracksIndex: {
+        byHolding: { ...ctx.state.regimentBarracksIndex.byHolding },
+        byRegiment: { ...ctx.state.regimentBarracksIndex.byRegiment },
       },
     }
     cloned = true
@@ -81,23 +88,28 @@ export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
     if (currentCount < entitlement) {
       // cooldown 中 destroyed がなければ新規作成
       const deficit = entitlement - currentCount
-      for (let i = 0; i < deficit; i++) {
-        ensureDraft()
-        createRegiment(ws, {
-          owner: { kind: 'polity', id: polityId },
-          sourceKind: 'noble_retinue',
-          troopKind: 'cavalry',
-          strength: config.regimentInitialStrength,
-          organization: config.regimentInitialOrganization,
-          morale: config.regimentInitialMorale,
-          maxStrength: config.regimentMaxStrength,
-          basePower: config.cavalryEntitlementBasePower,
-          baselineOrganization: config.regimentBaselineOrganizationDefault,
-          maxOrganization: config.regimentMaxOrganizationDefault,
-          baselineMorale: config.regimentBaselineMoraleDefault,
-          maxMorale: config.regimentMaxMoraleDefault,
-          createdWeek: ws.absoluteWeek,
-        })
+      const cavalryHoldingId = selectCavalryBarracksHolding(ws, polityId)
+      if (cavalryHoldingId !== undefined) {
+        for (let i = 0; i < deficit; i++) {
+          ensureDraft()
+          createRegimentWithBarracksMut(ws, {
+            owner: { kind: 'polity', id: polityId },
+            sourceKind: 'noble_retinue',
+            troopKind: 'cavalry',
+            holdingId: cavalryHoldingId,
+            requiredByPopType: computeBarracksRequiredByPopType(config, 'cavalry'),
+            strength: config.regimentInitialStrength,
+            organization: config.regimentInitialOrganization,
+            morale: config.regimentInitialMorale,
+            maxStrength: config.regimentMaxStrength,
+            basePower: config.cavalryEntitlementBasePower,
+            baselineOrganization: config.regimentBaselineOrganizationDefault,
+            maxOrganization: config.regimentMaxOrganizationDefault,
+            baselineMorale: config.regimentBaselineMoraleDefault,
+            maxMorale: config.regimentMaxMoraleDefault,
+            createdWeek: ws.absoluteWeek,
+          })
+        }
       }
     } else if (currentCount > entitlement) {
       // 超過時: destroyed 優先、effectivePower(=basePower * strength/100) 昇順で disband

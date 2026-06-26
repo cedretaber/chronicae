@@ -2,7 +2,8 @@ import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
-import type { PopClass, PopStratum } from '../types/popGroup'
+import type { PopClass, PopStratum, PopType } from '../types/popGroup'
+import type { RegimentTroopKind } from '../types/regiment'
 import type { PopMobilityKind } from '../types/popMobility'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
@@ -660,6 +661,15 @@ export type SimulationConfig = {
   regimentOrganizationDecayAboveBaselinePerWeek: number
   regimentMoraleRecoveryPerWeek: number
   regimentMoraleDecayAboveBaselinePerWeek: number
+  // v0.64 兵舎
+  regimentBarracksRequiredTotalPopByTroopKind: Record<RegimentTroopKind, number>
+  regimentBarracksRequiredPopRatioByTroopKind: Record<
+    RegimentTroopKind,
+    Partial<Record<PopType, number>>
+  >
+  barracksMonthlyWageByPopType: Partial<Record<PopType, number>>
+  barracksUnpaidOrganizationPenalty: number
+  barracksUnpaidMoralePenalty: number
   //   battle internal tick
   battleTickUnit: BattleTickUnit
   battleMaxTicks: number
@@ -2216,6 +2226,29 @@ export const defaultConfig: SimulationConfig = {
   regimentOrganizationDecayAboveBaselinePerWeek: 1,
   regimentMoraleRecoveryPerWeek: 1,
   regimentMoraleDecayAboveBaselinePerWeek: 0.5,
+  // v0.64 兵舎
+  regimentBarracksRequiredTotalPopByTroopKind: {
+    infantry: 10,
+    cavalry: 10,
+  },
+  regimentBarracksRequiredPopRatioByTroopKind: {
+    infantry: {
+      soldiers: 0.8,
+      ministeriales: 0.2,
+    },
+    cavalry: {
+      soldiers: 0.6,
+      ministeriales: 0.3,
+      nobles: 0.1,
+    },
+  },
+  barracksMonthlyWageByPopType: {
+    soldiers: 1.0,
+    ministeriales: 1.5,
+    nobles: 2.0,
+  },
+  barracksUnpaidOrganizationPenalty: 15,
+  barracksUnpaidMoralePenalty: 10,
   //   battle internal tick
   battleTickUnit: 'day',
   battleMaxTicks: 5,

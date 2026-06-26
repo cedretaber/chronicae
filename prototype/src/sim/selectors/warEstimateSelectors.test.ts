@@ -4,23 +4,23 @@ import { defaultConfig } from '../config/defaultConfig'
 import { estimateWarSidePower, estimateAttackerWinChance } from './warEstimateSelectors'
 import { getOrganizationMilitaryPower } from './organizationSelectors'
 import {
-  createRegiment,
+  createRegimentWithBarracksMut,
   mobilizeRegimentMut,
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
 import type { OrganizationRef } from '../types/office'
-import type { PolityId, WarId, HoldingId, ProvinceId } from '../types/ids'
+import type { PolityId, WarId, HoldingId } from '../types/ids'
 
 const pA: OrganizationRef = { kind: 'polity', id: 'po-1' as PolityId }
 const pB: OrganizationRef = { kind: 'polity', id: 'po-2' as PolityId }
 
 function addRegiment(state: ReturnType<typeof makeEmptyV016State>, owner: OrganizationRef) {
-  return createRegiment(state, {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner,
     sourceKind: 'levy',
     troopKind: 'infantry',
-    homeHoldingId: 'hl-1' as HoldingId,
-    homeProvinceId: 'pr-1' as ProvinceId,
+    holdingId: 'hl-1' as HoldingId,
+    requiredByPopType: {},
     strength: 100,
     organization: 100,
     morale: 80,
@@ -32,6 +32,7 @@ function addRegiment(state: ReturnType<typeof makeEmptyV016State>, owner: Organi
     maxMorale: 100,
     createdWeek: 0,
   })
+  return regiment
 }
 
 // ---------------------------------------------------------------------------

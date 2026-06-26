@@ -6,6 +6,7 @@ import {
   demobilizeRegimentMut,
   regimentOwnerSyncTarget,
   syncRegimentOwnerToHomeTerminalMut,
+  getRegimentHoldingId,
 } from '../mutations/regimentMutations'
 import { isOrganizationActive } from '../selectors/organizationSelectors'
 
@@ -40,8 +41,11 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
       regimentIndex: {
         byOwner: { ...ctx.state.regimentIndex.byOwner },
         byWar: { ...ctx.state.regimentIndex.byWar },
-        byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
-        byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
+      },
+      regimentBarracks: { ...ctx.state.regimentBarracks },
+      regimentBarracksIndex: {
+        byHolding: { ...ctx.state.regimentBarracksIndex.byHolding },
+        byRegiment: { ...ctx.state.regimentBarracksIndex.byRegiment },
       },
     }
     cloned = true
@@ -53,7 +57,8 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
     if (!r0 || r0.status !== 'active') continue
 
     // 1. homeHolding 消失 → disband (§14.5)
-    if (r0.homeHoldingId !== undefined && !ws.holdings[r0.homeHoldingId]) {
+    const homeHoldingId = getRegimentHoldingId(ws, r0)
+    if (homeHoldingId !== undefined && !ws.holdings[homeHoldingId]) {
       ensureDraft()
       disbandRegimentMut(ws, rid)
       continue

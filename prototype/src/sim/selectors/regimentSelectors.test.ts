@@ -8,7 +8,7 @@ import {
   getRegimentPowerForWarSide,
 } from './regimentSelectors'
 import {
-  createRegiment,
+  createRegimentWithBarracksMut,
   mobilizeRegimentMut,
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
@@ -16,7 +16,7 @@ import { getOrganizationMilitaryPower } from './organizationSelectors'
 import type { Regiment } from '../types/regiment'
 import type { War } from '../types/war'
 import type { OrganizationRef } from '../types/office'
-import type { PolityId, WarId, HoldingId, ProvinceId } from '../types/ids'
+import type { PolityId, WarId, HoldingId, RegimentBarracksId } from '../types/ids'
 
 const pA: OrganizationRef = { kind: 'polity', id: 'po-1' as PolityId }
 const pB: OrganizationRef = { kind: 'polity', id: 'po-2' as PolityId }
@@ -51,6 +51,7 @@ function reg(overrides: Partial<Regiment>): Regiment {
     status: 'active',
     sourceKind: 'levy',
     troopKind: 'infantry',
+    barracksId: 'bk-0' as RegimentBarracksId,
     strength: 100,
     organization: 100,
     morale: 80,
@@ -63,6 +64,31 @@ function reg(overrides: Partial<Regiment>): Regiment {
     createdWeek: 0,
     ...overrides,
   }
+}
+
+function addReg(
+  state: ReturnType<typeof makeEmptyV016State>,
+  owner: OrganizationRef,
+  holdingId: HoldingId = 'hl-1' as HoldingId,
+) {
+  const { regiment } = createRegimentWithBarracksMut(state, {
+    owner,
+    sourceKind: 'levy',
+    troopKind: 'infantry',
+    holdingId,
+    requiredByPopType: {},
+    strength: 100,
+    organization: 100,
+    morale: 80,
+    maxStrength: 100,
+    basePower: 100,
+    baselineOrganization: 50,
+    maxOrganization: 100,
+    baselineMorale: 30,
+    maxMorale: 100,
+    createdWeek: 0,
+  })
+  return regiment
 }
 
 // ---------------------------------------------------------------------------
@@ -110,40 +136,8 @@ describe('getRegimentEffectivePower', () => {
 describe('getRegimentsForActor / getRegimentsForWarSide', () => {
   it('getRegimentsForActor returns correct regiments per actor', () => {
     const state = makeEmptyV016State()
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
-    const r2 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-2' as HoldingId,
-      homeProvinceId: 'pr-2' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA, 'hl-1' as HoldingId)
+    const r2 = addReg(state, pA, 'hl-2' as HoldingId)
 
     expect(r1.id).toBeDefined()
     expect(r2.id).toBeDefined()
@@ -154,23 +148,7 @@ describe('getRegimentsForActor / getRegimentsForWarSide', () => {
 
   it('getRegimentsForWarSide returns correct regiments for war side', () => {
     const state = makeEmptyV016State()
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA)
 
     expect(r1.id).toBeDefined()
     mobilizeRegimentMut(state, r1.id, 'w-1' as WarId, 'attacker', 'po-1' as PolityId, 0)
@@ -189,40 +167,8 @@ describe('getRegimentPowerForWarSide', () => {
     const state = makeEmptyV016State()
     const war = makeWar('w-1' as WarId, pA, pB)
 
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
-    const r2 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-2' as HoldingId,
-      homeProvinceId: 'pr-2' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA, 'hl-1' as HoldingId)
+    const r2 = addReg(state, pA, 'hl-2' as HoldingId)
 
     expect(r1.id).toBeDefined()
     expect(r2.id).toBeDefined()
@@ -250,23 +196,7 @@ describe('getRegimentPowerForWarSide', () => {
     const state = makeEmptyV016State()
     const war = makeWar('w-1' as WarId, pA, pB)
 
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA)
 
     expect(r1.id).toBeDefined()
     // Mobilize to a DIFFERENT war
@@ -295,23 +225,7 @@ describe('getRegimentPowerForWarSide', () => {
     )
 
     // primary に record (未動員ではなく destroyed) → primary は 0、supporter の nominal のみ
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA)
     destroyRegimentMut(state, r1.id, 0)
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(
       nominalSup,
@@ -326,23 +240,7 @@ describe('getRegimentPowerForWarSide', () => {
       ...war.attacker.participants,
       { actor: pSup, joinedWeek: 0, primary: false },
     ]
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA)
     mobilizeRegimentMut(state, r1.id, 'w-1' as WarId, 'attacker', 'po-1' as PolityId, 0)
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(100)
   })
@@ -354,23 +252,7 @@ describe('getRegimentPowerForWarSide', () => {
     // Add polity with adminPower so getOrganizationMilitaryPower > 0
     state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
 
-    const r1 = createRegiment(state, {
-      owner: pA,
-      sourceKind: 'levy',
-      troopKind: 'infantry',
-      homeHoldingId: 'hl-1' as HoldingId,
-      homeProvinceId: 'pr-1' as ProvinceId,
-      strength: 100,
-      organization: 100,
-      morale: 80,
-      maxStrength: 100,
-      basePower: 100,
-      baselineOrganization: 50,
-      maxOrganization: 100,
-      baselineMorale: 30,
-      maxMorale: 100,
-      createdWeek: 0,
-    })
+    const r1 = addReg(state, pA)
 
     expect(r1.id).toBeDefined()
     destroyRegimentMut(state, r1.id, 0)

@@ -73,8 +73,6 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
     regimentIndex: {
       byOwner: { ...ctx.state.regimentIndex.byOwner },
       byWar: { ...ctx.state.regimentIndex.byWar },
-      byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
-      byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
     },
     crises: { ...ctx.state.crises },
     crisisIndex: {

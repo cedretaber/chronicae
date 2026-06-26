@@ -103,6 +103,9 @@ import { runProjectOutcomeSystem } from './projectOutcomeSystem'
 import { runProjectStageSystem } from './projectStageSystem'
 import { runPressureSystem } from './pressureSystem'
 import { removeProjectFromIndexMut } from '../mutations/projectMutations'
+import { removeTaskFromIndicesMut } from '../mutations/taskMutations'
+import { targetRefKey } from '../types/task'
+import type { TaskId } from '../types/ids'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { ProjectId } from '../types/ids'
@@ -134,10 +137,23 @@ function flushTerminalEntities(ctx: TickContext): TickContext {
       bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
+    tasks: { ...ctx.state.tasks },
+    taskIndex: {
+      byAssignee: { ...ctx.state.taskIndex.byAssignee },
+      byOwner: { ...ctx.state.taskIndex.byOwner },
+      byTarget: { ...ctx.state.taskIndex.byTarget },
+    },
   }
   for (const pid of terminalProjectIds) {
     const p = ws.projects[pid]
     if (p) {
+      const tKey = targetRefKey({ kind: 'project', id: pid })
+      const relatedTaskIds = ws.taskIndex.byTarget[tKey]
+      if (relatedTaskIds) {
+        for (const tid of [...relatedTaskIds] as TaskId[]) {
+          removeTaskFromIndicesMut(ws, tid)
+        }
+      }
       removeProjectFromIndexMut(ws, p)
       delete ws.projects[pid]
     }

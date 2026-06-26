@@ -5,14 +5,14 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import {
-  createRegiment,
+  createRegimentWithBarracksMut,
   mobilizeRegimentMut,
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
 import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { War } from '../types/war'
-import type { PolityId, HoldingId, ProvinceId, WarId, PopGroupId } from '../types/ids'
+import type { PolityId, HoldingId, WarId, PopGroupId, ProvinceId } from '../types/ids'
 import type { RegimentTroopKind } from '../types/regiment'
 
 // v0.36 補充・再編成 RegimentReinforcementSystem の単体テスト。
@@ -22,7 +22,7 @@ import type { RegimentTroopKind } from '../types/regiment'
 const PO1: PolityId = 'po-1' as PolityId
 const PO2: PolityId = 'po-2' as PolityId
 const HL1: HoldingId = 'hl-1' as HoldingId
-const PR1: ProvinceId = 'pr-1' as ProvinceId
+const PR1 = 'pr-1' as ProvinceId
 
 function ctx(state: WorldState) {
   return createTickContext({ state, rng: createRng('reinf'), config: defaultConfig })
@@ -59,12 +59,12 @@ function addReg(
   state: WorldState,
   opts: { strength: number; troopKind?: RegimentTroopKind; owner?: PolityId } = { strength: 50 },
 ) {
-  return createRegiment(state, {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner: { kind: 'polity', id: opts.owner ?? PO1 },
     sourceKind: 'levy',
     troopKind: opts.troopKind ?? 'infantry',
-    homeHoldingId: HL1,
-    homeProvinceId: PR1,
+    holdingId: HL1,
+    requiredByPopType: {},
     strength: opts.strength,
     organization: 100,
     morale: 80,
@@ -76,6 +76,7 @@ function addReg(
     maxMorale: 100,
     createdWeek: 0,
   })
+  return regiment
 }
 
 function makeWar(id: WarId, status: War['status']): War {

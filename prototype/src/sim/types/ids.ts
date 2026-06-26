@@ -161,6 +161,13 @@ export function createPersonActivityLogId(n: number): PersonActivityLogId {
   return ('al-' + n) as PersonActivityLogId
 }
 
+// v0.64 RegimentBarracks
+export type RegimentBarracksId = Branded<string, 'RegimentBarracksId'>
+
+export function createRegimentBarracksId(n: number): RegimentBarracksId {
+  return `bk-${n}` as RegimentBarracksId
+}
+
 // v0.36 Regiment / Battle
 export type RegimentId = Branded<string, 'RegimentId'>
 export type BattleId = Branded<string, 'BattleId'>

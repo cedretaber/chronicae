@@ -25,6 +25,7 @@ import {
   getHoldingNameRefForEmit,
   houseNameParam,
 } from '../selectors/nameRefSelectors'
+import { getRegimentHoldingId } from '../mutations/regimentMutations'
 
 function holderNameParam(state: WorldState, holder: PoliticalRightHolderRef): LocalizedNameParam {
   if (holder.kind === 'person') {
@@ -48,7 +49,9 @@ export function politicalRightTargetNameParam(
     }
     case 'regiment': {
       const regiment = state.regiments[target.regimentId]
-      const provinceId = regiment?.homeProvinceId
+      const holdingId = regiment !== undefined ? getRegimentHoldingId(state, regiment) : undefined
+      const holding = holdingId !== undefined ? state.holdings[holdingId] : undefined
+      const provinceId = holding?.provinceId
       const provinceNameKey =
         provinceId !== undefined ? (state.provinces[provinceId]?.nameKey ?? provinceId) : 'unknown'
       return nameParam('province', provinceNameKey)
@@ -76,11 +79,16 @@ export function buildPoliticalRightEntityRefs(
     const holdingRef = getHoldingNameRefForEmit(state, right.target.holdingId)
     refs.push(entityRef('holding', right.target.holdingId, 'right_target', holdingRef.nameKey))
   } else if (right.target.kind === 'regiment') {
-    const provinceId = state.regiments[right.target.regimentId]?.homeProvinceId
-    if (provinceId !== undefined) {
-      refs.push(
-        entityRef('province', provinceId, 'right_target', state.provinces[provinceId]?.nameKey),
-      )
+    const rgt = state.regiments[right.target.regimentId]
+    if (rgt !== undefined) {
+      const rgtHoldingId = getRegimentHoldingId(state, rgt)
+      const rgtHolding = rgtHoldingId !== undefined ? state.holdings[rgtHoldingId] : undefined
+      const provinceId = rgtHolding?.provinceId
+      if (provinceId !== undefined) {
+        refs.push(
+          entityRef('province', provinceId, 'right_target', state.provinces[provinceId]?.nameKey),
+        )
+      }
     }
   }
   return refs

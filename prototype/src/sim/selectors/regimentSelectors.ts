@@ -9,6 +9,7 @@ import { clamp } from '../utils/math'
 import { organizationKey } from './organizationSelectors'
 import { getOrganizationMilitaryPower } from './organizationSelectors'
 import { getHoldingPopSizeByClass } from './popSelectors'
+import { getRegimentHoldingId } from '../mutations/regimentMutations'
 
 export function getRegimentEffectivePower(regiment: Regiment): number {
   if (regiment.status !== 'active') return 0
@@ -93,9 +94,10 @@ export function getRegimentHomeRecruitmentFactor(
   config: SimulationConfig,
   regiment: Regiment,
 ): number {
-  if (regiment.homeHoldingId === undefined) return 0
+  const homeHoldingId = getRegimentHoldingId(state, regiment)
+  if (homeHoldingId === undefined) return 0
   const popClass = recruitmentPopClassForSource(regiment.sourceKind)
-  const classPop = getHoldingPopSizeByClass(state, regiment.homeHoldingId, popClass)
+  const classPop = getHoldingPopSizeByClass(state, homeHoldingId, popClass)
   const reference = config.regimentReinforcementReferencePopByClass[popClass]
   if (!(reference > 0)) return config.regimentReinforcementMinPopFactor
   return clamp(

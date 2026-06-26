@@ -25,7 +25,11 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
-import { updateRegimentMut, reformRegimentMut } from '../mutations/regimentMutations'
+import {
+  updateRegimentMut,
+  reformRegimentMut,
+  getRegimentHoldingId,
+} from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
 import { organizationKey, isOrganizationActive } from '../selectors/organizationSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
@@ -34,9 +38,10 @@ import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 //   owner 不一致はすべて 0 (= 補充/reform 不可)。
 function homeControlFactor(ws: WorldState, r: Regiment): number {
   if (r.owner.kind !== 'polity') return 0
-  if (r.homeHoldingId === undefined) return 0
-  if (!ws.holdings[r.homeHoldingId]) return 0
-  const terminal = ws.holdingTerminalPolityCache[r.homeHoldingId]
+  const holdingId = getRegimentHoldingId(ws, r)
+  if (holdingId === undefined) return 0
+  if (!ws.holdings[holdingId]) return 0
+  const terminal = ws.holdingTerminalPolityCache[holdingId]
   if (terminal === undefined) return 0
   return terminal === r.owner.id ? 1 : 0
 }
@@ -85,7 +90,9 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     if (ownerId === undefined) return
     const ownerRef = getPolityNameRefForEmit(ws, ownerId)
     const ownerNameKey = ownerRef.nameKey
-    const provinceId = regiment.homeProvinceId
+    const reformHoldingId = getRegimentHoldingId(ws, regiment)
+    const reformHolding = reformHoldingId !== undefined ? ws.holdings[reformHoldingId] : undefined
+    const provinceId = reformHolding?.provinceId
     const provinceNameKey =
       provinceId !== undefined ? (ws.provinces[provinceId]?.nameKey ?? provinceId) : ''
     const messageParams: EventMessageParams = {
@@ -113,7 +120,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     const r = ws.regiments[rid]
     if (!r) continue
     if (r.owner.kind !== 'polity') continue
-    if (r.homeHoldingId === undefined) continue
+    if (getRegimentHoldingId(ws, r) === undefined) continue
     if (r.sourceKind === 'local_levy') continue
 
     // ── A. active strength 補充 (silent) ──

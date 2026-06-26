@@ -1,30 +1,29 @@
 import { describe, it, expect } from 'vitest'
 import { makeEmptyV016State } from '../testFixtures'
 import {
-  createRegiment,
+  createRegimentWithBarracksMut,
   regimentOwnerSyncTarget,
   syncRegimentOwnerToHomeTerminalMut,
   updateRegimentMut,
 } from './regimentMutations'
 import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
-import type { PolityId, HoldingId, ProvinceId } from '../types/ids'
+import type { PolityId, HoldingId } from '../types/ids'
 
 const po1 = 'po-1' as PolityId
 const po2 = 'po-2' as PolityId
 const hl1 = 'hl-1' as HoldingId
-const pr1 = 'pr-1' as ProvinceId
 
 function makeReg(
   state: WorldState,
   owner: { kind: 'polity'; id: PolityId } = { kind: 'polity', id: po1 },
 ) {
-  return createRegiment(state, {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner,
     sourceKind: 'levy',
     troopKind: 'infantry',
-    homeHoldingId: hl1,
-    homeProvinceId: pr1,
+    holdingId: hl1,
+    requiredByPopType: {},
     strength: 100,
     organization: 100,
     morale: 80,
@@ -36,6 +35,7 @@ function makeReg(
     maxMorale: 100,
     createdWeek: 0,
   })
+  return regiment
 }
 
 // ---------------------------------------------------------------------------

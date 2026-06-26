@@ -8,6 +8,7 @@ import type { RegimentId, PersonId } from '@/sim/types/ids'
 import type { ClickHandler } from './shared/helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getProvinceShortName } from '@/app/hooks/entityNameHelpers'
+import { getRegimentHoldingId } from '@sim/mutations/regimentMutations'
 import { PersonLink, PolityLink, HouseLink } from './shared/links'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 
@@ -70,10 +71,12 @@ export function BattleReplayPanel({
   const regLabel = (regId: RegimentId): string => {
     const r = regiments[regId]
     if (!r) return t('detail.battle.unknown_regiment')
-    if (r.homeProvinceId && provinces[r.homeProvinceId]) {
-      return getProvinceShortName(worldState, resolveName, r.homeProvinceId)
+    const holdingId = getRegimentHoldingId(worldState, r)
+    const holding = holdingId !== undefined ? worldState.holdings[holdingId] : undefined
+    if (holding && provinces[holding.provinceId]) {
+      return getProvinceShortName(worldState, resolveName, holding.provinceId)
     }
-    return r.homeHoldingId ?? regId
+    return regId
   }
   const troopIcon = (regId: RegimentId): string => {
     const r = regiments[regId]

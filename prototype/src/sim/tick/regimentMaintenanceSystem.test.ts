@@ -4,11 +4,11 @@ import { createTickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
-import { createRegiment, mobilizeRegimentMut } from '../mutations/regimentMutations'
+import { createRegimentWithBarracksMut, mobilizeRegimentMut } from '../mutations/regimentMutations'
 import { organizationKey } from '../selectors/organizationSelectors'
 import type { WorldState } from '../types/world'
 import type { War } from '../types/war'
-import type { PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
+import type { PolityId, HoldingId, WarId, ProvinceId } from '../types/ids'
 
 // v0.36 §14 RegimentMaintenanceSystem の単体テスト。
 //   demobilize / owner inactive disband / homeHolding missing disband / §14.6 owner 付け替え。
@@ -17,19 +17,19 @@ import type { PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
 const PO1: PolityId = 'po-1' as PolityId
 const PO2: PolityId = 'po-2' as PolityId
 const HL1: HoldingId = 'hl-1' as HoldingId
-const PR1: ProvinceId = 'pr-1' as ProvinceId
+const PR1 = 'pr-1' as ProvinceId
 
 function ctx(state: WorldState) {
   return createTickContext({ state, rng: createRng('maint'), config: defaultConfig })
 }
 
-function addRegiment(state: WorldState, opts: { owner: PolityId; homeHoldingId?: HoldingId }) {
-  return createRegiment(state, {
+function addRegiment(state: WorldState, opts: { owner: PolityId; holdingId?: HoldingId }) {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner: { kind: 'polity', id: opts.owner },
     sourceKind: 'levy',
     troopKind: 'infantry',
-    ...(opts.homeHoldingId !== undefined ? { homeHoldingId: opts.homeHoldingId } : {}),
-    homeProvinceId: PR1,
+    holdingId: opts.holdingId ?? HL1,
+    requiredByPopType: {},
     strength: 100,
     organization: 100,
     morale: 80,
@@ -41,6 +41,7 @@ function addRegiment(state: WorldState, opts: { owner: PolityId; homeHoldingId?:
     maxMorale: 100,
     createdWeek: 0,
   })
+  return regiment
 }
 
 function makeWar(id: WarId, status: War['status']): War {
@@ -73,7 +74,7 @@ describe('RegimentMaintenanceSystem §14.3 demobilize (stale war)', () => {
     state = withHolding(state, HL1, PR1)
     state.holdingTerminalPolityCache[HL1] = PO1
     state.wars['w-1' as WarId] = makeWar('w-1' as WarId, 'attacker_won') // terminal
-    const r = addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
     mobilizeRegimentMut(state, r.id, 'w-1' as WarId, 'attacker', PO1, 0)
 
     const next = runRegimentMaintenanceSystem(ctx(state)).state
@@ -90,7 +91,7 @@ describe('RegimentMaintenanceSystem §14.3 demobilize (stale war)', () => {
     state = withHolding(state, HL1, PR1)
     state.holdingTerminalPolityCache[HL1] = PO1
     state.wars['w-1' as WarId] = makeWar('w-1' as WarId, 'active')
-    const r = addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
     mobilizeRegimentMut(state, r.id, 'w-1' as WarId, 'attacker', PO1, 0)
 
     const next = runRegimentMaintenanceSystem(ctx(state)).state
@@ -103,7 +104,9 @@ describe('RegimentMaintenanceSystem §14.4 owner inactive disband', () => {
   it('owner polity が inactive なら disband する', () => {
     let state = makeEmptyV016State()
     state = withPolity(state, PO1, { active: false }) // inactive
-    const r = addRegiment(state, { owner: PO1 }) // homeHolding なし → §14.5/14.6 skip
+    state = withHolding(state, HL1, PR1) // holding exists → §14.5 skip
+    state.holdingTerminalPolityCache[HL1] = PO1 // terminal matches owner → §14.6 skip
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
     const next = runRegimentMaintenanceSystem(ctx(state)).state
     expect(next.regiments[r.id]!.status).toBe('disbanded')
   })
@@ -114,7 +117,7 @@ describe('RegimentMaintenanceSystem §14.5 homeHolding missing disband', () => {
     let state = makeEmptyV016State()
     state = withPolity(state, PO1, { active: true })
     // hl-1 は holdings に追加しない（消失を表す）
-    const r = addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
     const next = runRegimentMaintenanceSystem(ctx(state)).state
     expect(next.regiments[r.id]!.status).toBe('disbanded')
   })
@@ -128,7 +131,7 @@ describe('RegimentMaintenanceSystem §14.6 owner 付け替え (advisor 強制ケ
     state = withHolding(state, HL1, PR1)
     state.holdingTerminalPolityCache[HL1] = PO2 // owner(po-1) と異なる
     state.wars['w-1' as WarId] = makeWar('w-1' as WarId, 'active')
-    const r = addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
     mobilizeRegimentMut(state, r.id, 'w-1' as WarId, 'attacker', PO1, 0)
 
     const next = runRegimentMaintenanceSystem(ctx(state)).state
@@ -150,7 +153,7 @@ describe('RegimentMaintenanceSystem §14.6 owner 付け替え (advisor 強制ケ
     state = withPolity(state, PO2, { active: false }) // 新 owner が inactive
     state = withHolding(state, HL1, PR1)
     state.holdingTerminalPolityCache[HL1] = PO2
-    const r = addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    const r = addRegiment(state, { owner: PO1, holdingId: HL1 })
 
     const next = runRegimentMaintenanceSystem(ctx(state)).state
     const rr = next.regiments[r.id]!
@@ -165,7 +168,7 @@ describe('RegimentMaintenanceSystem no-op', () => {
     state = withPolity(state, PO1, { active: true })
     state = withHolding(state, HL1, PR1)
     state.holdingTerminalPolityCache[HL1] = PO1
-    addRegiment(state, { owner: PO1, homeHoldingId: HL1 })
+    addRegiment(state, { owner: PO1, holdingId: HL1 })
 
     const input = ctx(state)
     const next = runRegimentMaintenanceSystem(input)

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { createPersonId, createHouseId, createPolityId, createRegimentId } from '../types/ids'
-import type { HoldingId } from '../types/ids'
+import type { HoldingId, RegimentBarracksId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Regiment } from '../types/regiment'
 import type { PoliticalRightTargetRef } from '../types/politicalRight'
@@ -38,6 +38,7 @@ function makeRegiment(overrides: Partial<Regiment> = {}): Regiment {
     status: 'active',
     sourceKind: 'levy',
     troopKind: 'infantry',
+    barracksId: 'bk-0' as RegimentBarracksId,
     strength: 100,
     organization: 50,
     morale: 30,

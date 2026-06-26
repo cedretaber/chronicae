@@ -421,8 +421,6 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     regimentIndex: {
       byOwner: { ...ctx.state.regimentIndex.byOwner },
       byWar: { ...ctx.state.regimentIndex.byWar },
-      byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
-      byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
     },
     battles: { ...ctx.state.battles },
     battleIndex: { byWar: { ...ctx.state.battleIndex.byWar } },

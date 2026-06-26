@@ -52,8 +52,8 @@ function collectPopStats(state: WorldState) {
   const unempByType = new Map<PopType, number>()
   // per-popType per-capita money (employed のみ): money sum / size sum。
   const moneyByType = new Map<PopType, { money: number; size: number }>()
-  // v0.63: employer kind 別の雇用人数。
-  const byEmployerKind = new Map<'asset' | 'improvement' | 'merchant', number>()
+  // v0.63: employer kind 別の雇用人数。v0.64: barracks 追加。
+  const byEmployerKind = new Map<'asset' | 'improvement' | 'merchant' | 'barracks', number>()
 
   let totalPop = 0
   let totalMoney = 0

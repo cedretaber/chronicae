@@ -39,6 +39,7 @@ import { getProvinceMonthlyResourceRevenue } from '@sim/selectors/resourceRevenu
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
+import { getRegimentHoldingId } from '@sim/mutations/regimentMutations'
 import {
   getHoldingOfficeAppointmentRight,
   getRegimentControllerRight,
@@ -509,7 +510,9 @@ export function PolityRegiments({
 
   const rows = regiments
     .map((r) => {
-      const province = r.homeProvinceId ? worldState.provinces[r.homeProvinceId] : undefined
+      const holdingId = getRegimentHoldingId(worldState, r)
+      const holding = holdingId !== undefined ? worldState.holdings[holdingId] : undefined
+      const province = holding !== undefined ? worldState.provinces[holding.provinceId] : undefined
       const provinceName = province
         ? resolveName('province', province.nameKey, province.nameKey)
         : undefined
