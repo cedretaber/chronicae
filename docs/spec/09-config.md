@@ -663,8 +663,9 @@
 | maxBailiffFeeRate | 0.25 | 代官取り分率の上限 |
 | bailiffTaskCompletedCollectionModifier | 0.05 | Task completed 時の徴税効率ボーナス |
 | bailiffTaskNoneCollectionModifier | 0.00 | Task none 時の徴税効率ペナルティ |
-| localExtractionWealthPenalty | 2 | collectionFrictionBurdenRate × この値 × (pop.wealth/100) で POP wealth 損耗（wealth 比例） |
-| localExtractionUnrestGain | 3 | burdenOverComfort × この値で POP unrest 上昇 |
+| comfortableBurdenRate | 0.20 | burden がこの値以下なら unrest/affection ペナルティなし |
+| collectionBurdenWelfarePenalty | 2 | burdenRate × この値 × (pop.needSatisfaction/100) で POP needSatisfaction 損耗 |
+| collectionBurdenUnrestGain | 3 | burdenOverComfort × この値で POP unrest 上昇 |
 | bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
 | bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |

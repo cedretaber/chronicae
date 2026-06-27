@@ -936,9 +936,8 @@ type HoldingOfficeAssignment = {
   startWeek: number                   // absoluteWeek
   unpaidCount: number
 
-  // 代官徴税条件
-  contractedRemittanceRate: number    // 末端契約者への送金率 (default 0.40)
-  expectedFeeRate: number             // 慣習的な代官取り分率 (default 0.10)
+  // 代官手数料
+  expectedFeeRate: number             // 慣習的な代官取り分率 (default 0.03)
 
   // 代官任期保護
   termProtectedUntilWeek?: number     // この週まで通常の任期満了・交代から保護
@@ -946,7 +945,7 @@ type HoldingOfficeAssignment = {
 ```
 
 - `holdingId`: 任命対象の Holding。term expiry は `absoluteWeek - startWeek >= termYears * WEEKS_PER_YEAR` で判定
-- `contractedRemittanceRate` / `expectedFeeRate`: 代官の徴税条件を表す。代官報酬は `bailiffFeeRate` selector で算出する
+- `expectedFeeRate`: 代官の手数料率。代官報酬は `bailiffFeeRate` selector で算出する（v0.65: `contractedRemittanceRate` は `localExtractionRate` 廃止に伴い削除）
 
 **WorldState の追加フィールド**:
 

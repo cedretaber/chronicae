@@ -11,7 +11,6 @@ type AppointHoldingBailiffParams = {
   holderPersonId: PersonId
   appointingPolityId: PolityId
   week: number
-  contractedRemittanceRate?: number
   expectedFeeRate?: number
 }
 
@@ -76,8 +75,7 @@ export function appointHoldingBailiff(
     active: true,
     startWeek: params.week,
     unpaidCount: 0,
-    contractedRemittanceRate: params.contractedRemittanceRate ?? 0.4,
-    expectedFeeRate: params.expectedFeeRate ?? 0.1,
+    expectedFeeRate: params.expectedFeeRate ?? 0.03,
   }
   const holder = state.persons[params.holderPersonId]
   const isPlaceholder = holder?.kind === 'placeholder'

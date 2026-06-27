@@ -11,10 +11,9 @@ import {
 } from '../selectors/landContractSelectors'
 import { adjustAttitude, personAttitudeKey } from '../helpers/attitudeHelpers'
 import {
-  getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
   getBailiffFeeRate,
-  computeBailiffBurdenComponents,
+  computeBailiffBurdenRate,
   getRecentBailiffRevenueTaskStatus,
   getBailiffPolicy,
 } from '../selectors/bailiffSelectors'
@@ -159,10 +158,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
 
       if (holdingTaxable <= 0) continue
       const revenueAfterOwnerIncome = holdingTaxable
-      // POP 資産税の **納税額** に使う徴収率 = localExtractionRate (代官が取り立てる割合)。
-      //   collectionEfficiency(不正・賄賂で消える分)は掛けない — 納税額 と 徴税額(treasury 到達分)の
-      //   ズレ=徴税ロスは意図された挙動(POP は払うが treasury には届かず消える)。代官不在/非 active は 1。
-      let popTaxLevyFraction = 1
 
       const assignmentId = draft.holdingOfficeIndex.byHolding[holdingId]
       let remittanceToTerminal: number
@@ -177,15 +172,13 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           remittanceToTerminal = revenueAfterOwnerIncome - dividend
         } else {
           const recentTaskStatus = getRecentBailiffRevenueTaskStatus(draft, assignmentId)
-          const localExtractionRate = getBailiffLocalExtractionRate(draft, ctx.config, assignmentId)
           const collectionEfficiency = getBailiffCollectionEfficiency(
             draft,
             ctx.config,
             assignmentId,
             recentTaskStatus,
           )
-          popTaxLevyFraction = localExtractionRate
-          const collected = revenueAfterOwnerIncome * localExtractionRate * collectionEfficiency
+          const collected = revenueAfterOwnerIncome * collectionEfficiency
           const dividend = carveUpperDividendMut(holdingId, collected)
           const afterDividend = collected - dividend
           const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
@@ -199,24 +192,21 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
             }
           }
 
-          const burdenComponents = computeBailiffBurdenComponents(
-            localExtractionRate,
+          const burdenRate = computeBailiffBurdenRate(
             collectionEfficiency,
             ctx.config.collectionFrictionFactor,
           )
 
           const popIds = draft.popIndex.byHolding[holdingId]
           if (popIds) {
-            if (burdenComponents.collectionFrictionBurdenRate > 0) {
-              // v0.58: 苛斂誅求の welfare 圧迫は needSatisfaction を削る (wealth 退役)。
-              //   localExtractionWealthPenalty は係数として流用 (welfare ペナルティ)。
+            if (burdenRate > 0) {
               for (const popId of popIds) {
                 const pop = draft.popGroups[popId]
                 if (!pop) continue
                 const newSat = clamp(
                   pop.needSatisfaction -
-                    burdenComponents.collectionFrictionBurdenRate *
-                      ctx.config.localExtractionWealthPenalty *
+                    burdenRate *
+                      ctx.config.collectionBurdenWelfarePenalty *
                       (pop.needSatisfaction / 100),
                   0,
                   100,
@@ -227,16 +217,13 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               }
             }
 
-            const burdenOverComfort = Math.max(
-              0,
-              burdenComponents.totalBurdenRate - ctx.config.comfortableLocalExtractionRate,
-            )
+            const burdenOverComfort = Math.max(0, burdenRate - ctx.config.comfortableBurdenRate)
             if (burdenOverComfort > 0) {
               for (const popId of popIds) {
                 const pop = draft.popGroups[popId]
                 if (!pop) continue
                 const newUnrest = clamp(
-                  pop.unrest + burdenOverComfort * ctx.config.localExtractionUnrestGain,
+                  pop.unrest + burdenOverComfort * ctx.config.collectionBurdenUnrestGain,
                   0,
                   100,
                 )
@@ -257,11 +244,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                 -1.0,
                 0.5,
               )
-              // v0.49: respect(尊敬/軽蔑) は代官の「有能さ＋実績」で動かす。苛烈さ(affection)
-              //   とは独立軸 — 苛斂誅求でも有能なら恐れつつ尊敬され、低能力なら好かれても軽蔑される。
-              //   軽蔑(負方向)は能力ドリフトが駆動する。task は completed の加点のみ — status は
-              //   'completed'|'none' の2値で 'none' は「直近4週にタスク完了が無い(未割当含む)」=失敗
-              //   ではないため、未完了を減点扱いにすると自動徴収できている有能代官まで不当に軽蔑される。
               const bailiffPerson = draft.persons[assignment.holderPersonId]
               const competence = bailiffPerson
                 ? governanceCompetence(bailiffPerson.abilities)
@@ -278,7 +260,6 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               )
 
               if (affectionDelta !== 0 || respectDelta !== 0) {
-                // 旧 adjustPopAttitude と同一挙動 (pop 不在は no-op、adjustAttitude で常に新 map)。
                 const attitudeKey = personAttitudeKey(assignment.holderPersonId)
                 for (const popId of popIds) {
                   const pop = draft.popGroups[popId]
@@ -301,25 +282,18 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               collected: collected.toFixed(2),
               bailiffFee: bailiffFee.toFixed(2),
               remittance: remittanceToTerminal.toFixed(2),
-              localExtractionRate: localExtractionRate.toFixed(3),
               collectionEfficiency: collectionEfficiency.toFixed(3),
-              totalBurdenRate: burdenComponents.totalBurdenRate.toFixed(3),
+              burdenRate: burdenRate.toFixed(3),
             })
           }
         }
       }
 
-      // v0.58: POP 資産税の burn (納税額) — nominal × popTaxLevyFraction(localExtractionRate) を POP.money から引く。
-      //   このうち treasury へ届く徴税額は holdingTaxable 経由で collected(×collectionEfficiency)→bailiffFee/
-      //   remittance→chain→treasury に流れる。差分(徴税効率ロス=不正・賄賂)は世界から消滅(意図的 sink・
-      //   抽象市場の mint と source/sink で総量均衡)。代官の取り立てが緩い(extraction 低)ほど POP の納税額も減る。
-      if (popTaxByPop.size > 0 && popTaxLevyFraction > 0) {
+      if (popTaxByPop.size > 0) {
         for (const [popId, nominal] of popTaxByPop) {
           const pop = draft.popGroups[popId]
-          if (!pop) continue
-          const burn = nominal * popTaxLevyFraction
-          if (burn <= 0) continue
-          draft.popGroups[popId] = { ...pop, money: Math.max(0, pop.money - burn) }
+          if (!pop || nominal <= 0) continue
+          draft.popGroups[popId] = { ...pop, money: Math.max(0, pop.money - nominal) }
         }
       }
 

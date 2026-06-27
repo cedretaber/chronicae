@@ -678,7 +678,6 @@ describe('runBailiffAppointmentSystem', () => {
       active: true,
       startWeek: s0.absoluteWeek,
       unpaidCount: 0,
-      contractedRemittanceRate: 0,
       expectedFeeRate: 0,
     }
     const province = s0.provinces[provinceId]!

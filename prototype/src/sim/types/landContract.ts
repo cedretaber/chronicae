@@ -78,7 +78,6 @@ export type HoldingOfficeAssignment = {
   active: boolean
   startWeek: number
   unpaidCount: number
-  contractedRemittanceRate: number
   expectedFeeRate: number
   termProtectedUntilWeek?: number
 }

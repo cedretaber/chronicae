@@ -28,11 +28,7 @@ import {
 import type { OfficeAssignmentId } from '../types/ids'
 import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
-import {
-  getBailiffLocalExtractionRate,
-  getBailiffCollectionEfficiency,
-  getBailiffFeeRate,
-} from '../selectors/bailiffSelectors'
+import { getBailiffCollectionEfficiency, getBailiffFeeRate } from '../selectors/bailiffSelectors'
 import { personAttitudeKey } from '../helpers/attitudeHelpers'
 
 function withPopGroup(
@@ -185,7 +181,6 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     const treasury = result.state.polities[polityId]!.treasury
 
     const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
-    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
     const collectionEfficiency = getBailiffCollectionEfficiency(
       state,
       ctx.config,
@@ -194,7 +189,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
     const gross = GROSS
-    const collected = gross * localExtractionRate * collectionEfficiency
+    const collected = gross * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
     const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
 
@@ -208,7 +203,6 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     const result = runLandRevenueSystem(ctx)
 
     const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
-    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
     const collectionEfficiency = getBailiffCollectionEfficiency(
       state,
       ctx.config,
@@ -217,7 +211,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
     const gross = GROSS
-    const collected = gross * localExtractionRate * collectionEfficiency
+    const collected = gross * collectionEfficiency
     const bailiffFee = collected * bailiffFeeRate
     const remittance = collected - bailiffFee
 
@@ -262,21 +256,19 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     expect(bailiff.wealth).toBe(0)
   })
 
-  it('collectionFrictionBurdenRate damages POP wealth proportional to current wealth', () => {
+  it('burdenRate damages POP needSatisfaction proportional to current level', () => {
     const { state, holdingId } = setupWithNormalBailiff()
     const ctx = makeCtx(state)
     const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
-    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
     const collectionEfficiency = getBailiffCollectionEfficiency(
       state,
       ctx.config,
       assignmentId,
       'none',
     )
-    const frictionRate =
-      localExtractionRate * (1 - collectionEfficiency) * ctx.config.collectionFrictionFactor
-    const drainAt100 = frictionRate * ctx.config.localExtractionWealthPenalty * (100 / 100)
-    const drainAt50 = frictionRate * ctx.config.localExtractionWealthPenalty * (50 / 100)
+    const burdenRate = (1 - collectionEfficiency) * ctx.config.collectionFrictionFactor
+    const drainAt100 = burdenRate * ctx.config.collectionBurdenWelfarePenalty * (100 / 100)
+    const drainAt50 = burdenRate * ctx.config.collectionBurdenWelfarePenalty * (50 / 100)
     expect(drainAt100).toBeGreaterThan(0)
     expect(drainAt50).toBeCloseTo(drainAt100 / 2, 5)
   })
@@ -285,16 +277,28 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     const { state, popId } = setupWithNormalBailiff()
     const popBefore = state.popGroups[popId]!
     expect(popBefore.unrest).toBe(0)
-    const result = runLandRevenueSystem(makeCtx(state))
+    const lowEffConfig = {
+      ...defaultConfig,
+      baseBailiffCollectionEfficiency: 0.4,
+      comfortableBurdenRate: 0.1,
+    }
+    const result = runLandRevenueSystem(
+      createTickContext({ state, config: lowEffConfig, rng: createRng('test') }),
+    )
     const popAfter = result.state.popGroups[popId]!
     expect(popAfter.unrest).toBeGreaterThan(0)
   })
 
-  // v0.58: retainedToPop wealth-gain は廃止 (所得は賃金へ一本化) のため当該テストは削除。
-
   it('POP→Bailiff attitude is set for normal bailiff', () => {
     const { state, popId, bailiffPersonId } = setupWithNormalBailiff()
-    const result = runLandRevenueSystem(makeCtx(state))
+    const lowEffConfig = {
+      ...defaultConfig,
+      baseBailiffCollectionEfficiency: 0.4,
+      comfortableBurdenRate: 0.1,
+    }
+    const result = runLandRevenueSystem(
+      createTickContext({ state, config: lowEffConfig, rng: createRng('test') }),
+    )
     const popAfter = result.state.popGroups[popId]!
     const attKey = personAttitudeKey(bailiffPersonId)
     const attitude = popAfter.attitudes[attKey]
@@ -315,7 +319,6 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     const treasury = result.state.polities[polityId]!.treasury
 
     const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
-    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
     const collectionEfficiency = getBailiffCollectionEfficiency(
       state,
       ctx.config,
@@ -324,7 +327,7 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     )
     const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
     const gross = GROSS
-    const collected = gross * localExtractionRate * collectionEfficiency
+    const collected = gross * collectionEfficiency
     const remittance = collected * (1 - bailiffFeeRate)
 
     const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency

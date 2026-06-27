@@ -12,10 +12,10 @@
 
 ### 14.1.1 POP wealth
 
-collection friction は wealth 比例（`× pop.wealth/100`）、`localExtractionWealthPenalty` は 2。
+代官の非効率による welfare 損耗は needSatisfaction 比例（`× pop.needSatisfaction/100`）、`collectionBurdenWelfarePenalty` は 2。burden = `(1 - collectionEfficiency) × collectionFrictionFactor`。
 
-- **比例化前**: POP wealth が0に収束するデススパイラル。生産が停止し Polity treasury も崩壊
-- **現状**: POP wealth は 60-70 付近で均衡。生産が安定し Polity treasury は 2000-5000 で推移
+- **v0.65 以前**: `localExtractionRate`(0.5) が holding 収入の 50% を無意味に消滅させ、upper 階級が最貧層になっていた
+- **v0.65 以降**: `localExtractionRate` 廃止。`baseBailiffCollectionEfficiency` を 0.75 に引き上げ、`upperDividendShareOfNetRevenue` を 0.20 に設定。upper needSat 8→57 に改善、luxury 需要が発生する水準に
 
 均衡点の理論値: `gain × 100 / (frictionRate × penalty)`。平均的 bailiff (ability 50, profit_seeking) で約52、優秀な bailiff で約80。
 

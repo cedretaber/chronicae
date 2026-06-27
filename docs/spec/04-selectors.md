@@ -611,22 +611,15 @@ function getBailiffPolicy(state: WorldState, config: SimulationConfig, assignmen
 // 方針スコア詳細（デバッグ・UI 用）
 function getBailiffPolicyScores(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): Record<BailiffPolicy, number>
 
-// 現地徴収率: contractedRemittanceRate + expectedFeeRate + policyModifier, clamp [min, max]
-function getBailiffLocalExtractionRate(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): number
-
-// 徴税効率: base + skill + policy + task modifier, clamp [min, 1.0]
-// placeholder は placeholderBailiffCollectionEfficiency 固定
+// 徴税効率: base(0.75) + skill + policy + task modifier, clamp [min(0.5), 1.0]
+// placeholder は placeholderBailiffCollectionEfficiency(0.6) 固定
 function getBailiffCollectionEfficiency(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId, recentTaskStatus: BailiffRevenueTaskStatus): number
 
-// 代官取り分率: expectedFeeRate + policyModifier, clamp [0, max]
+// 代官取り分率: expectedFeeRate(0.03) + policyModifier, clamp [0, max]
 function getBailiffFeeRate(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): number
 
-// 徴税負担の分解: actualExtraction + collectionFriction = totalBurden
-function computeBailiffBurdenComponents(
-  localExtractionRate: number,
-  collectionEfficiency: number,
-  collectionFrictionFactor: number,
-): { actualExtractionBurdenRate: number; collectionFrictionBurdenRate: number; totalBurdenRate: number }
+// 代官の非効率さによる POP 負担率: (1 - collectionEfficiency) × collectionFrictionFactor
+function computeBailiffBurdenRate(collectionEfficiency: number, collectionFrictionFactor: number): number
 
 // 直近 4 週の collect_holding_revenue Task 完了状態
 function getRecentBailiffRevenueTaskStatus(state: WorldState, assignmentId: HoldingOfficeAssignmentId): BailiffRevenueTaskStatus
