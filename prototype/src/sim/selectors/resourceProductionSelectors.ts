@@ -253,29 +253,81 @@ export function computeLaborProduction(
   return { effectiveLaborMult, throughputMult: 1 + throughputBonus }
 }
 
-export function computeAssetRecipePotentials(
+export type AssetRecipeContext = {
+  totalSlots: number
+  controlMod: number
+  facilityMod: number
+  allocatedLabor: number
+  actualPopTypeShares: Partial<Record<PopType, number>>
+  beta: number
+  priceLookup: (resource: ResourceKind) => number
+  traitMultByResource: Partial<Record<ResourceKind, number>>
+  laborByRecipe: Map<string, { effectiveLaborMult: number; throughputMult: number }>
+}
+
+export function buildAssetRecipeContext(
   state: WorldState,
   config: SimulationConfig,
   asset: RealEstateAsset,
   allocatedLabor: number,
-  // §6.3 share 解決に使う価格。市場 clearing は smoothedPrice-or-base、fallback は basePrice。
   priceLookup: (resource: ResourceKind) => number = basePriceLookup,
-): AssetRecipePotential[] {
+  allowedRecipeIds?: readonly ProductionRecipeId[],
+): AssetRecipeContext | null {
   const holding = state.holdings[asset.holdingId]
-  if (!holding) return []
-  const totalSlots = config.realEstateRecipeSlotCount
+  if (!holding) return null
   const controlMod = computePolityControlModifier(holding.polityControl, config)
-  // v0.54: asset.level は雇用枠 (capacityPerLevel × level、施設サイズ) にのみ効く。
-  //   level→労働あたり生産性の結合は撤去 (生産性向上は将来の技術/制度システムに委ねる)。
   const facilityMod = computeProductionFacilityModifier(state, config, asset)
-  const beta = config.inputResourceChoiceBeta
-  // §14.3: asset の実 PopType 構成 (recipe 非依存) を一度だけ算出する。
   const actualPopTypeShares = computeAssetPopTypeShares(state, asset)
 
+  const traitMultByResource: Partial<Record<ResourceKind, number>> = {}
+  const laborByRecipe = new Map<string, { effectiveLaborMult: number; throughputMult: number }>()
+
+  const recipeIdsToCache =
+    allowedRecipeIds ?? (Object.keys(asset.recipeSlots) as ProductionRecipeId[])
+  for (const recipeId of recipeIdsToCache) {
+    if (!laborByRecipe.has(recipeId)) {
+      const profile = RECIPE_LABOR_PROFILES[recipeId] ?? []
+      laborByRecipe.set(recipeId, computeLaborProduction(profile, actualPopTypeShares))
+    }
+    const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+    if (!recipe) continue
+    const isRawRecipe = !recipe.inputs || recipe.inputs.length === 0
+    if (isRawRecipe) {
+      for (const o of recipe.outputs) {
+        if (traitMultByResource[o.resource] === undefined) {
+          traitMultByResource[o.resource] = getProvinceOutputTraitMultiplier(
+            state,
+            config,
+            asset.holdingId,
+            o.resource,
+          )
+        }
+      }
+    }
+  }
+
+  return {
+    totalSlots: config.realEstateRecipeSlotCount,
+    controlMod,
+    facilityMod,
+    allocatedLabor,
+    actualPopTypeShares,
+    beta: config.inputResourceChoiceBeta,
+    priceLookup,
+    traitMultByResource,
+    laborByRecipe,
+  }
+}
+
+export function computeAssetRecipePotentialsFromContext(
+  recipeCtx: AssetRecipeContext,
+  recipeSlots: Partial<Record<ProductionRecipeId, number>>,
+): AssetRecipePotential[] {
+  const { totalSlots, controlMod, facilityMod, allocatedLabor, beta, priceLookup } = recipeCtx
   const results: AssetRecipePotential[] = []
-  const recipeIds = (Object.keys(asset.recipeSlots) as ProductionRecipeId[]).sort()
+  const recipeIds = (Object.keys(recipeSlots) as ProductionRecipeId[]).sort()
   for (const recipeId of recipeIds) {
-    const slotCount = asset.recipeSlots[recipeId]
+    const slotCount = recipeSlots[recipeId]
     if (slotCount === undefined || slotCount <= 0) continue
     const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
     if (!recipe) continue
@@ -286,10 +338,10 @@ export function computeAssetRecipePotentials(
       totalSlots,
       recipe.scaleEconomy?.maxMultiplierAtFullSlots ?? 1.0,
     )
-    // v0.57 §雇用細分化: 熟練倍率で重み付けした effectiveLabor と書記 throughput を算出。
-    const profile = RECIPE_LABOR_PROFILES[recipeId] ?? []
-    const labor = computeLaborProduction(profile, actualPopTypeShares)
-    // basePotential = throughput 適用前の産出 (入力計算の基準)。
+    const labor = recipeCtx.laborByRecipe.get(recipeId) ?? {
+      effectiveLaborMult: 1,
+      throughputMult: 1,
+    }
     const basePotential =
       recipeLabor *
       labor.effectiveLaborMult *
@@ -297,25 +349,16 @@ export function computeAssetRecipePotentials(
       scaleMult *
       facilityMod *
       controlMod
-    // 産出は throughput で増やす (同原材料で +最大50%)。
     const potential = basePotential * labor.throughputMult
 
-    // v0.59: 地形特性の産出ブーストは input を持たない raw/採掘 recipe のみに適用する。
-    //   input を持つ加工 recipe に掛けると input 据え置きのまま output が増え無償財になるため、
-    //   config 定義の規約 (raw 限定) をコード側でも強制する。
     const isRawRecipe = !recipe.inputs || recipe.inputs.length === 0
     const potentialOutputs: Partial<Record<ResourceKind, number>> = {}
     for (const o of recipe.outputs) {
-      // 産出 trait は output にのみ乗算する (input は下の basePotential 基準で据え置き=純生産性)。
-      const traitMult = isRawRecipe
-        ? getProvinceOutputTraitMultiplier(state, config, asset.holdingId, o.resource)
-        : 1.0
+      const traitMult = isRawRecipe ? (recipeCtx.traitMultByResource[o.resource] ?? 1.0) : 1.0
       potentialOutputs[o.resource] =
         (potentialOutputs[o.resource] ?? 0) + potential * o.amount * traitMult
     }
 
-    // §6.3: 各 input category を満たす ResourceKind へ比率配分し buyOrders へ変換する。
-    //   v0.57: 入力は throughput 適用前の basePotential で計算する (入力据え置きで産出のみ増える)。
     const potentialInputs: Partial<Record<ResourceKind, number>> = {}
     const inputCategories: ResolvedInputCategory[] = []
     if (recipe.inputs) {
@@ -325,7 +368,6 @@ export function computeAssetRecipePotentials(
         const shares = resolveCategoryShares(contributions, priceLookup, beta)
         const resources: { resource: ResourceKind; buyOrders: number; share: number }[] = []
         for (const s of shares) {
-          // buyOrders (資源単位) = share × desiredCategoryAmount / contributionValue (§6.3)。
           const buyOrders = (s.share * desiredAmount) / s.contributionValue
           potentialInputs[s.resource] = (potentialInputs[s.resource] ?? 0) + buyOrders
           resources.push({ resource: s.resource, buyOrders, share: s.share })
@@ -343,6 +385,18 @@ export function computeAssetRecipePotentials(
     })
   }
   return results
+}
+
+export function computeAssetRecipePotentials(
+  state: WorldState,
+  config: SimulationConfig,
+  asset: RealEstateAsset,
+  allocatedLabor: number,
+  priceLookup: (resource: ResourceKind) => number = basePriceLookup,
+): AssetRecipePotential[] {
+  const recipeCtx = buildAssetRecipeContext(state, config, asset, allocatedLabor, priceLookup)
+  if (!recipeCtx) return []
+  return computeAssetRecipePotentialsFromContext(recipeCtx, asset.recipeSlots)
 }
 
 // v0.59 追補③: holding が生産しうる ResourceKind を asset 種別ごとに静的列挙する。

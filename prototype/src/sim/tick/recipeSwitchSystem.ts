@@ -8,7 +8,9 @@ import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
 import { getAllowedRecipeIdsForKind } from '../config/productionRecipeDefinitions'
 import {
   computeAllocatedLaborByAsset,
-  computeAssetRecipePotentials,
+  buildAssetRecipeContext,
+  computeAssetRecipePotentialsFromContext,
+  type AssetRecipeContext,
 } from '../selectors/resourceProductionSelectors'
 
 // v0.55 §17 RecipeSwitchSystem: 各 RealEstateAsset は月次で最大 1 slot だけ recipe を入れ替える。
@@ -16,22 +18,12 @@ import {
 //   best-improvement (§17.3): 全 1-slot 移動を expectedAssetProfit で評価し最大を選ぶ。
 //   gain が recipeSwitchMinGainRate を超える場合のみ適用。slot 合計は atomic -1/+1 で保存。
 
-// §17.5 expectedAssetProfit: 候補 recipe の期待利益。computeAssetRecipePotentials を smoothedPrice で
-//   再計算し、Σ(output×price) − Σ(input×price) を返す (市場 clearing fulfillment は掛けない)。
-function expectedAssetProfit(
-  ctx: TickContext,
-  asset: RealEstateAsset,
+function expectedAssetProfitFromContext(
+  recipeCtx: AssetRecipeContext,
   recipeSlots: Partial<Record<ProductionRecipeId, number>>,
-  allocatedLabor: number,
   priceLookup: (r: ResourceKind) => number,
 ): number {
-  const potentials = computeAssetRecipePotentials(
-    ctx.state,
-    ctx.config,
-    { ...asset, recipeSlots },
-    allocatedLabor,
-    priceLookup,
-  )
+  const potentials = computeAssetRecipePotentialsFromContext(recipeCtx, recipeSlots)
   let net = 0
   for (const rp of potentials) {
     for (const r of RESOURCE_KINDS) {
@@ -82,11 +74,19 @@ export function runRecipeSwitchSystem(ctx: TickContext): TickContext {
           const allowed = getAllowedRecipeIdsForKind(asset.realEstateKind)
           if (allowed.length <= 1) continue
 
-          const profitBefore = expectedAssetProfit(
-            ctx,
+          const recipeCtx = buildAssetRecipeContext(
+            state,
+            config,
             asset,
-            asset.recipeSlots,
             allocatedLabor,
+            priceLookup,
+            allowed,
+          )
+          if (!recipeCtx) continue
+
+          const profitBefore = expectedAssetProfitFromContext(
+            recipeCtx,
+            asset.recipeSlots,
             priceLookup,
           )
           const threshold = profitBefore * (1 + minGainRate)
@@ -106,7 +106,7 @@ export function runRecipeSwitchSystem(ctx: TickContext): TickContext {
               if (aNext <= 0) delete slots[a]
               else slots[a] = aNext
               slots[b] = (slots[b] ?? 0) + 1
-              const profit = expectedAssetProfit(ctx, asset, slots, allocatedLabor, priceLookup)
+              const profit = expectedAssetProfitFromContext(recipeCtx, slots, priceLookup)
               // 同点は (A,B) 昇順で tiebreak (fromIds / allowed が sorted なので先勝ちで足りる)。
               if (profit > bestProfit) {
                 bestProfit = profit
