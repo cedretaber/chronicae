@@ -60,6 +60,8 @@ const WEEKS_PER_SEASON = 12
 | 5b | ObligationAccrualSystem | 4 | v0.53: active な RealEstateSeizure / LandContractDefault の `accumulatedUnpaidAmount`（係争規模指標）を概算加算。厳密会計値ではない（spec v0.53 §12） |
 | 5c | PrescriptionSystem | 4 | v0.53: 20年時効。`lastContestedWeek ?? startedWeek` から prescription 年数経過で legalized。seizure→`asset.owner = undefined` / default→`spliceOutClaimantContract`（直近 grantor 1 段 splice）（spec v0.53 §13） |
 | 5d | CleanupTerminalObligations | 4 | v0.53: terminal（resolved/legalized/cancelled）化した seizure/default を `terminalObligationRetentionWeeks` 経過後に Record から削除（index は terminal 化時点で除去済み。retention は UI/Event 用）（spec v0.53 §6.2 / §6.3） |
+| 5e | OfficeCompensationSystem | 4 | v0.64: 収入→**経費→配当**の順に移動。surplus distribution の前に必要経費を支払う |
+| 5f | RegimentBarracksWageSystem | 4 | v0.64: 兵舎給与。POP 維持コストを Regiment owner の treasury から支払い、POP.money に移転 |
 | 6 | PolitySurplusDistributionSystem | 4 | |
 | 6b | HouseSurplusDistributionSystem | 4 | |
 | 7 | HarvestSystem | 48 | v0.48: 旧 DisasterSystem の正イベント（BountifulHarvest）のみ。負イベント（災害）は CrisisSystem へ移設（§6.6a） |
@@ -86,7 +88,6 @@ const WEEKS_PER_SEASON = 12
 | 13a | BailiffRevenueTaskSystem | 4 | 代官月次 collect_holding_revenue Task 生成・期限切れ処理 |
 | 13b | TaskSystem | 1 | 毎週。Task 生成・処理・outcome・cleanup 一体 |
 | 13c | BailiffAppointmentSystem | 12 | |
-| 14 | OfficeCompensationSystem | 4 | |
 | 14b | FactionPatronageSystem | 48 | |
 | 14c | FactionDefectionSystem | 12 | v0.51.1: 四半期判定。lastActiveWeek 基準の無役離脱 + 国家 Project 考慮。崩壊2 overreach は既定 OFF |
 | 14d | FactionMaintenanceSystem | 4 | leader 死亡時継承・死亡 member 整理。WI-3 崩壊1: 継承後の scatter |
@@ -129,7 +130,7 @@ const WEEKS_PER_SEASON = 12
 | 22d2 | RegimentMaintenanceSystem | 1 | orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.49） |
 | 22d2b | RightConsistencySystem | 1 | v0.42。regimentMaintenance の owner 同期の**直後**。PoliticalRight の drift（owner 付替 / terminal 変化）を回収し POLITICAL_RIGHT_REVOKED を発行。年末 invariant のため weekly 必須（§6.65） |
 | 22d2c | InfluenceModifierConsistencySystem | 1 | v0.51。InfluenceModifier の期限切れ・target 消滅・polity inactive を回収。年末 integrity が liveness を検査するため weekly 必須（rightConsistency と同型・§6.26）|
-| 22d3 | RegimentReinforcementSystem | 4 | 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.50） |
+| 22d3 | RegimentReinforcementSystem | 4 | 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・POP 充足率・給与支払い状況。v0.64: treasury cap 撤廃——補充コストは兵舎給与に一本化）+ destroyed reform（§6.50） |
 | 23 | AttitudeDecaySystem | 4 | |
 | 24 | GovernanceSystem | 48 | |
 | 25 | normalizePopSizes | 4 | |

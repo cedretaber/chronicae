@@ -259,5 +259,15 @@ Polity / House / Province / Holding / Person の `nameKey` は、name pool（`Na
 - Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` / NamePoolService による重複あり選択（中世欧州風に同名人物が複数存在し得る）
 - `debug` モード時もエンティティ名は通常と同じ名前プールから生成される（連番 ID 方式は廃止）。デバッグ追跡はエンティティ固有 ID（`pe-42`, `h-3` 等）で行う
 
+### 7.9 初期連隊・兵舎の生成（v0.64）
+
+`generateInitialRegiments` で 1 Holding = 1 歩兵連隊を生成する。`createRegimentWithBarracksMut` で Regiment と RegimentBarracks を同時生成し、`requiredByPopType` を `computeBarracksRequiredByPopType(config, troopKind)` で確定。歩兵: soldiers 8 + ministeriales 2。
+
+各 popType について `addToOrCreatePopGroupMut` で兵舎勤務 POP を明示生成（`employerId: { kind: 'barracks', id: barracks.id }`、`class: getPopStratum(popType)`）。
+
+騎兵は `cavalryEntitlementSystem`（§6.72）が動的に生成する。worldgen では歩兵のみ。
+
+叛乱（`diplomaticPlayRevolt`）の local_levy は `requiredByPopType: {}` の transient barracks で生成（POP 不要・給与 no-op・戦闘死亡 no-op）。
+
 ---
 

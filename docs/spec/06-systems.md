@@ -3074,3 +3074,72 @@ StateRegion 単位の市場（§6.55+）は state 間で資源が流通せず、
 **v0.61 交易路修正 config（balance-defer）**: `tradeRouteFixedMaintenanceCostByLevel: {1:0.15, 2:0.3, 3:0.45, 4:0.6}`（旧 {1:1, 2:2, 3:3, 4:4} から引き下げ）・`tradeRouteVariableMaintenanceCostPerUnit: 0.05`・`tradeRouteFullUtilizationSpreadRatio: 0.6`（≥1.5 は無効値域・価格バンド [0.25,1.75]×basePrice の理論上限）・`merchantCompanyOpenRouteProfitThreshold: 0`・`merchantRouteUpgradeUtilizationThreshold: 0.5`・`merchantRouteUpgradeProfitGainThreshold: 0.5`・`merchantRouteCloseSmoothedProfitThreshold: -0.1`。
 
 **UI（§22）**: `MerchantCompanyDetail`（所有家・会頭/番頭・財務・本支店・交易路・active Project 一覧）+ `TradeRouteDetail`（接続 state・対象商品・planning price・利益）+ HouseDetail の「商会」セクションから導線。`MarketDetail` は交易路を輸入/輸出に分割表示。`EntityType='merchant_company'`。
+
+### 6.72 連隊・兵舎・POP 接続（RegimentBarracks・v0.64）
+
+v0.64 で Regiment の本拠地を `homeHoldingId`/`homeProvinceId` から **RegimentBarracks（兵舎）** エンティティに置き換え、連隊を地域社会の POP と接続した。型定義は §3.9b / §3.9b-2。
+
+#### 兵舎給与（RegimentBarracksWageSystem）
+
+月次（4 週ごと）。active barracks を ID 昇順でソートし、Regiment owner の Polity treasury から兵舎勤務 POP へ給与を支払う。
+
+- `requiredPayroll = Σ(employed.size × barracksMonthlyWageByPopType[popType])`
+- `paid = min(requiredPayroll, max(0, polity.treasury))`
+- `payrollFulfillment = requiredPayroll > 0 ? paid / requiredPayroll : 1`
+- treasury 減算、POP.money に wage 比例按分で加算（移転。経済循環の一部）
+- 未払い時 `unpaidCount++`、全額支払い時 `unpaidCount = max(0, unpaidCount - 1)`
+- org ペナルティ: `shortfall × barracksUnpaidOrganizationPenalty × max(1, unpaidCount)`
+- morale ペナルティ: `shortfall × barracksUnpaidMoralePenalty × max(1, unpaidCount)`
+- non-polity owner → fulfillment=0、ペナルティ適用
+
+tick 順序: landRevenueSystem → **officeCompensationSystem → regimentBarracksWageSystem** → politySurplusDistributionSystem（収入→経費→配当）。
+
+#### 兵舎充足率と Regiment 能力
+
+二軸の充足率で Regiment の effective max を制約する。`barracksSelectors.ts`。
+
+**overallFulfillment**: `Σ min(actual, required) / Σ required`。全 POP 充足→`effectiveMaxStrength = maxStrength × overallFulfillment`。
+
+**commandFulfillment**: 指揮要員比率。歩兵 = `clamp(actualMinisteriales/actualSoldiers / idealRatio, 0, 1)`。騎兵 = `min(ministerialFulfillment, nobleFulfillment)`。→ `effectiveMaxOrganization = maxOrganization × commandFulfillment`、`effectiveBaselineOrganization = baselineOrganization × commandFulfillment`。
+
+`getEffectiveMaxStrength`/`getEffectiveMaxOrganization`/`getEffectiveBaselineOrganization` を RecoverySystem・ReinforcementSystem で参照。
+
+#### 補充（RegimentReinforcementSystem 変更）
+
+v0.64 で treasury コストを撤廃。strength 補充の制約は POP 充足率（`overallFulfillment`）と給与支払い状況（`lastPayrollFulfillment`）のみ。兵舎給与が POP 維持コストとして treasury から支払済みのため、補充での二重課金を解消。
+
+`reinforcementGain = base × popFactor(overallFulfillment) × homeControl × warState × troopFactor × lastPayrollFulfillment`。
+補充上限 = `effectiveMaxStrength - strength`。
+
+destroyed reform: 充足率 gate（`overallFulfillment ≥ reformMinPopFactor`）+ `lastPayrollFulfillment > 0` + treasury ≥ `destroyedRegimentReformCost`。reform のみ treasury から reformCost を支払う。
+
+#### 戦闘損耗→POP 死亡
+
+`applyBarracksCasualtyMut(ws, barracksId, strengthDamage)`: battle result の strengthDamage > 0 時に warManeuverSystem から呼び出し。popType ごとに `required × (strengthDamage / 100)` の POP を `reduceBarracksPopSizeMut` で削減（per-capita money 保存）。local_levy は `requiredByPopType = {}` のため自然に no-op。
+
+#### disband cascade
+
+`disbandRegimentMut`: barracks を inactive 化 + `unbindPopsFromEmployerMut` で雇用 POP を全員失業化。
+
+#### Integrity Check
+
+旧 invariant（byHomeHolding/byHomeProvince 整合、homeHoldingId 必須）を削除。新規: barracks invariant B1-B7（active barracks の holding/regiment 存在・requiredByPopType 整合・status 遷移）、regiment invariant R1-R5（barracksId 存在・index 整合）、employer invariant E1-E4（barracks employer の holding/entity 整合）。
+
+#### Config（§9 に追記）
+
+```
+regimentBarracksRequiredTotalPopByTroopKind: { infantry: 10, cavalry: 10 }
+regimentBarracksRequiredPopRatioByTroopKind: {
+  infantry: { soldiers: 0.8, ministeriales: 0.2 },
+  cavalry: { soldiers: 0.6, ministeriales: 0.3, nobles: 0.1 }
+}
+barracksMonthlyWageByPopType: { soldiers: 1.0, ministeriales: 1.5, nobles: 2.0 }
+barracksUnpaidOrganizationPenalty: 15
+barracksUnpaidMoralePenalty: 10
+```
+
+#### バランス保留（機能完成後に調整）
+
+- 兵舎給与レート（soldiers 1.0 等）と他の経済フロー（office compensation・resource economy wage）とのバランス
+- 世界生産力の経年低下により treasury が枯渇すると全連隊が未払いに張り付く既存問題（v0.64 固有ではない。§14）
+- unpaidCount の蓄積速度と org/morale ペナルティの均衡
