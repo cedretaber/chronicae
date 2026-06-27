@@ -1,7 +1,7 @@
 import type { PopGroup, PopType } from '@/sim/types/popGroup'
 import { getPopStratum } from '@/sim/types/popGroup'
 import type { NeedCategory, NeedTier } from '@sim/types/needCategory'
-import { NEED_CATEGORIES, NEED_CATEGORY_TIER } from '@sim/types/needCategory'
+import { NEED_CATEGORIES, getNeedCategoryTier } from '@sim/types/needCategory'
 import { clamp100 } from '@sim/utils/math'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot } from './shared/helpers'
@@ -115,7 +115,7 @@ export function PopGroupDetail({
         const byTier = new Map<NeedTier, NeedCategory[]>()
         for (const cat of NEED_CATEGORIES) {
           if (sat[cat] === undefined) continue
-          const tier = NEED_CATEGORY_TIER[cat]
+          const tier = getNeedCategoryTier(popGroup.class, cat)
           const arr = byTier.get(tier) ?? []
           arr.push(cat)
           byTier.set(tier, arr)

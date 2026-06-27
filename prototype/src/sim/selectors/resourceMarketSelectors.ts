@@ -4,7 +4,7 @@ import type { ResourceKind } from '../types/resource'
 import type { NeedCategory, NeedTier } from '../types/needCategory'
 import {
   NEED_CATEGORIES,
-  NEED_CATEGORY_TIER,
+  getNeedCategoryTier,
   NEED_CATEGORY_CONTRIBUTIONS,
 } from '../types/needCategory'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
@@ -81,8 +81,7 @@ export function computePopNeedDemand(
   for (const category of NEED_CATEGORIES) {
     const amountPerPop = profile[category]
     if (amountPerPop <= 0) continue
-    const tier = NEED_CATEGORY_TIER[category]
-    // v0.58 balance: essential tier は popEssentialNeedScale で一律スケール（過少消費の調整ダイヤル）。
+    const tier = getNeedCategoryTier(pop.class, category)
     const tierScale = tier === 'essential' ? config.popEssentialNeedScale : 1
     const desiredValue = amountPerPop * pop.size * tierScale // v0.58: full desired（予算制約は呼び出し側）
     if (desiredValue <= 0) continue

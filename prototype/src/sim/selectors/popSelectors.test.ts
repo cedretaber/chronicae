@@ -99,13 +99,13 @@ describe('food-based carrying capacity', () => {
     expect(getStateFoodSupply(s, 'sr-0' as StateRegionId)).toBeCloseTo(200 * 1.0 + 100 * 1.5, 3)
   })
 
-  it('getPerCapitaFoodNeed は food カテゴリの profile×tierScale の和 (essential は popEssentialNeedScale)', () => {
-    // peasants: staple_food 1.0 + protein 0.12 (essential ×scale) + fine_food 0 → scale × 1.12
+  it('getPerCapitaFoodNeed は food カテゴリの profile×tierScale の和 (stratum 別 tier)', () => {
+    // peasants (lower): staple_food 1.0 (essential ×scale) + protein 0.12 (ordinary ×1) + fine_food 0 (luxury)
     expect(getPerCapitaFoodNeed(defaultConfig, 'peasants')).toBeCloseTo(
-      defaultConfig.popEssentialNeedScale * (1.0 + 0.12),
+      defaultConfig.popEssentialNeedScale * 1.0 + 0.12,
       6,
     )
-    // nobles: staple 1.0 + protein 0.5 (×scale) + fine_food 0.25 (ordinary ×1) → scale×1.5 + 0.25
+    // nobles (upper): staple 1.0 + protein 0.5 (essential ×scale) + fine_food 0.25 (ordinary ×1)
     expect(getPerCapitaFoodNeed(defaultConfig, 'nobles')).toBeCloseTo(
       defaultConfig.popEssentialNeedScale * (1.0 + 0.5) + 0.25,
       6,

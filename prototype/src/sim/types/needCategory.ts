@@ -1,4 +1,5 @@
 import type { ResourceKind } from './resource'
+import type { PopStratum } from './popGroup'
 
 // v0.55 §5: NeedTier / NeedCategory。POP は NeedCategory 単位で需要を持ち、市場では
 //   ResourceKind の buyOrders へ比率配分する (§5.4)。
@@ -15,17 +16,47 @@ export type NeedCategory =
   | 'luxury_clothing'
   | 'luxury_goods'
 
-// §5.2: NeedCategory → NeedTier。
-export const NEED_CATEGORY_TIER: Record<NeedCategory, NeedTier> = {
-  staple_food: 'essential',
-  protein: 'essential',
-  basic_drink: 'essential',
-  basic_fabric: 'essential',
-  clothing: 'ordinary',
-  fine_food: 'ordinary',
-  luxury_drink: 'luxury',
-  luxury_clothing: 'luxury',
-  luxury_goods: 'luxury',
+// §5.2: PopStratum × NeedCategory → NeedTier。階層によって必需品/日用品/嗜好品の範囲が異なる。
+//   lower: 食料・飲料・布が必需、タンパク質・衣服は日用品（貧しい農民は食料を最優先）
+//   middle/upper: タンパク質・衣服も必需品に含まれる（生活水準が高い）
+export const NEED_CATEGORY_TIER_BY_STRATUM: Record<PopStratum, Record<NeedCategory, NeedTier>> = {
+  lower: {
+    staple_food: 'essential',
+    protein: 'ordinary',
+    basic_drink: 'essential',
+    basic_fabric: 'essential',
+    clothing: 'ordinary',
+    fine_food: 'luxury',
+    luxury_drink: 'luxury',
+    luxury_clothing: 'luxury',
+    luxury_goods: 'luxury',
+  },
+  middle: {
+    staple_food: 'essential',
+    protein: 'essential',
+    basic_drink: 'essential',
+    basic_fabric: 'essential',
+    clothing: 'essential',
+    fine_food: 'ordinary',
+    luxury_drink: 'luxury',
+    luxury_clothing: 'luxury',
+    luxury_goods: 'luxury',
+  },
+  upper: {
+    staple_food: 'essential',
+    protein: 'essential',
+    basic_drink: 'essential',
+    basic_fabric: 'essential',
+    clothing: 'essential',
+    fine_food: 'ordinary',
+    luxury_drink: 'luxury',
+    luxury_clothing: 'luxury',
+    luxury_goods: 'luxury',
+  },
+}
+
+export function getNeedCategoryTier(stratum: PopStratum, category: NeedCategory): NeedTier {
+  return NEED_CATEGORY_TIER_BY_STRATUM[stratum][category]
 }
 
 // §5.3 ResourceNeedContribution: 各 NeedCategory を満たす ResourceKind と contributionValue

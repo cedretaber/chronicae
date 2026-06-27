@@ -8,6 +8,7 @@ import type {
   PopGroupId,
 } from '../types/ids'
 import type { PopGroup, PopClass, PopType } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -15,7 +16,7 @@ import type { WorkplaceRef } from '../types/workplaceRef'
 import { clamp } from '../utils/math'
 import { FOOD_RESOURCE_VALUE, FOOD_NEED_CATEGORIES } from '../config/popFoodDefinitions'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
-import { NEED_CATEGORY_TIER } from '../types/needCategory'
+import { getNeedCategoryTier } from '../types/needCategory'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import {
   computeHoldingClassCapacity,
@@ -119,9 +120,11 @@ export function getStateFoodSupply(state: WorldState, stateId: StateRegionId): n
 //   生存閾値が needSatisfaction の実需要と構造的に同一の物差しになり、config を触っても drift しない。
 export function getPerCapitaFoodNeed(config: SimulationConfig, popType: PopType): number {
   const profile = POP_NEED_PROFILES[popType]
+  const stratum = getPopStratum(popType)
   let need = 0
   for (const cat of FOOD_NEED_CATEGORIES) {
-    const tierScale = NEED_CATEGORY_TIER[cat] === 'essential' ? config.popEssentialNeedScale : 1
+    const tierScale =
+      getNeedCategoryTier(stratum, cat) === 'essential' ? config.popEssentialNeedScale : 1
     need += profile[cat] * tierScale
   }
   return need

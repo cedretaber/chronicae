@@ -92,7 +92,7 @@ import type { PopType } from '../types/popGroup'
 import type { ResourceKind } from '../types/resource'
 import {
   NEED_CATEGORIES,
-  NEED_CATEGORY_TIER,
+  getNeedCategoryTier,
   NEED_CATEGORY_CONTRIBUTIONS,
 } from '../types/needCategory'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
@@ -104,9 +104,10 @@ import { seedMerchantCompanies } from './seedMerchantCompanies'
 //   満たした場合の 1 pop・1 ヶ月あたりコストを basePrice で概算する (RNG 不使用・balance-defer)。
 function estimateMonthlyEssentialCostPerPop(popType: PopType): number {
   const profile = POP_NEED_PROFILES[popType]
+  const stratum = getPopStratum(popType)
   let cost = 0
   for (const category of NEED_CATEGORIES) {
-    if (NEED_CATEGORY_TIER[category] !== 'essential') continue
+    if (getNeedCategoryTier(stratum, category) !== 'essential') continue
     const amountPerPop = profile[category]
     if (amountPerPop <= 0) continue
     // 同 category 内で price/contributionValue が最小 (= need 1 単位を最安で満たす) 資源を採用。
