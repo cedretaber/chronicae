@@ -235,6 +235,20 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runCleanupTerminalObligations,
   },
+  // v0.64: 必要経費（官僚給与・兵舎給与）を surplus distribution の前に実行する。
+  //   収入 → 経費 → 配当 の順が正しい財政フロー。
+  {
+    name: 'officeCompensationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runOfficeCompensationSystem,
+  },
+  {
+    name: 'regimentBarracksWageSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRegimentBarracksWageSystem,
+  },
   {
     name: 'politySurplusDistributionSystem',
     intervalWeeks: 4,
@@ -416,18 +430,6 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runBailiffAppointmentSystem,
-  },
-  {
-    name: 'officeCompensationSystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runOfficeCompensationSystem,
-  },
-  {
-    name: 'regimentBarracksWageSystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runRegimentBarracksWageSystem,
   },
   {
     name: 'factionPatronageSystem',

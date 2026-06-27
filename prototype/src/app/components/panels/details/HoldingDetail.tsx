@@ -60,6 +60,7 @@ import {
   getAssetPopTypeCapacity,
   getHoldingPops,
   getHoldingMonthlyPopChange,
+  getWorkplaceEmployedPopSizeByType,
 } from '@sim/selectors/popSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
@@ -511,6 +512,40 @@ export function HoldingDetail({
                             world={currentState}
                             onClick={onPolityClick}
                           />
+                        </div>
+                      )}
+                      {/* POP employment by type */}
+                      {Object.keys(bk.requiredByPopType).length > 0 && (
+                        <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                          {(Object.entries(bk.requiredByPopType) as [PopType, number][]).map(
+                            ([popType, required]) => {
+                              const employed = getWorkplaceEmployedPopSizeByType(
+                                currentState,
+                                bk.holdingId,
+                                { kind: 'barracks', id: bk.id },
+                                popType,
+                              )
+                              const pct = required > 0 ? clamp100((employed / required) * 100) : 0
+                              return (
+                                <div key={popType} className="flex items-center gap-1.5">
+                                  <span className="w-20 text-gray-500">
+                                    {t(`detail.province.pop_type.${popType}`, {
+                                      defaultValue: popType,
+                                    })}
+                                  </span>
+                                  <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                                    <div
+                                      className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-16 text-right text-gray-400">
+                                    {formatPopCount(employed)}/{formatPopCount(required)}
+                                  </span>
+                                </div>
+                              )
+                            },
+                          )}
                         </div>
                       )}
                       <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
