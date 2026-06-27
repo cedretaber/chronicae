@@ -317,7 +317,8 @@ export type SimulationConfig = {
   //   発火・餓死とも pressure (= 人口 / 食料扶養力) ベース。fulfillment は購買力加重のため不使用。
   famineOnsetPressure: number // この pressure を超えた分が「食料不足」= 飢饉の発火/餓死の不足量
   famineMortalityPerDeficit: number // 急性餓死率 = min(max, perDeficit × (pressure − onset))
-  famineMaxMortalityRate: number // 1 回の飢饉発生で減る lower POP の上限割合
+  famineMaxMortalityRate: number // 1 回の飢饉発生で減る POP の上限割合
+  famineFoodProducerProtection: number // 食料生産者の飢饉被害軽減係数 (0.3 = 被害の 30% のみ)
   // v0.55 干魃 (食料生産への被害, §B): 発生 holding の食料 recipe 産出に乗算する減衰。
   droughtFoodOutputPenaltyRate: number // 産出倍率 = max(floor, 1 − rate × severity/100)
   droughtFoodOutputFloor: number
@@ -1878,6 +1879,7 @@ export const defaultConfig: SimulationConfig = {
   famineOnsetPressure: 1.3,
   famineMortalityPerDeficit: 0.3,
   famineMaxMortalityRate: 0.15,
+  famineFoodProducerProtection: 0.3,
   // v0.55 干魃: 食料生産への被害。severity 30 → 産出 ×0.70、severity 50 → ×0.50 (floor 0.30)。
   droughtFoodOutputPenaltyRate: 1.0,
   droughtFoodOutputFloor: 0.3,

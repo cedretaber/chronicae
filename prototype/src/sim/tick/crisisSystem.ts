@@ -16,7 +16,7 @@ import type {
   EventId,
   WarId,
 } from '../types/ids'
-import type { PopClass } from '../types/popGroup'
+import type { PopClass, PopGroup } from '../types/popGroup'
 import { createProjectId } from '../types/ids'
 import { randomFloat } from '../rng/rng'
 import type { RngState } from '../rng/rng'
@@ -41,7 +41,7 @@ import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { getHoldingImprovementEffectiveLevel } from '../selectors/holdingImprovementSelectors'
-import { getProvincePopulationPressure } from '../selectors/popSelectors'
+import { getProvincePopulationPressure, isFoodProducerPop } from '../selectors/popSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
@@ -449,17 +449,28 @@ function spawnCrisisForHolding(
       mitigationFactor
   }
   if (shockRate > 0) {
-    const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'lower'
-    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass, (pop, removed) =>
-      // v0.59: 飢饉・疫病死を自然減として人口変動 read-model へ累積。
-      accrueNaturalPopChangeMut(
-        ws,
-        pop.holdingId,
-        pop.class,
-        pop.popType,
-        pop.employerId,
-        -removed,
-      ),
+    const popClass: PopClass | undefined =
+      kind === 'plague' || kind === 'famine' ? undefined : 'lower'
+    const famineRateModifier =
+      kind === 'famine'
+        ? (pop: PopGroup) =>
+            isFoodProducerPop(ws, pop) ? config.famineFoodProducerProtection : 1.0
+        : undefined
+    reduceHoldingPopSizeProportionalMut(
+      ws,
+      holdingId,
+      shockRate,
+      popClass,
+      (pop, removed) =>
+        accrueNaturalPopChangeMut(
+          ws,
+          pop.holdingId,
+          pop.class,
+          pop.popType,
+          pop.employerId,
+          -removed,
+        ),
+      famineRateModifier,
     )
   }
 
@@ -670,16 +681,20 @@ function runWeeklyProcessing(
     touched = true
 
     const holdingId = crisis.holdingId
-    // plague は全 class、unrest は反乱 class、disrepair は全 class (neglect attitude のみ使用)、
-    // それ以外 (famine/drought/war_damage) は peasants。
+    // plague/famine/disrepair は全 class、unrest は反乱 class、drought/war_damage は lower。
     const popClass: PopClass | undefined =
-      crisis.kind === 'plague'
+      crisis.kind === 'plague' || crisis.kind === 'famine'
         ? undefined
         : crisis.kind === 'unrest'
           ? crisis.demand?.claimantPopClass
           : crisis.kind === 'disrepair'
             ? undefined
             : 'lower'
+    const famineRateModifier =
+      crisis.kind === 'famine'
+        ? (pop: PopGroup) =>
+            isFoodProducerPop(ws, pop) ? config.famineFoodProducerProtection : 1.0
+        : undefined
 
     // owner を live 解決 (§0-10)。owner inactive/holding terminal 喪失 → expired+purge (EC2/EC5)。
     const ownerPolityId = getHoldingTerminalPolityId(ws, holdingId)
@@ -807,12 +822,14 @@ function runWeeklyProcessing(
         holdingId,
         -config.crisisWeeklyWealthPenaltyPerSeverity * severity,
         popClass,
+        famineRateModifier,
       )
       adjustHoldingPopUnrestMut(
         ws,
         holdingId,
         config.crisisWeeklyUnrestPerSeverity * severity,
         popClass,
+        famineRateModifier,
       )
     }
 

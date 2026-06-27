@@ -32,6 +32,8 @@ import { popGroupChangeKey } from '../types/popChange'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { isEmployed, workplaceRefKey } from '../types/workplaceRef'
+import type { ProductionRecipeId } from '../types/ids'
+import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -738,4 +740,19 @@ export function collectHoldingWorkplaces(
   }
   refs.sort((a, b) => workplaceRefKey(a).localeCompare(workplaceRefKey(b)))
   return refs
+}
+
+export function isFoodProducerPop(state: WorldState, pop: PopGroup): boolean {
+  if (!pop.employerId || pop.employerId.kind !== 'asset') return false
+  const asset = state.realEstateAssets[pop.employerId.id]
+  if (!asset) return false
+  for (const recipeId of Object.keys(asset.recipeSlots).sort() as ProductionRecipeId[]) {
+    if ((asset.recipeSlots[recipeId] ?? 0) <= 0) continue
+    const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+    if (!recipe) continue
+    for (const output of recipe.outputs) {
+      if (output.resource in FOOD_RESOURCE_VALUE) return true
+    }
+  }
+  return false
 }

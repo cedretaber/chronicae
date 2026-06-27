@@ -371,6 +371,7 @@ export function adjustHoldingPopNeedSatisfactionMut(
   holdingId: HoldingId,
   delta: number,
   popClass?: PopClass,
+  rateModifier?: (pop: PopGroup) => number,
 ): void {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds) return
@@ -378,18 +379,19 @@ export function adjustHoldingPopNeedSatisfactionMut(
     const pop = ws.popGroups[popId]
     if (!pop) continue
     if (popClass !== undefined && pop.class !== popClass) continue
-    const newSat = clamp(pop.needSatisfaction + delta, 0, 100)
+    const effectiveDelta = rateModifier ? delta * rateModifier(pop) : delta
+    const newSat = clamp(pop.needSatisfaction + effectiveDelta, 0, 100)
     if (newSat === pop.needSatisfaction) continue
     ws.popGroups[popId] = { ...pop, needSatisfaction: newSat }
   }
 }
 
-// holding 内の (optionally class 指定) POP の unrest を delta だけ動かす (clamp 0..100)。
 export function adjustHoldingPopUnrestMut(
   ws: WorldState,
   holdingId: HoldingId,
   delta: number,
   popClass?: PopClass,
+  rateModifier?: (pop: PopGroup) => number,
 ): void {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds) return
@@ -397,7 +399,8 @@ export function adjustHoldingPopUnrestMut(
     const pop = ws.popGroups[popId]
     if (!pop) continue
     if (popClass !== undefined && pop.class !== popClass) continue
-    const newUnrest = clamp(pop.unrest + delta, 0, 100)
+    const effectiveDelta = rateModifier ? delta * rateModifier(pop) : delta
+    const newUnrest = clamp(pop.unrest + effectiveDelta, 0, 100)
     if (newUnrest === pop.unrest) continue
     ws.popGroups[popId] = { ...pop, unrest: newUnrest }
   }
@@ -412,6 +415,7 @@ export function reduceHoldingPopSizeProportionalMut(
   popClass?: PopClass,
   // v0.59: 減少した各 pop と除去量を通知 (crisis 死を人口変動 read-model へ自然減として累積するため)。
   onReduce?: (pop: PopGroup, removed: number) => void,
+  rateModifier?: (pop: PopGroup) => number,
 ): void {
   const popIds = ws.popIndex.byHolding[holdingId]
   if (!popIds) return
@@ -419,10 +423,9 @@ export function reduceHoldingPopSizeProportionalMut(
     const pop = ws.popGroups[popId]
     if (!pop) continue
     if (popClass !== undefined && pop.class !== popClass) continue
-    const newSize = Math.max(0, pop.size - pop.size * rate)
+    const effectiveRate = rateModifier ? rate * rateModifier(pop) : rate
+    const newSize = Math.max(0, pop.size - pop.size * effectiveRate)
     if (newSize === pop.size) continue
-    // v0.58: money は extensive → 死亡 (size 減) は per-capita 保存のため比例 burn
-    //   (popSystem の自然死亡と同じ規約。crisis 死で money を据え置くと生存者の per-capita が膨らむ)。
     ws.popGroups[popId] = {
       ...pop,
       size: newSize,

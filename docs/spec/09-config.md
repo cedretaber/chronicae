@@ -293,7 +293,8 @@
 | droughtBaseChancePerYear | 0.04 | 干魃発生率/年/Province（v0.55: 気候イベント。人口圧とは独立した base のみ） |
 | famineOnsetPressure | 1.0 | v0.55 飢饉: pressure（人口/扶養力）がこれを超えた分が「食料不足」= 発火/餓死の不足量 |
 | famineMortalityPerDeficit | 0.3 | v0.55 飢饉: 急性餓死率 = min(famineMaxMortalityRate, perDeficit × (pressure − onset)) |
-| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る lower POP の上限割合 |
+| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る POP の上限割合 |
+| famineFoodProducerProtection | 0.3 | 食料生産者（雇用先 asset が食料資源を産出する POP）の飢饉被害軽減係数。初期ショック・週次デバフとも被害の 30% のみ受ける |
 | droughtFoodOutputPenaltyRate | 1.0 | v0.55 干魃: 食料産出倍率 = max(floor, 1 − rate × severity/100) |
 | droughtFoodOutputFloor | 0.3 | v0.55 干魃: 産出減衰の下げ止まり（severity 100 でも floor 倍は残る） |
 | crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 / disrepair 30 | kind 別 初期 severity（disrepair は修理工数 = Project targetProgress） |
