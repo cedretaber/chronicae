@@ -1006,6 +1006,22 @@ detail:
     employment_capacity: '職業枠'
     pop_class_summary: '階層別 POP 情報'
     pop_list: 'POP 一覧'
+    regiments: '連隊'
+    troop_infantry: '歩兵'
+    troop_cavalry: '騎兵'
+    source_levy: '徴集兵'
+    source_urban_militia: '都市民兵'
+    source_noble_retinue: '貴族従士'
+    source_mercenary: '傭兵'
+    source_local_levy: '現地徴集'
+    regiment_owner: '所有'
+    regiment_str: '兵力'
+    regiment_org: '統制'
+    regiment_morale: '士気'
+    regiment_unpaid: '未払い {{count}}回'
+    status_active: '現役'
+    status_destroyed: '壊滅'
+    status_disbanded: '解散'
 
   # 戦争詳細 (v0.34)
   war:

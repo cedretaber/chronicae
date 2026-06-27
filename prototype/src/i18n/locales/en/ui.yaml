@@ -903,6 +903,22 @@ detail:
     employment_capacity: 'Employment Capacity'
     pop_class_summary: 'POP by Stratum'
     pop_list: 'POP List'
+    regiments: 'Regiments'
+    troop_infantry: 'Infantry'
+    troop_cavalry: 'Cavalry'
+    source_levy: 'Levy'
+    source_urban_militia: 'Urban Militia'
+    source_noble_retinue: 'Noble Retinue'
+    source_mercenary: 'Mercenary'
+    source_local_levy: 'Local Levy'
+    regiment_owner: 'Owner'
+    regiment_str: 'Strength'
+    regiment_org: 'Organization'
+    regiment_morale: 'Morale'
+    regiment_unpaid: 'Unpaid ×{{count}}'
+    status_active: 'Active'
+    status_destroyed: 'Destroyed'
+    status_disbanded: 'Disbanded'
 
   # War detail (v0.34)
   war:

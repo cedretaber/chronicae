@@ -496,7 +496,9 @@ export function HoldingDetail({
                                 : 'bg-gray-600 text-gray-400'
                           }`}
                         >
-                          {regiment.status}
+                          {t(`detail.holding.status_${regiment.status}`, {
+                            defaultValue: regiment.status,
+                          })}
                         </span>
                       </div>
                       {ownerPolity && regiment.owner.kind === 'polity' && (
