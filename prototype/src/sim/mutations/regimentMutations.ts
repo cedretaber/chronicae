@@ -2,65 +2,69 @@
 
 import type { WorldState } from '../types/world'
 import type { Regiment, RegimentSourceKind, RegimentTroopKind } from '../types/regiment'
-import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
+import type { RegimentBarracks } from '../types/regimentBarracks'
+import type { RegimentId, PolityId, HoldingId, WarId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
+import type { PopType } from '../types/popGroup'
 import type { WarSideKey } from '../types/war'
-import { createRegimentId } from '../types/ids'
+import { createRegimentId, createRegimentBarracksId } from '../types/ids'
 import { organizationKey } from '../selectors/organizationSelectors'
 import { removeRightsByTargetMut } from './politicalRightMutations'
+import { unbindPopsFromEmployerMut } from './popMutations'
 
 // --- index ---
 
 function addRegimentToIndexMut(ws: WorldState, regiment: Regiment): void {
   const ownerKey = organizationKey(regiment.owner)
   ws.regimentIndex.byOwner[ownerKey] = [...(ws.regimentIndex.byOwner[ownerKey] ?? []), regiment.id]
-
-  if (regiment.homeProvinceId !== undefined) {
-    ws.regimentIndex.byHomeProvince[regiment.homeProvinceId] = [
-      ...(ws.regimentIndex.byHomeProvince[regiment.homeProvinceId] ?? []),
-      regiment.id,
-    ]
-  }
-
-  if (regiment.homeHoldingId !== undefined) {
-    ws.regimentIndex.byHomeHolding[regiment.homeHoldingId] = [
-      ...(ws.regimentIndex.byHomeHolding[regiment.homeHoldingId] ?? []),
-      regiment.id,
-    ]
-  }
 }
 
 // --- creation ---
 
-export type CreateRegimentInput = {
+export type CreateRegimentWithBarracksInput = {
   owner: OrganizationRef
   sourceKind: RegimentSourceKind
   troopKind: RegimentTroopKind
-  homeHoldingId?: HoldingId
-  homeProvinceId?: ProvinceId
+  holdingId: HoldingId
+  requiredByPopType: Partial<Record<PopType, number>>
   strength: number
   organization: number
   morale: number
   maxStrength: number
   basePower: number
-  // §3 (v0.37): baseline / max。createRegiment caller が必ず設定する (§20 Phase A)。
   baselineOrganization: number
   maxOrganization: number
   baselineMorale: number
   maxMorale: number
   createdWeek: number
+  disbandAfterWar?: boolean
 }
 
-export function createRegiment(ws: WorldState, input: CreateRegimentInput): Regiment {
-  const id = createRegimentId(ws.nextRegimentId)
+export function createRegimentWithBarracksMut(
+  ws: WorldState,
+  input: CreateRegimentWithBarracksInput,
+): { regiment: Regiment; barracks: RegimentBarracks } {
+  const barracksId = createRegimentBarracksId(ws.nextRegimentBarracksId)
+  const regimentId = createRegimentId(ws.nextRegimentId)
+
+  const barracks: RegimentBarracks = {
+    id: barracksId,
+    holdingId: input.holdingId,
+    regimentId,
+    requiredByPopType: input.requiredByPopType,
+    status: 'active',
+    unpaidCount: 0,
+    lastPayrollFulfillment: 1,
+    createdWeek: input.createdWeek,
+  }
+
   const regiment: Regiment = {
-    id,
+    id: regimentId,
     owner: input.owner,
     status: 'active',
     sourceKind: input.sourceKind,
     troopKind: input.troopKind,
-    ...(input.homeHoldingId !== undefined ? { homeHoldingId: input.homeHoldingId } : {}),
-    ...(input.homeProvinceId !== undefined ? { homeProvinceId: input.homeProvinceId } : {}),
+    barracksId,
     strength: input.strength,
     organization: input.organization,
     morale: input.morale,
@@ -71,11 +75,28 @@ export function createRegiment(ws: WorldState, input: CreateRegimentInput): Regi
     baselineMorale: input.baselineMorale,
     maxMorale: input.maxMorale,
     createdWeek: input.createdWeek,
+    ...(input.disbandAfterWar === true ? { disbandAfterWar: true } : {}),
   }
-  ws.regiments[id] = regiment
+
+  ws.regimentBarracks[barracksId] = barracks
+  ws.regimentBarracksIndex.byHolding[input.holdingId] = [
+    ...(ws.regimentBarracksIndex.byHolding[input.holdingId] ?? []),
+    barracksId,
+  ]
+  ws.regimentBarracksIndex.byRegiment[regimentId] = barracksId
+  ws.nextRegimentBarracksId++
+
+  ws.regiments[regimentId] = regiment
   ws.nextRegimentId++
   addRegimentToIndexMut(ws, regiment)
-  return regiment
+
+  return { regiment, barracks }
+}
+
+export function getRegimentHoldingId(ws: WorldState, regiment: Regiment): HoldingId | undefined {
+  const barracks = ws.regimentBarracks[regiment.barracksId]
+  if (!barracks) return undefined
+  return barracks.holdingId
 }
 
 // --- update ---
@@ -211,8 +232,9 @@ export function reassignRegimentOwnerMut(
 // state を変更しない純粋判定 (lazy-clone gate / eager 適用前の事前判定に使う)。
 export function regimentOwnerSyncTarget(ws: WorldState, regiment: Regiment): PolityId | undefined {
   if (regiment.status !== 'active') return undefined
-  if (regiment.homeHoldingId === undefined) return undefined
-  const terminal = ws.holdingTerminalPolityCache[regiment.homeHoldingId]
+  const holdingId = getRegimentHoldingId(ws, regiment)
+  if (holdingId === undefined) return undefined
+  const terminal = ws.holdingTerminalPolityCache[holdingId]
   if (terminal === undefined) return undefined
   if (regiment.owner.kind !== 'polity' || regiment.owner.id === terminal) return undefined
   return terminal
@@ -257,6 +279,17 @@ export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void
     }
   }
 
+  // v0.64: barracks cascade — inactive 化 + POP unbind
+  const barracks = ws.regimentBarracks[r.barracksId]
+  if (barracks && barracks.status === 'active') {
+    ws.regimentBarracks[r.barracksId] = {
+      ...barracks,
+      status: 'inactive',
+      inactiveWeek: ws.absoluteWeek,
+    }
+    unbindPopsFromEmployerMut(ws, barracks.holdingId, { kind: 'barracks', id: r.barracksId })
+  }
+
   const next: Regiment = { ...r, status: 'disbanded' }
   delete next.currentWarId
   delete next.currentSide
@@ -264,8 +297,6 @@ export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void
   delete next.destroyedWeek
   ws.regiments[regimentId] = next
 
-  // v0.42 §11.4: disbanded は制度的解散 = regiment_control right の即時失効。
-  // destroy では cascade しない (destroyed は制度として存続し right も残る)。
   removeRightsByTargetMut(ws, { kind: 'regiment', regimentId })
 }
 

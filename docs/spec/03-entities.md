@@ -191,6 +191,7 @@ type WorkplaceRef =
   | { kind: 'asset'; id: RealEstateAssetId }       // 不動産 (farm/mountain/woodland/workshop)
   | { kind: 'improvement'; id: HoldingImprovementId } // 施設 (manor_house/town_hall/storage)
   | { kind: 'merchant'; id: MerchantCompanyEstablishmentId } // 商会店舗
+  | { kind: 'barracks'; id: RegimentBarracksId }     // v0.64: 兵舎
 
 type PopGroup = {
   id: PopGroupId
@@ -1288,6 +1289,8 @@ type BattleInitiationKind = 'mutual_engagement' | 'attacker_avoidance_failed' | 
 
 軍事力は、平時から state 上に存在する**永続 Regiment entity**（軍事動員単位）として表現する。worldgen で **1 Holding = 1 Regiment** を生成し（§7）、WarManeuverSystem の battle power 入力に用いる（§6.45）。型は `src/sim/types/regiment.ts`、power 計算は `src/sim/selectors/regimentSelectors.ts`。
 
+v0.64 で Regiment は Holding に直接紐付かなくなった。代わりに **RegimentBarracks（兵舎）** エンティティを介して Holding に接続する（§3.9b-2）。Regiment の地域的基盤は常に `Regiment → RegimentBarracks → Holding → Province` の経路で導出する。
+
 ```ts
 type RegimentId = Branded<string, 'RegimentId'>  // prefix: "rg-"
 
@@ -1308,8 +1311,7 @@ type Regiment = {
   status: RegimentStatus
   sourceKind: RegimentSourceKind
   troopKind: RegimentTroopKind
-  homeHoldingId?: HoldingId           // 由来 Holding / Province（原則すべて持つ）
-  homeProvinceId?: ProvinceId
+  barracksId: RegimentBarracksId      // v0.64: 兵舎への参照（1:1）
   currentWarId?: WarId                // 動員先の soft reference（IntegrityCheck で hard invariant にしない）
   currentSide?: WarSideKey
   strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。battle で大きくは削れない（§6.45）
@@ -1344,16 +1346,51 @@ type WorldState = {
   regimentIndex: {
     byOwner: Record<string, RegimentId[]>          // key = organizationKey（"polity:p-1"）
     byWar: Record<WarId, RegimentId[]>             // 動員中のみ。demobilize / destroy で外す
-    byHomeProvince: Record<ProvinceId, RegimentId[]>
-    byHomeHolding: Record<HoldingId, RegimentId[]>
   }
   nextRegimentId: number
+
+  // v0.64: 兵舎
+  regimentBarracks: Record<RegimentBarracksId, RegimentBarracks>
+  regimentBarracksIndex: {
+    byHolding: Record<HoldingId, RegimentBarracksId[]>   // 同一 Holding に複数兵舎可
+    byRegiment: Record<RegimentId, RegimentBarracksId>    // 1 Regiment = 1 Barracks
+  }
+  nextRegimentBarracksId: number
 }
 ```
 
 戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.45 の battle 入力）:
 (a) 動員中 active Regiment があればその有効戦力の合計（participant 不問 — byWar 索引ベースなので supporter の連隊も自然に含まれる）、
 (b) 動員ゼロのときのみ **participant ごとに** fallback して合算する（v0.43）: Regiment record を 1 つも所有しない participant（byOwner 空）は `getOrganizationMilitaryPower`、byOwner 非空だが動員可能な active が無い participant は 0（fallback しない）。participant が primary 1 件のみの War では v0.36 の挙動と同値。
+
+### 3.9b-2 RegimentBarracks（兵舎）— v0.64
+
+Regiment と Holding の間を仲介する**兵舎**エンティティ。Regiment と 1:1 で、兵舎が存在する Holding の POP を雇用する（`WorkplaceRef.kind = 'barracks'`）。型は `src/sim/types/regimentBarracks.ts`。
+
+```ts
+type RegimentBarracksId = Branded<string, 'RegimentBarracksId'>  // prefix: "bk-"
+type RegimentBarracksStatus = 'active' | 'inactive'
+
+type RegimentBarracks = {
+  id: RegimentBarracksId
+  holdingId: HoldingId
+  regimentId: RegimentId
+  requiredByPopType: Partial<Record<PopType, number>>  // 要求 POP 数（生成時に config から確定）
+  status: RegimentBarracksStatus
+  unpaidCount: number               // 給与未払い・部分未払いの連続回数
+  lastPayrollFulfillment: number    // 直近の給与支払い充足率 0..1
+  createdWeek: number
+  inactiveWeek?: number
+}
+```
+
+**Regiment ↔ Barracks の同時生成**: `Regiment.barracksId` と `RegimentBarracks.regimentId` は共に非 optional。循環参照は `createRegimentWithBarracksMut` が barracksId / regimentId を先に採番し、両オブジェクトを同時 insert して解決する。
+
+**兵舎の owner**: 兵舎自体は owner を持たない。給与支払い元・帰属は常に `Regiment.owner` から導出する。
+
+**POP 充足率と Regiment 能力**: 兵舎の POP 充足率は二軸——`overallFulfillment`（全 POP 充足→strength 上限）と `commandFulfillment`（指揮要員比率→organization 上限）——で Regiment 能力を制約する（§6.x barracksSelectors）。
+
+**lifecycle**: Regiment が disband されると兵舎は inactive 化し、雇用 POP は失業する（`unbindPopsFromEmployerMut`）。inactive barracks は index に残り、purge 時にのみ除去する。
 
 ### 3.9c Battle（戦闘）
 

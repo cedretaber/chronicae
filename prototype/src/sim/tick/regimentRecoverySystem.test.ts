@@ -4,9 +4,10 @@ import { createTickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
-import { createRegiment } from '../mutations/regimentMutations'
+import { createRegimentWithBarracksMut } from '../mutations/regimentMutations'
 import type { WorldState } from '../types/world'
-import type { PolityId, RegimentId } from '../types/ids'
+import type { Regiment } from '../types/regiment'
+import type { PolityId, RegimentId, HoldingId } from '../types/ids'
 
 const PO1: PolityId = 'dp-1' as PolityId
 
@@ -27,11 +28,13 @@ function addReg(
     baselineMorale?: number
     maxOrganization?: number
   } = {},
-): ReturnType<typeof createRegiment> {
-  const r = createRegiment(state, {
+): Regiment {
+  const { regiment } = createRegimentWithBarracksMut(state, {
     owner: { kind: 'polity' as const, id: PO1 },
     sourceKind: 'levy',
     troopKind: 'infantry',
+    holdingId: 'hl-1' as HoldingId,
+    requiredByPopType: {},
     strength: opts.strength ?? 100,
     organization,
     morale: opts.morale ?? 30,
@@ -44,9 +47,9 @@ function addReg(
     createdWeek: 0,
   })
   if (opts.status === 'disbanded') {
-    state.regiments[r.id] = { ...state.regiments[r.id]!, status: 'disbanded' }
+    state.regiments[regiment.id] = { ...state.regiments[regiment.id]!, status: 'disbanded' }
   }
-  return r
+  return regiment
 }
 
 describe('runRegimentRecoverySystem (baseline-aware)', () => {

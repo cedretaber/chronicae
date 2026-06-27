@@ -13,6 +13,7 @@ import {
   createProvinceId,
   createRegimentId,
 } from '../types/ids'
+import type { RegimentBarracksId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Regiment } from '../types/regiment'
 import { defaultConfig } from '../config/defaultConfig'
@@ -135,6 +136,7 @@ describe('getPolityInfluenceBreakdown', () => {
       status: 'active',
       sourceKind: 'levy',
       troopKind: 'infantry',
+      barracksId: 'bk-0' as RegimentBarracksId,
       strength: 100,
       organization: 50,
       morale: 30,

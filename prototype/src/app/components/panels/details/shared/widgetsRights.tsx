@@ -8,6 +8,7 @@ import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
 import type { PersonId } from '@/sim/types/ids'
 import { getRightsByHolder } from '@sim/selectors/politicalRightSelectors'
+import { getRegimentHoldingId } from '@sim/mutations/regimentMutations'
 import type { PoliticalRight, PoliticalRightTargetRef } from '@sim/types/politicalRight'
 import type { ResolveName } from '@/app/hooks/entityNameHelpers'
 import type { TFunction } from 'i18next'
@@ -28,13 +29,13 @@ function politicalRightTargetLabel(
       return `${getHoldingQualifiedName(worldState, resolveName, target.holdingId)} ${t('holding.bailiff', { ns: 'roles' })}`
     case 'regiment': {
       const regiment = worldState.regiments[target.regimentId]
-      const province =
-        regiment?.homeProvinceId !== undefined
-          ? worldState.provinces[regiment.homeProvinceId]
-          : undefined
+      const holdingId =
+        regiment !== undefined ? getRegimentHoldingId(worldState, regiment) : undefined
+      const holding = holdingId !== undefined ? worldState.holdings[holdingId] : undefined
+      const province = holding !== undefined ? worldState.provinces[holding.provinceId] : undefined
       const provinceName = province
         ? resolveName('province', province.nameKey, province.nameKey)
-        : (regiment?.homeProvinceId ?? target.regimentId)
+        : target.regimentId
       return `${provinceName} ${t('detail.polity.regiment_suffix')}`
     }
   }

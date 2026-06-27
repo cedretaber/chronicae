@@ -1144,3 +1144,15 @@
 | `wageStratumMultiplier` | — | `{lower:1.0, middle:1.5}` | 階層別賃金勾配。同一 employer 内で lower:middle = 1:1.5 の per-capita 賃金比 |
 | `upperDividendShareOfNetRevenue` | 0.03 (asset netRevenue から carve) | 0.03 (**holding 収入から carve に移設**) | upper 配当の原資を asset 収益から landRevenueSystem の collected に変更。代官手数料の前に取る |
 
+### v0.64 連隊・兵舎・POP 接続 — config 追加
+
+| 項目 | 値 | 説明 |
+|------|---|------|
+| `regimentBarracksRequiredTotalPopByTroopKind` | `{infantry:10, cavalry:10}` | 兵種別の兵舎要求 POP 総数 |
+| `regimentBarracksRequiredPopRatioByTroopKind` | `{infantry:{soldiers:0.8,ministeriales:0.2}, cavalry:{soldiers:0.6,ministeriales:0.3,nobles:0.1}}` | 兵種別の PopType 比率 |
+| `barracksMonthlyWageByPopType` | `{soldiers:1.0, ministeriales:1.5, nobles:2.0}` | 兵舎 POP の月次賃金レート（per size） |
+| `barracksUnpaidOrganizationPenalty` | `15` | 給与未払い時の organization ペナルティ基本量 |
+| `barracksUnpaidMoralePenalty` | `10` | 給与未払い時の morale ペナルティ基本量 |
+
+**v0.64 config 変更**: `regimentReinforcementCostPerStrength` は参照のみ（strength 補充の treasury コスト支払いを撤廃。補充コストは兵舎給与に一本化）。reform 時の `destroyedRegimentReformCost`（8）は維持。
+

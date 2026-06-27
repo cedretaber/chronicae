@@ -334,6 +334,12 @@ function EmployerInfo({
       }
       break
     }
+    case 'barracks': {
+      const barracks = state.regimentBarracks[employerId.id]
+      kindLabel = t('detail.province.pop_employer_barracks')
+      name = barracks ? String(barracks.regimentId) : String(employerId.id)
+      break
+    }
   }
   return (
     <div className="rounded bg-gray-800/60 px-2 py-1 text-xs">

@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { generateWorld } from './generateWorld'
-import { defaultConfig } from '../config/defaultConfig'
-import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
-import type { PolityId } from '../types/ids'
 
 // ---------------------------------------------------------------------------
 // generateInitialRegiments (via generateWorld)
@@ -25,43 +22,17 @@ describe('generateInitialRegiments (via generateWorld)', () => {
     expect(infantryCount + cavalryCount).toBe(Object.keys(world.regiments).length)
   })
 
-  it('every infantry regiment owner is the holding terminal polity; cavalry has no home', () => {
+  it('every regiment has barracks; infantry owner matches holding terminal polity', () => {
     const { world } = generateWorld('seed-1')
 
     for (const r of Object.values(world.regiments)) {
       expect(r.owner.kind).toBe('polity')
-      if (r.troopKind === 'infantry') {
-        expect(r.homeHoldingId).toBeDefined()
-        const term = world.holdingTerminalPolityCache[r.homeHoldingId!]
+      const barracks = world.regimentBarracks[r.barracksId]
+      expect(barracks).toBeDefined()
+      if (r.troopKind === 'infantry' && barracks) {
+        const term = world.holdingTerminalPolityCache[barracks.holdingId]
         expect(r.owner.id as string).toBe(term as string)
-      } else {
-        expect(r.homeHoldingId).toBeUndefined()
-        expect(r.homeProvinceId).toBeUndefined()
       }
-    }
-  })
-
-  it('per-owner infantry basePower sum equals old calcPolityMilitaryPower at t=0', () => {
-    const { world } = generateWorld('seed-1')
-
-    const sums = new Map<string, number>()
-    for (const [ownerKey, ids] of Object.entries(world.regimentIndex.byOwner)) {
-      let sum = 0
-      for (const id of ids) {
-        const r = world.regiments[id]
-        if (r && r.troopKind === 'infantry') {
-          sum += r.basePower
-        }
-      }
-      sums.set(ownerKey, sum)
-    }
-
-    for (const [ownerKey, sum] of sums.entries()) {
-      const [kind, idStr] = ownerKey.split(':')
-      if (kind !== 'polity') continue
-      const polityId = idStr as PolityId
-      const oldPower = calcPolityMilitaryPower(world, defaultConfig, polityId)
-      expect(sum).toBeCloseTo(oldPower, 5)
     }
   })
 
@@ -75,15 +46,12 @@ describe('generateInitialRegiments (via generateWorld)', () => {
     }
     expect(byOwnerTotal).toBe(Object.keys(world.regiments).length)
 
-    // byHomeHolding total == infantry regiment count (cavalry has no homeHolding)
-    let byHomeHoldingTotal = 0
-    for (const ids of Object.values(world.regimentIndex.byHomeHolding)) {
-      byHomeHoldingTotal += ids.length
+    // regimentBarracksIndex.byHolding total == regiment count (every regiment has a barracks)
+    let byHoldingTotal = 0
+    for (const ids of Object.values(world.regimentBarracksIndex.byHolding)) {
+      byHoldingTotal += ids.length
     }
-    const infantryCount = Object.values(world.regiments).filter(
-      (r) => r.troopKind === 'infantry',
-    ).length
-    expect(byHomeHoldingTotal).toBe(infantryCount)
+    expect(byHoldingTotal).toBe(Object.keys(world.regiments).length)
 
     // every regiment basePower is finite and >= 0
     for (const r of Object.values(world.regiments)) {

@@ -27,6 +27,10 @@ function resolveEmployerHoldingId(state: WorldState, ref: WorkplaceRef): Holding
       const e = state.merchantCompanyEstablishments[ref.id]
       return e ? e.holdingId : null
     }
+    case 'barracks': {
+      const e = state.regimentBarracks[ref.id]
+      return e ? e.holdingId : null
+    }
   }
 }
 
@@ -466,7 +470,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
         'kind' in empId &&
         'id' in empId &&
         typeof (empId as { id: unknown }).id === 'string' &&
-        ['asset', 'improvement', 'merchant'].includes((empId as { kind: string }).kind))
+        ['asset', 'improvement', 'merchant', 'barracks'].includes((empId as { kind: string }).kind))
     if (!empShapeValid) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',

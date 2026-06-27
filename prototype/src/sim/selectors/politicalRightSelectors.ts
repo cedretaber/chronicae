@@ -6,6 +6,7 @@ import type { PolityId, RegimentId, HoldingId, HouseId, PoliticalRightId } from 
 import type { OfficeRole } from '../types/office'
 import { getEffectiveOfficeMaxHolders } from './officeSelectors'
 import { getHouseProvinceIdsByPolity, getPolityProvinceIds } from './polityRelations'
+import { getRegimentHoldingId } from '../mutations/regimentMutations'
 import type {
   PoliticalRight,
   PoliticalRightHolderRef,
@@ -146,8 +147,10 @@ export function findAcquirableRightTarget(
     const regiment = state.regiments[regimentId]
     if (!regiment || regiment.status !== 'active') continue
     if (getRightForTarget(state, { kind: 'regiment', regimentId })) continue
-    const nearHouse =
-      regiment.homeProvinceId !== undefined && houseProvinceIds.has(regiment.homeProvinceId)
+    const regHoldingId = getRegimentHoldingId(state, regiment)
+    const regHolding = regHoldingId !== undefined ? state.holdings[regHoldingId] : undefined
+    const homeProvinceId = regHolding?.provinceId
+    const nearHouse = homeProvinceId !== undefined && houseProvinceIds.has(homeProvinceId)
     candidateRegiments.push({ regimentId, nearHouse })
   }
   candidateRegiments.sort((a, b) => {

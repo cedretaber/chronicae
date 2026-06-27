@@ -17,6 +17,8 @@ function resolveWorkplaceRef(state: WorldState, ref: WorkplaceRef): boolean {
       return !!state.holdingImprovements[ref.id]
     case 'merchant':
       return !!state.merchantCompanyEstablishments[ref.id]
+    case 'barracks':
+      return !!state.regimentBarracks[ref.id]
   }
 }
 

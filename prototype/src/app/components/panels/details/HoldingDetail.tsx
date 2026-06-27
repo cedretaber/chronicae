@@ -60,11 +60,13 @@ import {
   getAssetPopTypeCapacity,
   getHoldingPops,
   getHoldingMonthlyPopChange,
+  getWorkplaceEmployedPopSizeByType,
 } from '@sim/selectors/popSelectors'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { IMPROVEMENT_DEFINITIONS } from '@sim/config/improvementDefinitions'
 import { REAL_ESTATE_DEFINITIONS } from '@sim/config/realEstateDefinitions'
 import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '@sim/config/merchantDefinitions'
+import { getBarracksFulfillment } from '@sim/selectors/barracksSelectors'
 export function HoldingDetail({
   holding,
   session,
@@ -436,6 +438,205 @@ export function HoldingDetail({
                           },
                         )}
                       </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* Regiments (v0.64 barracks) */}
+      {currentState &&
+        (() => {
+          const barracksIds = currentState.regimentBarracksIndex.byHolding[holding.id] ?? []
+          const activeBarracks = barracksIds
+            .map((bkId) => {
+              const bk = currentState.regimentBarracks[bkId]
+              if (!bk || bk.status !== 'active') return null
+              const regiment = currentState.regiments[bk.regimentId]
+              if (!regiment || regiment.status === 'disbanded') return null
+              return { bk, regiment }
+            })
+            .filter((x): x is NonNullable<typeof x> => x !== null)
+          if (activeBarracks.length === 0) return null
+          return (
+            <div className="text-sm">
+              <DetailSection
+                title={t('detail.holding.regiments', { defaultValue: '連隊' })}
+                count={activeBarracks.length}
+              />
+              <div className="mt-1 flex flex-col gap-1">
+                {activeBarracks.map(({ bk, regiment }) => {
+                  const fulfillment = getBarracksFulfillment(currentState, bk.id)
+                  const ownerPolity =
+                    regiment.owner.kind === 'polity'
+                      ? currentState.polities[regiment.owner.id]
+                      : null
+                  return (
+                    <div key={regiment.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-medium text-gray-200">
+                          {t(`detail.holding.troop_${regiment.troopKind}`, {
+                            defaultValue: regiment.troopKind,
+                          })}{' '}
+                          <span className="text-gray-500">
+                            (
+                            {t(`detail.holding.source_${regiment.sourceKind}`, {
+                              defaultValue: regiment.sourceKind,
+                            })}
+                            )
+                          </span>
+                        </span>
+                        <span
+                          className={`rounded px-1 py-0.5 text-[10px] ${
+                            regiment.status === 'active'
+                              ? 'bg-green-900 text-green-300'
+                              : regiment.status === 'destroyed'
+                                ? 'bg-red-900 text-red-300'
+                                : 'bg-gray-600 text-gray-400'
+                          }`}
+                        >
+                          {t(`detail.holding.status_${regiment.status}`, {
+                            defaultValue: regiment.status,
+                          })}
+                        </span>
+                      </div>
+                      {ownerPolity && regiment.owner.kind === 'polity' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">
+                            {t('detail.holding.regiment_owner', { defaultValue: '所有' })}:
+                          </span>
+                          <PolityLink
+                            polityId={regiment.owner.id}
+                            world={currentState}
+                            onClick={onPolityClick}
+                          />
+                        </div>
+                      )}
+                      {/* POP employment by type */}
+                      {Object.keys(bk.requiredByPopType).length > 0 && (
+                        <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                          {(Object.entries(bk.requiredByPopType) as [PopType, number][]).map(
+                            ([popType, required]) => {
+                              const employed = getWorkplaceEmployedPopSizeByType(
+                                currentState,
+                                bk.holdingId,
+                                { kind: 'barracks', id: bk.id },
+                                popType,
+                              )
+                              const pct = required > 0 ? clamp100((employed / required) * 100) : 0
+                              return (
+                                <div key={popType} className="flex items-center gap-1.5">
+                                  <span className="w-20 text-gray-500">
+                                    {t(`detail.province.pop_type.${popType}`, {
+                                      defaultValue: popType,
+                                    })}
+                                  </span>
+                                  <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                                    <div
+                                      className={`h-full ${pct >= 90 ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-16 text-right text-gray-400">
+                                    {formatPopCount(employed)}/{formatPopCount(required)}
+                                  </span>
+                                </div>
+                              )
+                            },
+                          )}
+                        </div>
+                      )}
+                      <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-14 text-gray-500">
+                            {t('detail.holding.regiment_str', { defaultValue: '兵力' })}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                            <div
+                              className="h-full bg-red-500"
+                              style={{ width: `${regiment.strength}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right text-gray-400">
+                            {Math.round(regiment.strength)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-14 text-gray-500">
+                            {t('detail.holding.regiment_org', { defaultValue: '統制' })}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                            <div
+                              className="h-full bg-blue-500"
+                              style={{ width: `${regiment.organization}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right text-gray-400">
+                            {Math.round(regiment.organization)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-14 text-gray-500">
+                            {t('detail.holding.regiment_morale', { defaultValue: '士気' })}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-600">
+                            <div
+                              className="h-full bg-yellow-500"
+                              style={{ width: `${regiment.morale}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right text-gray-400">
+                            {Math.round(regiment.morale)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-1 flex justify-between border-t border-gray-600/50 pt-0.5">
+                        <span className="text-gray-500">
+                          {t('detail.province.reg_barracks_fulfillment', {
+                            defaultValue: 'POP充足',
+                          })}
+                        </span>
+                        <span
+                          className={
+                            fulfillment.overallFulfillment < 0.6
+                              ? 'text-amber-400'
+                              : 'text-gray-300'
+                          }
+                        >
+                          {Math.round(fulfillment.overallFulfillment * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">
+                          {t('detail.province.reg_command_fulfillment', {
+                            defaultValue: '指揮充足',
+                          })}
+                        </span>
+                        <span
+                          className={
+                            fulfillment.commandFulfillment < 0.6
+                              ? 'text-amber-400'
+                              : 'text-gray-300'
+                          }
+                        >
+                          {Math.round(fulfillment.commandFulfillment * 100)}%
+                        </span>
+                      </div>
+                      {bk.unpaidCount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">
+                            {t('detail.province.reg_payroll', { defaultValue: '給与' })}
+                          </span>
+                          <span className="text-red-400">
+                            {t('detail.holding.regiment_unpaid', {
+                              defaultValue: '未払い {{count}}回',
+                              count: bk.unpaidCount,
+                            })}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )
                 })}

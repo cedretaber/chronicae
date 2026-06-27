@@ -32,6 +32,7 @@ import type {
   HoldingId,
   PersonId,
   HouseId,
+  RegimentBarracksId,
 } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { Regiment } from '../types/regiment'
@@ -82,6 +83,7 @@ function withRegiment(s: WorldState, id: string, ownerId: PolityId, basePower: n
     status: 'active',
     sourceKind: 'levy',
     troopKind: 'infantry',
+    barracksId: 'bk-0' as RegimentBarracksId,
     strength: 100,
     organization: 100,
     morale: 50,

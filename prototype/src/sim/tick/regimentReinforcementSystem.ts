@@ -25,8 +25,13 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
-import { updateRegimentMut, reformRegimentMut } from '../mutations/regimentMutations'
+import {
+  updateRegimentMut,
+  reformRegimentMut,
+  getRegimentHoldingId,
+} from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
+import { getBarracksFulfillment, getEffectiveMaxStrength } from '../selectors/barracksSelectors'
 import { organizationKey, isOrganizationActive } from '../selectors/organizationSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
@@ -34,9 +39,10 @@ import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 //   owner 不一致はすべて 0 (= 補充/reform 不可)。
 function homeControlFactor(ws: WorldState, r: Regiment): number {
   if (r.owner.kind !== 'polity') return 0
-  if (r.homeHoldingId === undefined) return 0
-  if (!ws.holdings[r.homeHoldingId]) return 0
-  const terminal = ws.holdingTerminalPolityCache[r.homeHoldingId]
+  const holdingId = getRegimentHoldingId(ws, r)
+  if (holdingId === undefined) return 0
+  if (!ws.holdings[holdingId]) return 0
+  const terminal = ws.holdingTerminalPolityCache[holdingId]
   if (terminal === undefined) return 0
   return terminal === r.owner.id ? 1 : 0
 }
@@ -85,7 +91,9 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     if (ownerId === undefined) return
     const ownerRef = getPolityNameRefForEmit(ws, ownerId)
     const ownerNameKey = ownerRef.nameKey
-    const provinceId = regiment.homeProvinceId
+    const reformHoldingId = getRegimentHoldingId(ws, regiment)
+    const reformHolding = reformHoldingId !== undefined ? ws.holdings[reformHoldingId] : undefined
+    const provinceId = reformHolding?.provinceId
     const provinceNameKey =
       provinceId !== undefined ? (ws.provinces[provinceId]?.nameKey ?? provinceId) : ''
     const messageParams: EventMessageParams = {
@@ -113,48 +121,34 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     const r = ws.regiments[rid]
     if (!r) continue
     if (r.owner.kind !== 'polity') continue
-    if (r.homeHoldingId === undefined) continue
+    if (getRegimentHoldingId(ws, r) === undefined) continue
     if (r.sourceKind === 'local_levy') continue
 
     // ── A. active strength 補充 (silent) ──
     if (r.status === 'active') {
-      if (r.strength >= r.maxStrength) continue
+      const barracks = ws.regimentBarracks[r.barracksId]
+      if (!barracks) continue
+      const fulfillment = getBarracksFulfillment(ws, r.barracksId)
+      const effectiveMax = getEffectiveMaxStrength(ws, r)
+      if (r.strength >= effectiveMax) continue
       const homeControl = homeControlFactor(ws, r)
       if (homeControl <= 0) continue
 
-      const popFactor = getRegimentHomeRecruitmentFactor(ws, config, r)
+      const popFactor = fulfillment.overallFulfillment
       const warState = warStateFactor(ws, config, r)
       const troopFactor =
         r.troopKind === 'cavalry' ? config.regimentCavalryReinforcementMultiplier : 1
-      const desired = Math.min(
-        config.regimentReinforcementBasePerMonth * popFactor * homeControl * warState * troopFactor,
-        r.maxStrength - r.strength,
-      )
-      if (desired <= 0) continue
-
-      const costPerStrength =
-        config.regimentReinforcementCostPerStrength *
-        (r.troopKind === 'cavalry' ? config.regimentCavalryReinforcementCostMultiplier : 1)
-      const polity = ws.polities[r.owner.id]
-      if (!polity) continue
-
-      let gain = desired
-      if (costPerStrength > 0) {
-        const affordable = polity.treasury / costPerStrength
-        gain = Math.min(desired, affordable)
-      }
+      let reinforcementGain =
+        config.regimentReinforcementBasePerMonth * popFactor * homeControl * warState * troopFactor
+      reinforcementGain *= barracks.lastPayrollFulfillment
+      const gain = Math.min(reinforcementGain, effectiveMax - r.strength)
       if (gain <= 0) continue
 
       ensureDraft()
       updateRegimentMut(ws, rid, {
-        strength: clamp(r.strength + gain, 0, r.maxStrength),
+        strength: clamp(r.strength + gain, 0, effectiveMax),
         lastReinforcedWeek: week,
       })
-      const cost = gain * costPerStrength
-      if (cost > 0) {
-        const p = ws.polities[r.owner.id]
-        if (p) ws.polities[r.owner.id] = { ...p, treasury: Math.max(0, p.treasury - cost) }
-      }
       continue
     }
 
@@ -165,6 +159,12 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
       if (!isOrganizationActive(ws, r.owner)) continue
       const popFactor = getRegimentHomeRecruitmentFactor(ws, config, r)
       if (popFactor < config.destroyedRegimentReformMinPopFactor) continue
+      const barracksForReform = ws.regimentBarracks[r.barracksId]
+      if (!barracksForReform) continue
+      const reformFulfillment = getBarracksFulfillment(ws, r.barracksId)
+      if (reformFulfillment.overallFulfillment < config.destroyedRegimentReformMinPopFactor)
+        continue
+      if (barracksForReform.lastPayrollFulfillment <= 0) continue
       const polity = ws.polities[r.owner.id]
       if (!polity || polity.treasury < config.destroyedRegimentReformCost) continue
 

@@ -23,7 +23,10 @@ import {
   createChildLandContract,
 } from '../mutations/landContractMutations'
 import { createLandContractDefaultMut } from '../mutations/landContractDefaultMutations'
-import { createRegiment, syncRegimentOwnerToHomeTerminalMut } from '../mutations/regimentMutations'
+import {
+  createRegimentWithBarracksMut,
+  syncRegimentOwnerToHomeTerminalMut,
+} from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
@@ -851,12 +854,25 @@ export function applyRevoltEscalation(
   )
   const holding = state.holdings[demand.holdingId]
   if (holding) {
-    const levy = createRegiment(state, {
+    state = {
+      ...state,
+      regiments: { ...state.regiments },
+      regimentIndex: {
+        byOwner: { ...state.regimentIndex.byOwner },
+        byWar: { ...state.regimentIndex.byWar },
+      },
+      regimentBarracks: { ...state.regimentBarracks },
+      regimentBarracksIndex: {
+        byHolding: { ...state.regimentBarracksIndex.byHolding },
+        byRegiment: { ...state.regimentBarracksIndex.byRegiment },
+      },
+    }
+    createRegimentWithBarracksMut(state, {
       owner: { kind: 'polity', id: commonwealthId },
       sourceKind: 'local_levy',
       troopKind: 'infantry',
-      homeHoldingId: demand.holdingId,
-      homeProvinceId: provinceId,
+      holdingId: demand.holdingId,
+      requiredByPopType: {},
       strength: levyStrength,
       organization: config.localLevyOrganization,
       morale: config.localLevyMorale,
@@ -867,8 +883,8 @@ export function applyRevoltEscalation(
       baselineMorale: config.localLevyMorale,
       maxMorale: 50,
       createdWeek: state.absoluteWeek,
+      disbandAfterWar: true,
     })
-    levy.disbandAfterWar = true
 
     // 占拠 (nominal occupation contract) で holding の terminal Polity が commonwealth に変わったため、
     // 当該 holding の既存常設連隊 (worldgen 由来 levy/noble_retinue 等) の owner を開戦前に即同期する。
@@ -877,8 +893,11 @@ export function applyRevoltEscalation(
     // 付け替えルールは syncRegimentOwnerToHomeTerminalMut に集約済 (maintenance と同一の真実)。
     // 直前に作った levy (owner=commonwealth=terminal) は no-op。動員済の連隊は owner だけ移り
     // 当該戦争は次 tick 以降の動員判定 (currentWarId) でスキップされる。
-    for (const rid of [...(state.regimentIndex.byHomeHolding[demand.holdingId] ?? [])]) {
-      syncRegimentOwnerToHomeTerminalMut(state, rid)
+    const barracksForHolding = state.regimentBarracksIndex.byHolding[demand.holdingId] ?? []
+    for (const barracksId of [...barracksForHolding]) {
+      const barracks = state.regimentBarracks[barracksId]
+      if (!barracks) continue
+      syncRegimentOwnerToHomeTerminalMut(state, barracks.regimentId)
     }
   }
 

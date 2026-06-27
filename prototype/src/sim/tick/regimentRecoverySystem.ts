@@ -13,6 +13,11 @@ import type { RegimentId, WarId } from '../types/ids'
 import type { SupplyShortageBand } from '../types/war'
 import { computeShortageBand } from '../selectors/warSupplySelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import {
+  getEffectiveMaxStrength,
+  getEffectiveMaxOrganization,
+  getEffectiveBaselineOrganization,
+} from '../selectors/barracksSelectors'
 import { clamp } from '../utils/math'
 
 function computeWartimeRecoveryMultiplier(
@@ -76,19 +81,22 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
 
     const recoveryMult = computeWartimeRecoveryMultiplier(ws, r, config)
     const moraleAtTickStart = r.morale
+    const effectiveBaselineOrg = getEffectiveBaselineOrganization(ws, r)
+    const effectiveMaxOrg = getEffectiveMaxOrganization(ws, r)
+    const effectiveMaxStr = getEffectiveMaxStrength(ws, r)
 
     let nextOrg = r.organization
-    if (r.organization < r.baselineOrganization) {
+    if (r.organization < effectiveBaselineOrg) {
       const rawRecovery =
         config.regimentOrganizationRecoveryPerWeek * (0.5 + moraleAtTickStart / 100)
-      nextOrg = Math.min(r.baselineOrganization, r.organization + rawRecovery * recoveryMult)
-    } else if (r.organization > r.baselineOrganization) {
+      nextOrg = Math.min(effectiveBaselineOrg, r.organization + rawRecovery * recoveryMult)
+    } else if (r.organization > effectiveBaselineOrg) {
       nextOrg = Math.max(
-        r.baselineOrganization,
+        effectiveBaselineOrg,
         r.organization - config.regimentOrganizationDecayAboveBaselinePerWeek,
       )
     }
-    nextOrg = clamp(nextOrg, 0, r.maxOrganization)
+    nextOrg = clamp(nextOrg, 0, effectiveMaxOrg)
 
     let nextMorale = r.morale
     if (r.morale < r.baselineMorale) {
@@ -104,10 +112,13 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
     }
     nextMorale = clamp(nextMorale, 0, r.maxMorale)
 
-    if (nextOrg === r.organization && nextMorale === r.morale) continue
+    const nextStrength = clamp(r.strength, 0, effectiveMaxStr)
+
+    if (nextOrg === r.organization && nextMorale === r.morale && nextStrength === r.strength)
+      continue
 
     ensureDraft()
-    ws.regiments[rid] = { ...r, organization: nextOrg, morale: nextMorale }
+    ws.regiments[rid] = { ...r, organization: nextOrg, morale: nextMorale, strength: nextStrength }
   }
 
   if (!cloned) return ctx

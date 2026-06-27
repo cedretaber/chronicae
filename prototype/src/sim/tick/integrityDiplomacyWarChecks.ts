@@ -918,12 +918,6 @@ export function checkDiplomacyWarRegiment(
           message: `Regiment ${idStr} local_levy must have disbandAfterWar=true (v0.39 §17.3)`,
         })
       }
-      if (regiment.homeHoldingId === undefined) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Regiment ${idStr} local_levy must have homeHoldingId (v0.39 §17.3)`,
-        })
-      }
     }
     // v0.47 §19.2: titular Polity は active Regiment を持たない (maintenance reassign を前提)。
     if (regiment.status === 'active' && regiment.owner.kind === 'polity') {
@@ -965,38 +959,6 @@ export function checkDiplomacyWarRegiment(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `regimentIndex.byWar[${warIdStr}] entry ${rid as string} has currentWarId=${(r.currentWarId as string | undefined) ?? 'undefined'} (§18.3)`,
-        })
-      }
-    }
-  }
-  for (const [holdingIdStr, ids] of Object.entries(state.regimentIndex.byHomeHolding)) {
-    for (const rid of ids) {
-      const r = state.regiments[rid]
-      if (!r) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `regimentIndex.byHomeHolding[${holdingIdStr}] references missing Regiment ${rid as string} (§18.3)`,
-        })
-      } else if ((r.homeHoldingId as string | undefined) !== holdingIdStr) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `regimentIndex.byHomeHolding[${holdingIdStr}] entry ${rid as string} home mismatch (§18.3)`,
-        })
-      }
-    }
-  }
-  for (const [provinceIdStr, ids] of Object.entries(state.regimentIndex.byHomeProvince)) {
-    for (const rid of ids) {
-      const r = state.regiments[rid]
-      if (!r) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `regimentIndex.byHomeProvince[${provinceIdStr}] references missing Regiment ${rid as string} (§18.3)`,
-        })
-      } else if ((r.homeProvinceId as string | undefined) !== provinceIdStr) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `regimentIndex.byHomeProvince[${provinceIdStr}] entry ${rid as string} home mismatch (§18.3)`,
         })
       }
     }
