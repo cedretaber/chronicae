@@ -12,10 +12,11 @@ import { RESOURCE_PRICE_DEFINITIONS } from '../config/resourceEconomyDefinitions
 import { resolveCategoryShares } from './resourceChoiceSelectors'
 import { clamp } from '../utils/math'
 
-// v0.54 市場清算 rewrite (§6.3c.1) 価格計算 (imbalance ベース):
+// v0.54 市場清算 rewrite (§6.3c.1) 価格計算 (非対称 imbalance ベース):
 //   imbalance = (buyOrders − sellOrders) / max(min(buyOrders, sellOrders), ε)
-//   price = basePrice × (1 + marketPriceSwing × clamp(imbalance, −1, 1))
-//   buy=0 / sell=0 は式 (min で割る) に入れず明示分岐で扱う。
+//   不足時 (imbalance > 0): effectiveSwing = marketPriceSwing × priceSwingMultiplier（非弾力品は急騰）
+//   余剰時 (imbalance < 0): effectiveSwing = marketPriceSwing（全品目共通の穏やかな下落）
+//   price = basePrice × (1 + effectiveSwing × clamp(imbalance, −1, 1))
 export function computeResourcePrice(
   resource: ResourceKind,
   sellOrders: number,
@@ -23,16 +24,17 @@ export function computeResourcePrice(
   config: SimulationConfig,
 ): number {
   const def = RESOURCE_PRICE_DEFINITIONS[resource]
-  const swing = config.marketPriceSwing
-  // エッジケース (§6.3c.1)。
+  const baseSwing = config.marketPriceSwing
+  const upSwing = baseSwing * def.priceSwingMultiplier
   if (buyOrders <= 0 && sellOrders <= 0) return def.basePrice
-  if (buyOrders <= 0) return def.basePrice * (1 - swing) // 需要ゼロ: 下限価格で全量売れた扱い
-  if (sellOrders <= 0) return def.basePrice * (1 + swing) // 供給ゼロ: 上限価格
+  if (buyOrders <= 0) return def.basePrice * (1 - baseSwing)
+  if (sellOrders <= 0) return def.basePrice * (1 + upSwing)
   const imbalance =
     (buyOrders - sellOrders) /
     Math.max(Math.min(buyOrders, sellOrders), config.resourceMarketSupplyEpsilon)
-  const priceMultiplier = 1 + swing * clamp(imbalance, -1, 1)
-  return def.basePrice * priceMultiplier
+  const clamped = clamp(imbalance, -1, 1)
+  const effectiveSwing = clamped >= 0 ? upSwing : baseSwing
+  return def.basePrice * (1 + effectiveSwing * clamped)
 }
 
 // v0.54 市場清算 rewrite (§6.3c.1) 充足率・shortage:

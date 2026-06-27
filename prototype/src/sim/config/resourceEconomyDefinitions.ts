@@ -8,33 +8,34 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 export type ResourcePriceConfig = {
   basePrice: number
   transportCostMultiplier: number
+  priceSwingMultiplier: number
 }
 
 // v0.55 §4.3: 21 種の初期 basePrice (調整前提)。
 export const RESOURCE_PRICE_DEFINITIONS: Record<ResourceKind, ResourcePriceConfig> = {
-  grain: { basePrice: 0.5, transportCostMultiplier: 0.5 },
-  fish: { basePrice: 1.2, transportCostMultiplier: 0.6 },
-  meat: { basePrice: 1.4, transportCostMultiplier: 0.6 },
-  fruit: { basePrice: 1.8, transportCostMultiplier: 0.7 },
-  beer: { basePrice: 1.4, transportCostMultiplier: 0.9 },
-  wine: { basePrice: 3.5, transportCostMultiplier: 1.0 },
+  grain: { basePrice: 0.5, transportCostMultiplier: 0.5, priceSwingMultiplier: 3.0 },
+  fish: { basePrice: 1.2, transportCostMultiplier: 0.6, priceSwingMultiplier: 2.5 },
+  meat: { basePrice: 1.4, transportCostMultiplier: 0.6, priceSwingMultiplier: 2.5 },
+  fruit: { basePrice: 1.8, transportCostMultiplier: 0.7, priceSwingMultiplier: 1.5 },
+  beer: { basePrice: 1.4, transportCostMultiplier: 0.9, priceSwingMultiplier: 0.8 },
+  wine: { basePrice: 3.5, transportCostMultiplier: 1.0, priceSwingMultiplier: 0.8 },
 
-  flax: { basePrice: 0.9, transportCostMultiplier: 0.5 },
-  wool: { basePrice: 1.1, transportCostMultiplier: 0.5 },
-  timber: { basePrice: 1.0, transportCostMultiplier: 1.5 },
-  stone: { basePrice: 0.9, transportCostMultiplier: 2.0 },
-  iron_ore: { basePrice: 1.6, transportCostMultiplier: 1.5 },
-  fur: { basePrice: 3.0, transportCostMultiplier: 1.5 },
-  gems: { basePrice: 7.0, transportCostMultiplier: 3.0 },
-  dye: { basePrice: 2.2, transportCostMultiplier: 0.8 },
+  flax: { basePrice: 0.9, transportCostMultiplier: 0.5, priceSwingMultiplier: 1.0 },
+  wool: { basePrice: 1.1, transportCostMultiplier: 0.5, priceSwingMultiplier: 1.0 },
+  timber: { basePrice: 1.0, transportCostMultiplier: 1.5, priceSwingMultiplier: 1.2 },
+  stone: { basePrice: 0.9, transportCostMultiplier: 2.0, priceSwingMultiplier: 1.2 },
+  iron_ore: { basePrice: 1.6, transportCostMultiplier: 1.5, priceSwingMultiplier: 1.2 },
+  fur: { basePrice: 3.0, transportCostMultiplier: 1.5, priceSwingMultiplier: 0.7 },
+  gems: { basePrice: 7.0, transportCostMultiplier: 3.0, priceSwingMultiplier: 0.4 },
+  dye: { basePrice: 2.2, transportCostMultiplier: 0.8, priceSwingMultiplier: 1.0 },
 
-  tools: { basePrice: 3.5, transportCostMultiplier: 1.0 },
-  fabric: { basePrice: 2.2, transportCostMultiplier: 0.6 },
-  clothes: { basePrice: 4.5, transportCostMultiplier: 0.7 },
-  luxury_clothes: { basePrice: 9.0, transportCostMultiplier: 2.0 },
-  jewelry: { basePrice: 14.0, transportCostMultiplier: 2.5 },
-  smoked_fish: { basePrice: 2.4, transportCostMultiplier: 0.8 },
-  processed_meat: { basePrice: 2.6, transportCostMultiplier: 0.8 },
+  tools: { basePrice: 3.5, transportCostMultiplier: 1.0, priceSwingMultiplier: 1.5 },
+  fabric: { basePrice: 2.2, transportCostMultiplier: 0.6, priceSwingMultiplier: 1.2 },
+  clothes: { basePrice: 4.5, transportCostMultiplier: 0.7, priceSwingMultiplier: 1.5 },
+  luxury_clothes: { basePrice: 9.0, transportCostMultiplier: 2.0, priceSwingMultiplier: 0.5 },
+  jewelry: { basePrice: 14.0, transportCostMultiplier: 2.5, priceSwingMultiplier: 0.4 },
+  smoked_fish: { basePrice: 2.4, transportCostMultiplier: 0.8, priceSwingMultiplier: 2.0 },
+  processed_meat: { basePrice: 2.6, transportCostMultiplier: 0.8, priceSwingMultiplier: 2.0 },
 }
 
 // v0.55 §4.3a smoothedPrice cold-start fallback: 21 種は v0.55 新規導入のため初月は価格 history が

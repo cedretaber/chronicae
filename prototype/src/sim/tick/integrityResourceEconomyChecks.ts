@@ -51,11 +51,12 @@ export function checkResourceEconomy(
         message: `marketResourcePrices ${key}: history length=${record.history.length} exceeds limit=${config.marketResourcePriceHistoryLimit}`,
       })
     }
-    // §6.3c.1: price ∈ basePrice × [1−swing, 1+swing] (全資源共通レンジ)。config 無しなら範囲検査はスキップ。
     if (config) {
-      const base = RESOURCE_PRICE_DEFINITIONS[record.resource].basePrice
-      const lo = base * (1 - config.marketPriceSwing) - PRICE_RANGE_EPSILON
-      const hi = base * (1 + config.marketPriceSwing) + PRICE_RANGE_EPSILON
+      const def = RESOURCE_PRICE_DEFINITIONS[record.resource]
+      const lo = def.basePrice * (1 - config.marketPriceSwing) - PRICE_RANGE_EPSILON
+      const hi =
+        def.basePrice * (1 + config.marketPriceSwing * def.priceSwingMultiplier) +
+        PRICE_RANGE_EPSILON
       if (record.lastPrice < lo || record.lastPrice > hi) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
