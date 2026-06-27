@@ -103,7 +103,7 @@ function makeWar(id: WarId, status: War['status']): War {
 }
 
 describe('RegimentReinforcementSystem — active strength 補充 (平時)', () => {
-  it('terminal==owner・治金潤沢なら strength を base×popFactor だけ補充し treasury を支払う (silent)', () => {
+  it('terminal==owner・POP充足なら strength を base×popFactor だけ補充する (silent, treasury不変)', () => {
     const state = baseState()
     const r = addReg(state, { strength: 50 })
     const before = state.polities[PO1]!.treasury
@@ -113,8 +113,8 @@ describe('RegimentReinforcementSystem — active strength 補充 (平時)', () =
     // base 4.0 × popFactor 1.0 × homeControl 1 × peace 1 × infantry 1 = 4.0
     expect(rr.strength).toBeCloseTo(54, 5)
     expect(rr.lastReinforcedWeek).toBe(0)
-    // cost = 4.0 × costPerStrength(0.2) = 0.8
-    expect(result.state.polities[PO1]!.treasury).toBeCloseTo(before - 0.8, 5)
+    // v0.64: 補充コストは兵舎給与に一本化。treasury は不変。
+    expect(result.state.polities[PO1]!.treasury).toBe(before)
     // strength 補充ではイベントは出ない (silent)
     expect(result.events.length).toBe(0)
   })
@@ -161,14 +161,14 @@ describe('RegimentReinforcementSystem — 平時/戦時/動員中の係数差', 
   })
 })
 
-describe('RegimentReinforcementSystem — treasury cap', () => {
-  it('treasury 不足なら affordable 分だけ補充して treasury を 0 にする', () => {
+describe('RegimentReinforcementSystem — treasury cap 廃止 (v0.64)', () => {
+  it('treasury が少なくても POP 充足があれば desired まで補充する (treasury 不変)', () => {
     const state = baseState({ treasury: 0.1 })
     const r = addReg(state, { strength: 50 })
     const next = runRegimentReinforcementSystem(ctx(state)).state
-    // affordable = 0.1 / 0.2 = 0.5 (desired 4.0 より小さい) → gain 0.5
-    expect(next.regiments[r.id]!.strength).toBeCloseTo(50.5, 5)
-    expect(next.polities[PO1]!.treasury).toBeCloseTo(0, 5)
+    // v0.64: treasury cap 撤廃。desired 4.0 まで補充。
+    expect(next.regiments[r.id]!.strength).toBeCloseTo(54, 5)
+    expect(next.polities[PO1]!.treasury).toBe(0.1)
   })
 })
 
@@ -223,16 +223,14 @@ describe('RegimentReinforcementSystem — destroyed reform', () => {
   })
 })
 
-describe('RegimentReinforcementSystem — 決定的順序', () => {
-  it('treasury 共有時、RegimentId 昇順で先の Regiment が優先的に補充される', () => {
-    // treasury = 0.5 → 0.5/0.2 = 2.5 strength 分しか払えない。rg-0 が先に desired 2.5 まで取り、rg-1 は 0。
+describe('RegimentReinforcementSystem — 決定的順序 (v0.64 treasury 廃止後)', () => {
+  it('treasury に依存せず、両 Regiment とも desired まで補充される', () => {
     const state = baseState({ treasury: 0.5 })
-    const r0 = addReg(state, { strength: 98 }) // rg-0, deficit 2 → desired min(4, 2)=2, cost 0.4
+    const r0 = addReg(state, { strength: 98 }) // rg-0, deficit 2 → desired min(4, 2)=2
     const r1 = addReg(state, { strength: 50 }) // rg-1, deficit 50 → desired 4
     const next = runRegimentReinforcementSystem(ctx(state)).state
-    // rg-0: gain 2 (deficit cap), cost 0.4 → treasury 0.5-0.4=0.1 残
+    // v0.64: treasury cap 撤廃。両方 desired まで補充。
     expect(next.regiments[r0.id]!.strength).toBeCloseTo(100, 5)
-    // rg-1: affordable = 0.1/0.2 = 0.5 → gain 0.5
-    expect(next.regiments[r1.id]!.strength).toBeCloseTo(50.5, 5)
+    expect(next.regiments[r1.id]!.strength).toBeCloseTo(54, 5)
   })
 })

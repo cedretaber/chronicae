@@ -141,20 +141,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
       let reinforcementGain =
         config.regimentReinforcementBasePerMonth * popFactor * homeControl * warState * troopFactor
       reinforcementGain *= barracks.lastPayrollFulfillment
-      const desired = Math.min(reinforcementGain, effectiveMax - r.strength)
-      if (desired <= 0) continue
-
-      const costPerStrength =
-        config.regimentReinforcementCostPerStrength *
-        (r.troopKind === 'cavalry' ? config.regimentCavalryReinforcementCostMultiplier : 1)
-      const polity = ws.polities[r.owner.id]
-      if (!polity) continue
-
-      let gain = desired
-      if (costPerStrength > 0) {
-        const affordable = polity.treasury / costPerStrength
-        gain = Math.min(desired, affordable)
-      }
+      const gain = Math.min(reinforcementGain, effectiveMax - r.strength)
       if (gain <= 0) continue
 
       ensureDraft()
@@ -162,11 +149,6 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
         strength: clamp(r.strength + gain, 0, effectiveMax),
         lastReinforcedWeek: week,
       })
-      const cost = gain * costPerStrength
-      if (cost > 0) {
-        const p = ws.polities[r.owner.id]
-        if (p) ws.polities[r.owner.id] = { ...p, treasury: Math.max(0, p.treasury - cost) }
-      }
       continue
     }
 

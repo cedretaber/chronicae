@@ -2243,9 +2243,9 @@ export const defaultConfig: SimulationConfig = {
     },
   },
   barracksMonthlyWageByPopType: {
-    soldiers: 1.0,
-    ministeriales: 1.5,
-    nobles: 2.0,
+    soldiers: 0.1,
+    ministeriales: 0.15,
+    nobles: 0.2,
   },
   barracksUnpaidOrganizationPenalty: 15,
   barracksUnpaidMoralePenalty: 10,

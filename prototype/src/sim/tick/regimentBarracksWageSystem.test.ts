@@ -43,7 +43,7 @@ describe('runRegimentBarracksWageSystem', () => {
     // Pre-set unpaidCount = 2 to verify decrement
     state.regimentBarracks[barracks.id] = { ...barracks, unpaidCount: 2 }
 
-    // Add 10 soldiers at wage 1.0 → requiredPayroll = 10
+    // Add 10 soldiers at wage 0.1 → requiredPayroll = 1.0
     const popId: PopGroupId = addToOrCreatePopGroupMut(state, {
       holdingId: HOLDING,
       class: getPopStratum('soldiers'),
@@ -58,12 +58,12 @@ describe('runRegimentBarracksWageSystem', () => {
     expect(outBarracks.lastPayrollFulfillment).toBe(1)
     expect(outBarracks.unpaidCount).toBe(1) // max(0, 2 - 1) = 1
 
-    // Treasury reduced by 10 (full wage)
-    expect(out.state.polities[POLITY]?.treasury).toBeCloseTo(990, 5)
+    // Treasury reduced by 1.0 (full wage: 10 × 0.1)
+    expect(out.state.polities[POLITY]?.treasury).toBeCloseTo(999, 5)
 
-    // POP receives full wage: 10 soldiers × 1.0 = 10
+    // POP receives full wage: 10 soldiers × 0.1 = 1.0
     const pop = out.state.popGroups[popId]!
-    expect(pop.money).toBeCloseTo(10, 5)
+    expect(pop.money).toBeCloseTo(1, 5)
 
     // Regiment org/morale unchanged (no penalty)
     const outRegiment = out.state.regiments[regiment.id]!
@@ -73,7 +73,7 @@ describe('runRegimentBarracksWageSystem', () => {
 
   it('partial pay: treasury < required → payrollFulfillment < 1, unpaidCount increments, org/morale penalty', () => {
     let state = makeEmptyV016State()
-    state = withPolity(state, POLITY, { treasury: 5 })
+    state = withPolity(state, POLITY, { treasury: 0.5 })
 
     const { regiment, barracks } = createRegimentWithBarracksMut(state, {
       owner: { kind: 'polity', id: POLITY },
@@ -93,7 +93,7 @@ describe('runRegimentBarracksWageSystem', () => {
       createdWeek: 0,
     })
 
-    // 10 soldiers at wage 1.0 → requiredPayroll = 10; treasury = 5 → paid = 5
+    // 10 soldiers at wage 0.1 → requiredPayroll = 1.0; treasury = 0.5 → paid = 0.5
     const popId: PopGroupId = addToOrCreatePopGroupMut(state, {
       holdingId: HOLDING,
       class: getPopStratum('soldiers'),
@@ -108,12 +108,12 @@ describe('runRegimentBarracksWageSystem', () => {
     expect(outBarracks.lastPayrollFulfillment).toBeCloseTo(0.5, 5)
     expect(outBarracks.unpaidCount).toBe(1) // 0 + 1
 
-    // Treasury exhausted
+    // Treasury exhausted (0.5 - 0.5 = 0)
     expect(out.state.polities[POLITY]?.treasury).toBeCloseTo(0, 5)
 
-    // POP receives half wages: 5 / 10 × 5 = ... wait, (10/10)*5 = 5
+    // POP receives half wages: (1.0/1.0)*0.5 = 0.5
     const pop = out.state.popGroups[popId]!
-    expect(pop.money).toBeCloseTo(5, 5)
+    expect(pop.money).toBeCloseTo(0.5, 5)
 
     // Penalty: shortfall=0.5, multiplier=max(1,1)=1
     // orgDamage = 0.5 × 15 × 1 = 7.5 → org: 80 - 7.5 = 72.5
