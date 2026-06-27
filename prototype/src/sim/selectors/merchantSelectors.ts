@@ -16,7 +16,10 @@ import { isLivingPerson } from '../types/person'
 import { getHouseDecisionMaker, getActiveOfficeHolders } from './officeSelectors'
 import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 import { MERCHANT_EMPLOYMENT_SLOTS_PER_LEVEL } from '../config/merchantDefinitions'
-import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import {
+  getSmoothedPriceOrBase,
+  RESOURCE_PRICE_DEFINITIONS,
+} from '../config/resourceEconomyDefinitions'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import { clamp } from '../utils/math'
 
@@ -296,7 +299,7 @@ function marketSmoothedPrice(
 }
 
 // 前月 snapshot の生注文量。source の輸出余力 sourceExportable=max(0,sell-buy) に使う（soft cap）。
-function marketLastOrders(
+export function marketLastOrders(
   state: WorldState,
   stateId: StateRegionId,
   resource: ResourceKind,
@@ -330,7 +333,8 @@ export function computeExpectedRouteEconomics(
 
   const unitArbitrage = Math.max(0, spread) * config.tradeRouteSpreadCaptureRate
   const unitServiceFee = averagePrice * config.tradeRouteServiceMarginRate
-  const unitTransportCost = config.tradeRouteTransportCostPerUnit
+  const transportMultiplier = RESOURCE_PRICE_DEFINITIONS[resource].transportCostMultiplier
+  const unitTransportCost = config.tradeRouteTransportCostPerUnit * transportMultiplier
   const expectedUnitMargin = unitArbitrage + unitServiceFee - unitTransportCost
 
   // spread<=0 は spreadFactor=0 で planned=0、expectedUnitMargin<=0（高 transport / 低 avgPrice）も planned=0。

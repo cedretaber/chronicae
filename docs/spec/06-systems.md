@@ -3068,7 +3068,11 @@ StateRegion 単位の市場（§6.55+）は state 間で資源が流通せず、
 
 **lean 逸脱③ / balance-defer**: share holder 死亡時の share 再発行機構が無く ~50年で shares が枯渇する（商会は ownerHouse decision-maker fallback で機能継続・非クラッシュ。share 相続は future）。商家/貴族排他 guard（§10.3 `canHouseOwnMerchantCompany` 等）は未配線だが、商会 owner が常に専用 dh- House（polity 非所有・所有権移転機構なし）のため排他は**構造的に成立済み**。全 config 既定値は balance-defer。
 
-**v0.61 交易路修正 config（balance-defer）**: `tradeRouteFixedMaintenanceCostByLevel: {1:0.15, 2:0.3, 3:0.45, 4:0.6}`（旧 {1:1, 2:2, 3:3, 4:4} から引き下げ）・`tradeRouteVariableMaintenanceCostPerUnit: 0.05`・`tradeRouteFullUtilizationSpreadRatio: 0.6`（≥1.5 は無効値域・価格バンド [0.25,1.75]×basePrice の理論上限）・`merchantCompanyOpenRouteProfitThreshold: 0`・`merchantRouteUpgradeUtilizationThreshold: 0.5`・`merchantRouteUpgradeProfitGainThreshold: 0.5`・`merchantRouteCloseSmoothedProfitThreshold: -0.1`。
+**品目別輸送コスト（v0.64後）**: `RESOURCE_PRICE_DEFINITIONS` に `transportCostMultiplier` を追加。実効輸送コスト = `tradeRouteTransportCostPerUnit × transportCostMultiplier`。穀物等の日用品は低倍率（0.5〜0.7: 嵩張るが護衛不要）、宝石・宝飾品は高倍率（2.5〜3.0: 軽量だが厳重護衛が必要）。石材・木材等の重量物も高倍率（1.5〜2.0）。歴史的な「嵩高い低価値品は長距離交易に乗りにくいが、高価値品は護衛コストがかかる」構造を反映。
+
+**需要適合スコアによる交易路評価（v0.64後）**: `pickBestRouteTarget` が L1 の `expectedMonthlyProfit` だけでなく、target 市場の需要深度（`buyOrders`）を考慮した「成長性スコア」で交易路候補を比較する。`absorbableVolume = targetBuyOrders × tradeRouteDemandAbsorptionFraction` で吸収可能量を推定し、それに見合ったレベルでの予測利益をスコアとする。深い需要のある食料・日用品が、薄い需要の高級品より高スコアを得やすくなる。
+
+**v0.61 交易路修正 config（balance-defer）**: `tradeRouteFixedMaintenanceCostByLevel: {1:0.15, 2:0.3, 3:0.45, 4:0.6}`（旧 {1:1, 2:2, 3:3, 4:4} から引き下げ）・`tradeRouteVariableMaintenanceCostPerUnit: 0.05`・`tradeRouteFullUtilizationSpreadRatio: 0.6`（≥1.5 は無効値域・価格バンド [0.25,1.75]×basePrice の理論上限）・`merchantCompanyOpenRouteProfitThreshold: 0`・`merchantRouteUpgradeUtilizationThreshold: 0.5`・`merchantRouteUpgradeProfitGainThreshold: 0.5`・`merchantRouteCloseSmoothedProfitThreshold: -0.1`・`tradeRouteDemandAbsorptionFraction: 0.5`。
 
 **UI（§22）**: `MerchantCompanyDetail`（所有家・会頭/番頭・財務・本支店・交易路・active Project 一覧）+ `TradeRouteDetail`（接続 state・対象商品・planning price・利益）+ HouseDetail の「商会」セクションから導線。`MarketDetail` は交易路を輸入/輸出に分割表示。`EntityType='merchant_company'`。
 

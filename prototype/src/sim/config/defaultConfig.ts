@@ -1606,6 +1606,7 @@ export type SimulationConfig = {
   merchantCompanyOpenRouteProfitThreshold: number
   merchantRouteUpgradeUtilizationThreshold: number
   merchantRouteUpgradeProfitGainThreshold: number
+  tradeRouteDemandAbsorptionFraction: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -3328,4 +3329,5 @@ export const defaultConfig: SimulationConfig = {
   merchantCompanyOpenRouteProfitThreshold: 0,
   merchantRouteUpgradeUtilizationThreshold: 0.5,
   merchantRouteUpgradeProfitGainThreshold: 0.5,
+  tradeRouteDemandAbsorptionFraction: 0.5,
 }

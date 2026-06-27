@@ -16,6 +16,7 @@ import {
   getAdjacentStateRegionIds,
   getStateCityHoldingId,
   computeExpectedRouteEconomics,
+  marketLastOrders,
 } from '../selectors/merchantSelectors'
 import { getActiveOfficeHolders } from '../selectors/officeSelectors'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
@@ -38,8 +39,10 @@ function companyHqStateId(
   return state.provinces[holding.provinceId]?.stateId
 }
 
-// v0.61 fix: expectedMonthlyProfit 最大の (target, resource) を選ぶ（§方針5）。共有ヘルパーで期待利益を算出し、
-//   profitThreshold を超える候補のみ返す。既存 active route と同一 (src,tgt,resource) は除外。
+// v0.61 fix: 需要適合利益（demand-matched projected profit）最大の (target, resource) を選ぶ。
+//   L1 の unitMargin > 0 かつ L1 利益が profitThreshold を超える候補について、target 市場の
+//   buyOrders（需要深度）に見合ったレベルでの予測利益をスコアとして比較する。
+//   深い需要のある食料・日用品が、薄い需要の高級品より高スコアを得られるようにする。
 function pickBestRouteTarget(
   state: WorldState,
   config: SimulationConfig,
@@ -51,15 +54,33 @@ function pickBestRouteTarget(
   for (const targetStateId of getAdjacentStateRegionIds(state, sourceStateId)) {
     for (const resource of RESOURCE_KINDS) {
       if (existingSet.has(`${targetStateId as string}:${resource}`)) continue
-      const econ = computeExpectedRouteEconomics(state, config, {
+      const l1Econ = computeExpectedRouteEconomics(state, config, {
         sourceStateId,
         targetStateId,
         resource,
         level: 1,
       })
-      if (econ.expectedMonthlyProfit <= config.merchantCompanyOpenRouteProfitThreshold) continue
-      if (!best || econ.expectedMonthlyProfit > best.profit) {
-        best = { targetStateId, resource, profit: econ.expectedMonthlyProfit }
+      if (l1Econ.expectedUnitMargin <= 0) continue
+      if (l1Econ.expectedMonthlyProfit <= config.merchantCompanyOpenRouteProfitThreshold) continue
+
+      const targetBuy = marketLastOrders(state, targetStateId, resource).buy
+      const absorbable = targetBuy * config.tradeRouteDemandAbsorptionFraction
+      const maxVolume = Math.min(l1Econ.sourceExportableAmount, absorbable)
+
+      let projLevel = 1
+      for (let l = 2; l <= 4; l++) {
+        if ((config.tradeRouteThroughputByLevel[l] ?? 0) <= maxVolume) projLevel = l
+      }
+
+      const projThroughput = config.tradeRouteThroughputByLevel[projLevel] ?? 0
+      const projQty = Math.min(projThroughput, maxVolume) * l1Econ.spreadFactor
+      const projMaint =
+        (config.tradeRouteFixedMaintenanceCostByLevel[projLevel] ?? 0) +
+        projQty * config.tradeRouteVariableMaintenanceCostPerUnit
+      const score = projQty * l1Econ.expectedUnitMargin - projMaint
+
+      if (score > 0 && (!best || score > best.profit)) {
+        best = { targetStateId, resource, profit: score }
       }
     }
   }
