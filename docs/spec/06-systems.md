@@ -310,9 +310,9 @@ EmploymentRebalanceSystem の後・LandRevenueSystem の直前に実行する月
 POP の財産を 0..100 wealth 指数から具体的な **money 残高(stock)** へ移行した。source/sink モデル（賃金=mint・消費=burn、抽象市場は非保存のまま流用）。`PopGroup` は `money`(extensive) ＋ `needSatisfaction`(intensive 0..100) の 2 本立てで、0..100 `wealth` を退役。
 
 - **賃金 mint（労働所得チャネル）**: resourceEconomySystem の**最終 pass**（全 market 清算・snapshot 確定後）で、各 asset の `wageShare = max(0, netRevenue) × wageShareOfNetRevenue`(v0.58 balance=**0.5**＝粗利の半分を労働者へ) を雇用 PopType の PopGroup へ mint する。配分比 = `computeAssetPopTypeShares(state, asset) × wageRoleWeightByRole[role]` を正規化（役割: skilled 1.4 / primary 1.0 / throughput 0.6、`popWageDefinitions.ts`）。`wageShare` は**実際に mint された合計**を記録し、雇用 PopType 不在なら 0（owner から carve しない＝**carve==mint** を構造保証）。LandRevenue は `positiveNet = max(0, netRevenue − wageShare)` で控除するため owner/税/国庫が wageRate 分縮む（労使ゼロサムの山分け）。
-- **upper 配当 mint（所有者・支配者の取り分）**: 上流(nobles/patricians)は「給料」でなく**配当**を受ける。同じ最終 pass で holding 単位に `dividendBudget = Σ_assets max(0, netRevenue) × upperDividendShareOfNetRevenue`(v0.58 balance=**0.03**) を、**雇用枠に就いている upper POP にのみ** size 比例で mint する（`ar.ownerDividendShare` に asset 別 carve 額を記録）。雇用 upper 不在なら carve しない（carve==mint）。**失業 upper は受け取らない**＝没落（money 枯渇→既存の降格機構で下位転落、`popJobChangeSystem`）。賃金とは別 carve で、LandRevenue は `positiveNet = max(0, netRevenue − wageShare − ownerDividendShare)` で両方控除する。背景: production asset(farm/workshop)の雇用枠は lower/middle のみで upper を雇わないため、これが無いと upper POP が賃金経路に乗らず現金 0・needSatisfaction 0 になっていた。配当率を抑えめ(0.03)にしているのは、upper の needSatisfaction が luxury 財の marketFill に律速され ~45 で頭打ちのため money が死蔵に回りやすく、高率では owner 再投資減で lower/middle welfare を過度に削るため（将来 Project 資金集めで死蔵 money を還流できれば引上げ可、§13）。
+- **upper 配当 mint（現地貴族・支配者の取り分）**: 上流(nobles/patricians)は「給料」でなく**配当**を受ける。landRevenueSystem で holding 単位に `collected × upperDividendShareOfNetRevenue`(**0.20**) を、**雇用枠に就いている upper POP にのみ** size 比例で mint する。雇用 upper 不在なら carve しない（carve==mint）。**失業 upper は受け取らない**＝没落（money 枯渇→既存の降格機構で下位転落、`popJobChangeSystem`）。背景: 現地貴族（豪族）が holding 収入の相当部分を取り、Polity は完全な支配を確立していない前近代の構造を再現する。将来的にこの配当率を Polity 政策/代官方針で可変にし、中央集権 vs 地方分権のトレードオフを表現する構想がある。
 - **施設(improvement)労働者の俸給（holding 収入から、施設労働者本人へ）**: 施設(manor_house/town_hall/storage)は収益を生まないので、施設に雇用される POP の給料は holding 収入(owner 取り分)から確保する。給与水準は同 stratum の生産 per-capita 相当にする。実装は **2 段**: (1) stratum 単位で施設人件費総額 `supplementByStratum_s = (同 stratum 生産者の生産賃金総額) × facCap_s/prodCap_s` を求める(`facCap_s`=施設雇用枠容量 / `prodCap_s`=生産 asset 雇用枠容量、level 込み。この総額は従来式と同一で owner 影響を変えない)。`prodCap_s=0` の stratum(upper)は生産賃金ゼロ→対象外(別途配当)。(2) `supplementByStratum_s` を各 stratum の**施設 slot を持つ popType** へ施設 facCap 比で按分し、**その popType の雇用 PopGroup 本人**へ mint する。該当 popType の雇用 POP が不在(slot 未充足)なら carve しない(`carve==mint`)。mint 総額を asset へ `max(0,netRevenue)` 比で按分し `wageShare` に合算して LandRevenue が控除する(施設俸給も労働コスト=owner 収入から)。**v0.58 で受取人を是正**: 旧実装は施設人件費を**生産者 POP** に上乗せ mint しており、生産 asset に登場しない**施設専用 popType(soldiers / bureaucrats / merchants 等。soldiers は `realEstateDefinitions` に無く improvement 専用)は収入経路ゼロ→money 枯渇→needSat 0** に張り付いていた。これを「施設人件費は施設労働者本人へ」に付け替え、soldiers 等が同 stratum 生産者と同 per-capita 相当の収入を得るようにした(生産者には上乗せしない)。総額・stratum カバレッジは従来どおりで owner 影響はほぼ不変(実測 seed1/40年: wageShare 62.7%→63.6%、+0.9pp=trajectory 差の範囲)。soldiers pcMoney(emp) 3.5→16.6 等、施設専用 popType の購買力が改善。determinism: byHolding/slot/popType 固定順・RNG 非消費。
-- **POP 資産課税（lower/middle の死蔵 sink、land 税と合流）**: POP.money の唯一の sink は消費(marketFill 律速)のため、mint > goods だと lower/middle に money が死蔵する。これを削るため `popWealthTaxRate`(0.03 月次) で **per-capita floor(`popWealthTaxFloorPerCapita`=2.0)超過分**に課税する。**land 税と同じ holding 収入(holdingTaxable)へ合流**させ、代官の徴収(localExtractionRate × collectionEfficiency)・手数料・契約 chain で treasury へ流す共通経路に乗せる（landRevenueSystem）。**納税額(POP burn)= nominal × localExtractionRate**(代官の取り立て分)、**徴税額(treasury 到達)= nominal × localExtractionRate × collectionEfficiency**。差分(徴税効率ロス=不正・賄賂)は**世界から消滅**する意図的 sink（抽象市場が買い手なしでも mint する分と source/sink で総量均衡。死蔵の過剰 money 供給を削る効果も持つ）。**floor 以下の貧困層は非課税**(累進)・**upper は除外**(死蔵は将来 Project 出資で使う、§13)。史実の間接税/賦課が持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの。実測(80年): POP.money 死蔵が課税なし比 ~71400→~17153 に縮小。徴収分の一部は代官手数料として Person.wealth へ、残りは treasury へ。国別の課税方式多様化(人頭税/資産税・対象層)は将来の「国の制度」で対応(§13)。
+- **POP 資産課税（lower/middle の死蔵 sink、land 税と合流）**: POP.money の唯一の sink は消費(marketFill 律速)のため、mint > goods だと lower/middle に money が死蔵する。これを削るため `popWealthTaxRate`(0.03 月次) で **per-capita floor(`popWealthTaxFloorPerCapita`=2.0)超過分**に課税する。**land 税と同じ holding 収入(holdingTaxable)へ合流**させ、代官の collectionEfficiency・手数料・契約 chain で treasury へ流す共通経路に乗せる（landRevenueSystem）。**納税額(POP burn)= nominal 全額**、**徴税額(treasury 到達)= holdingTaxable × collectionEfficiency** の一部。差分(徴税効率ロス=不正・賄賂)は**世界から消滅**する意図的 sink。**floor 以下の貧困層は非課税**(累進)・**upper は除外**(死蔵は将来 Project 出資で使う、§13)。史実の間接税/賦課が持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの。国別の課税方式多様化(人頭税/資産税・対象層)は将来の「国の制度」で対応(§13)。
 - **予算制約消費（tier 優先）**: §6.3c.2 の通り、demand は full desired を start-of-tick `money` で essential→ordinary→luxury に充当。placed = full × `affordByTier`。
 - **needSatisfaction**: per-tier 充足 = `affordByTier × marketFill`（買えた×市場で満たせた）の tier 重み加重平均 ×100 を平滑化。money burn = `Σ allocatedByTier × marketFill`（smoothedPrice 基準で ≤ budget）。
   - **v0.59 read-model 追加 — `PopGroup.categorySatisfaction`（表示専用キャッシュ）**: 上記 per-tier 計算は内部で **NeedCategory 別の充足度**（= `affordByTier[cat.tier] × カテゴリ market-fill ×100`、カテゴリ market-fill は当該カテゴリの placed value 加重 `fulfillmentRatio`）まで分解できるが、従来は tier 重み加重平均に畳んで捨てていた。UI で「必需品/日用品/贅沢品」内訳（特に**食料**の充足）を POP 側から確認するため、この per-category 値を `PopGroup.categorySatisfaction`（`Partial<Record<NeedCategory, number>>` 0..100）に保存する。**desire を持つカテゴリのみ key を持つ**（`computePopNeedDemand` が返したカテゴリ＝`amountPerPop>0`。UI は key 不在を「需要なし」、`0` を「0% 充足」と区別）。tier 集計（`fillNum/fillDen`）は従来と同順・同演算のまま per-category へ分解するだけで、**`needSatisfaction`/`money` はビット同一**（150年×4seed で 243 POP の needSat/money/size/unrest が baseline と完全一致）。intensive だが merge/split/worldgen には**非追従**（次 econ tick で再生成される表示キャッシュ）、integrity 検査も持たない（書込み時点で `clamp100`）。挙動（成長/unrest/mobility）には一切影響しない。
@@ -355,20 +355,19 @@ snapshot の `assetResults` を **資産ごとに反復**し、bailiff / chain �
 
 owner 支払いは owner.kind 別: `house` → House.wealth / `person` → Person.wealth / `polity` → Polity.treasury（税フロー効率の対象外で直接加算）。**owner が不在/inactive/死亡で支払えなかった ownerIncome は holdingTaxable に戻す**（保存則 Σ ownerPaid + Σ holdingTaxable == Σ positiveNet を維持。旧 owner income も inactive house 分は holding 側に残していた）。`realEstateHoldingDueRate` は v0.54 暫定の地代・市場税・法人税の抽象化で、将来 POP cash / wage / tax を導入したら縮小・廃止する。
 
-この `holdingTaxable` が旧 `revenueAfterOwnerIncome` を置き換える。以降の bailiff extraction / chain 上納 / treasury 反映ロジックは入力値だけ差し替えて温存する。
-
-各 Holding の代官による現地徴収を挟む。
+この `holdingTaxable` に対し、代官の `collectionEfficiency` → upper 配当 → 代官手数料 → chain 上納の順で配分する。
 
 ```ts
-const localExtractionRate = getBailiffLocalExtractionRate(state, config, assignment.id)
 const collectionEfficiency = getBailiffCollectionEfficiency(state, config, assignment.id, recentTaskStatus)
-const collected = holdingTaxable * localExtractionRate * collectionEfficiency
+const collected = holdingTaxable * collectionEfficiency
+const dividend = carveUpperDividendMut(holdingId, collected)  // upper POP へ 20%
+const afterDividend = collected - dividend
 const bailiffFeeRate = getBailiffFeeRate(state, config, assignment.id)
-const bailiffFee = collected * bailiffFeeRate
-const remittanceToTerminal = collected - bailiffFee
+const bailiffFee = afterDividend * bailiffFeeRate              // 代官手数料 3%
+const remittanceToTerminal = afterDividend - bailiffFee
 ```
 
-通常人物代官には `bailiffFee` を `person.wealth` に加算する。placeholder 代官には加算しない。
+通常人物代官には `bailiffFee` を `person.wealth` に加算する。placeholder 代官には加算しない。代官不在の場合は `collected = holdingTaxable`（efficiency 1.0 相当）。
 
 **6.4.2b chain 上納**
 
@@ -387,7 +386,7 @@ for (const contract of chain.slice().reverse()) {
 
 **6.4.2c 義務不履行による収益の留保（v0.53、read-only）**: chain 上納と owner income 支払いは、active な押領・上納拒否を反映して実効値を変える（詳細は §6.70）。LandRevenueSystem はこれらの entity を作成・変更せず、**読むだけ**である。
 
-- **active RealEstateSeizure**: 対象 RealEstateAsset の `holdingDue` は通常通り holding taxable に入れ、`ownerIncome` を rightfulOwner（House）に支払わず holding 側へ吸収する（= 押領中は positiveNet 全額が holding taxable になり、bailiff extraction / chain 上納の対象）。`asset.owner` record は active 中も保持し、20年時効で legalized したときのみ `undefined` 化する。
+- **active RealEstateSeizure**: 対象 RealEstateAsset の `holdingDue` は通常通り holding taxable に入れ、`ownerIncome` を rightfulOwner（House）に支払わず holding 側へ吸収する（= 押領中は positiveNet 全額が holding taxable になり、collectionEfficiency / chain 上納の対象）。`asset.owner` record は active 中も保持し、20年時効で legalized したときのみ `undefined` 化する。
 - **active LandContractDefault**: `targetLandContractId` を `byContract` で引き、当該 contract の `taxRateToGrantor` を**実効 0** とみなす（contract record の値は不変）。tax_default / revolt_independence の両 origin に適用する。revolt_independence の nominal occupation contract は `revoltOccupationNominalTaxRate`（=0.5）の正税率を持つが active default 中はこの実効 0 で上書きされる。terminal contract を実効 0 にすると直近 grantor だけでなく**上流 chain 全体**へ流れる revenue が止まる（remaining が上に繰り上がらない）。
 
 **6.4.3 Polity treasurer の taxEfficiency**
@@ -402,18 +401,18 @@ treasurer の能力補正については §10 参照。`collectionEfficiency`（
 
 **6.4.4 Holding 単位の徴税負担処理**
 
-Holding 単位の `totalBurdenRate` ベースで POP の wealth / unrest と代官への attitude を処理する。
+代官の非効率さ（腐敗・苛斂誅求）による POP への負担を処理する。有能な代官なら burden は低く、無能・腐敗した代官なら高い。
 
 ```ts
-const { collectionFrictionBurdenRate, totalBurdenRate } =
-  computeBailiffBurdenComponents(localExtractionRate, collectionEfficiency, config.collectionFrictionFactor)
+const burdenRate = computeBailiffBurdenRate(collectionEfficiency, config.collectionFrictionFactor)
+// = (1 - collectionEfficiency) × collectionFrictionFactor
 
-// POP wealth: 徴税摩擦による追加損耗（wealth 比例）
-pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty * (pop.wealth / 100)
+// POP needSatisfaction: 代官の非効率による welfare 圧迫（現在値比例）
+pop.needSatisfaction -= burdenRate * config.collectionBurdenWelfarePenalty * (pop.needSatisfaction / 100)
 
-// POP unrest: totalBurdenRate が comfort を超えた分で上昇
-const burdenOverComfort = Math.max(0, totalBurdenRate - config.comfortableLocalExtractionRate)
-pop.unrest += burdenOverComfort * config.localExtractionUnrestGain
+// POP unrest: burdenRate が comfort を超えた分で上昇
+const burdenOverComfort = Math.max(0, burdenRate - config.comfortableBurdenRate)
+pop.unrest += burdenOverComfort * config.collectionBurdenUnrestGain
 
 // POP → Bailiff Attitude（通常人物代官のみ）。affection(好悪) と respect(尊敬/軽蔑) は独立軸。
 // affection: 徴税の苛烈さ(負担)と方針の優しさで決まる
@@ -1704,9 +1703,7 @@ Commonwealth Polity:
 
 HoldingOfficeAssignment:
 - active HoldingOfficeAssignment の holderPersonId が alive または placeholder
-- `contractedRemittanceRate` が 0..1
 - `expectedFeeRate` が 0..1
-- `contractedRemittanceRate + expectedFeeRate` <= `maxLocalExtractionRate * 1.1`
 - 同一 Holding に active bailiff assignment が複数存在しない
 - 同一通常人物が active bailiff assignment を複数持たない
 
@@ -1749,10 +1746,9 @@ develop_holding Project:
 - 同一 holdingId に active develop_holding Project が複数ない
 
 Selector range（debug モードのみ。`if (debug && config)` でゲート）:
-- `localExtractionRate` が `[minLocalExtractionRate, maxLocalExtractionRate]`
 - `collectionEfficiency` が `[minBailiffCollectionEfficiency, 1.0]`
 - `bailiffFeeRate` が `[0, maxBailiffFeeRate]`
-- `totalBurdenRate` が `[0, maxLocalExtractionRate]`
+- `burdenRate` が `[0, 1]`
 
 Province:
 - terrain が有効な ProvinceTerrain
