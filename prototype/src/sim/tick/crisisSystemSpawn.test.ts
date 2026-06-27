@@ -210,7 +210,6 @@ describe('runCrisisSystem spawn (A5)', () => {
           active: true,
           startWeek: 0,
           unpaidCount: 0,
-          contractedRemittanceRate: 0.5,
           expectedFeeRate: 0.1,
         },
       },

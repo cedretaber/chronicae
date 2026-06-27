@@ -244,7 +244,7 @@ export type SimulationConfig = {
   upperDividendShareOfNetRevenue: number
   // v0.58 balance: POP 資産課税。lower/middle の money 死蔵(mint>goods で消費しきれず貯まる分)を
   //   削るための sink。per-capita floor 超過分に月次率で課税し、land 税と同じ holding 収入へ合流させる
-  //   (代官が徴収=localExtractionRate×collectionEfficiency で代官能力が効く・手数料も共通・chain で treasury へ)。
+  //   (代官の collectionEfficiency が効く・手数料も共通・chain で treasury へ)。
   //   floor 以下の貧困層は非課税(累進)・upper は除外(死蔵は将来 Project 出資で使う)。史実の間接税/賦課が
   //   持つ「持てる者により多く」の累進 intent を stock 課税で抽象化したもの(§13)。
   popWealthTaxRate: number // 月次・per-capita floor 超過分への課税率
@@ -1048,23 +1048,18 @@ export type SimulationConfig = {
     bailiff: number
   }
   // v0.25 Bailiff system
-  defaultContractedRemittanceRate: number
   defaultExpectedBailiffFeeRate: number
-  minLocalExtractionRate: number
-  maxLocalExtractionRate: number
-  comfortableLocalExtractionRate: number
   minBailiffCollectionEfficiency: number
   baseBailiffCollectionEfficiency: number
-  // v0.49: 代官の stewardship が徴税効率に与える振れ幅。((stew-60)/60 clamp[-0.5,1]) * range を
-  //   base に加算。range を上げるほど有能代官と無能代官の徴収額差が開く (~2x 目標)。
   bailiffStewardshipCollectionRange: number
   placeholderBailiffCollectionEfficiency: number
   collectionFrictionFactor: number
+  comfortableBurdenRate: number
+  collectionBurdenWelfarePenalty: number
+  collectionBurdenUnrestGain: number
   maxBailiffFeeRate: number
   bailiffTaskCompletedCollectionModifier: number
   bailiffTaskNoneCollectionModifier: number
-  localExtractionWealthPenalty: number
-  localExtractionUnrestGain: number
   bailiffBurdenAffectionPenaltyFactor: number
   bailiffProtectResidentsAffectionBonus: number
   bailiffTaskCompletedRespectGain: number
@@ -1802,7 +1797,7 @@ export const defaultConfig: SimulationConfig = {
   securityUnrestReductionAtFull: 2.0,
   securityFullCoverageRatio: 0.1,
   wageShareOfNetRevenue: 0.5,
-  upperDividendShareOfNetRevenue: 0.03,
+  upperDividendShareOfNetRevenue: 0.1,
   popWealthTaxRate: 0.03,
   popWealthTaxFloorPerCapita: 2.0,
   wageStratumMultiplier: { lower: 1.0, middle: 1.5 },
@@ -2634,21 +2629,18 @@ export const defaultConfig: SimulationConfig = {
     bailiff: 3,
   },
   // v0.25 Bailiff system
-  defaultContractedRemittanceRate: 0.4,
-  defaultExpectedBailiffFeeRate: 0.1,
-  minLocalExtractionRate: 0.1,
-  maxLocalExtractionRate: 0.8,
-  comfortableLocalExtractionRate: 0.35,
+  defaultExpectedBailiffFeeRate: 0.03,
   minBailiffCollectionEfficiency: 0.3,
   bailiffStewardshipCollectionRange: 0.8,
   baseBailiffCollectionEfficiency: 0.55,
   placeholderBailiffCollectionEfficiency: 0.4,
   collectionFrictionFactor: 0.5,
+  comfortableBurdenRate: 0.2,
+  collectionBurdenWelfarePenalty: 2,
+  collectionBurdenUnrestGain: 3,
   maxBailiffFeeRate: 0.25,
   bailiffTaskCompletedCollectionModifier: 0.05,
   bailiffTaskNoneCollectionModifier: 0.0,
-  localExtractionWealthPenalty: 2,
-  localExtractionUnrestGain: 3,
   bailiffBurdenAffectionPenaltyFactor: 2,
   bailiffProtectResidentsAffectionBonus: 0.2,
   bailiffTaskCompletedRespectGain: 0.2,

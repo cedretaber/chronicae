@@ -555,7 +555,6 @@ export function bindProvinceToPolity(
       active: true,
       startWeek: nextState.absoluteWeek,
       unpaidCount: 0,
-      contractedRemittanceRate: 0.4,
       expectedFeeRate: 0.1,
     }
     nextState = {

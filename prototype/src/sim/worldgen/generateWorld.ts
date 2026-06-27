@@ -1360,7 +1360,6 @@ export function generateWorld(
           active: true,
           startWeek: 1,
           unpaidCount: 0,
-          contractedRemittanceRate: config.defaultContractedRemittanceRate,
           expectedFeeRate: config.defaultExpectedBailiffFeeRate,
         }
         holdingOfficeAssignments[hoaId] = hoa

@@ -83,7 +83,6 @@ function withBailiff(s: WorldState, bailiffId: PersonId = 'p-bailiff' as PersonI
         active: true,
         startWeek: 0,
         unpaidCount: 0,
-        contractedRemittanceRate: 0.5,
         expectedFeeRate: 0.1,
       },
     },

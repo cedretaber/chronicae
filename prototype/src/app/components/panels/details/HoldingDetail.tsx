@@ -33,11 +33,10 @@ import { PersonLink, HouseLink, PolityLink } from './shared/links'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
   getBailiffPolicy,
-  getBailiffLocalExtractionRate,
   getRecentBailiffRevenueTaskStatus,
   getBailiffCollectionEfficiency,
   getBailiffFeeRate,
-  computeBailiffBurdenComponents,
+  computeBailiffBurdenRate,
 } from '@sim/selectors/bailiffSelectors'
 import { personAttitudeKey } from '@sim/helpers/attitudeHelpers'
 import { getHoldingLandContractChain } from '@sim/selectors/landContractSelectors'
@@ -1034,11 +1033,6 @@ export function HoldingDetail({
                 (() => {
                   const isPlaceholder = bailiff.kind === 'placeholder'
                   const policy = getBailiffPolicy(currentState, defaultConfig, assignmentId)
-                  const localExtractionRate = getBailiffLocalExtractionRate(
-                    currentState,
-                    defaultConfig,
-                    assignmentId,
-                  )
                   const recentTaskStatus = getRecentBailiffRevenueTaskStatus(
                     currentState,
                     assignmentId,
@@ -1054,8 +1048,7 @@ export function HoldingDetail({
                     defaultConfig,
                     assignmentId,
                   )
-                  const burden = computeBailiffBurdenComponents(
-                    localExtractionRate,
+                  const burdenRate = computeBailiffBurdenRate(
                     collectionEfficiency,
                     defaultConfig.collectionFrictionFactor,
                   )
@@ -1069,10 +1062,6 @@ export function HoldingDetail({
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>{t('detail.province.bailiff_local_extraction')}:</span>
-                        <span>{(localExtractionRate * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex justify-between">
                         <span>{t('detail.province.bailiff_collection_efficiency')}:</span>
                         <span>{(collectionEfficiency * 100).toFixed(1)}%</span>
                       </div>
@@ -1082,11 +1071,7 @@ export function HoldingDetail({
                       </div>
                       <div className="flex justify-between">
                         <span>{t('detail.province.bailiff_total_burden')}:</span>
-                        <span>{(burden.totalBurdenRate * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{t('detail.province.bailiff_friction')}:</span>
-                        <span>{(burden.collectionFrictionBurdenRate * 100).toFixed(1)}%</span>
+                        <span>{(burdenRate * 100).toFixed(1)}%</span>
                       </div>
                       {!isPlaceholder && (
                         <>

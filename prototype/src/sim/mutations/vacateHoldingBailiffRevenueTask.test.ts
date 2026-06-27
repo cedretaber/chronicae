@@ -53,7 +53,6 @@ function makeStateWithBailiffAndRevenueTask(): WorldState {
         active: true,
         startWeek: 0,
         unpaidCount: 0,
-        contractedRemittanceRate: 0.4,
         expectedFeeRate: 0.1,
       },
     },

@@ -427,7 +427,6 @@ export function buildEntitySnapshot(
         bailiffPersonId: bailiff?.id ?? null,
         bailiffPersonName: bailiff?.nameKey ?? null,
         bailiffIsPlaceholder: bailiff?.kind === 'placeholder',
-        contractedRemittanceRate: assignment?.contractedRemittanceRate ?? null,
         expectedFeeRate: assignment?.expectedFeeRate ?? null,
       },
     }

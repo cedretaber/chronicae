@@ -336,25 +336,10 @@ export function checkGeographyAndHoldings(
         }
       }
 
-      if (hoa.contractedRemittanceRate < 0 || hoa.contractedRemittanceRate > 1) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `HoldingOfficeAssignment ${hoaIdStr}: contractedRemittanceRate=${hoa.contractedRemittanceRate} outside [0, 1] (§17.1)`,
-        })
-      }
       if (hoa.expectedFeeRate < 0 || hoa.expectedFeeRate > 1) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `HoldingOfficeAssignment ${hoaIdStr}: expectedFeeRate=${hoa.expectedFeeRate} outside [0, 1] (§17.1)`,
-        })
-      }
-      if (
-        config &&
-        hoa.contractedRemittanceRate + hoa.expectedFeeRate > config.maxLocalExtractionRate * 1.1
-      ) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `HoldingOfficeAssignment ${hoaIdStr}: contractedRemittanceRate+expectedFeeRate=${(hoa.contractedRemittanceRate + hoa.expectedFeeRate).toFixed(3)} exceeds maxLocalExtractionRate*1.1=${(config.maxLocalExtractionRate * 1.1).toFixed(3)} (§17.1)`,
         })
       }
 

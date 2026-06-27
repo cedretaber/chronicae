@@ -29,10 +29,9 @@ import {
   getHoldingAverageUnrest,
   getBailiffPolicyScores,
   getBailiffPolicy,
-  getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
   getBailiffFeeRate,
-  computeBailiffBurdenComponents,
+  computeBailiffBurdenRate,
   getRecentBailiffRevenueTaskStatus,
 } from './bailiffSelectors'
 
@@ -57,7 +56,7 @@ function getHoldingId(state: WorldState): HoldingId {
 function appointBailiff(
   state: WorldState,
   pid: PersonId,
-  overrides?: { contractedRemittanceRate?: number; expectedFeeRate?: number },
+  overrides?: { expectedFeeRate?: number },
 ): { state: WorldState; assignmentId: HoldingOfficeAssignmentId } {
   const holdingId = getHoldingId(state)
   return appointHoldingBailiff(state, {
@@ -234,78 +233,7 @@ describe('getBailiffPolicyScores', () => {
   })
 })
 
-// --- getBailiffLocalExtractionRate ---
-
-describe('getBailiffLocalExtractionRate', () => {
-  it('default is approximately 0.50', () => {
-    let state = makeBaseState()
-    state = makePerson(state, personId, {
-      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
-      traits: { ambition: 0.5, caution: 0.5 },
-    })
-    const { state: s, assignmentId } = appointBailiff(state, personId)
-    const rate = getBailiffLocalExtractionRate(s, defaultConfig, assignmentId)
-    expect(rate).toBeGreaterThanOrEqual(0.1)
-    expect(rate).toBeLessThanOrEqual(0.8)
-  })
-
-  it('is clamped to min', () => {
-    let state = makeBaseState()
-    state = makePerson(state, personId, {
-      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
-      traits: { ambition: 0.5, caution: 0.5 },
-    })
-    const config: SimulationConfig = { ...defaultConfig, minLocalExtractionRate: 0.6 }
-    const { state: s, assignmentId } = appointBailiff(state, personId)
-    expect(getBailiffLocalExtractionRate(s, config, assignmentId)).toBe(0.6)
-  })
-
-  it('is clamped to max', () => {
-    let state = makeBaseState()
-    state = makePerson(state, personId, {
-      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
-      traits: { ambition: 0.5, caution: 0.5 },
-    })
-    const config: SimulationConfig = { ...defaultConfig, maxLocalExtractionRate: 0.3 }
-    const { state: s, assignmentId } = appointBailiff(state, personId)
-    expect(getBailiffLocalExtractionRate(s, config, assignmentId)).toBe(0.3)
-  })
-
-  it('protect_residents lowers the rate', () => {
-    let state = makeBaseState()
-    const holdingId = getHoldingId(state)
-    state = makePerson(state, personId, {
-      abilities: {
-        valor: 30,
-        command: 30,
-        numeracy: 30,
-        learning: 30,
-        charisma: 100,
-        insight: 100,
-      },
-      traits: { ambition: 0.2, caution: 0.6 },
-    })
-    state = withPopGroup(state, holdingId, { size: 100, unrest: 80 })
-    const { state: s, assignmentId } = appointBailiff(state, personId)
-    const policy = getBailiffPolicy(s, defaultConfig, assignmentId)
-    expect(policy).toBe('protect_residents')
-    const rate = getBailiffLocalExtractionRate(s, defaultConfig, assignmentId)
-    expect(rate).toBeLessThan(0.5)
-  })
-
-  it('profit_seeking raises the rate', () => {
-    let state = makeBaseState()
-    state = makePerson(state, personId, {
-      abilities: { valor: 30, command: 30, numeracy: 60, learning: 30, charisma: 30, insight: 30 },
-      traits: { ambition: 0.95, caution: 0.1 },
-    })
-    const { state: s, assignmentId } = appointBailiff(state, personId)
-    const policy = getBailiffPolicy(s, defaultConfig, assignmentId)
-    expect(policy).toBe('profit_seeking')
-    const rate = getBailiffLocalExtractionRate(s, defaultConfig, assignmentId)
-    expect(rate).toBeGreaterThan(0.5)
-  })
-})
+// --- getBailiffLocalExtractionRate: abolished (localExtractionRate removed) ---
 
 // --- getBailiffCollectionEfficiency ---
 
@@ -411,7 +339,7 @@ describe('getBailiffFeeRate', () => {
     const policy = getBailiffPolicy(s, defaultConfig, assignmentId)
     expect(policy).toBe('profit_seeking')
     const rate = getBailiffFeeRate(s, defaultConfig, assignmentId)
-    expect(rate).toBeGreaterThan(0.1)
+    expect(rate).toBeGreaterThan(defaultConfig.defaultExpectedBailiffFeeRate)
   })
 
   it('protect_residents lowers the rate', () => {
@@ -437,35 +365,21 @@ describe('getBailiffFeeRate', () => {
   })
 })
 
-// --- computeBailiffBurdenComponents ---
+// --- computeBailiffBurdenRate ---
 
-describe('computeBailiffBurdenComponents', () => {
-  it('computes correct 3-component values', () => {
-    const result = computeBailiffBurdenComponents(0.5, 0.7, 0.5)
-    expect(result.actualExtractionBurdenRate).toBeCloseTo(0.35, 5)
-    expect(result.collectionFrictionBurdenRate).toBeCloseTo(0.075, 5)
-    expect(result.totalBurdenRate).toBeCloseTo(0.425, 5)
+describe('computeBailiffBurdenRate', () => {
+  it('burden is 0 when collectionEfficiency is 1.0', () => {
+    expect(computeBailiffBurdenRate(1.0, 0.5)).toBe(0)
   })
 
-  it('friction is 0 when collectionEfficiency is 1.0', () => {
-    const result = computeBailiffBurdenComponents(0.5, 1.0, 0.5)
-    expect(result.collectionFrictionBurdenRate).toBe(0)
-    expect(result.totalBurdenRate).toBeCloseTo(0.5, 5)
+  it('burden equals collectionFrictionFactor when collectionEfficiency is 0', () => {
+    expect(computeBailiffBurdenRate(0.0, 0.5)).toBeCloseTo(0.5, 5)
   })
 
-  it('friction equals localExtractionRate * collectionFrictionFactor when collectionEfficiency is 0', () => {
-    const result = computeBailiffBurdenComponents(0.5, 0.0, 0.5)
-    expect(result.actualExtractionBurdenRate).toBe(0)
-    expect(result.collectionFrictionBurdenRate).toBeCloseTo(0.25, 5)
-    expect(result.totalBurdenRate).toBeCloseTo(0.25, 5)
-  })
-
-  it('totalBurdenRate equals old effectiveBurdenRate formula when frictionFactor=0.5', () => {
-    const le = 0.5
-    const ce = 0.7
-    const result = computeBailiffBurdenComponents(le, ce, 0.5)
-    const oldFormula = le * (0.5 + 0.5 * ce)
-    expect(result.totalBurdenRate).toBeCloseTo(oldFormula, 10)
+  it('burden = (1 - efficiency) * frictionFactor', () => {
+    expect(computeBailiffBurdenRate(0.55, 0.5)).toBeCloseTo(0.225, 5)
+    expect(computeBailiffBurdenRate(0.3, 0.5)).toBeCloseTo(0.35, 5)
+    expect(computeBailiffBurdenRate(0.9, 0.5)).toBeCloseTo(0.05, 5)
   })
 })
 

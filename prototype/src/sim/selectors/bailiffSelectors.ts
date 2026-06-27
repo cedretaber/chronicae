@@ -26,13 +26,6 @@ export function getActiveBailiff(state: WorldState, holdingId: HoldingId): Perso
 
 // --- Policy modifiers (spec §4.4) ---
 
-const BAILIFF_POLICY_EXTRACTION_MODIFIER: Record<BailiffPolicy, number> = {
-  passive: 0.0,
-  loyal_remittance: 0.03,
-  profit_seeking: 0.08,
-  protect_residents: -0.05,
-}
-
 const BAILIFF_POLICY_FEE_MODIFIER: Record<BailiffPolicy, number> = {
   passive: 0.0,
   loyal_remittance: 0.0,
@@ -140,23 +133,6 @@ export function getBailiffPolicy(
   return bestPolicy
 }
 
-// --- getBailiffLocalExtractionRate (spec §8.1) ---
-
-export function getBailiffLocalExtractionRate(
-  state: WorldState,
-  config: SimulationConfig,
-  assignmentId: HoldingOfficeAssignmentId,
-): number {
-  const assignment = state.holdingOfficeAssignments[assignmentId]
-  if (!assignment) return config.minLocalExtractionRate
-
-  const base = assignment.contractedRemittanceRate + assignment.expectedFeeRate
-  const policy = getBailiffPolicy(state, config, assignmentId)
-  const policyModifier = BAILIFF_POLICY_EXTRACTION_MODIFIER[policy]
-
-  return clamp(base + policyModifier, config.minLocalExtractionRate, config.maxLocalExtractionRate)
-}
-
 // --- getBailiffCollectionEfficiency (spec §8.2) ---
 
 export function getBailiffCollectionEfficiency(
@@ -223,25 +199,13 @@ export function getBailiffFeeRate(
   return clamp(assignment.expectedFeeRate + policyModifier, 0, config.maxBailiffFeeRate)
 }
 
-// --- computeBailiffBurdenComponents (spec §8.4) ---
+// --- computeBailiffBurdenRate ---
 
-export function computeBailiffBurdenComponents(
-  localExtractionRate: number,
+export function computeBailiffBurdenRate(
   collectionEfficiency: number,
   collectionFrictionFactor: number,
-): {
-  actualExtractionBurdenRate: number
-  collectionFrictionBurdenRate: number
-  totalBurdenRate: number
-} {
-  const actualExtractionBurdenRate = localExtractionRate * collectionEfficiency
-  const collectionFrictionBurdenRate =
-    localExtractionRate * (1 - collectionEfficiency) * collectionFrictionFactor
-  return {
-    actualExtractionBurdenRate,
-    collectionFrictionBurdenRate,
-    totalBurdenRate: actualExtractionBurdenRate + collectionFrictionBurdenRate,
-  }
+): number {
+  return (1 - collectionEfficiency) * collectionFrictionFactor
 }
 
 // --- getRecentBailiffRevenueTaskStatus (spec §14) ---

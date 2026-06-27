@@ -6,10 +6,9 @@ import { isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { decisionSubjectKey } from '../types/goal'
 import { aimSlotKey } from '../selectors/goalSelectors'
 import {
-  getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
   getBailiffFeeRate,
-  computeBailiffBurdenComponents,
+  computeBailiffBurdenRate,
   getRecentBailiffRevenueTaskStatus,
 } from '../selectors/bailiffSelectors'
 import { targetRefKey } from '../types/task'
@@ -366,17 +365,6 @@ export function checkGoalsAimsProjects(
       const hoa = state.holdingOfficeAssignments[hoaId]
       if (!hoa || !hoa.active) continue
 
-      const localExtractionRate = getBailiffLocalExtractionRate(state, config, hoaId)
-      if (
-        localExtractionRate < config.minLocalExtractionRate ||
-        localExtractionRate > config.maxLocalExtractionRate
-      ) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `HoldingOfficeAssignment ${hoaIdStr}: localExtractionRate=${localExtractionRate.toFixed(3)} outside [${config.minLocalExtractionRate}, ${config.maxLocalExtractionRate}] (§17.3)`,
-        })
-      }
-
       const recentTaskStatus = getRecentBailiffRevenueTaskStatus(state, hoaId)
       const collectionEfficiency = getBailiffCollectionEfficiency(
         state,
@@ -402,15 +390,14 @@ export function checkGoalsAimsProjects(
         })
       }
 
-      const burden = computeBailiffBurdenComponents(
-        localExtractionRate,
+      const burdenRate = computeBailiffBurdenRate(
         collectionEfficiency,
         config.collectionFrictionFactor,
       )
-      if (burden.totalBurdenRate < 0 || burden.totalBurdenRate > config.maxLocalExtractionRate) {
+      if (burdenRate < 0 || burdenRate > 1) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `HoldingOfficeAssignment ${hoaIdStr}: totalBurdenRate=${burden.totalBurdenRate.toFixed(3)} outside [0, ${config.maxLocalExtractionRate}] (§17.3)`,
+          message: `HoldingOfficeAssignment ${hoaIdStr}: burdenRate=${burdenRate.toFixed(3)} outside [0, 1] (§17.3)`,
         })
       }
     }
