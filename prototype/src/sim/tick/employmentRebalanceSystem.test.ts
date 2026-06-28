@@ -241,7 +241,6 @@ describe('normalizePopEmploymentMut — WorkplaceRef 紐付け (v0.63 Task 4)', 
     normalizePopEmploymentMut(ws, defaultConfig, holdingId)
 
     // Farm A 自作農 = 0: Farm A の小作農が 0 のため per-employer クランプで 0 になる。
-    //   holding-level 実装なら合計小作農 20 を参照して ~19.5 まで雇えてしまう。
     expect(getWorkplaceEmployedPopSizeByType(ws, holdingId, farmRefA, 'freeholders')).toBe(0)
     // Farm B 自作農 > 0: Farm B の小作農 (20) でキャップ → min(rawCap~19.5, 20) = ~19.5
     expect(

@@ -40,6 +40,8 @@ function clampCapacityByMaxRatioPerEmployer(
 // v0.63 Task 4: employer (WorkplaceRef) 単位の雇用整合 helper。
 //   Phase 1: 消失した employer / capacity 超過の employed を unemployed (null) へ強制移動。
 //   Phase 2: 空き枠を同 PopType の unemployed で埋め、各 employer ref に紐付ける。
+//   employer 間按分 (Phase 3) は別関数 redistributeEmploymentMut で行う
+//   (runEmploymentRebalanceSystem のみで呼び、保険 normalize では skip)。
 //   ws を in-place 変異する (呼び出し側が draft を用意する規約)。
 export function normalizePopEmploymentMut(
   ws: WorldState,
@@ -122,6 +124,92 @@ export function normalizePopEmploymentMut(
       }
     }
   }
+
+}
+
+// employer 間按分 — 同 PopType の雇用者を capacity 比で再分配する。
+//   normalizePopEmploymentMut の Phase 1/2 後に呼ぶ。先に枠を埋めた employer に
+//   POP が集中し新設 employer (商会店舗等) が空くのを防ぐ。
+function redistributeEmploymentMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): void {
+  const workplaces = collectHoldingWorkplaces(ws, config, holdingId)
+  if (workplaces.length < 2) return
+
+  const empByTypeAndRef = new Map<string, number>()
+  for (const popId of (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()) {
+    const pop = ws.popGroups[popId]
+    if (!pop || pop.employerId === null) continue
+    const k = `${pop.popType}:${workplaceRefKey(pop.employerId)}`
+    empByTypeAndRef.set(k, (empByTypeAndRef.get(k) ?? 0) + pop.size)
+  }
+
+  for (const popType of REBALANCE_ORDER) {
+    const wpData: { ref: WorkplaceRef; key: string; cap: number; emp: number }[] = []
+    for (const ref of workplaces) {
+      const rawCap = getWorkplacePopTypeCapacity(ws, config, ref, popType)
+      const cap = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCap)
+      if (cap <= 0) continue
+      const key = workplaceRefKey(ref)
+      const emp = empByTypeAndRef.get(`${popType}:${key}`) ?? 0
+      wpData.push({ ref, key, cap, emp })
+    }
+    if (wpData.length <= 1) continue
+
+    const totalCap = wpData.reduce((s, w) => s + w.cap, 0)
+    if (totalCap <= 0) continue
+    const totalEmp = wpData.reduce((s, w) => s + w.emp, 0)
+    if (totalEmp <= 0) continue
+
+    let needsRedist = false
+    for (const w of wpData) {
+      if (Math.abs(w.emp - totalEmp * (w.cap / totalCap)) > 0.01) {
+        needsRedist = true
+        break
+      }
+    }
+    if (!needsRedist) continue
+
+    const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
+
+    for (const w of wpData) {
+      let excess = w.emp - totalEmp * (w.cap / totalCap)
+      if (excess <= 0.01) continue
+      for (const popId of sortedPopIds) {
+        if (excess <= 0) break
+        const pop = ws.popGroups[popId]
+        if (
+          !pop ||
+          pop.popType !== popType ||
+          pop.employerId === null ||
+          workplaceRefKey(pop.employerId) !== w.key
+        )
+          continue
+        const moveSize = Math.min(pop.size, excess)
+        if (moveSize <= 0) continue
+        movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: null, size: moveSize })
+        excess -= moveSize
+      }
+    }
+
+    const sortedPopIds2 = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
+    for (const w of wpData) {
+      const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, w.ref, popType)
+      let deficit = totalEmp * (w.cap / totalCap) - employed
+      if (deficit <= 0.01) continue
+      for (const popId of sortedPopIds2) {
+        if (deficit <= 0) break
+        const pop = ws.popGroups[popId]
+        if (!pop || pop.popType !== popType || pop.employerId !== null) continue
+        const moveSize = Math.min(pop.size, deficit)
+        if (moveSize <= 0) continue
+        movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: w.ref, size: moveSize })
+        deficit -= moveSize
+      }
+    }
+  }
 }
 
 export function runEmploymentRebalanceSystem(ctx: TickContext): TickContext {
@@ -134,6 +222,7 @@ export function runEmploymentRebalanceSystem(ctx: TickContext): TickContext {
 
   for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
     normalizePopEmploymentMut(ws, ctx.config, holdingId)
+    redistributeEmploymentMut(ws, ctx.config, holdingId)
   }
 
   return { ...ctx, state: ws }
