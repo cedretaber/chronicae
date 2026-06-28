@@ -9,15 +9,12 @@
 
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { RegimentId, WarId } from '../types/ids'
+import type { RegimentId, WarId, HoldingId, RegimentBarracksId } from '../types/ids'
 import type { SupplyShortageBand } from '../types/war'
 import { computeShortageBand } from '../selectors/warSupplySelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
-import {
-  getEffectiveMaxStrength,
-  getEffectiveMaxOrganization,
-  getEffectiveBaselineOrganization,
-} from '../selectors/barracksSelectors'
+import { getBarracksFulfillment, type BarracksFulfillment } from '../selectors/barracksSelectors'
+import { buildHoldingEmploymentMap, type HoldingEmploymentMap } from '../selectors/popSelectors'
 import { clamp } from '../utils/math'
 
 function computeWartimeRecoveryMultiplier(
@@ -73,6 +70,27 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
     }
   }
 
+  const empMaps = new Map<HoldingId, HoldingEmploymentMap>()
+  const fulfillmentCache = new Map<RegimentBarracksId, BarracksFulfillment>()
+
+  const getCachedFulfillment = (barracksId: RegimentBarracksId): BarracksFulfillment => {
+    let f = fulfillmentCache.get(barracksId)
+    if (f) return f
+    const barracks = ws.regimentBarracks[barracksId]
+    if (!barracks) {
+      f = { overallFulfillment: 1, commandFulfillment: 1, byPopType: {} }
+    } else {
+      let map = empMaps.get(barracks.holdingId)
+      if (!map) {
+        map = buildHoldingEmploymentMap(ws, barracks.holdingId)
+        empMaps.set(barracks.holdingId, map)
+      }
+      f = getBarracksFulfillment(ws, barracksId, map)
+    }
+    fulfillmentCache.set(barracksId, f)
+    return f
+  }
+
   for (const idStr of regimentIds) {
     const rid = idStr as RegimentId
     const r = ws.regiments[rid]
@@ -81,9 +99,10 @@ export function runRegimentRecoverySystem(ctx: TickContext): TickContext {
 
     const recoveryMult = computeWartimeRecoveryMultiplier(ws, r, config)
     const moraleAtTickStart = r.morale
-    const effectiveBaselineOrg = getEffectiveBaselineOrganization(ws, r)
-    const effectiveMaxOrg = getEffectiveMaxOrganization(ws, r)
-    const effectiveMaxStr = getEffectiveMaxStrength(ws, r)
+    const fulfillment = getCachedFulfillment(r.barracksId)
+    const effectiveBaselineOrg = r.baselineOrganization * fulfillment.commandFulfillment
+    const effectiveMaxOrg = r.maxOrganization * fulfillment.commandFulfillment
+    const effectiveMaxStr = r.maxStrength * fulfillment.overallFulfillment
 
     let nextOrg = r.organization
     if (r.organization < effectiveBaselineOrg) {

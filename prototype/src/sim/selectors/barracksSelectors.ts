@@ -4,7 +4,11 @@ import type { PolityId, HoldingId, RegimentBarracksId } from '../types/ids'
 import type { PopType } from '../types/popGroup'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
-import { getWorkplaceEmployedPopSizeByType } from './popSelectors'
+import {
+  getWorkplaceEmployedPopSizeByType,
+  type HoldingEmploymentMap,
+  empMapLookup,
+} from './popSelectors'
 
 export function computeBarracksRequiredByPopType(
   config: SimulationConfig,
@@ -33,6 +37,7 @@ export type BarracksFulfillment = {
 export function getBarracksFulfillment(
   state: WorldState,
   barracksId: RegimentBarracksId,
+  empMap?: HoldingEmploymentMap,
 ): BarracksFulfillment {
   const barracks = state.regimentBarracks[barracksId]
   if (!barracks) {
@@ -53,7 +58,9 @@ export function getBarracksFulfillment(
   let totalFulfilled = 0
 
   for (const [pt, req] of entries) {
-    const employed = getWorkplaceEmployedPopSizeByType(state, barracks.holdingId, workplaceRef, pt)
+    const employed = empMap
+      ? empMapLookup(empMap, workplaceRef, pt)
+      : getWorkplaceEmployedPopSizeByType(state, barracks.holdingId, workplaceRef, pt)
     actualByPopType[pt] = employed
     const fulfilled = Math.min(employed, req)
     byPopType[pt] = req > 0 ? fulfilled / req : 0

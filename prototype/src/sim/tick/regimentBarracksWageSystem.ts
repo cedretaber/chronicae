@@ -10,7 +10,6 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { RegimentBarracksId, RegimentId, PopGroupId } from '../types/ids'
-import { workplaceRefKey } from '../types/workplaceRef'
 
 function applyUnpaidPenaltyMut(
   ws: WorldState,
@@ -80,7 +79,6 @@ export function runRegimentBarracksWageSystem(ctx: TickContext): TickContext {
 
     // Gather POPs employed by this barracks within its holding
     const holdingPopIds = ws.popIndex.byHolding[barracks.holdingId] ?? []
-    const barracksRefKey = workplaceRefKey({ kind: 'barracks', id: barracksId })
 
     let requiredPayroll = 0
     const popWageEntries: Array<{ id: PopGroupId; wage: number }> = []
@@ -88,7 +86,8 @@ export function runRegimentBarracksWageSystem(ctx: TickContext): TickContext {
     for (const popId of holdingPopIds) {
       const pop = ws.popGroups[popId]
       if (!pop) continue
-      if (workplaceRefKey(pop.employerId) !== barracksRefKey) continue
+      if (!pop.employerId || pop.employerId.kind !== 'barracks' || pop.employerId.id !== barracksId)
+        continue
       const wageRate = config.barracksMonthlyWageByPopType[pop.popType] ?? 0
       const wage = pop.size * wageRate
       requiredPayroll += wage

@@ -7,55 +7,46 @@ import type { HoldingId } from '../types/ids'
 import {
   collectHoldingWorkplaces,
   getWorkplacePopTypeCapacity,
-  getWorkplaceEmployedPopSizeByType,
+  buildHoldingEmploymentMap,
+  empMapLookup,
+  empMapUpdate,
+  type HoldingEmploymentMap,
 } from '../selectors/popSelectors'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 import { movePopEmploymentMut } from '../mutations/popMutations'
 import type { WorkplaceRef } from '../types/workplaceRef'
 import { workplaceRefKey } from '../types/workplaceRef'
 
-// v0.57 §雇用細分化: rebalance の PopType 処理順。同数上限を持つ熟練職 (親方/自作農) は
-//   参照先 (職人/小作農) の雇用が確定した後に処理する必要があるため最後に回す。
 const REBALANCE_ORDER: PopType[] = [
   ...POP_TYPES.filter((t) => !POP_TYPE_MAX_RATIO[t]),
   ...POP_TYPES.filter((t) => POP_TYPE_MAX_RATIO[t]),
 ]
 
-// per-employer 版の maxRatio クランプ。
-//   REBALANCE_ORDER で参照先 (peasants/artisans) を先に確定するため、
-//   ここで読む refEmployed は当該 employer での確定済み雇用数。
-function clampCapacityByMaxRatioPerEmployer(
-  ws: WorldState,
-  holdingId: HoldingId,
+function clampCapacityByMaxRatioFromMap(
+  empMap: HoldingEmploymentMap,
   ref: WorkplaceRef,
   popType: PopType,
   rawCapacity: number,
 ): number {
   const maxRatio = POP_TYPE_MAX_RATIO[popType]
   if (!maxRatio) return rawCapacity
-  const refEmployed = getWorkplaceEmployedPopSizeByType(ws, holdingId, ref, maxRatio.popType)
+  const refEmployed = empMapLookup(empMap, ref, maxRatio.popType)
   return Math.min(rawCapacity, refEmployed * maxRatio.ratio)
 }
 
-// v0.63 Task 4: employer (WorkplaceRef) 単位の雇用整合 helper。
-//   Phase 1: 消失した employer / capacity 超過の employed を unemployed (null) へ強制移動。
-//   Phase 2: 空き枠を同 PopType の unemployed で埋め、各 employer ref に紐付ける。
-//   employer 間按分 (Phase 3) は別関数 redistributeEmploymentMut で行う
-//   (runEmploymentRebalanceSystem のみで呼び、保険 normalize では skip)。
-//   ws を in-place 変異する (呼び出し側が draft を用意する規約)。
 export function normalizePopEmploymentMut(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-): void {
+): HoldingEmploymentMap | undefined {
   const holding = ws.holdings[holdingId]
-  if (!holding) return
+  if (!holding) return undefined
 
-  // Step 1: 現存する workplace refs を収集 (workplaceRefKey でソート済み)。
   const workplaces = collectHoldingWorkplaces(ws, config, holdingId)
   const workplaceKeySet = new Set(workplaces.map(workplaceRefKey))
 
-  // Step 2: 消失した employer (POP が参照するが workplaces に存在しない) を特定する。
+  const empMap = buildHoldingEmploymentMap(ws, holdingId)
+
   const vanishedEmployers: WorkplaceRef[] = []
   const seenVanishedKeys = new Set<string>()
   for (const popId of (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()) {
@@ -68,9 +59,7 @@ export function normalizePopEmploymentMut(
     }
   }
 
-  // Phase 1: 容量超過 / 消失 employer の POP を強制失業させる。
-  //   vanished employers は capacity=0 として扱い全員失業。
-  //   REBALANCE_ORDER (maxRatio 参照先を先) で処理するため、クランプの参照値は確定後の値。
+  // Phase 1: capacity 超過 / 消失 employer → unemployed
   const phase1Refs = [...vanishedEmployers, ...workplaces].sort((a, b) => {
     const ka = workplaceRefKey(a)
     const kb = workplaceRefKey(b)
@@ -79,13 +68,13 @@ export function normalizePopEmploymentMut(
   for (const ref of phase1Refs) {
     const isVanished = !workplaceKeySet.has(workplaceRefKey(ref))
     const refKey = workplaceRefKey(ref)
-    const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
     for (const popType of REBALANCE_ORDER) {
       const rawCapacity = isVanished ? 0 : getWorkplacePopTypeCapacity(ws, config, ref, popType)
-      const capacity = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCapacity)
-      const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, ref, popType)
+      const capacity = clampCapacityByMaxRatioFromMap(empMap, ref, popType, rawCapacity)
+      const employed = empMapLookup(empMap, ref, popType)
       if (employed <= capacity) continue
       let excess = employed - capacity
+      const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
       for (const popId of sortedPopIds) {
         if (excess <= 0) break
         const pop = ws.popGroups[popId]
@@ -99,20 +88,21 @@ export function normalizePopEmploymentMut(
         const moveSize = Math.min(pop.size, excess)
         if (moveSize <= 0) continue
         movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: null, size: moveSize })
+        empMapUpdate(empMap, popType, pop.employerId, null, moveSize)
         excess -= moveSize
       }
     }
   }
 
-  // Phase 2: 空き枠を同 PopType の失業 POP で埋め、具体的な employer ref に紐付ける。
+  // Phase 2: 空き枠 → unemployed POP を employer に紐付け
   for (const ref of workplaces) {
-    const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
     for (const popType of REBALANCE_ORDER) {
       const rawCapacity = getWorkplacePopTypeCapacity(ws, config, ref, popType)
-      const capacity = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCapacity)
-      const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, ref, popType)
+      const capacity = clampCapacityByMaxRatioFromMap(empMap, ref, popType, rawCapacity)
+      const employed = empMapLookup(empMap, ref, popType)
       let room = Math.max(0, capacity - employed)
       if (room <= 0) continue
+      const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
       for (const popId of sortedPopIds) {
         if (room <= 0) break
         const pop = ws.popGroups[popId]
@@ -120,40 +110,33 @@ export function normalizePopEmploymentMut(
         const moveSize = Math.min(pop.size, room)
         if (moveSize <= 0) continue
         movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: ref, size: moveSize })
+        empMapUpdate(empMap, popType, null, ref, moveSize)
         room -= moveSize
       }
     }
   }
 
+  return empMap
 }
 
 // employer 間按分 — 同 PopType の雇用者を capacity 比で再分配する。
-//   normalizePopEmploymentMut の Phase 1/2 後に呼ぶ。先に枠を埋めた employer に
-//   POP が集中し新設 employer (商会店舗等) が空くのを防ぐ。
 function redistributeEmploymentMut(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
+  empMap: HoldingEmploymentMap,
 ): void {
   const workplaces = collectHoldingWorkplaces(ws, config, holdingId)
   if (workplaces.length < 2) return
-
-  const empByTypeAndRef = new Map<string, number>()
-  for (const popId of (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()) {
-    const pop = ws.popGroups[popId]
-    if (!pop || pop.employerId === null) continue
-    const k = `${pop.popType}:${workplaceRefKey(pop.employerId)}`
-    empByTypeAndRef.set(k, (empByTypeAndRef.get(k) ?? 0) + pop.size)
-  }
 
   for (const popType of REBALANCE_ORDER) {
     const wpData: { ref: WorkplaceRef; key: string; cap: number; emp: number }[] = []
     for (const ref of workplaces) {
       const rawCap = getWorkplacePopTypeCapacity(ws, config, ref, popType)
-      const cap = clampCapacityByMaxRatioPerEmployer(ws, holdingId, ref, popType, rawCap)
+      const cap = clampCapacityByMaxRatioFromMap(empMap, ref, popType, rawCap)
       if (cap <= 0) continue
       const key = workplaceRefKey(ref)
-      const emp = empByTypeAndRef.get(`${popType}:${key}`) ?? 0
+      const emp = empMapLookup(empMap, ref, popType)
       wpData.push({ ref, key, cap, emp })
     }
     if (wpData.length <= 1) continue
@@ -172,8 +155,8 @@ function redistributeEmploymentMut(
     }
     if (!needsRedist) continue
 
+    // Phase 3a: 超過分を失業させる
     const sortedPopIds = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
-
     for (const w of wpData) {
       let excess = w.emp - totalEmp * (w.cap / totalCap)
       if (excess <= 0.01) continue
@@ -190,13 +173,15 @@ function redistributeEmploymentMut(
         const moveSize = Math.min(pop.size, excess)
         if (moveSize <= 0) continue
         movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: null, size: moveSize })
+        empMapUpdate(empMap, popType, pop.employerId, null, moveSize)
         excess -= moveSize
       }
     }
 
+    // Phase 3b: 不足分を充填
     const sortedPopIds2 = (ws.popIndex.byHolding[holdingId] ?? []).slice().sort()
     for (const w of wpData) {
-      const employed = getWorkplaceEmployedPopSizeByType(ws, holdingId, w.ref, popType)
+      const employed = empMapLookup(empMap, w.ref, popType)
       let deficit = totalEmp * (w.cap / totalCap) - employed
       if (deficit <= 0.01) continue
       for (const popId of sortedPopIds2) {
@@ -206,6 +191,7 @@ function redistributeEmploymentMut(
         const moveSize = Math.min(pop.size, deficit)
         if (moveSize <= 0) continue
         movePopEmploymentMut(ws, { sourcePopId: pop.id, targetEmployerId: w.ref, size: moveSize })
+        empMapUpdate(empMap, popType, null, w.ref, moveSize)
         deficit -= moveSize
       }
     }
@@ -221,8 +207,10 @@ export function runEmploymentRebalanceSystem(ctx: TickContext): TickContext {
   }
 
   for (const holdingId of Object.keys(ws.holdings).sort() as HoldingId[]) {
-    normalizePopEmploymentMut(ws, ctx.config, holdingId)
-    redistributeEmploymentMut(ws, ctx.config, holdingId)
+    const empMap = normalizePopEmploymentMut(ws, ctx.config, holdingId)
+    if (empMap) {
+      redistributeEmploymentMut(ws, ctx.config, holdingId, empMap)
+    }
   }
 
   return { ...ctx, state: ws }

@@ -692,6 +692,49 @@ export function getWorkplaceEmployedPopSizeByType(
   return total
 }
 
+// Employment Map: holding 内の (popType, workplaceRefKey) → 雇用 size 合計。
+// O(P) の全 POP スキャンを 1 回に集約し、以後は O(1) lookup で参照する。
+export type HoldingEmploymentMap = Map<string, number>
+
+function empMapKey(popType: string, refKey: string): string {
+  return `${popType}:${refKey}`
+}
+
+export function buildHoldingEmploymentMap(
+  state: WorldState,
+  holdingId: HoldingId,
+): HoldingEmploymentMap {
+  const map: HoldingEmploymentMap = new Map()
+  for (const popId of state.popIndex.byHolding[holdingId] ?? []) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    const key = empMapKey(pop.popType, workplaceRefKey(pop.employerId))
+    map.set(key, (map.get(key) ?? 0) + pop.size)
+  }
+  return map
+}
+
+export function empMapLookup(
+  map: HoldingEmploymentMap,
+  ref: WorkplaceRef,
+  popType: PopType,
+): number {
+  return map.get(empMapKey(popType, workplaceRefKey(ref))) ?? 0
+}
+
+export function empMapUpdate(
+  map: HoldingEmploymentMap,
+  popType: PopType,
+  fromRef: WorkplaceRef | null,
+  toRef: WorkplaceRef | null,
+  size: number,
+): void {
+  const fromKey = empMapKey(popType, workplaceRefKey(fromRef))
+  const toKey = empMapKey(popType, workplaceRefKey(toRef))
+  map.set(fromKey, Math.max(0, (map.get(fromKey) ?? 0) - size))
+  map.set(toKey, (map.get(toKey) ?? 0) + size)
+}
+
 // v0.63: holding 内の特定雇用主(WorkplaceRef)と popType に一致する最初の PopGroupId を返す。
 //   wage carve (Task 5) で対象 POP を特定するために使う。
 export function findBoundPop(
