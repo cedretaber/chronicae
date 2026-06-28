@@ -145,7 +145,11 @@ export function selectCavalryBarracksHolding(
       const holdingIds = (Object.keys(state.holdings) as HoldingId[])
         .filter((hId) => {
           const h = state.holdings[hId]
-          return h && h.provinceId === polity.capitalProvinceId
+          return (
+            h &&
+            h.provinceId === polity.capitalProvinceId &&
+            state.holdingTerminalPolityCache[hId] === polityId
+          )
         })
         .sort()
       if (holdingIds.length > 0) {

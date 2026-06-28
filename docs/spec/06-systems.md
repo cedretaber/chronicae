@@ -2183,7 +2183,7 @@ rank entitlement に基づく騎兵連隊のライフサイクルを一元管理
 処理順:
 1. **titular owner cavalry → disband**: owner Polity が titular の cavalry を即 disband（§19.2 integrity violation 防止）。
 2. **destroyed cooldown → disband**: `destroyedWeek + cavalryDestroyedCooldownWeeks`（24 週）経過した destroyed cavalry を disband。cooldown 中は entitlement count に含まれるため新規作成されない。
-3. **entitlement 調整**: active non-titular Polity ごとに `cavalryEntitlementByRank[rank]`（default: rank2=2, rank3=1, 他=0）で必要数を算出。active + cooldown 中 destroyed を current count として過不足を調整。不足時は `createRegiment`（`basePower = cavalryEntitlementBasePower`(=10) 固定）で新規作成。超過時は destroyed 優先・effectivePower 昇順で disband。
+3. **entitlement 調整**: active non-titular Polity ごとに `cavalryEntitlementByRank[rank]`（default: rank2=2, rank3=1, 他=0）で必要数を算出。entitlement=0 の Polity も処理対象とし、既存騎兵があれば超過分として disband する（rank 変更や regiment 所有権移転で stranded した cavalry を回収するため）。active + cooldown 中 destroyed を current count として過不足を調整。不足時は `selectCavalryBarracksHolding`（首都 province 内で当該 Polity が terminal owner である holding を選択）に `createRegiment`（`basePower = cavalryEntitlementBasePower`(=10) 固定）で新規作成。超過時は destroyed 優先・effectivePower 昇順で disband。
 
 worldgen: `generateInitialRegiments` の Pass 3 で rank-eligible 非 titular Polity に初期騎兵を生成する。
 
