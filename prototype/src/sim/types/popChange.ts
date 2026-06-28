@@ -11,7 +11,7 @@ import { workplaceRefKey } from './workplaceRef'
 //   holding 合計の純変動 = natural + migrationIn − migrationOut で正確に一致する
 //   (転職・雇用調整は holding 内で純ゼロ、epsilon 除去は <0.01 のノイズ)。
 //   POP グループ単位では転職・雇用調整でも size が動くため、natural + migration は size の
-//   素の差分とは一致しない (転職分は monthlyPopMobility の階層移動セクションに集約)。
+//   素の差分とは一致しない (転職分は monthlyPopMobility.topMovements で別途保持)。
 
 export type PopChangeEntry = {
   natural: number // 自然増減 (出生・自然死・飢饉/疫病/戦災死を含む)。正=増、負=減。

@@ -206,9 +206,14 @@ EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が rec
   - **判断系は maxRatio 後の実効容量を見る**: 熟練職（自作農≤小作農 / 親方≤職人）の同数上限で「下層不足で埋まらない枠」を `shortage` / 空き枠 / 移住 vacancy に計上しないよう、共有 helper `clampCapacityByMaxRatio`（生容量を `refEmployed × ratio` で絞る・判断系と rebalance が同一式を共有）と `getHoldingPopTypeEffectiveCapacity` を追加し、`shortageByType`/`surplusByType`・`getHoldingPopTypeRemainingCapacity`・移住 cache の vacancy 用 `capacityByType` をこれに差し替えた。`idealShareByType`/`desiredEmployedByType` は構造的推定値なので**生容量のまま**。移住の `holdingJobCongestion`（物理的混雑）も**生容量を分母**にする（実効容量で割ると下層不足 holding が過大な移住圧になるため）。`employmentRebalanceSystem` 本体（生容量＋動的 `refEmployed` ループ）は挙動不変だが clamp 式は共有 helper に集約した。
   - 数値（各レート・`popMobilityMinMoveAmount`・maxRatio ratio）は default 据え置き（balance-defer §4）。観察項目: per-source レートの妥当性・移住オーバーシュートの振動・失業上位（職なし貴族）の量。150年×4seed integrity green・determinism 維持（移動挙動が変わるため dump-world は本追補適用前と非互換＝期待挙動）。
 
+- **転職・移住の追補改訂（v0.64 後半）**: 以下 3 点を改訂。
+  - **lateral 全開放**: `LATERAL_PAIRS` を手動ペア列挙から `POP_TYPES_BY_STRATUM` による同 stratum 内全組み合わせの自動生成に変更。例: 失業 scribes → laborers への直接 lateral 遷移が可能になった。資格制度（識字率等）を導入するまでは同階層内に制限を設けない。
+  - **小 POP 全量転職（`popUnemployedFullConversionSize`、default=1.0）**: 失業 POP の size がこの閾値以下の場合、per-source レート制限（`size × rate`）を無視して全量が一度に転職できる。移住で到着した少量の POP が月 2% ずつしか転職できず残留し続ける問題を解消。
+  - **移住の stratum 単位判定**: 移住先の vacancy フィルタ・opportunity score を **PopType 単位から stratum 単位**へ変更。`remainingStratumCapacity = Σ_{t ∈ stratum} max(0, capacityByType[t] − employed[t])` で判定し、source の PopType に枠が無くても同 stratum 内の別 PopType に枠があれば移住先候補になる。POP は元の PopType のまま移住し失業着地 → 翌月の PopJobChange が lateral 遷移で充当する（lateral 全開放と相互補完）。opportunity score の vacancy denominator・popTypeDemandScore も stratum 集計に統一。source-stay / target の両方に適用。
+
 - **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（PopJobChange が初期化・PopMigration が append して merge）。各 entry は `kind`（'job_change' | 'migration'）/ `amount` / source・target holding / from・to popType / from・to employed を持つ。**UI 表示（v0.56 UI 改修）**:
   - **Holding detail** = 移住のみ。topMovements の migration entry をこの holding に出入りする相手 holding 別に集計し「流入元 / 流出先」を表示（相手 holding はクリックで遷移）。
-  - **POP detail** = 階層移動・転職。topMovements の job_change entry のうちこの POP を target/source とするものを相手職種別に集計し、`classifyMobilityKind(from, to)` で昇格/降格/転職に分類して「転入 / 転出」を表示。
+  - **POP detail** = 人口変動セクションに統合。自然増減・移住・転職を 1 セクションにまとめ、純変動に転職の転入・転出を含める。転職がある場合は相手職種別の内訳（`classifyMobilityKind` で昇格/降格/転職に分類）を表示。転入は `toPopType` のみで判定（`toEmployed` は常に false のため失業着地後の雇用状態でフィルタしない）。
   - **Province detail** には出さない（v0.56 UI 改修で state 集計セクションを撤去。情報は Holding/POP に集約）。
   - **bound**: 旧 global top-N（20）は per-entity drill-down で大半の小移動を捨てるため（実測 small で月 ~411 件 → 95% 喪失）、`popMobilityTopMovementLimit` を **store-all 相当の高い safety cap（4000）** に引き上げ、先月分を per-Holding / per-POP で完全に再構成できるようにした。snapshot は毎月上書きで累積しないため state 肥大化はしない。
   - SimEvent / Chronicle には出さない（月次大量発生のため）。

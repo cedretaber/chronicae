@@ -290,6 +290,8 @@ export type SimulationConfig = {
   popMobilityTopMovementLimit: number
   //   job change (cap は per-source: source.size × kind 別レート, v0.59 追補)
   popJobChangeMonthlyRateByKind: Record<PopMobilityKind, number>
+  //   失業 POP がこの size 以下なら rate cap を無視して全量転職 (残留防止)
+  popUnemployedFullConversionSize: number
   //   wealth gate は相対分位 (C3)。epsilon は分布が潰れた際の不発ガード。
   popPromotionEpsilon: number
   popDemotionEpsilon: number
@@ -1849,11 +1851,12 @@ export const defaultConfig: SimulationConfig = {
   popMobilityMinMoveAmount: 0.01,
   // store-all 相当 (実測: tiny ~80, small ~411, standard ~1-2k movements/月)。per-entity UI の完全性確保。
   popMobilityTopMovementLimit: 4000,
-  popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.01 },
+  popJobChangeMonthlyRateByKind: { lateral: 0.02, promotion: 0.005, demotion: 0.1 },
+  popUnemployedFullConversionSize: 1.0,
   popPromotionEpsilon: 1,
   popDemotionEpsilon: 1,
   popPromotionWealthCostByTargetStratum: { middle: 5, upper: 10 },
-  popMigrationMonthlyRateByStratum: { lower: 0.01, middle: 0.005, upper: 0.002 },
+  popMigrationMonthlyRateByStratum: { lower: 0.08, middle: 0.04, upper: 0.015 },
   popMigrationPressureThreshold: 35,
   popMigrationScoreGapThreshold: 20,
   popMigrationCrossPolityScorePenalty: 15,

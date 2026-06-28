@@ -605,14 +605,14 @@ detail:
     kind_demotion: 'demotion'
     none: 'No moves last month'
   popChange:
-    # Holding / POP detail — population change since last month (natural + migration)
+    # Holding / POP detail — population change since last month
     section_title: 'Population change (last month)'
     net: 'Net'
     natural: 'Natural'
     migration: 'Migration'
     migration_in: 'In'
     migration_out: 'Out'
-    pop_subtotal_note: 'Subtotal of natural + migration (job/employment changes shown above)'
+    job_change: 'Job change'
   popNeed:
     # POP detail — need satisfaction by tier/category (latest economy tick)
     section_title: 'Need Satisfaction (this month)'

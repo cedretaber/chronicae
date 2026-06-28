@@ -608,9 +608,8 @@ export function getHoldingMonthlyPopChange(
   }
 }
 
-// v0.59: 先月の人口変動を POP グループ単位で取得。net は自然増減 + 移住の小計
-//   (転職・雇用変動は含まない → POP グループの素の size 差分とは一致しない。それらは
-//   monthlyPopMobility の階層移動セクションに集約)。read-model 未生成は undefined。
+// v0.59: 先月の人口変動を POP グループ単位で取得 (自然増減 + 移住)。
+//   転職分は含まない (monthlyPopMobility.topMovements で別途保持)。read-model 未生成は undefined。
 export function getPopGroupMonthlyPopChange(
   state: WorldState,
   pop: PopGroup,
