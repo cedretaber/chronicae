@@ -1489,6 +1489,8 @@ export type SimulationConfig = {
   developRealEstateEmploymentSlackScore: number
   // 雇用スラックのある holding の improve_house_real_estate (house レベルアップ) aim に加点するボーナス。
   improveRealEstateEmploymentSlackBonus: number
+  // 不動産種類選択時、対応 stratum の失業 POP がいない場合のスコア割引係数 (0-1)。
+  developRealEstateNoLaborDiscountFactor: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
   // v0.59 地形特性: 定義（config 駆動・--config で上書き可）と付与密度の global 乗数。
@@ -3195,6 +3197,7 @@ export const defaultConfig: SimulationConfig = {
   developRealEstateEmploymentSlackThreshold: 5,
   developRealEstateEmploymentSlackScore: 15,
   improveRealEstateEmploymentSlackBonus: 8,
+  developRealEstateNoLaborDiscountFactor: 0.3,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },
   // v0.59 地形特性（balance-defer の default 値）。産出 trait は input を持たない raw 資源のみ対象。

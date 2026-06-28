@@ -23,10 +23,16 @@ import {
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
 import { computeSlotCapacity } from '../selectors/terrainTraitSelectors'
-import { hasCapacityPressure, hasEmploymentSlack } from '../selectors/popSelectors'
+import {
+  hasCapacityPressure,
+  hasEmploymentSlack,
+  getHoldingUnemployedPopSize,
+} from '../selectors/popSelectors'
 import { estimateRealEstateSalePrice } from '../selectors/realEstateSelectors'
 import { selectMostVulnerableHouseOwnedAsset } from '../selectors/realEstateSeizureSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
+import type { PopStratum } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
@@ -218,6 +224,13 @@ function selectRealEstateKind(
   const usedSlots = assetIds.length
   const hasSlotRoom = usedSlots < slotCap
 
+  const unemployedByStratum: Record<PopStratum, number> = {
+    lower: getHoldingUnemployedPopSize(ws, holdingId, 'lower'),
+    middle: getHoldingUnemployedPopSize(ws, holdingId, 'middle'),
+    upper: getHoldingUnemployedPopSize(ws, holdingId, 'upper'),
+  }
+  const noLaborDiscount = config.developRealEstateNoLaborDiscountFactor
+
   const ALL_KINDS = Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]
   let bestKind: RealEstateKind | undefined
   let bestEffectiveGain = 0
@@ -233,7 +246,9 @@ function selectRealEstateKind(
     const terrainMult = config.realEstateTerrainCapacityMultiplier[kind][province.terrain] ?? 1.0
     let totalGain = 0
     for (const slot of def.employmentSlots) {
-      totalGain += slot.capacityPerLevel * terrainMult
+      const laborFactor =
+        unemployedByStratum[getPopStratum(slot.popType)] > 0 ? 1.0 : noLaborDiscount
+      totalGain += slot.capacityPerLevel * terrainMult * laborFactor
     }
     if (totalGain > bestEffectiveGain) {
       bestEffectiveGain = totalGain
@@ -320,9 +335,7 @@ function buildProjectFieldsForAim(
 
       if (hasCapPressure || hasSlack) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
-        if (!realEstateKind) {
-          // fallback: no buildable kind → try infrastructure instead
-        } else {
+        if (realEstateKind) {
           const holding = ws.holdings[holdingId]
           const maxLevel =
             REAL_ESTATE_DEFINITIONS[realEstateKind].maxLevelByHoldingKind[
@@ -336,7 +349,6 @@ function buildProjectFieldsForAim(
             slotProvince?.traits ?? [],
           )
           const hasSlotRoom = assetIds.length < slotCap
-          // upgrade: find existing asset of this kind with level < maxLevel
           const upgradeTarget = (() => {
             for (const aId of assetIds) {
               const a = ws.realEstateAssets[aId]
@@ -345,32 +357,32 @@ function buildProjectFieldsForAim(
             }
             return undefined
           })()
-          // v0.55 §B: 失業スラック駆動かつ空きスロットがあれば新規建設 (level 1) を優先し、空き枠を
-          //   idle labor で埋める。空きが無ければ既存 asset の upgrade にフォールバック。純粋な
-          //   capacity pressure 時 (スラック無し) は従来どおり upgrade 優先。
-          const preferNewBuild = hasSlack && hasSlotRoom
-          const effectiveUpgradeTarget = preferNewBuild ? undefined : upgradeTarget
-          const targetLevel = effectiveUpgradeTarget ? effectiveUpgradeTarget.level + 1 : 1
-          const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
-          const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
-          const required = baseCost * costMult * config.projectBudgetMarginMultiplier
-          const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
-          const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
-          return {
-            kind: 'develop_real_estate',
-            holdingId,
-            realEstateKind,
-            targetRealEstateAssetId: effectiveUpgradeTarget?.id,
-            targetRealEstateLevel: targetLevel,
-            currentStageKey: getInitialProjectStageKey('develop_real_estate'),
-            budget: {
-              required,
-              allocated: 0,
-              remaining: 0,
-              spent: 0,
-              source: { kind: 'owner' },
-            } satisfies ProjectBudget,
-            targetProgress: baseProgress * progMult,
+          // スロット満杯かつ upgrade 対象もない → インフラ改良にフォールバック。
+          if (hasSlotRoom || upgradeTarget) {
+            const preferNewBuild = hasSlack && hasSlotRoom
+            const effectiveUpgradeTarget = preferNewBuild ? undefined : upgradeTarget
+            const targetLevel = effectiveUpgradeTarget ? effectiveUpgradeTarget.level + 1 : 1
+            const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
+            const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+            const required = baseCost * costMult * config.projectBudgetMarginMultiplier
+            const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
+            const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+            return {
+              kind: 'develop_real_estate',
+              holdingId,
+              realEstateKind,
+              targetRealEstateAssetId: effectiveUpgradeTarget?.id,
+              targetRealEstateLevel: targetLevel,
+              currentStageKey: getInitialProjectStageKey('develop_real_estate'),
+              budget: {
+                required,
+                allocated: 0,
+                remaining: 0,
+                spent: 0,
+                source: { kind: 'owner' },
+              } satisfies ProjectBudget,
+              targetProgress: baseProgress * progMult,
+            }
           }
         }
       }
