@@ -378,11 +378,21 @@ function collectHoldingCapacityInputs(
   const slotCap = computeSlotCapacity(config, holding.kind, province.traits)
   const overuseMod = computeSlotOveruseModifier(assets.length, slotCap, config)
 
-  // v0.61 §16.6: active 商会施設の popType 別雇用枠を capacity に統合する（二重給与回避の核＝
-  //   asset 枠と同じ denominator に入れる）。merchant 不在 holding では空。
+  // weight/overuse を掛けない直接枠: 商会施設 + 兵舎。
+  const directSlots: Partial<Record<PopType, number>> = {}
   const merchantSlots = getHoldingMerchantEmploymentSlots(state, holdingId)
+  for (const [pt, n] of Object.entries(merchantSlots) as [PopType, number][]) {
+    directSlots[pt] = (directSlots[pt] ?? 0) + n
+  }
+  for (const bkId of state.regimentBarracksIndex.byHolding[holdingId] ?? []) {
+    const bk = state.regimentBarracks[bkId]
+    if (!bk || bk.status !== 'active') continue
+    for (const [pt, n] of Object.entries(bk.requiredByPopType) as [PopType, number][]) {
+      directSlots[pt] = (directSlots[pt] ?? 0) + n
+    }
+  }
 
-  return { holding, province, improvements, assets, overuseMod, merchantSlots }
+  return { holding, province, improvements, assets, overuseMod, directSlots }
 }
 
 export function getHoldingClassCapacity(
@@ -450,7 +460,7 @@ export function getHoldingPopTypeCapacity(
 ): number {
   const inputs = collectHoldingCapacityInputs(state, config, holdingId)
   if (!inputs) return 0
-  const { holding, province, improvements, assets, overuseMod, merchantSlots } = inputs
+  const { holding, province, improvements, assets, overuseMod, directSlots } = inputs
   return computeHoldingPopTypeCapacity(
     holding.kind,
     holding.weight,
@@ -461,7 +471,7 @@ export function getHoldingPopTypeCapacity(
     popType,
     assets,
     overuseMod,
-    merchantSlots,
+    directSlots,
   )
 }
 
@@ -545,7 +555,7 @@ export function getHoldingAllPopTypeCapacities(
 ): Partial<Record<PopType, number>> {
   const inputs = collectHoldingCapacityInputs(state, config, holdingId)
   if (!inputs) return {}
-  const { holding, province, improvements, assets, overuseMod, merchantSlots } = inputs
+  const { holding, province, improvements, assets, overuseMod, directSlots } = inputs
   return computeHoldingAllPopTypeCapacities(
     holding.weight,
     province.terrain,
@@ -554,7 +564,7 @@ export function getHoldingAllPopTypeCapacities(
     config,
     assets,
     overuseMod,
-    merchantSlots,
+    directSlots,
   )
 }
 
