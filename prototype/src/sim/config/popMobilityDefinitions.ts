@@ -1,5 +1,5 @@
 import type { PopType, PopStratum } from '../types/popGroup'
-import { getPopStratum } from '../types/popGroup'
+import { getPopStratum, POP_TYPES_BY_STRATUM } from '../types/popGroup'
 import type { PopMobilityKind } from '../types/popMobility'
 
 // v0.56 §4: PopType 間の許可遷移。数値バランス (rate/threshold/cap) は config、
@@ -8,18 +8,18 @@ import type { PopMobilityKind } from '../types/popMobility'
 
 const STRATUM_ORDER: Record<PopStratum, number> = { lower: 0, middle: 1, upper: 2 }
 
-// §4.2 lateral: 同一 stratum 内の職種変更 (双方向)。
-const LATERAL_PAIRS: ReadonlyArray<readonly [PopType, PopType]> = [
-  ['laborers', 'peasants'],
-  ['laborers', 'artisans'],
-  ['artisans', 'scribes'],
-  ['soldiers', 'laborers'],
-  ['freeholders', 'masters'],
-  ['masters', 'merchants'],
-  ['bureaucrats', 'merchants'],
-  ['ministeriales', 'bureaucrats'],
-  ['nobles', 'patricians'],
-]
+// §4.2 lateral: 同一 stratum 内の全 PopType 間で双方向に転職可能。
+const LATERAL_PAIRS: ReadonlyArray<readonly [PopType, PopType]> = (() => {
+  const pairs: [PopType, PopType][] = []
+  for (const types of Object.values(POP_TYPES_BY_STRATUM)) {
+    for (let i = 0; i < types.length; i++) {
+      for (let j = i + 1; j < types.length; j++) {
+        pairs.push([types[i]!, types[j]!])
+      }
+    }
+  }
+  return pairs
+})()
 
 // §4.2 promotion: 下位→上位 (有向)。
 const PROMOTION_PAIRS: ReadonlyArray<readonly [PopType, PopType]> = [

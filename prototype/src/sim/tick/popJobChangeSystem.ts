@@ -202,7 +202,9 @@ function evaluateCandidate(
   const sourceSurplus = demand.surplusByType[source.popType] ?? 0
   const rate = config.popJobChangeMonthlyRateByKind[kind]
   const movableBySize = source.size - eps
-  const movableByRate = source.size * rate
+  const smallUnemployed =
+    !isEmployed(source) && source.size <= config.popUnemployedFullConversionSize
+  const movableByRate = smallUnemployed ? movableBySize : source.size * rate
 
   // v0.59 追補: 移動先では常に失業着地 (雇用は rebalance が確定)。cap は source サイズ依存・移動先非依存。
   const make = (maxAmount: number, moneyCostPerCapita?: number): JobChangeCandidate => ({

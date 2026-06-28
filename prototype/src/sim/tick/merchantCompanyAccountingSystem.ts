@@ -12,7 +12,10 @@ import type { ResourceKind } from '../types/resource'
 import { RESOURCE_KINDS } from '../types/resource'
 import type { PopType } from '../types/popGroup'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
-import { getSmoothedPriceOrBase } from '../config/resourceEconomyDefinitions'
+import {
+  getSmoothedPriceOrBase,
+  RESOURCE_PRICE_DEFINITIONS,
+} from '../config/resourceEconomyDefinitions'
 import { getMerchantEstablishmentEmploymentSlots } from '../config/merchantDefinitions'
 import { findBoundPop } from '../selectors/popSelectors'
 
@@ -101,7 +104,8 @@ export function runMerchantCompanyAccountingSystem(ctx: TickContext): TickContex
       const avgPlanned = (route.plannedBuyPrice + route.plannedSellPrice) / 2
       const arbitrage = q * Math.max(0, plannedSpread) * config.tradeRouteSpreadCaptureRate
       const serviceFee = q * avgPlanned * config.tradeRouteServiceMarginRate
-      const transport = q * config.tradeRouteTransportCostPerUnit
+      const transportMultiplier = RESOURCE_PRICE_DEFINITIONS[route.resource].transportCostMultiplier
+      const transport = q * config.tradeRouteTransportCostPerUnit * transportMultiplier
       const maintenance =
         (config.tradeRouteFixedMaintenanceCostByLevel[route.level] ?? 0) +
         q * config.tradeRouteVariableMaintenanceCostPerUnit

@@ -206,9 +206,14 @@ EmploymentRebalanceSystem の後・ResourceEconomySystem の前に、POP が rec
   - **判断系は maxRatio 後の実効容量を見る**: 熟練職（自作農≤小作農 / 親方≤職人）の同数上限で「下層不足で埋まらない枠」を `shortage` / 空き枠 / 移住 vacancy に計上しないよう、共有 helper `clampCapacityByMaxRatio`（生容量を `refEmployed × ratio` で絞る・判断系と rebalance が同一式を共有）と `getHoldingPopTypeEffectiveCapacity` を追加し、`shortageByType`/`surplusByType`・`getHoldingPopTypeRemainingCapacity`・移住 cache の vacancy 用 `capacityByType` をこれに差し替えた。`idealShareByType`/`desiredEmployedByType` は構造的推定値なので**生容量のまま**。移住の `holdingJobCongestion`（物理的混雑）も**生容量を分母**にする（実効容量で割ると下層不足 holding が過大な移住圧になるため）。`employmentRebalanceSystem` 本体（生容量＋動的 `refEmployed` ループ）は挙動不変だが clamp 式は共有 helper に集約した。
   - 数値（各レート・`popMobilityMinMoveAmount`・maxRatio ratio）は default 据え置き（balance-defer §4）。観察項目: per-source レートの妥当性・移住オーバーシュートの振動・失業上位（職なし貴族）の量。150年×4seed integrity green・determinism 維持（移動挙動が変わるため dump-world は本追補適用前と非互換＝期待挙動）。
 
+- **転職・移住の追補改訂（v0.64 後半）**: 以下 3 点を改訂。
+  - **lateral 全開放**: `LATERAL_PAIRS` を手動ペア列挙から `POP_TYPES_BY_STRATUM` による同 stratum 内全組み合わせの自動生成に変更。例: 失業 scribes → laborers への直接 lateral 遷移が可能になった。資格制度（識字率等）を導入するまでは同階層内に制限を設けない。
+  - **小 POP 全量転職（`popUnemployedFullConversionSize`、default=1.0）**: 失業 POP の size がこの閾値以下の場合、per-source レート制限（`size × rate`）を無視して全量が一度に転職できる。移住で到着した少量の POP が月 2% ずつしか転職できず残留し続ける問題を解消。
+  - **移住の stratum 単位判定**: 移住先の vacancy フィルタ・opportunity score を **PopType 単位から stratum 単位**へ変更。`remainingStratumCapacity = Σ_{t ∈ stratum} max(0, capacityByType[t] − employed[t])` で判定し、source の PopType に枠が無くても同 stratum 内の別 PopType に枠があれば移住先候補になる。POP は元の PopType のまま移住し失業着地 → 翌月の PopJobChange が lateral 遷移で充当する（lateral 全開放と相互補完）。opportunity score の vacancy denominator・popTypeDemandScore も stratum 集計に統一。source-stay / target の両方に適用。
+
 - **read-model `WorldState.monthlyPopMobility`**（optional・latest のみ毎月上書き）: `jobChangedTotal` / `migratedTotal` / `byState`（state 別 jobChanged/migratedIn/Out）/ `topMovements`（PopJobChange が初期化・PopMigration が append して merge）。各 entry は `kind`（'job_change' | 'migration'）/ `amount` / source・target holding / from・to popType / from・to employed を持つ。**UI 表示（v0.56 UI 改修）**:
   - **Holding detail** = 移住のみ。topMovements の migration entry をこの holding に出入りする相手 holding 別に集計し「流入元 / 流出先」を表示（相手 holding はクリックで遷移）。
-  - **POP detail** = 階層移動・転職。topMovements の job_change entry のうちこの POP を target/source とするものを相手職種別に集計し、`classifyMobilityKind(from, to)` で昇格/降格/転職に分類して「転入 / 転出」を表示。
+  - **POP detail** = 人口変動セクションに統合。自然増減・移住・転職を 1 セクションにまとめ、純変動に転職の転入・転出を含める。転職がある場合は相手職種別の内訳（`classifyMobilityKind` で昇格/降格/転職に分類）を表示。転入は `toPopType` のみで判定（`toEmployed` は常に false のため失業着地後の雇用状態でフィルタしない）。
   - **Province detail** には出さない（v0.56 UI 改修で state 集計セクションを撤去。情報は Holding/POP に集約）。
   - **bound**: 旧 global top-N（20）は per-entity drill-down で大半の小移動を捨てるため（実測 small で月 ~411 件 → 95% 喪失）、`popMobilityTopMovementLimit` を **store-all 相当の高い safety cap（4000）** に引き上げ、先月分を per-Holding / per-POP で完全に再構成できるようにした。snapshot は毎月上書きで累積しないため state 肥大化はしない。
   - SimEvent / Chronicle には出さない（月次大量発生のため）。
@@ -507,7 +512,8 @@ const droughtChance = config.droughtBaseChancePerYear
 
 - **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
-- **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。plague/war_damage は table 値（plague は全 class、war_damage は peasants）。**v0.55: 飢饉の餓死は table 値ではなく不足分比例の急性死** `min(famineMaxMortalityRate, famineMortalityPerDeficit × max(0, pressure − famineOnsetPressure))`（peasants）。**干魃は直接の人口ショックを持たず（table 0）**、後述の食料生産減衰で扶養力を下げて飢饉を誘発する。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
+- **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。plague/war_damage は table 値（plague は全 class、war_damage は peasants）。**v0.55: 飢饉の餓死は table 値ではなく不足分比例の急性死** `min(famineMaxMortalityRate, famineMortalityPerDeficit × max(0, pressure − famineOnsetPressure))`（**全 class 対象、食料生産者保護あり**）。**干魃は直接の人口ショックを持たず（table 0）**、後述の食料生産減衰で扶養力を下げて飢饉を誘発する。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
+- **食料生産者保護**: 飢饉の初期ショックおよび週次デバフにおいて、食料を直接生産する POP（雇用先 asset の `recipeSlots` が `FOOD_RESOURCE_VALUE` に含まれる資源を産出する POP、`isFoodProducerPop` で判定）は被害が `famineFoodProducerProtection`（既定 0.3 = 被害の 30%）に軽減される。食料を自ら生産する農民は手元の食料にアクセスでき、輸送に依存する他の POP よりも生存しやすい。これにより「飢饉が農民を選択的に殺害 → 食料生産低下 → さらに飢饉」の自己強化型 death spiral を防止する。
 - **干魃の食料生産被害（v0.55 §B）**: active な drought Crisis を持つ holding の食料 recipe 産出を、`resourceEconomySystem` の市場清算で乗算減衰する: `倍率 = max(droughtFoodOutputFloor, 1 − droughtFoodOutputPenaltyRate × severity/100)`。供給集計と per-asset 売却益の双方に同じ倍率を適用（決定的、crisis key sorted 反復）。食料以外の産出（鉱石等）は影響しない。干魃は state 食料供給・当該 holding 収益を確かに押し下げる（実測: 干魃多発で grain fulfillment mean 0.989→0.953）。
   - **granularity の注意（実測）**: carrying capacity / pressure は **state 単位**で集計される（`getStateCarryingCapacity` / `getStatePopulation`）一方、干魃は **holding 単位**で発生するため、1 件の局所的な干魃の食料減は state 全体で希釈される。均衡 pressure（~0.77）は `famineOnsetPressure`（1.0）から遠いため、**default 値では単発の干魃が飢饉の閾値を越えることは稀**で、飢饉は主に過剰人口（pressure overshoot）由来で発火する。「広域・甚大な干魃が飢饉を引き起こす」連鎖を信頼できる動力学にするには holding 単位の食料 granularity 化が必要（将来。`project_disaster_relief_future` 参照）。現状は (1) 干魃＝食料経済への被害（収益・供給。検証済）と (2) 飢饉＝物理的食料不足（pressure>1）の結果（検証済）という 2 つの独立した修正であり、両者を強く連結させるのは scope 外。
 - **設備による被害軽減（v0.48.1）**: `crisisMitigationByKind[kind]` に「軽減する設備種別 + レベルあたり軽減率」を持つ kind は、その holding の当該設備の**実効レベル**（`level × conditionEffectiveness(condition)`、§6.6b）に応じて severity と初期ショックを乗算で下げる（`factor = max(0, 1 − reductionPerLevel × 実効レベル)`、決定的で RNG を引かない）。既定は **灌漑設備（irrigation_infrastructure）→ 干魃** / **貯蔵設備（storage_infrastructure）→ 飢饉**（各 0.25/level、健全・max level 3 で最大 75% 軽減＝25% 残る）。「灌漑された農地は干魃に強い / 蔵があれば飢饉を凌げる」という設備の固有性を与える。**機能不全（condition < 閾値）の設備は実効レベルが下がり軽減効果も低下、condition 0 で軽減ゼロ**（壊れた蔵/灌漑は守れない＝設備維持管理と連動）。未登録 kind（plague 等）は軽減なし。
@@ -521,7 +527,7 @@ const droughtChance = config.droughtBaseChancePerYear
 **予算（ProjectBudget, owner Polity 国庫）**: `required = min(floor(treasury * crisisBudgetTreasuryRatio), crisisBudgetCapByKind[kind])`。secure_budget stage で国庫から確保する。treasury 不足なら secure_budget で停滞＝「予算不足の放置」。実行 deadline は `Crisis.deadlineWeek`（spawn 時に `crisisDeadlineWeeksByKind[kind]` で設定）を単一の真実とする（getProjectDeadlineWeeks に handle_crisis 分岐は無い）。
 
 **週次処理（毎週）**:
-- **severity 比例デバフ**: 対象 class の POP に wealth −（`crisisWeeklyWealthPenaltyPerSeverity * severity`）/ unrest +（`crisisWeeklyUnrestPerSeverity * severity`）。対象 class は plague=全 class、unrest=反乱 class（`demand.claimantPopClass`）、その他=peasants。放置 Crisis も severity 据え置きでデバフ継続。
+- **severity 比例デバフ**: 対象 class の POP に wealth −（`crisisWeeklyWealthPenaltyPerSeverity * severity`）/ unrest +（`crisisWeeklyUnrestPerSeverity * severity`）。対象 class は plague/famine=全 class、unrest=反乱 class（`demand.claimantPopClass`）、drought/war_damage=lower。飢饉では食料生産者保護（`famineFoodProducerProtection`）が適用される。放置 Crisis も severity 据え置きでデバフ継続。
 - **放置時の attitude 低下**（対処 Project 無し or secure_budget 停滞中）: その holding の POP の **代官 affection ↓ + Polity affection ↓** を毎週わずかに（`crisisNeglectAffectionDropPerWeek*`）。**owner house は対象外**（災害放置では secession を焚き付けない）。
 - **owner live 解決**: owner polity が inactive / holding terminal 喪失なら expired+purge（EC2/EC5）。所有移転で Project.owner がずれたら旧 Project を cancel し、新 owner で `resolveCrisisHandlers` 経由で対処 Project を張り直す（EC1 自己修復。担当者が立たなければ放置）。
 - **放置リトライ（EC6）**: 対処 Project がない active crisis に毎週 `resolveCrisisHandlers` を再試行する。commonwealth 成立直後など人材不足で spawn 時に Project を立てられなかった crisis が、行政官配置後に回復できるようにする。担当者が見つかれば即座に `createHandleCrisisProjectMut` で Project を生成する。
@@ -2182,7 +2188,7 @@ rank entitlement に基づく騎兵連隊のライフサイクルを一元管理
 処理順:
 1. **titular owner cavalry → disband**: owner Polity が titular の cavalry を即 disband（§19.2 integrity violation 防止）。
 2. **destroyed cooldown → disband**: `destroyedWeek + cavalryDestroyedCooldownWeeks`（24 週）経過した destroyed cavalry を disband。cooldown 中は entitlement count に含まれるため新規作成されない。
-3. **entitlement 調整**: active non-titular Polity ごとに `cavalryEntitlementByRank[rank]`（default: rank2=2, rank3=1, 他=0）で必要数を算出。active + cooldown 中 destroyed を current count として過不足を調整。不足時は `createRegiment`（`basePower = cavalryEntitlementBasePower`(=10) 固定）で新規作成。超過時は destroyed 優先・effectivePower 昇順で disband。
+3. **entitlement 調整**: active non-titular Polity ごとに `cavalryEntitlementByRank[rank]`（default: rank2=2, rank3=1, 他=0）で必要数を算出。entitlement=0 の Polity も処理対象とし、既存騎兵があれば超過分として disband する（rank 変更や regiment 所有権移転で stranded した cavalry を回収するため）。active + cooldown 中 destroyed を current count として過不足を調整。不足時は `selectCavalryBarracksHolding`（首都 province 内で当該 Polity が terminal owner である holding を選択）に `createRegiment`（`basePower = cavalryEntitlementBasePower`(=10) 固定）で新規作成。超過時は destroyed 優先・effectivePower 昇順で disband。
 
 worldgen: `generateInitialRegiments` の Pass 3 で rank-eligible 非 titular Polity に初期騎兵を生成する。
 
@@ -3067,7 +3073,11 @@ StateRegion 単位の市場（§6.55+）は state 間で資源が流通せず、
 
 **lean 逸脱③ / balance-defer**: share holder 死亡時の share 再発行機構が無く ~50年で shares が枯渇する（商会は ownerHouse decision-maker fallback で機能継続・非クラッシュ。share 相続は future）。商家/貴族排他 guard（§10.3 `canHouseOwnMerchantCompany` 等）は未配線だが、商会 owner が常に専用 dh- House（polity 非所有・所有権移転機構なし）のため排他は**構造的に成立済み**。全 config 既定値は balance-defer。
 
-**v0.61 交易路修正 config（balance-defer）**: `tradeRouteFixedMaintenanceCostByLevel: {1:0.15, 2:0.3, 3:0.45, 4:0.6}`（旧 {1:1, 2:2, 3:3, 4:4} から引き下げ）・`tradeRouteVariableMaintenanceCostPerUnit: 0.05`・`tradeRouteFullUtilizationSpreadRatio: 0.6`（≥1.5 は無効値域・価格バンド [0.25,1.75]×basePrice の理論上限）・`merchantCompanyOpenRouteProfitThreshold: 0`・`merchantRouteUpgradeUtilizationThreshold: 0.5`・`merchantRouteUpgradeProfitGainThreshold: 0.5`・`merchantRouteCloseSmoothedProfitThreshold: -0.1`。
+**品目別輸送コスト（v0.64後）**: `RESOURCE_PRICE_DEFINITIONS` に `transportCostMultiplier` を追加。実効輸送コスト = `tradeRouteTransportCostPerUnit × transportCostMultiplier`。穀物等の日用品は低倍率（0.5〜0.7: 嵩張るが護衛不要）、宝石・宝飾品は高倍率（2.5〜3.0: 軽量だが厳重護衛が必要）。石材・木材等の重量物も高倍率（1.5〜2.0）。歴史的な「嵩高い低価値品は長距離交易に乗りにくいが、高価値品は護衛コストがかかる」構造を反映。
+
+**需要適合スコアによる交易路評価（v0.64後）**: `pickBestRouteTarget` が L1 の `expectedMonthlyProfit` だけでなく、target 市場の需要深度（`buyOrders`）を考慮した「成長性スコア」で交易路候補を比較する。`absorbableVolume = targetBuyOrders × tradeRouteDemandAbsorptionFraction` で吸収可能量を推定し、それに見合ったレベルでの予測利益をスコアとする。深い需要のある食料・日用品が、薄い需要の高級品より高スコアを得やすくなる。
+
+**v0.61 交易路修正 config（balance-defer）**: `tradeRouteFixedMaintenanceCostByLevel: {1:0.15, 2:0.3, 3:0.45, 4:0.6}`（旧 {1:1, 2:2, 3:3, 4:4} から引き下げ）・`tradeRouteVariableMaintenanceCostPerUnit: 0.05`・`tradeRouteFullUtilizationSpreadRatio: 0.6`（≥1.5 は無効値域・価格バンド [0.25,1.75]×basePrice の理論上限）・`merchantCompanyOpenRouteProfitThreshold: 0`・`merchantRouteUpgradeUtilizationThreshold: 0.5`・`merchantRouteUpgradeProfitGainThreshold: 0.5`・`merchantRouteCloseSmoothedProfitThreshold: -0.1`・`tradeRouteDemandAbsorptionFraction: 0.5`。
 
 **UI（§22）**: `MerchantCompanyDetail`（所有家・会頭/番頭・財務・本支店・交易路・active Project 一覧）+ `TradeRouteDetail`（接続 state・対象商品・planning price・利益）+ HouseDetail の「商会」セクションから導線。`MarketDetail` は交易路を輸入/輸出に分割表示。`EntityType='merchant_company'`。
 

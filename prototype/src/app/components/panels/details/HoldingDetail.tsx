@@ -54,8 +54,6 @@ import {
   getHoldingEmployedPopSize,
   getHoldingUnemployedPopSize,
   getHoldingClassCapacity,
-  getHoldingEmployedPopSizeByType,
-  getHoldingPopTypeCapacity,
   getAssetPopTypeCapacity,
   getHoldingPops,
   getHoldingMonthlyPopChange,
@@ -266,8 +264,6 @@ export function HoldingDetail({
                           })}
                         </div>
                       ) : null}
-                      {/* 雇用 (popType 別)。上限 = この asset の容量寄与、雇用人数 = holding 全体の雇用
-                          × (この asset の容量 / holding 全体の容量) で按分 (端数は丸め)。 */}
                       <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
                         {REAL_ESTATE_DEFINITIONS[asset.realEstateKind].employmentSlots.map(
                           (slot) => {
@@ -277,21 +273,13 @@ export function HoldingDetail({
                               asset.id,
                               slot.popType,
                             )
-                            const holdingCap = getHoldingPopTypeCapacity(
-                              currentState,
-                              defaultConfig,
-                              holding.id,
-                              slot.popType,
-                            )
-                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                            const empAsset = getWorkplaceEmployedPopSizeByType(
                               currentState,
                               holding.id,
+                              { kind: 'asset', id: asset.id },
                               slot.popType,
                             )
-                            const empAsset =
-                              holdingCap > 0 ? holdingEmp * (assetCap / holdingCap) : 0
-                            const pct =
-                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                            const pct = assetCap > 0 ? clamp100((empAsset / assetCap) * 100) : 0
                             return (
                               <div key={slot.popType} className="flex items-center gap-1.5">
                                 <span className="w-20 text-gray-500">
@@ -395,27 +383,18 @@ export function HoldingDetail({
                         </span>
                         <span className="text-blue-400">{companyName}</span>
                       </div>
-                      {/* 雇用 (popType 別)。上限 = この施設の提供枠 (枠×Lv)、雇用人数 = holding 全体の
-                          雇用 × (この施設の枠 / holding 全体の容量) で施設へ按分する (端数は丸め)。 */}
                       <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-600/50 pt-0.5">
                         {(Object.entries(slots) as [PopType, number][]).map(
                           ([popType, perLevel]) => {
                             const facilityCap = perLevel * Math.max(0, est.level)
-                            const holdingCap = getHoldingPopTypeCapacity(
-                              currentState,
-                              defaultConfig,
-                              holding.id,
-                              popType,
-                            )
-                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                            const empFacility = getWorkplaceEmployedPopSizeByType(
                               currentState,
                               holding.id,
+                              { kind: 'merchant', id: est.id },
                               popType,
                             )
-                            const empFacility =
-                              holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
                             const pct =
-                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                              facilityCap > 0 ? clamp100((empFacility / facilityCap) * 100) : 0
                             return (
                               <div key={popType} className="flex items-center gap-1.5">
                                 <span className="w-20 text-gray-500">
@@ -707,21 +686,14 @@ export function HoldingDetail({
                           {impDef.employmentSlots.map((slot) => {
                             const facilityCap =
                               slot.capacityPerLevel * imp.level * effInfra * holding.weight
-                            const holdingCap = getHoldingPopTypeCapacity(
-                              currentState,
-                              defaultConfig,
-                              holding.id,
-                              slot.popType,
-                            )
-                            const holdingEmp = getHoldingEmployedPopSizeByType(
+                            const empFacility = getWorkplaceEmployedPopSizeByType(
                               currentState,
                               holding.id,
+                              { kind: 'improvement', id: imp.id },
                               slot.popType,
                             )
-                            const empFacility =
-                              holdingCap > 0 ? holdingEmp * (facilityCap / holdingCap) : 0
                             const pct =
-                              holdingCap > 0 ? clamp100((holdingEmp / holdingCap) * 100) : 0
+                              facilityCap > 0 ? clamp100((empFacility / facilityCap) * 100) : 0
                             return (
                               <div key={slot.popType} className="flex items-center gap-1.5">
                                 <span className="w-20 text-gray-500">

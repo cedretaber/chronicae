@@ -349,4 +349,38 @@ describe('飢饉の急性餓死 (v0.55 §B: deficit 比例)', () => {
     expect(Object.values(next.state.crises).some((c) => c?.kind === 'famine')).toBe(true)
     expect(next.state.popGroups[POP]!.size).toBe(1000)
   })
+
+  it('食料生産者 POP は飢饉被害が famineFoodProducerProtection 倍に軽減される', () => {
+    // farm に grain_field recipe を設定して食料生産者にする
+    let s = buildWorld()
+    s = {
+      ...s,
+      realEstateAssets: {
+        ...s.realEstateAssets,
+        [FARM_ASSET_ID]: {
+          ...s.realEstateAssets[FARM_ASSET_ID]!,
+          recipeSlots: { grain_field: 10 } as Record<string, number>,
+        },
+      },
+    }
+    const protection = defaultConfig.famineFoodProducerProtection
+    const maxRate = defaultConfig.famineMaxMortalityRate
+    const next = runCrisisSystem(
+      createTickContext({
+        state: s,
+        rng: createRng('crisis-spawn'),
+        config: { ...defaultConfig, ...FORCE_FAMINE },
+      }),
+    )
+    // 食料生産者: effectiveRate = maxRate * protection
+    expect(next.state.popGroups[POP]!.size).toBeCloseTo(1000 * (1 - maxRate * protection))
+  })
+
+  it('非食料生産 POP (recipeSlots 空) は飢饉被害が軽減されない', () => {
+    // buildWorld の farm は recipeSlots: {} のため食料生産者ではない
+    const next = runCrisisSystem(ctxWith({}))
+    expect(next.state.popGroups[POP]!.size).toBeCloseTo(
+      1000 * (1 - defaultConfig.famineMaxMortalityRate),
+    )
+  })
 })

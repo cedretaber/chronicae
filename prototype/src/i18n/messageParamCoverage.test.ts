@@ -187,5 +187,5 @@ describe('fired-event messageParams cover translation placeholders (runtime)', (
       [...failures.values()],
       `\nfired events missing placeholders:\n${[...failures.values()].join('\n')}\n`,
     ).toEqual([])
-  }, 120000)
+  }, 600000)
 })

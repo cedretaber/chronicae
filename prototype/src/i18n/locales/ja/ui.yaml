@@ -708,14 +708,14 @@ detail:
     kind_demotion: '降格'
     none: '先月の移動なし'
   popChange:
-    # Holding / POP 詳細 — 先月からの人口変動 (自然増減 + 移住)
+    # Holding / POP 詳細 — 先月からの人口変動
     section_title: '人口変動 (先月)'
     net: '純変動'
     natural: '自然増減'
     migration: '移住'
     migration_in: '流入'
     migration_out: '流出'
-    pop_subtotal_note: '自然増減 + 移住の小計 (転職・雇用変動は上記に集約)'
+    job_change: '転職'
   popNeed:
     # POP 詳細 — 需要充足率 (必需品/日用品/贅沢品 × カテゴリ、直近経済 tick)
     section_title: '需要充足率 (今月)'
@@ -725,7 +725,8 @@ detail:
     category_staple_food: '主食'
     category_protein: 'タンパク質'
     category_basic_drink: '酒'
-    category_basic_clothing: '衣料'
+    category_basic_fabric: '布'
+    category_clothing: '衣服'
     category_fine_food: '上質な食料'
     category_luxury_drink: '高級酒'
     category_luxury_clothing: '高級衣料'

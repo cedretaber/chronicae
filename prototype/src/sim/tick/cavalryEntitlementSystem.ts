@@ -66,7 +66,6 @@ export function runCavalryEntitlementSystem(ctx: TickContext): TickContext {
     if (getPolityTerritorialStatus(polity) === 'titular') continue
 
     const entitlement = config.cavalryEntitlementByRank[polity.rank] ?? 0
-    if (entitlement <= 0) continue
 
     const ownerKey = organizationKey({ kind: 'polity', id: polityId })
     const ownedIds = ws.regimentIndex.byOwner[ownerKey] ?? []

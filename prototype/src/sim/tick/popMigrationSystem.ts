@@ -4,7 +4,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { HoldingId, PolityId } from '../types/ids'
 import type { PopGroup, PopType, PopStratum } from '../types/popGroup'
-import { POP_STRATA, POP_TYPES } from '../types/popGroup'
+import { POP_STRATA, POP_TYPES, POP_TYPES_BY_STRATUM } from '../types/popGroup'
 import type { PopMobilitySnapshotEntry } from '../types/popMobility'
 import {
   getHoldingAllPopTypeCapacities,
@@ -101,7 +101,12 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
         if (pressure < config.popMigrationPressureThreshold) continue
 
         const sourcePolity = sourceCache.terminalPolity
-        const stayRemaining = remainingCapacity(sourceCache, ws, sourceHoldingId, source.popType)
+        const stayRemaining = remainingStratumCapacity(
+          sourceCache,
+          ws,
+          sourceHoldingId,
+          source.class,
+        )
         const sourceScore = opportunityScore(
           config,
           source,
@@ -111,16 +116,13 @@ export function runPopMigrationSystem(ctx: TickContext): TickContext {
           stayRemaining,
         )
 
-        // 最良 target を探す (実効 vacancy が opportunity score の主項＝「職があるという評判」)。
-        //   v0.59 追補: remaining>0 は「行く理由があるか」の filter として残すが、移動量は
-        //   remaining では縛らない (移動先非依存・オーバーシュート許容)。
         let bestHolding: HoldingId | undefined
         let bestScore = -Infinity
         for (const targetHoldingId of holdingIds) {
           if (targetHoldingId === sourceHoldingId) continue
           const targetCache = cacheByHolding.get(targetHoldingId)
           if (!targetCache) continue
-          const remaining = remainingCapacity(targetCache, ws, targetHoldingId, source.popType)
+          const remaining = remainingStratumCapacity(targetCache, ws, targetHoldingId, source.class)
           if (remaining <= 0) continue
           const score = opportunityScore(
             config,
@@ -232,19 +234,23 @@ function opportunityScore(
   const cache = cacheByHolding.get(targetHoldingId)
   if (!cache) return -Infinity
 
-  const capacity = cache.capacityByType[source.popType] ?? 0
-  const stratumVacancyScore = clamp(liveRemaining / Math.max(1, capacity), 0, 1)
+  const stratumTypes = POP_TYPES_BY_STRATUM[source.class]
+  let stratumCapacity = 0
+  for (const t of stratumTypes) stratumCapacity += cache.capacityByType[t] ?? 0
+  const stratumVacancyScore = clamp(liveRemaining / Math.max(1, stratumCapacity), 0, 1)
 
-  // B2: 構成ミスマッチ (vacancy ではなく理想構成からのズレ)。idealShare/currentShare とも
-  //   holding 全体で正規化する (v0.57.1: stratum 内正規化を廃止。移動の判断を Class 単位に統一)。
   const demand = cache.demand
-  const idealShare = demand.idealShareByType[source.popType] ?? 0
+  let stratumIdealShare = 0
+  let stratumCurrentShare = 0
   let totalCurrent = 0
   for (const t of POP_TYPES) totalCurrent += demand.currentEmployedByType[t] ?? 0
-  const currentShare =
-    totalCurrent > 0 ? (demand.currentEmployedByType[source.popType] ?? 0) / totalCurrent : 0
+  for (const t of stratumTypes) {
+    stratumIdealShare += demand.idealShareByType[t] ?? 0
+    if (totalCurrent > 0)
+      stratumCurrentShare += (demand.currentEmployedByType[t] ?? 0) / totalCurrent
+  }
   const popTypeDemandScore = clamp(
-    Math.max(0, idealShare - currentShare) / Math.max(idealShare, SHARE_EPS),
+    Math.max(0, stratumIdealShare - stratumCurrentShare) / Math.max(stratumIdealShare, SHARE_EPS),
     0,
     1,
   )
@@ -333,15 +339,20 @@ function buildHoldingCache(
   }
 }
 
-// 月内不変の cache 済 capacity ceiling − live employed = 現在の残 capacity (heavy な再算出を回避)。
-function remainingCapacity(
+// stratum 内の全 PopType について per-type remaining を合計。per-type ごとに max(0,...) を取ってから
+//   合算する (overstaffed な type が他 type の room を食い潰さないようにするため)。
+function remainingStratumCapacity(
   cache: HoldingMigrationCache,
   ws: WorldState,
   holdingId: HoldingId,
-  popType: PopType,
+  stratum: PopStratum,
 ): number {
-  return Math.max(
-    0,
-    (cache.capacityByType[popType] ?? 0) - getHoldingEmployedPopSizeByType(ws, holdingId, popType),
-  )
+  let total = 0
+  for (const t of POP_TYPES_BY_STRATUM[stratum]) {
+    total += Math.max(
+      0,
+      (cache.capacityByType[t] ?? 0) - getHoldingEmployedPopSizeByType(ws, holdingId, t),
+    )
+  }
+  return total
 }

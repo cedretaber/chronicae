@@ -20,7 +20,7 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { WorldState } from '../types/world'
 import type { Regiment } from '../types/regiment'
-import type { RegimentId } from '../types/ids'
+import type { RegimentId, HoldingId, RegimentBarracksId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
@@ -31,8 +31,9 @@ import {
   getRegimentHoldingId,
 } from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
-import { getBarracksFulfillment, getEffectiveMaxStrength } from '../selectors/barracksSelectors'
+import { getBarracksFulfillment, type BarracksFulfillment } from '../selectors/barracksSelectors'
 import { organizationKey, isOrganizationActive } from '../selectors/organizationSelectors'
+import { buildHoldingEmploymentMap, type HoldingEmploymentMap } from '../selectors/popSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
 // homeHolding の terminal Polity が現 owner Polity と一致するか (二値)。holding 消失・terminal 不明・
@@ -86,6 +87,27 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     cloned = true
   }
 
+  const empMaps = new Map<HoldingId, HoldingEmploymentMap>()
+  const fulfillmentCache = new Map<RegimentBarracksId, BarracksFulfillment>()
+
+  const getCachedFulfillment = (barracksId: RegimentBarracksId): BarracksFulfillment => {
+    let f = fulfillmentCache.get(barracksId)
+    if (f) return f
+    const barracks = ws.regimentBarracks[barracksId]
+    if (!barracks) {
+      f = { overallFulfillment: 1, commandFulfillment: 1, byPopType: {} }
+    } else {
+      let map = empMaps.get(barracks.holdingId)
+      if (!map) {
+        map = buildHoldingEmploymentMap(ws, barracks.holdingId)
+        empMaps.set(barracks.holdingId, map)
+      }
+      f = getBarracksFulfillment(ws, barracksId, map)
+    }
+    fulfillmentCache.set(barracksId, f)
+    return f
+  }
+
   const emitReformed = (regiment: Regiment): void => {
     const ownerId = regiment.owner.kind === 'polity' ? regiment.owner.id : undefined
     if (ownerId === undefined) return
@@ -128,8 +150,8 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     if (r.status === 'active') {
       const barracks = ws.regimentBarracks[r.barracksId]
       if (!barracks) continue
-      const fulfillment = getBarracksFulfillment(ws, r.barracksId)
-      const effectiveMax = getEffectiveMaxStrength(ws, r)
+      const fulfillment = getCachedFulfillment(r.barracksId)
+      const effectiveMax = r.maxStrength * fulfillment.overallFulfillment
       if (r.strength >= effectiveMax) continue
       const homeControl = homeControlFactor(ws, r)
       if (homeControl <= 0) continue
@@ -161,7 +183,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
       if (popFactor < config.destroyedRegimentReformMinPopFactor) continue
       const barracksForReform = ws.regimentBarracks[r.barracksId]
       if (!barracksForReform) continue
-      const reformFulfillment = getBarracksFulfillment(ws, r.barracksId)
+      const reformFulfillment = getCachedFulfillment(r.barracksId)
       if (reformFulfillment.overallFulfillment < config.destroyedRegimentReformMinPopFactor)
         continue
       if (barracksForReform.lastPayrollFulfillment <= 0) continue

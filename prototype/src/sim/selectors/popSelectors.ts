@@ -8,6 +8,7 @@ import type {
   PopGroupId,
 } from '../types/ids'
 import type { PopGroup, PopClass, PopType } from '../types/popGroup'
+import { getPopStratum } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import type { ResourceKind } from '../types/resource'
@@ -15,7 +16,7 @@ import type { WorkplaceRef } from '../types/workplaceRef'
 import { clamp } from '../utils/math'
 import { FOOD_RESOURCE_VALUE, FOOD_NEED_CATEGORIES } from '../config/popFoodDefinitions'
 import { POP_NEED_PROFILES } from '../config/popNeedDefinitions'
-import { NEED_CATEGORY_TIER } from '../types/needCategory'
+import { getNeedCategoryTier } from '../types/needCategory'
 import { marketResourcePriceKey } from '../types/resourceEconomy'
 import {
   computeHoldingClassCapacity,
@@ -32,6 +33,8 @@ import { popGroupChangeKey } from '../types/popChange'
 import { POP_TYPE_MAX_RATIO } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { isEmployed, workplaceRefKey } from '../types/workplaceRef'
+import type { ProductionRecipeId } from '../types/ids'
+import { PRODUCTION_RECIPE_DEFINITIONS } from '../config/productionRecipeDefinitions'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -117,9 +120,11 @@ export function getStateFoodSupply(state: WorldState, stateId: StateRegionId): n
 //   生存閾値が needSatisfaction の実需要と構造的に同一の物差しになり、config を触っても drift しない。
 export function getPerCapitaFoodNeed(config: SimulationConfig, popType: PopType): number {
   const profile = POP_NEED_PROFILES[popType]
+  const stratum = getPopStratum(popType)
   let need = 0
   for (const cat of FOOD_NEED_CATEGORIES) {
-    const tierScale = NEED_CATEGORY_TIER[cat] === 'essential' ? config.popEssentialNeedScale : 1
+    const tierScale =
+      getNeedCategoryTier(stratum, cat) === 'essential' ? config.popEssentialNeedScale : 1
     need += profile[cat] * tierScale
   }
   return need
@@ -603,9 +608,8 @@ export function getHoldingMonthlyPopChange(
   }
 }
 
-// v0.59: 先月の人口変動を POP グループ単位で取得。net は自然増減 + 移住の小計
-//   (転職・雇用変動は含まない → POP グループの素の size 差分とは一致しない。それらは
-//   monthlyPopMobility の階層移動セクションに集約)。read-model 未生成は undefined。
+// v0.59: 先月の人口変動を POP グループ単位で取得 (自然増減 + 移住)。
+//   転職分は含まない (monthlyPopMobility.topMovements で別途保持)。read-model 未生成は undefined。
 export function getPopGroupMonthlyPopChange(
   state: WorldState,
   pop: PopGroup,
@@ -687,6 +691,49 @@ export function getWorkplaceEmployedPopSizeByType(
   return total
 }
 
+// Employment Map: holding 内の (popType, workplaceRefKey) → 雇用 size 合計。
+// O(P) の全 POP スキャンを 1 回に集約し、以後は O(1) lookup で参照する。
+export type HoldingEmploymentMap = Map<string, number>
+
+function empMapKey(popType: string, refKey: string): string {
+  return `${popType}:${refKey}`
+}
+
+export function buildHoldingEmploymentMap(
+  state: WorldState,
+  holdingId: HoldingId,
+): HoldingEmploymentMap {
+  const map: HoldingEmploymentMap = new Map()
+  for (const popId of state.popIndex.byHolding[holdingId] ?? []) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    const key = empMapKey(pop.popType, workplaceRefKey(pop.employerId))
+    map.set(key, (map.get(key) ?? 0) + pop.size)
+  }
+  return map
+}
+
+export function empMapLookup(
+  map: HoldingEmploymentMap,
+  ref: WorkplaceRef,
+  popType: PopType,
+): number {
+  return map.get(empMapKey(popType, workplaceRefKey(ref))) ?? 0
+}
+
+export function empMapUpdate(
+  map: HoldingEmploymentMap,
+  popType: PopType,
+  fromRef: WorkplaceRef | null,
+  toRef: WorkplaceRef | null,
+  size: number,
+): void {
+  const fromKey = empMapKey(popType, workplaceRefKey(fromRef))
+  const toKey = empMapKey(popType, workplaceRefKey(toRef))
+  map.set(fromKey, Math.max(0, (map.get(fromKey) ?? 0) - size))
+  map.set(toKey, (map.get(toKey) ?? 0) + size)
+}
+
 // v0.63: holding 内の特定雇用主(WorkplaceRef)と popType に一致する最初の PopGroupId を返す。
 //   wage carve (Task 5) で対象 POP を特定するために使う。
 export function findBoundPop(
@@ -738,4 +785,19 @@ export function collectHoldingWorkplaces(
   }
   refs.sort((a, b) => workplaceRefKey(a).localeCompare(workplaceRefKey(b)))
   return refs
+}
+
+export function isFoodProducerPop(state: WorldState, pop: PopGroup): boolean {
+  if (!pop.employerId || pop.employerId.kind !== 'asset') return false
+  const asset = state.realEstateAssets[pop.employerId.id]
+  if (!asset) return false
+  for (const recipeId of Object.keys(asset.recipeSlots).sort() as ProductionRecipeId[]) {
+    if ((asset.recipeSlots[recipeId] ?? 0) <= 0) continue
+    const recipe = PRODUCTION_RECIPE_DEFINITIONS[recipeId]
+    if (!recipe) continue
+    for (const output of recipe.outputs) {
+      if (output.resource in FOOD_RESOURCE_VALUE) return true
+    }
+  }
+  return false
 }

@@ -22,29 +22,29 @@ export type ImprovementDefinition = {
 }
 
 export const IMPROVEMENT_DEFINITIONS: Record<HoldingImprovementKind, ImprovementDefinition> = {
-  // 領主館: 貴族:家士:兵士:労働者 = 1:2:3:4 (total 20/level)。領地の維持・管理。
+  // 領主館: 貴族:家士:兵士:労働者 = 1:2:3:4 (total 10/level)。領地の維持・管理。
   manor_house: {
     kind: 'manor_house',
     allowedHoldingKinds: ['manor'],
     capacityRole: 'capacity',
     employmentSlots: [
-      { popType: 'nobles', capacityPerLevel: 2 },
-      { popType: 'ministeriales', capacityPerLevel: 4 },
-      { popType: 'soldiers', capacityPerLevel: 6 },
-      { popType: 'laborers', capacityPerLevel: 8 },
+      { popType: 'nobles', capacityPerLevel: 1 },
+      { popType: 'ministeriales', capacityPerLevel: 2 },
+      { popType: 'soldiers', capacityPerLevel: 3 },
+      { popType: 'laborers', capacityPerLevel: 4 },
     ],
     critical: true,
   },
-  // 市庁舎: 都市貴族:官僚:兵士:労働者 = 1:2:3:4 (total 20/level)。
+  // 市庁舎: 都市貴族:官僚:兵士:労働者 = 1:2:3:4 (total 10/level)。
   town_hall: {
     kind: 'town_hall',
     allowedHoldingKinds: ['city'],
     capacityRole: 'capacity',
     employmentSlots: [
-      { popType: 'patricians', capacityPerLevel: 2 },
-      { popType: 'bureaucrats', capacityPerLevel: 4 },
-      { popType: 'soldiers', capacityPerLevel: 6 },
-      { popType: 'laborers', capacityPerLevel: 8 },
+      { popType: 'patricians', capacityPerLevel: 1 },
+      { popType: 'bureaucrats', capacityPerLevel: 2 },
+      { popType: 'soldiers', capacityPerLevel: 3 },
+      { popType: 'laborers', capacityPerLevel: 4 },
     ],
     critical: true,
   },

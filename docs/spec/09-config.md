@@ -293,7 +293,8 @@
 | droughtBaseChancePerYear | 0.04 | 干魃発生率/年/Province（v0.55: 気候イベント。人口圧とは独立した base のみ） |
 | famineOnsetPressure | 1.0 | v0.55 飢饉: pressure（人口/扶養力）がこれを超えた分が「食料不足」= 発火/餓死の不足量 |
 | famineMortalityPerDeficit | 0.3 | v0.55 飢饉: 急性餓死率 = min(famineMaxMortalityRate, perDeficit × (pressure − onset)) |
-| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る lower POP の上限割合 |
+| famineMaxMortalityRate | 0.15 | v0.55 飢饉: 1 回の飢饉発生で減る POP の上限割合 |
+| famineFoodProducerProtection | 0.3 | 食料生産者（雇用先 asset が食料資源を産出する POP）の飢饉被害軽減係数。初期ショック・週次デバフとも被害の 30% のみ受ける |
 | droughtFoodOutputPenaltyRate | 1.0 | v0.55 干魃: 食料産出倍率 = max(floor, 1 − rate × severity/100) |
 | droughtFoodOutputFloor | 0.3 | v0.55 干魃: 産出減衰の下げ止まり（severity 100 でも floor 倍は残る） |
 | crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 / disrepair 30 | kind 別 初期 severity（disrepair は修理工数 = Project targetProgress） |
@@ -510,7 +511,8 @@
 | popMobilityTopMovementLimit | 4000 | snapshot topMovements の上限件数。**store-all 相当の高い safety cap**（draft 初期値 20 から引き上げ — per-Holding/per-POP の drill-down 再構成のため。毎月上書きで累積しない） |
 | ~~popJobChangeMaxFractionPerHoldingPerMonth~~ | — | **v0.59 追補で廃止**（holding 共有予算 cap → per-source cap へ再設計。`popJobChangeMonthlyRateByKind` に一本化） |
 | ~~popJobChangeMaxPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
-| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.01 } | kind 別の source.size に対する 1 回あたり移動率（v0.59 追補で per-source cap の主軸に） |
+| popJobChangeMonthlyRateByKind | { lateral: 0.02, promotion: 0.005, demotion: 0.1 } | kind 別の source.size に対する 1 回あたり移動率（v0.59 追補で per-source cap の主軸に。v0.64 後半で demotion を 0.01→0.1 に引き上げ — 失業 middle/upper の滞留防止） |
+| popUnemployedFullConversionSize | 1.0 | 失業 POP の size がこの値以下ならレート制限を無視して全量転職（移住到着の少量 POP の残留防止） |
 | popPromotionEpsilon | 1 | promotion 相対 gate（C3）の不発ガード（`> median + これ`）。分布が潰れていると発火しない |
 | popDemotionEpsilon | 1 | demotion 相対 gate の不発ガード（`< median − これ`） |
 | popPromotionWealthCostByTargetStratum | { middle: 5, upper: 10 } | promotion で移動 cohort の incoming wealth から引く昇格コスト（source pool は下げない） |
@@ -518,7 +520,7 @@
 | ~~popMigrationMaxInflowFractionPerHoldingPerMonth~~ | — | **v0.59 追補で廃止**（移動先非依存化に伴い流入 cap 自体を撤去） |
 | ~~popMigrationMaxOutflowPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
 | ~~popMigrationMaxInflowPerHoldingPerMonthHardCap~~ | — | **v0.59 追補で廃止**（同上） |
-| popMigrationMonthlyRateByStratum | { lower: 0.01, middle: 0.005, upper: 0.002 } | stratum 別の source.size に対する 1 回あたり移住率（v0.59 追補で per-source cap の主軸に） |
+| popMigrationMonthlyRateByStratum | { lower: 0.08, middle: 0.04, upper: 0.015 } | stratum 別の source.size に対する 1 回あたり移住率（v0.59 追補で per-source cap の主軸に。v0.64 後半で 8x 引き上げ — 旧値では人口増に対してスループット不足） |
 | popMigrationPressureThreshold | 35 | この migration pressure 以上の POP のみ移住 source 候補 |
 | popMigrationScoreGapThreshold | 20 | 最良 target の opportunity score が source-stay score をこの差以上で上回れば移住 |
 | popMigrationCrossPolityScorePenalty | 15 | terminal polity 跨ぎ移住の score 減点（禁止ではなく減点） |

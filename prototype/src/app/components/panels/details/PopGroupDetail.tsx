@@ -1,7 +1,7 @@
 import type { PopGroup, PopType } from '@/sim/types/popGroup'
 import { getPopStratum } from '@/sim/types/popGroup'
 import type { NeedCategory, NeedTier } from '@sim/types/needCategory'
-import { NEED_CATEGORIES, NEED_CATEGORY_TIER } from '@sim/types/needCategory'
+import { NEED_CATEGORIES, getNeedCategoryTier } from '@sim/types/needCategory'
 import { clamp100 } from '@sim/utils/math'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot } from './shared/helpers'
@@ -115,7 +115,7 @@ export function PopGroupDetail({
         const byTier = new Map<NeedTier, NeedCategory[]>()
         for (const cat of NEED_CATEGORIES) {
           if (sat[cat] === undefined) continue
-          const tier = NEED_CATEGORY_TIER[cat]
+          const tier = getNeedCategoryTier(popGroup.class, cat)
           const arr = byTier.get(tier) ?? []
           arr.push(cat)
           byTier.set(tier, arr)
@@ -154,64 +154,37 @@ export function PopGroupDetail({
         )
       })()}
 
-      {/* v0.59: 先月からの人口変動 (自然増減 + 移住の小計)。転職・雇用変動は下の階層移動セクションに集約。 */}
       {currentState &&
         (() => {
           const change = getPopGroupMonthlyPopChange(currentState, popGroup)
           if (!change) return null
-          const netTone =
-            change.net > 0 ? 'text-emerald-400' : change.net < 0 ? 'text-rose-400' : 'text-gray-300'
-          const naturalTone =
-            change.natural > 0
-              ? 'text-emerald-400'
-              : change.natural < 0
-                ? 'text-rose-400'
-                : 'text-gray-300'
-          return (
-            <div className="text-sm">
-              <DetailSection title={t('detail.popChange.section_title')} />
-              <div className="mt-1 flex flex-col gap-1 text-xs">
-                <div className="flex justify-between font-medium">
-                  <span className="text-gray-300">{t('detail.popChange.net')}</span>
-                  <span className={netTone}>{formatPopDelta(change.net)}</span>
-                </div>
-                <div className="flex justify-between text-gray-400">
-                  <span className="ml-2">{t('detail.popChange.natural')}</span>
-                  <span className={naturalTone}>{formatPopDelta(change.natural)}</span>
-                </div>
-                <div className="flex justify-between text-gray-400">
-                  <span className="ml-2">{t('detail.popChange.migration')}</span>
-                  <span>
-                    <span className="text-emerald-400">+{formatPopFlow(change.migrationIn)}</span>
-                    <span className="text-gray-500"> / </span>
-                    <span className="text-amber-400">−{formatPopFlow(change.migrationOut)}</span>
-                  </span>
-                </div>
-                <div className="text-gray-500">{t('detail.popChange.pop_subtotal_note')}</div>
-              </div>
-            </div>
-          )
-        })()}
 
-      {/* v0.56: 階層移動・転職 (先月)。この POP への転入 (昇格/降格/転職で来た) と転出を相手職種別に集計。 */}
-      {currentState?.monthlyPopMobility &&
-        (() => {
-          const inflow = new Map<PopType, number>() // key: 転入元 popType
-          const outflow = new Map<PopType, number>() // key: 転出先 popType
-          for (const m of currentState.monthlyPopMobility.topMovements) {
-            if (m.kind !== 'job_change') continue
-            if ((m.sourceHoldingId as string) !== (popGroup.holdingId as string)) continue
-            if (m.toPopType === popGroup.popType && m.toEmployed === isEmployed(popGroup)) {
-              inflow.set(m.fromPopType, (inflow.get(m.fromPopType) ?? 0) + m.amount)
-            }
-            if (m.fromPopType === popGroup.popType && m.fromEmployed === isEmployed(popGroup)) {
-              outflow.set(m.toPopType, (outflow.get(m.toPopType) ?? 0) + m.amount)
+          const inflow = new Map<PopType, number>()
+          const outflow = new Map<PopType, number>()
+          if (currentState.monthlyPopMobility) {
+            for (const m of currentState.monthlyPopMobility.topMovements) {
+              if (m.kind !== 'job_change') continue
+              if ((m.sourceHoldingId as string) !== (popGroup.holdingId as string)) continue
+              if (m.toPopType === popGroup.popType) {
+                inflow.set(m.fromPopType, (inflow.get(m.fromPopType) ?? 0) + m.amount)
+              }
+              if (m.fromPopType === popGroup.popType && m.fromEmployed === isEmployed(popGroup)) {
+                outflow.set(m.toPopType, (outflow.get(m.toPopType) ?? 0) + m.amount)
+              }
             }
           }
+          const jobIn = [...inflow.values()].reduce((s, v) => s + v, 0)
+          const jobOut = [...outflow.values()].reduce((s, v) => s + v, 0)
+          const net = change.natural + change.migrationIn - change.migrationOut + jobIn - jobOut
+
+          const toneFn = (v: number) =>
+            v > 0 ? 'text-emerald-400' : v < 0 ? 'text-rose-400' : 'text-gray-300'
+
           const inRows = [...inflow.entries()].sort((a, b) => b[1] - a[1])
           const outRows = [...outflow.entries()].sort((a, b) => b[1] - a[1])
-          const isEmpty = inRows.length === 0 && outRows.length === 0
-          const row = (counterpart: PopType, amount: number, dir: 'in' | 'out') => {
+          const hasJobChange = inRows.length > 0 || outRows.length > 0
+
+          const mobilityRow = (counterpart: PopType, amount: number, dir: 'in' | 'out') => {
             const kind =
               dir === 'in'
                 ? classifyMobilityKind(counterpart, popGroup.popType)
@@ -249,18 +222,42 @@ export function PopGroupDetail({
               </div>
             )
           }
+
           return (
             <div className="text-sm">
-              <DetailSection
-                title={t('detail.popMobility.pop_section_title')}
-                count={inRows.length + outRows.length}
-              />
-              {isEmpty ? (
-                <div className="mt-1 text-xs text-gray-500">{t('detail.popMobility.none')}</div>
-              ) : (
-                <div className="mt-1 flex flex-col gap-1 text-xs text-gray-300">
-                  {inRows.map(([pt, amt]) => row(pt, amt, 'in'))}
-                  {outRows.map(([pt, amt]) => row(pt, amt, 'out'))}
+              <DetailSection title={t('detail.popChange.section_title')} />
+              <div className="mt-1 flex flex-col gap-1 text-xs">
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-300">{t('detail.popChange.net')}</span>
+                  <span className={toneFn(net)}>{formatPopDelta(net)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.natural')}</span>
+                  <span className={toneFn(change.natural)}>{formatPopDelta(change.natural)}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="ml-2">{t('detail.popChange.migration')}</span>
+                  <span>
+                    <span className="text-emerald-400">+{formatPopFlow(change.migrationIn)}</span>
+                    <span className="text-gray-500"> / </span>
+                    <span className="text-amber-400">−{formatPopFlow(change.migrationOut)}</span>
+                  </span>
+                </div>
+                {hasJobChange && (
+                  <div className="flex justify-between text-gray-400">
+                    <span className="ml-2">{t('detail.popChange.job_change')}</span>
+                    <span>
+                      <span className="text-emerald-400">+{formatPopFlow(jobIn)}</span>
+                      <span className="text-gray-500"> / </span>
+                      <span className="text-amber-400">−{formatPopFlow(jobOut)}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+              {hasJobChange && (
+                <div className="mt-2 flex flex-col gap-1 text-xs text-gray-300">
+                  {inRows.map(([pt, amt]) => mobilityRow(pt, amt, 'in'))}
+                  {outRows.map(([pt, amt]) => mobilityRow(pt, amt, 'out'))}
                 </div>
               )}
             </div>
