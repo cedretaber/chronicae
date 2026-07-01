@@ -41,7 +41,11 @@ import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { getHoldingImprovementEffectiveLevel } from '../selectors/holdingImprovementSelectors'
-import { getProvincePopulationPressure, isFoodProducerPop } from '../selectors/popSelectors'
+import {
+  getProvincePopulationPressure,
+  getProvincePopulation,
+  isFoodProducerPop,
+} from '../selectors/popSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
@@ -602,8 +606,12 @@ function runAnnualSpawn(
     const famineDeficit = Math.max(0, pressure - config.famineOnsetPressure)
     const famineChance =
       config.famineBaseChancePerYear + config.faminePressureChanceBonus * famineDeficit
+    const provincePop = getProvincePopulation(ws, provinceId)
     const plagueChance =
-      config.plagueBaseChancePerYear + config.plaguePressureChanceBonus * pressureExcess
+      provincePop <= config.plaguePopulationFloor
+        ? 0
+        : config.plagueBaseChancePerYear +
+          config.plagueDensityChancePerPop * (provincePop - config.plaguePopulationFloor)
     // v0.55: 干魃は気候イベント。人口圧とは独立した base chance のみで発火する。発生 holding の
     //   食料生産を減衰させ (resourceEconomySystem) → 扶養力低下 → 飢饉の原因となる。
     //   直接の人口ショックは持たない (crisisInitialShockSizeRateByKind.drought = 0)。

@@ -216,6 +216,7 @@ export type SimulationConfig = {
   popSystemEnabled: boolean
   minPopSizeByClass: Record<PopStratum, number>
   minProvinceCarryingCapacity: number
+  baseCarryingCapacityPerHolding: number
   // v0.60.3: carrying capacity の per-capita 食料需要は config 定数ではなく POP_NEED_PROFILES から
   //   人口加重で導出する (getPerCapitaFoodNeed)。旧 perCapitaFoodNeed (固定 1.0) は廃止。
   manpowerFactorByClass: Record<PopStratum, number>
@@ -310,7 +311,8 @@ export type SimulationConfig = {
   warPeasantSizeDamage: number
   warTownsmanSizeDamage: number
   faminePressureChanceBonus: number
-  plaguePressureChanceBonus: number
+  plaguePopulationFloor: number
+  plagueDensityChancePerPop: number
   // v0.48 Crisis (災害・戦災・反乱前段の entity 化, §7.2)
   crisisEnabled: boolean
   // 発生年次ロール (drought は気候イベントで base のみ。famine は v0.55 で扶養力不足駆動)
@@ -1791,6 +1793,7 @@ export const defaultConfig: SimulationConfig = {
   popSystemEnabled: true,
   minPopSizeByClass: { lower: 5, middle: 1, upper: 1 },
   minProvinceCarryingCapacity: 50,
+  baseCarryingCapacityPerHolding: 75,
   manpowerFactorByClass: { lower: 0.03, middle: 0.01, upper: 0.06 },
   baseMonthlyGrowthByClass: { lower: 0.008, middle: 0.002, upper: 0.001 },
   populationPressureThreshold: 0.9,
@@ -1871,7 +1874,8 @@ export const defaultConfig: SimulationConfig = {
   warPeasantSizeDamage: 0.5,
   warTownsmanSizeDamage: 0.3,
   faminePressureChanceBonus: 9.2,
-  plaguePressureChanceBonus: 2.0,
+  plaguePopulationFloor: 200,
+  plagueDensityChancePerPop: 0.0001,
   // v0.48 Crisis (§7.2)。balance は機能完成後にまとめて調整する前提の暫定値 (CLAUDE.md §4)。
   crisisEnabled: true,
   droughtBaseChancePerYear: 0.04,

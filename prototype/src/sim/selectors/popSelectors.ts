@@ -157,8 +157,8 @@ export function getStateFoodRequirement(
 }
 
 // v0.60.3: state の「養える人口」= max(floor, foodSupply / 人口加重 per-capita 食料需要)。
-//   v0.55 の固定 perCapitaFoodNeed(=1.0) を、需要側と同じ導出値の人口加重平均へ置換し、
-//   「満腹なのに自然減」を生んでいた生存閾値(1.0)と実需要(~0.6)の校正ずれを解消する。
+//   floor は holding 数 × 基底容量（土地のポテンシャル）。POP 依存の食料生産がゼロでも
+//   「この土地は本来これだけの人を養える」という下限を保証し、正帰還型の人口崩壊を防ぐ。
 export function getStateCarryingCapacity(
   state: WorldState,
   config: SimulationConfig,
@@ -167,11 +167,34 @@ export function getStateCarryingCapacity(
   const supply = getStateFoodSupply(state, stateId)
   const population = getStatePopulation(state, stateId)
   const requirement = getStateFoodRequirement(state, config, stateId)
-  // 人口加重 per-capita 需要。人口ゼロ時は base profile (peasants) で代替 (pressure は 0 になるため無影響)。
   const perCapita =
     population > 0 ? requirement / population : getPerCapitaFoodNeed(config, 'peasants')
   const cc = supply / Math.max(perCapita, 0.0001)
-  return Math.max(config.minProvinceCarryingCapacity, cc)
+  const landFloor = getStateLandCarryingCapacityFloor(state, config, stateId)
+  return Math.max(landFloor, cc)
+}
+
+function getStateLandCarryingCapacityFloor(
+  state: WorldState,
+  config: SimulationConfig,
+  stateId: StateRegionId,
+): number {
+  const region = state.states[stateId]
+  if (!region) return config.minProvinceCarryingCapacity
+  let weightedHoldings = 0
+  for (const provinceId of region.provinceIds) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const holdingId of province.holdingIds) {
+      const holding = state.holdings[holdingId]
+      if (!holding) continue
+      weightedHoldings += holding.weight
+    }
+  }
+  return Math.max(
+    config.minProvinceCarryingCapacity,
+    weightedHoldings * config.baseCarryingCapacityPerHolding,
+  )
 }
 
 export function getStatePopulation(state: WorldState, stateId: StateRegionId): number {
